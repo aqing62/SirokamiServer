@@ -1,0 +1,252 @@
+/* ── 单页 Section 显示/隐藏 (仅新增) ── */
+.content-section { display: none; }
+.content-section.active { display: block; flex: 1; }
+#section-main.active { display: flex; }
+
+/* ── 防止CSS未加载完成时的闪烁 ── */
+body.loading { visibility: hidden; }
+body.loaded { visibility: visible; }
+
+:root {
+    --red: #D81E44;
+    --dark-red: #A51834;
+    --black: #121212;
+    --dark-gray: #1E1E1E;
+    --gold: #D4AF37;
+    --light-gold: #F0E68C;
+}
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+}
+body {
+    background: linear-gradient(rgba(18,18,18,0.9), rgba(18,18,18,0.9)),
+                linear-gradient(135deg, #1a1a1a 0%, #000 100%);
+    color: #fff;
+    display: flex;
+    min-height: 100vh;
+}
+.main-content {
+    flex: 1;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    max-width: calc(100% - 180px);
+    margin-right: 30px;
+    position: relative;
+}
+.main-content::after {
+    content: '';
+    position: absolute;
+    right: -30px;
+    top: 10%;
+    bottom: 10%;
+    width: 2px;
+    background: var(--red);
+}
+.logo-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 30px;
+    gap: 20px;
+}
+.logo-img {
+    width: 100px;
+    height: 100px;
+    border-radius: 20px;
+    object-fit: cover;
+    filter: drop-shadow(0 0 5px var(--red));
+}
+.server-title h1 {
+    font-size: 2.5rem;
+    color: var(--light-gold);
+    text-shadow: 0 0 5px var(--light-gold), 0 0 15px var(--gold), 0 0 30px rgba(212,175,55,0.6);
+}
+.server-title p {
+    font-size: 1.2rem;
+    color: #ccc;
+    margin-top: 5px;
+}
+.section {
+    background: linear-gradient(135deg, var(--dark-gray), var(--black));
+    border-radius: 20px;
+    padding: 25px;
+    margin-bottom: 25px;
+    border: 1px solid rgba(216, 30, 68, 0.3);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+.section h2 {
+    color: var(--gold);
+    margin-bottom: 15px;
+    font-size: 1.5rem;
+    border-bottom: 2px solid var(--red);
+    padding-bottom: 10px;
+}
+.section p, .section a {
+    font-size: 1.1rem;
+    line-height: 1.6;
+}
+.section a {
+    color: var(--light-gold);
+    text-decoration: none;
+}
+.btn-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.action-btn {
+    display: inline-block;
+    background: linear-gradient(135deg, var(--red), var(--dark-red));
+    color: var(--light-gold) !important;
+    text-decoration: none;
+    padding: 12px 25px;
+    border-radius: 15px;
+    font-weight: bold;
+    border: none;
+    cursor: pointer;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.action-btn:visited {
+    color: var(--light-gold) !important;
+}
+.action-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 15px rgba(216, 30, 68, 0.7);
+    color: var(--light-gold) !important;
+}
+.action-btn:active {
+    transform: scale(0.95);
+}
+.sidebar {
+    width: 180px;
+    background: linear-gradient(180deg, var(--dark-gray), var(--black));
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    border-left: 1px solid rgba(216, 30, 68, 0.3);
+    position: fixed;
+    top: 50%;
+    transform: translateX(0) translateY(-50%);
+    right: 0;
+    height: 100vh;
+    z-index: 100;
+    transition: transform 0.3s ease;
+}
+.sidebar.hidden {
+    transform: translateX(100%) translateY(-50%);
+}
+/* 右侧悬浮触发区 */
+.sidebar-trigger {
+    position: fixed;
+    right: 0;
+    top: 0;
+    width: 12px;
+    height: 100vh;
+    z-index: 99;
+    display: none;
+}
+.sidebar-btn {
+    width: 120px;
+    height: 120px;
+    background: linear-gradient(135deg, var(--dark-gray), var(--black));
+    border: 2px solid var(--red);
+    border-radius: 20px;
+    margin: 15px 0;
+    color: var(--gold);
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    cursor: pointer;
+}
+.sidebar-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(216, 30, 68, 0.5);
+}
+.sidebar-btn:active {
+    transform: scale(0.95);
+}
+
+/* 手机端优化：底部悬浮横排按钮 */
+@media (max-width: 768px) {
+    body {
+        flex-direction: column;
+        padding-bottom: 120px;
+    }
+    .main-content {
+        max-width: 100%;
+        padding: 20px;
+    }
+    .sidebar {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: auto;
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: center;
+        border-left: none;
+        border-top: 1px solid rgba(216, 30, 68, 0.3);
+        background: linear-gradient(180deg, var(--dark-gray), var(--black));
+        z-index: 999;
+        padding: 10px 0;
+        transform: none;
+        top: auto;
+    }
+    .sidebar-btn {
+        width: 80px;
+        height: 80px;
+        margin: 0 5px;
+        font-size: 0.9rem;
+    }
+    .logo-container {
+        flex-direction: column;
+        text-align: center;
+    }
+    .server-title h1 {
+        font-size: 2rem;
+    }
+    .section h2 {
+        font-size: 1.3rem;
+    }
+    /* 移动端侧边栏始终可见 */
+    .sidebar.hidden { transform: none; }
+    .sidebar-trigger { display: none !important; }
+}
+
+/* 公告功能样式 */
+.announcement-box p:nth-child(n+4) {
+    display: none;
+}
+.announcement-toggle {
+    color: #FFD700;
+    cursor: pointer;
+    margin-top: 8px;
+    display: inline-block;
+}
+.announcement-close {
+    color: #888;
+    cursor: pointer;
+    text-align: right;
+    margin-top: 8px;
+    display: none;
+}
+
+/* ── 统一返回按钮动画：从小到大 + 白光闪现 ── */
+@keyframes backBtnAppear {
+    0%   { transform: scale(0); filter: brightness(3); opacity: 0; }
+    60%  { transform: scale(1.15); filter: brightness(1.5); opacity: 1; }
+    100% { transform: scale(1); filter: brightness(1); opacity: 1; }
+}
+.back-btn.animate-in {
+    animation: backBtnAppear 0.5s ease-out both;
+}

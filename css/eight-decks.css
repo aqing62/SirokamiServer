@@ -1,0 +1,356 @@
+:root {
+    --red: #D81E44;
+    --dark-red: #A51834;
+    --black: #121212;
+    --dark-gray: #1E1E1E;
+    --gold: #D4AF37;
+    --light-gold: #F0E68C;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+}
+
+#section-eight-decks.active {
+    min-height: 100vh;
+    padding: 30px 20px;
+    max-width: 1920px;
+    margin: 0 auto;
+    overflow-x: hidden;
+}
+
+.back-btn {
+    position: fixed;
+    top: 20px;
+    left: 50%; /* 改为居中定位 */
+    transform: translateX(-50%); /* 水平居中 */
+    margin-left: -800px; /* 微调位置，避免遮挡标题 */
+    background: linear-gradient(135deg, var(--red), var(--dark-red));
+    color: var(--light-gold);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+    z-index: 999;
+}
+
+.back-btn:hover {
+    transform: translateX(-50%) scale(1.05); /* 居中状态下缩放 */
+    box-shadow: 0 0 10px rgba(216, 30, 68, 0.6);
+}
+
+.filter-float-btn {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--red), var(--dark-red));
+    color: var(--light-gold);
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    transition: 0.3s;
+    z-index: 1000;
+    box-shadow: 0 4px 15px rgba(216, 30, 68, 0.7);
+    align-items: center;
+    justify-content: center;
+    display: none;
+}
+
+.filter-float-btn:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 20px rgba(216, 30, 68, 0.8);
+}
+
+.filter-mask {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 998;
+    display: none;
+    backdrop-filter: blur(2px);
+}
+
+.filter-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 90%;
+    max-width: 400px;
+    background: linear-gradient(135deg, var(--dark-gray), var(--black));
+    border: 1px solid rgba(216,30,68,0.5);
+    border-radius: 20px;
+    padding: 25px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    z-index: 999;
+    display: none;
+    max-height: 80vh;
+    overflow-y: auto;
+}
+
+.filter-close-btn {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: transparent;
+    border: none;
+    color: var(--light-gold);
+    font-size: 20px;
+    cursor: pointer;
+}
+
+.page-title {
+    text-align: center;
+    color: var(--light-gold);
+    font-size: 2rem;
+    margin-bottom: 10px;
+    text-shadow: 0 0 5px var(--light-gold);
+    /* 标题居中强化 */
+    width: 100%;
+    margin: 0 auto 10px;
+}
+
+.red-line {
+    width: 80%; /* 缩短红线，更美观 */
+    height: 2px;
+    background: var(--red);
+    margin: 0 auto 30px; /* 红线居中 */
+}
+
+/* 核心：主容器完全居中，取消左侧偏移，自动适配 */
+.main-wrap {
+    max-width: 1600px;
+    margin: 0 auto; /* 水平完全居中 */
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+    width: 95%; /* 适配屏幕宽度，留边距 */
+    transform: scale(0.8);
+    transform-origin: center top; /* 缩放原点改为顶部居中，避免靠左 */
+    padding: 0 20px; /* 左右留边距 */
+}
+
+/* 卡组容器 - 自动分配宽度，居中 */
+.container {
+    flex: 1;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+    width: 100%; /* 取消固定宽度，自动适配 */
+    max-width: 1400px;
+    margin: 0 auto; /* 卡组容器自身居中 */
+}
+
+.filter-panel {
+    width: 270px;
+    background: linear-gradient(135deg, var(--dark-gray), var(--black));
+    border: 1px solid rgba(216,30,68,0.3);
+    border-radius: 20px;
+    padding: 20px;
+    position: sticky;
+    top: 30px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    flex-shrink: 0;
+    /* 侧边栏居中对齐（和卡组顶部齐平） */
+    align-self: flex-start;
+}
+
+.filter-panel h3, .filter-popup h3 {
+    color: var(--gold);
+    margin-bottom: 12px;
+    border-bottom: 2px solid var(--red);
+    padding-bottom: 6px;
+    font-size: 1rem;
+    text-align: center; /* 侧边栏标题居中 */
+}
+
+.folder-btn {
+    width: 100%;
+    padding: 10px;
+    margin: 6px 0;
+    background: linear-gradient(135deg, var(--red), var(--dark-red));
+    color: var(--light-gold);
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+    font-size: 14px;
+    /* 按钮文字居中 */
+    text-align: center;
+}
+
+.folder-btn:hover {
+    transform: scale(1.03);
+    box-shadow: 0 0 8px rgba(216,30,68,0.5);
+}
+
+/* 卡组卡片 - 自动居中，适配宽度 */
+.deck {
+    background: linear-gradient(135deg, var(--dark-gray), var(--black));
+    border-radius: 12px;
+    padding: 8px;
+    border: 1px solid var(--red);
+    width: 100%;
+    box-sizing: border-box;
+    max-width: 700px;
+    margin: 0 auto; /* 单张卡组卡片居中 */
+}
+
+.deck h3 {
+    font-size: 0.9rem;
+    color: var(--light-gold);
+    text-align: center;
+    margin-bottom: 6px;
+    /* 卡组名居中强化 */
+    white-space: nowrap; /* 防止名称换行 */
+    overflow: hidden; /* 超出隐藏 */
+    text-overflow: ellipsis; /* 超出显示省略号 */
+    padding: 0 5px;
+}
+
+.deck-sep {
+    height: 1px;
+    background: var(--red);
+    margin: 4px 0;
+}
+
+.deck-section {
+    margin-bottom: 6px;
+}
+
+.section-label {
+    color: var(--gold);
+    font-weight: bold;
+    margin-bottom: 3px;
+    font-size: 0.8rem;
+    text-align: center; /* 分区标签居中 */
+}
+
+/* 卡牌网格 - 自动居中 */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 2px;
+    border: 1px solid #444;
+    padding: 4px;
+    border-radius: 4px;
+    min-height: 30px;
+    width: 100%;
+    margin: 0 auto; /* 卡牌网格居中 */
+}
+
+.card-img {
+    width: 100%;
+    aspect-ratio: 42/61;
+    object-fit: cover;
+    border-radius: 2px;
+    border: 1px solid #666;
+}
+
+.empty-tip {
+    grid-column: 1/-1;
+    text-align: center;
+    color: #ccc;
+    padding: 4px;
+    font-size: 0.7rem;
+}
+
+/* 响应式适配 - 不同屏幕自动调整 */
+@media (max-width: 1400px) {
+    .main-wrap {
+        transform: scale(0.85);
+        width: 98%;
+    }
+}
+
+@media (max-width: 1200px) {
+    .main-wrap {
+        transform: scale(0.9);
+    }
+    .container {
+        grid-template-columns: 1fr; /* 大屏下单列，自动居中 */
+        gap: 8px;
+    }
+    .back-btn {
+        margin-left: -600px; /* 适配大屏，微调返回按钮 */
+    }
+}
+
+@media (max-width: 768px) {
+    .main-wrap {
+        transform: scale(1);
+        flex-direction: column;
+        align-items: center; /* 移动端纵向布局，所有元素居中 */
+        padding: 0 10px;
+        gap: 15px;
+    }
+    .filter-panel {
+        display: none;
+        width: 90%; /* 移动端侧边栏占90%宽度，居中 */
+        margin: 0 auto 10px;
+    }
+    .filter-float-btn {
+        display: flex;
+    }
+    .container {
+        grid-template-columns: 1fr;
+        width: 95%; /* 移动端卡组容器占95%宽度 */
+        max-width: 100%;
+        gap: 8px;
+    }
+    .deck {
+        max-width: 100%;
+        padding: 6px;
+        border-radius: 10px;
+    }
+    .cards {
+        gap: 1px;
+        padding: 3px;
+    }
+    .page-title {
+        font-size: 1.6rem;
+    }
+    .back-btn {
+        margin-left: 0; /* 移动端返回按钮完全居中 */
+        top: 10px;
+        padding: 8px 16px;
+        font-size: 0.9rem;
+    }
+}
+
+/* 适配超小屏幕 */
+@media (max-width: 480px) {
+    .main-wrap {
+        width: 100%;
+        padding: 0 5px;
+    }
+    .deck {
+        padding: 4px;
+    }
+    .cards {
+        grid-template-columns: repeat(8, 1fr); /* 小屏改为8列卡牌，避免挤压 */
+    }
+}
+
+.filter-mask.show,
+.filter-popup.show {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translate(-50%, -45%); }
+    to { opacity: 1; transform: translate(-50%, -50%); }
+}
