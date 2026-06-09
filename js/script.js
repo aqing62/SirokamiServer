@@ -112,9 +112,11 @@ function lazyInit(sectionId) {
     let animating = false;
 
     window.addEventListener('wheel', function (e) {
+        // 如果事件来自模态框或可滚动弹窗内，交给原生滚动处理
+        const el = e.target.closest('.new-cards-grid, .new-cards-overlay, .filter-modal, .pool-filter-overlay, .filter-popup, .mobile-open');
+        if (el) return;
         e.preventDefault();
         target += e.deltaY;
-        // 限制在有效范围
         const max = document.documentElement.scrollHeight - window.innerHeight;
         target = Math.max(0, Math.min(target, max));
         if (!animating) {
