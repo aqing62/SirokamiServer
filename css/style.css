@@ -1,6 +1,18 @@
+/* ── 全局电路板背景 Canvas ── */
+#bgCanvas {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    display: block;
+}
+body {
+    overflow-x: hidden;
+}
+
 /* ── 单页 Section 显示/隐藏 (仅新增) ── */
 .content-section { display: none; }
-.content-section.active { display: block; flex: 1; }
+.content-section.active { display: block; flex: 1; position: relative; z-index: 1; }
 #section-main.active { display: flex; }
 
 /* ── 防止CSS未加载完成时的闪烁 ── */
@@ -20,6 +32,9 @@ body.loaded { visibility: visible; }
     padding: 0;
     box-sizing: border-box;
     font-family: 'Microsoft YaHei', 'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+}
+html {
+    scroll-behavior: smooth;
 }
 body {
     background: linear-gradient(rgba(18,18,18,0.9), rgba(18,18,18,0.9)),
@@ -71,7 +86,9 @@ body {
     margin-top: 5px;
 }
 .section {
-    background: linear-gradient(135deg, var(--dark-gray), var(--black));
+    background: rgba(30, 30, 30, 0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
     border-radius: 20px;
     padding: 25px;
     margin-bottom: 25px;

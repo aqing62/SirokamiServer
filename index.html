@@ -10,10 +10,12 @@
     <link rel="stylesheet" href="css/card-pool-info.css" id="css-card-pool" media="not all">
     <link rel="stylesheet" href="css/eight-decks.css" id="css-eight-decks" media="not all">
     <link rel="stylesheet" href="css/xiaobairenshe.css" id="css-xiaobai" media="not all">
+    <link rel="stylesheet" href="css/new-cards.css" id="css-new-cards" media="not all">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.min.js"></script>
     <style>body.loading { visibility: hidden; }</style>
 </head>
 <body class="loading">
+<canvas id="bgCanvas"></canvas>
 
 <!-- ═══════════════════════════════════════════════════════
      SECTION: 主页
@@ -41,6 +43,7 @@
             <div class="btn-group">
                 <a href="https://pan.quark.cn/s/ca2e4e7a8c63#/list/share" class="action-btn" target="_blank">客户端下载</a>
                 <a href="https://api.ygopro3.cn/file/siro.ypk" class="action-btn" target="_blank">卡包下载</a>
+                <a href="https://mycard.world/" class="action-btn" target="_blank">萌卡下载</a>
             </div>
             <p style="margin-top: 15px; color: #aaa;">QQ群号：817861164</p>
             <p style="margin-top: 8px; font-size: 1rem; color: #ccc;">卡包安装：</p>
@@ -58,7 +61,8 @@
         <div class="section">
             <h2>最新公告</h2>
             <div class="announcement-box">
-                <p>2026.05.14：服务器主站V1.1.0更新：优化整体框架，“主轴评分”替换为“晓白相关”</p>
+                <p>2026.06.10：服务器主站V1.1.1更新：UI美化，滑动优化，卡池内新增新卡列表</p>
+                <p>2026.06.09：服务器主站V1.1.0更新：优化整体框架，“主轴评分”替换为“晓白相关”</p>
                 <p>2026.05.14：服务器主站V1.0.6更新：优化主页样式，优化卡池信息加载逻辑</p>
                 <p>2026.05.12：服务器主站V1.0.5更新：完全优化卡池信息页面</p>
                 <p>2026.05.11：服务器主站V1.0.4更新：修复连接怪兽守备力显示错误</p>

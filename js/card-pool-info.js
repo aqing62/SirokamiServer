@@ -53,17 +53,61 @@ const RACE_MAP = {
 };
 const ATTR_MAP = { 0x0: "无", 0x1: "地", 0x2: "水", 0x4: "炎", 0x8: "风", 0x10: "光", 0x20: "暗", 0x40: "神" };
 
+// ── 图片加载管理器（并发控制 + 换页清队）─────────────────
+const PLACEHOLDER_SVG = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="290">' +
+    '<rect fill="%231a1a1a" width="200" height="290"/>' +
+    '<text fill="%23888" x="100" y="150" text-anchor="middle" font-size="14" font-family="sans-serif">加载中...</text>' +
+    '</svg>'
+);
+const ERROR_SVG = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="290">' +
+    '<rect fill="%231a1a1a" width="200" height="290"/>' +
+    '<text fill="%23888" x="100" y="150" text-anchor="middle" font-size="14" font-family="sans-serif">无卡图</text>' +
+    '</svg>'
+);
+
+const imageLoadQueue = [];
+let activeImageLoads = 0;
+const MAX_CONCURRENT_LOADS = 6;
+
+function processImageQueue() {
+    while (activeImageLoads < MAX_CONCURRENT_LOADS && imageLoadQueue.length > 0) {
+        const { img, url } = imageLoadQueue.shift();
+        activeImageLoads++;
+        const onDone = () => {
+            activeImageLoads--;
+            processImageQueue();
+        };
+        img.onload = onDone;
+        img.onerror = () => {
+            img.src = ERROR_SVG;
+            onDone();
+        };
+        img.src = url;
+    }
+}
+
+function enqueueImageLoad(img, url) {
+    imageLoadQueue.push({ img, url });
+    processImageQueue();
+}
+
+function cancelPendingImageLoads() {
+    // 清空尚未开始下载的排队项（已在下载的由浏览器自行管理）
+    imageLoadQueue.length = 0;
+}
+
 // ── 图片懒加载 ─────────────────────────────────────────
 const imageObserver = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
         if (entry.isIntersecting) {
             const img = entry.target;
-            img.src = img.dataset.src;
-            img.onerror = () => img.src = 'https://via.placeholder.com/200x290/222/fff?text=无卡图';
             imageObserver.unobserve(img);
+            enqueueImageLoad(img, img.dataset.src);
         }
     });
-}, { rootMargin: '200px 0px' });
+}, { rootMargin: '100px 0px' });
 
 // ── 类型掩码快速查找 - 预构建反向索引 ──────────────────
 const MASK_TO_NAME = {};
@@ -298,11 +342,12 @@ function getFilteredCards() {
     );
 
     if (keyword) {
-        filtered = filtered.filter(c =>
-            (c.name && c.name.toLowerCase().includes(keyword)) ||
-            c.id.toString().includes(keyword) ||
-            (c.desc && c.desc.toLowerCase().includes(keyword))
-        );
+        // 空格分词：每个词都必须匹配（AND 逻辑）
+        const words = keyword.split(/\s+/).filter(w => w.length > 0);
+        filtered = filtered.filter(c => {
+            const haystack = ((c.name || '') + ' ' + c.id + ' ' + (c.desc || '')).toLowerCase();
+            return words.every(w => haystack.includes(w));
+        });
     }
 
     const sortedCards = filtered.sort(customCardSort);
@@ -368,6 +413,10 @@ function renderPagination() {
 
 // ── 渲染卡牌 ────────────────────────────────────────────
 function renderCards() {
+    // 换页/筛选：立即清空排队中的旧图片请求，断开旧观察者
+    cancelPendingImageLoads();
+    imageObserver.disconnect();
+
     container.style.opacity = 0;
 
     setTimeout(() => {
@@ -393,7 +442,7 @@ function renderCards() {
             cardEl.className = 'card-item';
             cardEl.innerHTML = `
                 <div class="card-image-wrapper">
-                    <img class="card-image" src="https://via.placeholder.com/200x290/222/fff?text=加载中..."
+                    <img class="card-image" src="${PLACEHOLDER_SVG}"
                          data-src="https://api.ygopro3.cn/pics/siro/${card.id}.jpg" alt="${card.name}">
                     ${card.author ? `<div class="card-author">${card.author}</div>` : ''}
                 </div>
@@ -468,13 +517,278 @@ function initCardPoolModule() {
         document.getElementById('stats').style.display = 'flex';
         document.querySelector('.search-filter-container').style.display = 'flex';
 
+        // 移动端筛选按钮
+        initMobilePoolFilter();
+
+        // 构建卡号索引，供新卡列表快速查找
+        window._cardIndex = new Map();
+        allCards.forEach(c => window._cardIndex.set(parseInt(c.id), c));
+
         generateAllFilters();
         renderCards();
         db.close();
+
+        // 初始化新卡列表功能
+        initNewCardsFeature();
     } catch (e) {
         container.innerHTML =
             `<div class="empty-tip" style="color:#ff4444">加载失败：${e.message}</div>`;
         console.error("数据加载失败：", e);
     }
     })();
+}
+
+// ── 移动端筛选弹窗 ──────────────────────────────────────
+function initMobilePoolFilter() {
+    const section = document.getElementById('section-card-pool');
+    const filterContainer = document.querySelector('.search-filter-container');
+
+    // 创建移动端筛选按钮
+    const btn = document.createElement('button');
+    btn.className = 'mobile-pool-filter-btn';
+    btn.id = 'mobilePoolFilterBtn';
+    btn.textContent = '☰';
+    btn.title = '筛选';
+    section.appendChild(btn);
+
+    // 在筛选容器内添加关闭按钮
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'mobile-pool-filter-close';
+    closeBtn.textContent = '×';
+    filterContainer.appendChild(closeBtn);
+
+    const openFilter = () => {
+        filterContainer.classList.add('mobile-open');
+        document.body.style.overflow = 'hidden';
+    };
+    const closeFilter = () => {
+        filterContainer.classList.remove('mobile-open');
+        document.body.style.overflow = '';
+    };
+
+    btn.addEventListener('click', openFilter);
+    closeBtn.addEventListener('click', closeFilter);
+    // 点击遮罩背景关闭
+    filterContainer.addEventListener('click', (e) => {
+        if (e.target === filterContainer) closeFilter();
+    });
+}
+
+// ═══════════════════════════════════════════════════════
+// 新卡列表 — 模态框功能
+// ═══════════════════════════════════════════════════════
+
+let newCardsData = null;       // 已加载的 JSON 数据
+let newCardsDates = [];        // 排序后的日期列表
+let newCardsActiveDate = '';   // 当前选中的日期
+let newCardsModalOpen = false;
+
+// 模态框内的图片懒加载观察者
+const newCardsObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+        if (entry.isIntersecting) {
+            const img = entry.target;
+            newCardsObserver.unobserve(img);
+            enqueueImageLoad(img, img.dataset.src);
+        }
+    });
+}, { rootMargin: '100px 0px' });
+
+function initNewCardsFeature() {
+    // 在卡池页面右上角添加触发按钮
+    const section = document.getElementById('section-card-pool');
+    const btn = document.createElement('button');
+    btn.className = 'new-cards-trigger';
+    btn.id = 'newCardsTrigger';
+    btn.textContent = '新卡列表';
+    btn.onclick = openNewCardsModal;
+    section.appendChild(btn);
+}
+
+async function loadNewCardsData() {
+    if (newCardsData) return;
+    try {
+        const resp = await fetch('new_cards.json');
+        newCardsData = await resp.json();
+        newCardsDates = Object.keys(newCardsData).sort().reverse();
+    } catch (e) {
+        console.error('加载新卡列表失败：', e);
+        newCardsData = {};
+        newCardsDates = [];
+    }
+}
+
+function openNewCardsModal() {
+    // 防止重复打开
+    if (document.getElementById('newCardsOverlay')) return;
+    newCardsModalOpen = true;
+
+    // 清除主卡池的图片加载队列，避免冲突
+    cancelPendingImageLoads();
+    imageObserver.disconnect();
+
+    // 先加载数据再渲染
+    loadNewCardsData().then(() => {
+        if (newCardsDates.length === 0) {
+            newCardsModalOpen = false;
+            alert('暂无新卡数据');
+            return;
+        }
+        newCardsActiveDate = newCardsDates[0];
+        buildNewCardsModal();
+        renderNewCards();
+    });
+}
+
+function closeNewCardsModal() {
+    const overlay = document.getElementById('newCardsOverlay');
+    if (overlay) {
+        cancelPendingImageLoads();
+        newCardsObserver.disconnect();
+        overlay.remove();
+    }
+    newCardsModalOpen = false;
+    newCardsActiveDate = '';
+}
+
+function buildNewCardsModal() {
+    // 遮罩层
+    const overlay = document.createElement('div');
+    overlay.className = 'new-cards-overlay';
+    overlay.id = 'newCardsOverlay';
+    overlay.onclick = (e) => {
+        if (e.target === overlay) closeNewCardsModal();
+    };
+
+    // 日期选项
+    const dateChips = newCardsDates.map((d, i) =>
+        `<div class="new-cards-date-option${d === newCardsActiveDate ? ' active' : ''}" data-date="${d}">${d}</div>`
+    ).join('');
+
+    overlay.innerHTML = `
+        <div class="new-cards-modal" onclick="event.stopPropagation()">
+            <div class="new-cards-topbar">
+                <div class="new-cards-topbar-left">
+                    <div class="new-cards-date-dropdown" id="newCardsDateDropdown">
+                        <div class="new-cards-date-trigger" id="newCardsDateTrigger">
+                            <span id="newCardsDateLabel">${newCardsActiveDate}</span>
+                            <span class="new-cards-date-arrow">▼</span>
+                        </div>
+                        <div class="new-cards-date-panel" id="newCardsDatePanel">
+                            ${dateChips}
+                        </div>
+                    </div>
+                    <span class="new-cards-card-count" id="newCardsCount"></span>
+                </div>
+                <button class="new-cards-close" onclick="closeNewCardsModal()">&times;</button>
+            </div>
+            <div class="new-cards-grid" id="newCardsGrid">
+                <div class="empty-tip">加载中…</div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(overlay);
+
+    // 日期下拉：点击触发器展开/收起
+    const dateDropdown = document.getElementById('newCardsDateDropdown');
+    const dateTrigger = document.getElementById('newCardsDateTrigger');
+    const datePanel = document.getElementById('newCardsDatePanel');
+    const dateLabel = document.getElementById('newCardsDateLabel');
+
+    dateTrigger.onclick = function (e) {
+        e.stopPropagation();
+        const isOpen = dateDropdown.classList.toggle('open');
+        if (isOpen) {
+            datePanel.style.maxHeight = datePanel.scrollHeight + 'px';
+        } else {
+            datePanel.style.maxHeight = '0';
+        }
+    };
+
+    // 点击选项
+    datePanel.onclick = function (e) {
+        const opt = e.target.closest('.new-cards-date-option');
+        if (!opt) return;
+        newCardsActiveDate = opt.dataset.date;
+        dateLabel.textContent = newCardsActiveDate;
+        datePanel.querySelectorAll('.new-cards-date-option').forEach(o => o.classList.remove('active'));
+        opt.classList.add('active');
+        // 收起
+        dateDropdown.classList.remove('open');
+        datePanel.style.maxHeight = '0';
+        renderNewCards();
+    };
+
+    // 点击外部关闭
+    document.addEventListener('click', function collapseDateDropdown(e) {
+        if (!dateDropdown.contains(e.target)) {
+            dateDropdown.classList.remove('open');
+            datePanel.style.maxHeight = '0';
+        }
+    });
+
+    // ESC 关闭
+    const escHandler = (e) => {
+        if (e.key === 'Escape') {
+            closeNewCardsModal();
+            document.removeEventListener('keydown', escHandler);
+        }
+    };
+    document.addEventListener('keydown', escHandler);
+}
+
+function renderNewCards() {
+    const grid = document.getElementById('newCardsGrid');
+    const countEl = document.getElementById('newCardsCount');
+    if (!grid) return;
+
+    // 清队 + 断连旧观察
+    cancelPendingImageLoads();
+    newCardsObserver.disconnect();
+
+    const ids = newCardsData[newCardsActiveDate] || [];
+    const cardIndex = window._cardIndex;
+
+    // 查找匹配的卡片
+    const matched = [];
+    for (const id of ids) {
+        const card = cardIndex.get(id);
+        if (card) matched.push(card);
+    }
+
+    countEl.textContent = `(${matched.length} 张)`;
+
+    if (matched.length === 0) {
+        grid.innerHTML = '<div class="empty-tip">该日期暂无匹配卡片数据</div>';
+        return;
+    }
+
+    grid.innerHTML = '';
+    matched.forEach(card => {
+        const ti = card.typeInfo;
+        const isMonster = ti.baseType === '怪兽';
+        const level = card.level || '-';
+        const displayAtk = card.atk === -2 ? '?' : (isNaN(card.atk) ? '-' : card.atk);
+        const displayDef = ti.monsterCategory === '连接怪兽'
+            ? '-' : (card.def === -2 ? '?' : (isNaN(card.def) ? '-' : card.def));
+
+        const cardEl = document.createElement('div');
+        cardEl.className = 'card-item';
+        cardEl.innerHTML = `
+            <div class="card-image-wrapper">
+                <img class="card-image" src="${PLACEHOLDER_SVG}"
+                     data-src="https://api.ygopro3.cn/pics/siro/${card.id}.jpg" alt="${card.name}">
+                ${card.author ? `<div class="card-author">${card.author}</div>` : ''}
+            </div>
+            <div class="card-info">
+                <div class="card-name">${card.name || '无名卡牌'}</div>
+                <div class="card-id">ID: ${card.id}</div>
+                <div class="card-type">${ti.fullType}</div>
+                ${isMonster ? `<div>属性：${card.attrName} | 种族：${card.raceName} | 等级：${level}</div>
+                <div>攻击力：${displayAtk} | 防御力：${displayDef}</div>` : ''}
+                <div class="card-desc">${card.processedDesc}</div>
+            </div>`;
+        grid.appendChild(cardEl);
+        newCardsObserver.observe(cardEl.querySelector('.card-image'));
+    });
 }

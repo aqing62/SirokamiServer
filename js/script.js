@@ -10,7 +10,7 @@ const _inited = {};
 const CSS_MAP = {
     'section-main':       [],
     'section-card-list':  ['css-card-list'],
-    'section-card-pool':  ['css-card-pool'],
+    'section-card-pool':  ['css-card-pool', 'css-new-cards'],
     'section-eight-decks':['css-eight-decks'],
     'section-xiaobai':    ['css-xiaobai'],
 };
@@ -65,12 +65,17 @@ function showSection(sectionId) {
         sidebar.classList.remove('hidden');
     }
     function hideSidebar() {
-        // 主页不隐藏
+        // 主页永远不收起
+        const main = document.getElementById('section-main');
+        if (main && main.classList.contains('active')) return;
+        // 子页触发区不可见时也不收起
+        if (trigger.style.display === 'none') return;
         if (!sidebar.classList.contains('hidden')) {
-            // 仅在子页模式下延迟隐藏
-            if (trigger.style.display !== 'none') {
-                hoverTimer = setTimeout(() => sidebar.classList.add('hidden'), 400);
-            }
+            hoverTimer = setTimeout(() => {
+                if (!sidebar.matches(':hover') && !trigger.matches(':hover')) {
+                    sidebar.classList.add('hidden');
+                }
+            }, 500);
         }
     }
 
@@ -99,6 +104,38 @@ function lazyInit(sectionId) {
             break;
     }
 }
+
+// ── 全局滚轮缓动 ──────────────────────────────────────
+(function () {
+    let target = window.scrollY;
+    let current = target;
+    let animating = false;
+
+    window.addEventListener('wheel', function (e) {
+        e.preventDefault();
+        target += e.deltaY;
+        // 限制在有效范围
+        const max = document.documentElement.scrollHeight - window.innerHeight;
+        target = Math.max(0, Math.min(target, max));
+        if (!animating) {
+            animating = true;
+            requestAnimationFrame(step);
+        }
+    }, { passive: false });
+
+    function step() {
+        // 缓动插值 (ease-out)
+        current += (target - current) * 0.12;
+        window.scrollTo(0, Math.round(current));
+        if (Math.abs(target - current) > 0.5) {
+            requestAnimationFrame(step);
+        } else {
+            current = target;
+            window.scrollTo(0, target);
+            animating = false;
+        }
+    }
+})();
 
 // ── 侧边栏 + 公告 (DOMContentLoaded) ─────────────────────
 document.addEventListener('DOMContentLoaded', function () {
@@ -282,3 +319,227 @@ function initXiaobaiModule() {
     // 启动加载
     loadImages();
 }
+
+// ═══════════════════════════════════════════════════════
+// 全局电路板流光背景
+// ═══════════════════════════════════════════════════════
+(function () {
+    const canvas = document.getElementById('bgCanvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    let W, H;
+
+    function resize() {
+        W = canvas.width  = window.innerWidth;
+        H = canvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    // ── 电路板路径 + 流光脉冲 ──────────────────────────
+    const traces = [];
+    const TRACE_COUNT = 12;
+    const GLOW_RADIUS = 110;       // 光点照射半径
+    const RED = [216, 30, 68];
+
+    function buildSegments(startX, baseY) {
+        const segs = [];
+        let sx = startX, sy = baseY;
+        const jogMax = bandH * 0.35; // 垂直抖动限制在半带内，避免越界
+        while (sx < W + 200) {
+            const len = 60 + Math.random() * 200;
+            const ex = sx + len;
+            const ey = (segs.length % 2 === 0)
+                ? sy + (Math.random() - 0.5) * jogMax * 2
+                : sy;
+            segs.push({ x1: sx, y1: sy, x2: ex, y2: ey });
+            sx = ex; sy = ey;
+        }
+        return segs;
+    }
+
+    function pathLength(segs) {
+        return segs.reduce((s, seg) => s + Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1), 0);
+    }
+
+    function pointOnPath(segs, t) {
+        // t: 0..1, returns {x, y} along path
+        const total = pathLength(segs);
+        let target = total * t;
+        for (const seg of segs) {
+            const len = Math.hypot(seg.x2 - seg.x1, seg.y2 - seg.y1);
+            if (target <= len) {
+                const r = len > 0 ? target / len : 0;
+                return { x: seg.x1 + (seg.x2 - seg.x1) * r, y: seg.y1 + (seg.y2 - seg.y1) * r };
+            }
+            target -= len;
+        }
+        const last = segs[segs.length - 1];
+        return { x: last.x2, y: last.y2 };
+    }
+
+    function distPointToSeg(px, py, seg) {
+        const dx = seg.x2 - seg.x1, dy = seg.y2 - seg.y1;
+        const len2 = dx * dx + dy * dy;
+        if (len2 === 0) return Math.hypot(px - seg.x1, py - seg.y1);
+        let t = ((px - seg.x1) * dx + (py - seg.y1) * dy) / len2;
+        t = Math.max(0, Math.min(1, t));
+        const cx = seg.x1 + t * dx, cy = seg.y1 + t * dy;
+        return Math.hypot(px - cx, py - cy);
+    }
+
+    // 创建轨迹（Y 均匀分布，避免重叠）
+    const bandH = H / TRACE_COUNT; // 每条轨迹的垂直带高度
+    for (let i = 0; i < TRACE_COUNT; i++) {
+        const baseY = bandH * (i + 0.5); // 带中心
+        const segs = buildSegments(-50, baseY);
+        traces.push({
+            segments: segs,
+            baseY: baseY,
+            totalLen: pathLength(segs),
+            pulse: Math.random(),
+            speed: 0.0003 + Math.random() * 0.0012,
+            width: 1.5 + Math.random() * 2.5,
+            flickerPhase: Math.random() * Math.PI * 2,
+        });
+    }
+
+    function resetTrace(t) {
+        t.segments = buildSegments(-50, t.baseY);
+        t.totalLen = pathLength(t.segments);
+        t.pulse = 0;
+        t.speed = 0.0003 + Math.random() * 0.0012;
+        t.width = 1.5 + Math.random() * 2.5;
+        t.flickerPhase = Math.random() * Math.PI * 2;
+    }
+
+    // ── 临时画布（遮罩用） ──────────────────────────────
+    const maskSize = GLOW_RADIUS * 2 + 30;
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = tmpCanvas.height = maskSize;
+    const tCtx = tmpCanvas.getContext('2d');
+
+    function drawFullTrace(ctx, trace) {
+        const OFFSET = 1.5;
+        // 逐段用法线偏移绘制高光/阴影边，整条路径完成后由遮罩统一渐隐
+        trace.segments.forEach(seg => {
+            const dx = seg.x2 - seg.x1;
+            const dy = seg.y2 - seg.y1;
+            const len = Math.hypot(dx, dy) || 1;
+            const nx = -dy / len * OFFSET;
+            const ny =  dx / len * OFFSET;
+
+            // 沟槽底色
+            ctx.beginPath();
+            ctx.moveTo(seg.x1, seg.y1);
+            ctx.lineTo(seg.x2, seg.y2);
+            ctx.strokeStyle = 'rgba(216,30,68,0.3)';
+            ctx.lineWidth = trace.width + 2;
+            ctx.lineCap = 'butt';
+            ctx.stroke();
+
+            // 法线方向高光（亮红）
+            ctx.beginPath();
+            ctx.moveTo(seg.x1 + nx, seg.y1 + ny);
+            ctx.lineTo(seg.x2 + nx, seg.y2 + ny);
+            ctx.strokeStyle = 'rgba(216,30,68,0.7)';
+            ctx.lineWidth = 1;
+            ctx.lineCap = 'butt';
+            ctx.stroke();
+
+            // 反法线方向阴影（暗）
+            ctx.beginPath();
+            ctx.moveTo(seg.x1 - nx, seg.y1 - ny);
+            ctx.lineTo(seg.x2 - nx, seg.y2 - ny);
+            ctx.strokeStyle = 'rgba(20,2,5,0.55)';
+            ctx.lineWidth = 1;
+            ctx.lineCap = 'butt';
+            ctx.stroke();
+        });
+    }
+
+    // ── 绘制 ──────────────────────────────────────────
+    let frame = 0;
+    function draw() {
+        frame++;
+        ctx.clearRect(0, 0, W, H);
+
+        traces.forEach(t => {
+            t.pulse += t.speed;
+            if (t.pulse > 1.2) { resetTrace(t); return; }
+
+            const dot = pointOnPath(t.segments, Math.min(t.pulse, 1));
+            // 闪烁系数：多频叠加模拟不规则电火花
+            const f = t.flickerPhase;
+            const flicker = 0.4 + 0.6 * Math.abs(
+                Math.sin(frame * 0.04 + f) * 0.7 +
+                Math.sin(frame * 0.11 + f * 2.1) * 0.2 +
+                Math.sin(frame * 0.17 + f * 3.7) * 0.1
+            );
+
+            // —— 电光脉冲（主画布） ——
+            const glow = ctx.createRadialGradient(dot.x, dot.y, 0, dot.x, dot.y, GLOW_RADIUS);
+            glow.addColorStop(0, `rgba(216,30,68,${0.9 * flicker})`);
+            glow.addColorStop(0.04, `rgba(216,30,68,${0.6 * flicker})`);
+            glow.addColorStop(0.2, `rgba(216,30,68,${0.18 * flicker})`);
+            glow.addColorStop(0.5, `rgba(216,30,68,${0.03 * flicker})`);
+            glow.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.beginPath();
+            ctx.arc(dot.x, dot.y, GLOW_RADIUS, 0, Math.PI * 2);
+            ctx.fillStyle = glow;
+            ctx.fill();
+
+            // 电火花射线
+            const sparkCount = Math.floor(2 + flicker * 6);
+            for (let s = 0; s < sparkCount; s++) {
+                const a = Math.random() * Math.PI * 2;
+                const len = (4 + Math.random() * 16) * flicker;
+                ctx.beginPath();
+                ctx.moveTo(dot.x, dot.y);
+                ctx.lineTo(dot.x + Math.cos(a) * len, dot.y + Math.sin(a) * len);
+                ctx.strokeStyle = `rgba(216,30,68,${(0.25 + Math.random() * 0.45) * flicker})`;
+                ctx.lineWidth = 0.4 + Math.random() * 0.9;
+                ctx.stroke();
+            }
+
+            // 核心白点
+            ctx.beginPath();
+            ctx.arc(dot.x, dot.y, 1.5 + flicker * 1.8, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255,220,220,${0.5 + flicker * 0.5})`;
+            ctx.fill();
+
+            // —— 路径照明（临时画布 + 径向渐变遮罩） ——
+            const ox = dot.x - GLOW_RADIUS - 15;
+            const oy = dot.y - GLOW_RADIUS - 15;
+
+            tCtx.clearRect(0, 0, maskSize, maskSize);
+            tCtx.save();
+            tCtx.translate(-ox, -oy);
+
+            // 完整路径一体绘制
+            drawFullTrace(tCtx, t);
+
+            // 径向渐变遮罩（平滑渐隐，无段边界）
+            tCtx.globalCompositeOperation = 'destination-in';
+            const mask = tCtx.createRadialGradient(dot.x, dot.y, 0, dot.x, dot.y, GLOW_RADIUS);
+            mask.addColorStop(0, 'rgba(255,255,255,1)');
+            mask.addColorStop(0.3, 'rgba(255,255,255,0.85)');
+            mask.addColorStop(0.7, 'rgba(255,255,255,0.1)');
+            mask.addColorStop(1, 'rgba(0,0,0,0)');
+            tCtx.fillStyle = mask;
+            tCtx.beginPath();
+            tCtx.arc(dot.x, dot.y, GLOW_RADIUS, 0, Math.PI * 2);
+            tCtx.fill();
+
+            tCtx.restore();
+
+            // 合成到主画布
+            ctx.drawImage(tmpCanvas, ox, oy);
+        });
+
+            requestAnimationFrame(draw);
+        }
+
+        draw();
+    })();

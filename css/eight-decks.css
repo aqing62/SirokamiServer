@@ -46,8 +46,8 @@
 
 .filter-float-btn {
     position: fixed;
-    bottom: 30px;
-    right: 30px;
+    top: 20px;
+    right: 20px;
     width: 60px;
     height: 60px;
     border-radius: 50%;
@@ -323,8 +323,10 @@
         font-size: 1.6rem;
     }
     .back-btn {
-        margin-left: 0; /* 移动端返回按钮完全居中 */
-        top: 10px;
+        left: 12px;
+        top: 12px;
+        transform: none;
+        margin-left: 0;
         padding: 8px 16px;
         font-size: 0.9rem;
     }

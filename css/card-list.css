@@ -46,8 +46,8 @@
 .mobile-filter-btn {
     display: none;
     position: fixed;
-    bottom: 30px;
-    right: 30px;
+    top: 20px;
+    right: 20px;
     width: 60px;
     height: 60px;
     border-radius: 50%;

@@ -1,51 +1,49 @@
 /**
  * 白神服Sirokami — 八强卡组页面
- * 优化版: Promise.all 并行加载 + DOMContentLoaded + 改进错误处理
+ * v2: 从 decks_data.json 加载预解析数据，无需目录扫描或 YDK 解析
  */
-const FOLDER_TO_TOURNAMENT = {
-    "1": "第一届OT赛事",
-    "2": "第二届OT赛事",
-    "3": "第三届OT赛事",
-    "4": "第四届OT赛事",
-    "5": "第一届G-Ext赛事",
-};
-
 const OCG_URL = "https://cdn.233.momobako.com/ygopro/pics/";
 const DIY_URL = "https://api.ygopro3.cn/pics/siro/";
 const FALLBACK = "cover.jpg";
 
+let decksData = null;  // { tournaments: [...] }
+
 function initEightDecksModule() {
     (async () => {
-    const tournamentList = await getTournamentList();
-    renderButtons(document.getElementById("buttonContainer"), tournamentList);
-    renderButtons(document.getElementById("popupButtonContainer"), tournamentList);
-    if (tournamentList.length > 0) loadDecks(tournamentList[0][0]);
-    initFilterPopup();
+        await loadDecksData();
+        if (!decksData || !decksData.tournaments.length) {
+            document.getElementById("container").innerHTML =
+                "<div style='grid-column:1/-1;text-align:center;padding:30px;'>暂无赛事数据</div>";
+            return;
+        }
+        const list = decksData.tournaments.map(t => [t.folder, t.name]);
+        renderButtons(document.getElementById("buttonContainer"), list);
+        renderButtons(document.getElementById("popupButtonContainer"), list);
+        renderTournament(decksData.tournaments[0]);
+        initFilterPopup();
     })();
 }
 
-async function getTournamentList() {
+async function loadDecksData() {
     try {
-        const resp = await fetch("decks/");
+        const resp = await fetch("decks/decks_data.json");
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const text = await resp.text();
-
-        const folderRegex = /<a\s+href=["']([^"']+)\/["'].*?>([^<]+)<\/a>/gi;
-        const folderNames = [];
-        let match;
-        while ((match = folderRegex.exec(text)) !== null) {
-            const name = match[1].trim();
-            if (FOLDER_TO_TOURNAMENT[name]) folderNames.push(name);
-        }
-
-        return folderNames.sort().map(name => [
-            name,
-            FOLDER_TO_TOURNAMENT[name] || `未知赛事(${name})`,
-        ]);
+        decksData = await resp.json();
     } catch (e) {
-        console.error("读取赛事文件夹失败：", e);
-        return [];
+        console.error("加载卡组数据失败：", e);
+        decksData = null;
     }
+}
+
+function renderTournament(t) {
+    const container = document.getElementById("container");
+    container.innerHTML = "";
+    if (!t.decks.length) {
+        container.innerHTML =
+            "<div style='grid-column:1/-1;text-align:center;padding:30px;'>该赛事暂无卡组</div>";
+        return;
+    }
+    t.decks.forEach(d => createDeckCard(d.displayName, d.main, d.extra, d.side));
 }
 
 function initFilterPopup() {
@@ -88,7 +86,8 @@ function renderButtons(container, list) {
         btn.className = "folder-btn";
         btn.textContent = label;
         btn.onclick = () => {
-            loadDecks(folder);
+            const t = decksData.tournaments.find(t => t.folder === folder);
+            if (t) renderTournament(t);
             if (window.innerWidth <= 768) closeMobilePopup();
         };
         container.appendChild(btn);
@@ -99,76 +98,6 @@ function closeMobilePopup() {
     document.getElementById('filterMask').classList.remove('show');
     document.getElementById('filterPopup').classList.remove('show');
     document.body.style.overflow = '';
-}
-
-async function loadDecks(targetFolder) {
-    const container = document.getElementById("container");
-    container.innerHTML = "加载中...";
-
-    try {
-        const resp = await fetch(`decks/${targetFolder}/`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const text = await resp.text();
-
-        const ydkRegex = /<a\s+href=["']([^"']+\.ydk)["'].*?>([^<]+)<\/a>/gi;
-        const files = [];
-        let match;
-        while ((match = ydkRegex.exec(text)) !== null) {
-            files.push(decodeURIComponent(match[1].trim()));
-        }
-
-        container.innerHTML = "";
-        if (files.length === 0) {
-            container.innerHTML =
-                "<div style='grid-column:1/-1;text-align:center;padding:30px;'>该赛事暂无卡组</div>";
-            return;
-        }
-
-        // 并行加载所有卡组文件
-        const results = await Promise.allSettled(
-            files.map(file =>
-                loadOne(`decks/${targetFolder}/${encodeURIComponent(file)}`)
-            )
-        );
-
-        results.forEach((result, i) => {
-            if (result.status === 'rejected') {
-                console.warn(`加载失败: ${files[i]}`, result.reason);
-            }
-        });
-
-    } catch (e) {
-        console.error("加载卡组失败：", e);
-        container.innerHTML =
-            "<div style='grid-column:1/-1;text-align:center;padding:30px;'>加载失败，请检查文件夹是否存在</div>";
-    }
-}
-
-async function loadOne(path) {
-    try {
-        const resp = await fetch(path);
-        const text = await resp.text();
-        const encodedName = path.split("/").pop();
-        const deckName = decodeURIComponent(encodedName).replace(/\.ydk$/i, "");
-
-        let main = [], extra = [], side = [], sec = "";
-        const lines = text.split("\n").map(l => l.trim());
-
-        for (const line of lines) {
-            if (line === "#main") { sec = "main"; continue; }
-            if (line === "#extra") { sec = "extra"; continue; }
-            if (line === "!side") { sec = "side"; continue; }
-            if (isNaN(line)) continue;
-
-            if (sec === "main") main.push(line);
-            else if (sec === "extra") extra.push(line);
-            else if (sec === "side") side.push(line);
-        }
-
-        createDeckCard(deckName, main, extra, side);
-    } catch (e) {
-        console.warn("加载卡组失败:", path, e);
-    }
 }
 
 function createDeckCard(name, main, extra, side) {
