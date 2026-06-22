@@ -419,18 +419,17 @@ function renderCards() {
 
     container.style.opacity = 0;
 
-    setTimeout(() => {
-        const { total: filteredTotal, paginated: filteredCards } = getFilteredCards();
-        container.innerHTML = '';
+    const { total: filteredTotal, paginated: filteredCards } = getFilteredCards();
+    container.innerHTML = '';
 
-        if (filteredTotal === 0) {
-            container.innerHTML = '<div class="empty-tip">暂无匹配的卡牌</div>';
-            container.style.opacity = 1;
-            renderPagination();
-            return;
-        }
+    if (filteredTotal === 0) {
+        container.innerHTML = '<div class="empty-tip">暂无匹配的卡牌</div>';
+        container.style.opacity = 1;
+        renderPagination();
+        return;
+    }
 
-        filteredCards.forEach(card => {
+    filteredCards.forEach(card => {
             const ti = card.typeInfo;
             const isMonster = ti.baseType === "怪兽";
             const level = card.level || "-";
@@ -460,7 +459,6 @@ function renderCards() {
 
         container.style.opacity = 1;
         renderPagination();
-    }, 300);
 }
 
 // ── 搜索防抖 ────────────────────────────────────────────
@@ -491,20 +489,10 @@ searchInput.addEventListener('input', debouncedRender);
 function initCardPoolModule() {
     (async function () {
     try {
-        const SQL = await window.initSqlJs({
-            locateFile: f => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${f}`,
-        });
-        const res = await fetch("DIY_Sirokami.cdb");
-        const buf = await res.arrayBuffer();
-        const db = new SQL.Database(new Uint8Array(buf));
-        const q = db.exec(
-            "SELECT datas.id, texts.name, datas.type, datas.atk, datas.def, " +
-            "datas.level, datas.race, datas.attribute, texts.desc " +
-            "FROM datas JOIN texts ON datas.id = texts.id"
-        );
-
-        // 预解析所有卡牌 (一次性计算所有派生值)
-        allCards = q[0].values.map(preParseCard);
+        // 直接从服务端获取预解析好的 JSON（服务端已用 Python sqlite3 处理 CDB）
+        const res = await fetch("/api/cards");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        allCards = await res.json();
 
         document.getElementById('total').textContent = allCards.length;
         document.getElementById('monster').textContent =
@@ -526,7 +514,6 @@ function initCardPoolModule() {
 
         generateAllFilters();
         renderCards();
-        db.close();
 
         // 初始化新卡列表功能
         initNewCardsFeature();
@@ -623,10 +610,6 @@ function openNewCardsModal() {
     if (document.getElementById('newCardsOverlay')) return;
     newCardsModalOpen = true;
 
-    // 清除主卡池的图片加载队列，避免冲突
-    cancelPendingImageLoads();
-    imageObserver.disconnect();
-
     // 先加载数据再渲染
     loadNewCardsData().then(() => {
         if (newCardsDates.length === 0) {
@@ -643,12 +626,15 @@ function openNewCardsModal() {
 function closeNewCardsModal() {
     const overlay = document.getElementById('newCardsOverlay');
     if (overlay) {
-        cancelPendingImageLoads();
         newCardsObserver.disconnect();
         overlay.remove();
     }
     newCardsModalOpen = false;
     newCardsActiveDate = '';
+
+    // 重新扫描卡池中尚未加载的可见图片
+    const visibleImages = document.querySelectorAll('#cardContainer .card-image[src^="data:image/svg+xml"]');
+    visibleImages.forEach(img => imageObserver.observe(img));
 }
 
 function buildNewCardsModal() {

@@ -11,11 +11,15 @@
     <link rel="stylesheet" href="css/eight-decks.css" id="css-eight-decks" media="not all">
     <link rel="stylesheet" href="css/xiaobairenshe.css" id="css-xiaobai" media="not all">
     <link rel="stylesheet" href="css/new-cards.css" id="css-new-cards" media="not all">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.min.js"></script>
     <style>body.loading { visibility: hidden; }</style>
 </head>
 <body class="loading">
 <canvas id="bgCanvas"></canvas>
+
+<!-- ═══════════════════════════════════════════════════════
+     INTRO 黑屏遮罩（仅桌面端，动画结束后移除）
+     ═══════════════════════════════════════════════════════ -->
+<div id="intro-overlay"></div>
 
 <!-- ═══════════════════════════════════════════════════════
      SECTION: 主页
@@ -25,17 +29,17 @@
         <div class="logo-container">
             <img src="logo.png" class="logo-img" alt="LOGO" loading="lazy">
             <div class="server-title">
-                <h1>白神服Sirokami</h1>
+                <h1>Sirokami</h1>
                 <p>为了更注重游戏性与平衡的游戏王</p>
             </div>
         </div>
 
         <div class="section">
             <h2>服务器介绍</h2>
-            <p>✨ 白神服Sirokami，致力于打造超对味的游戏王体验！<br>
+            <p>✨ 白神服Sirokami，致力于打造超对味的游戏王体验！✨<br>
             卡图质量拉满、效果设计用心打磨，禁限环境兼顾平衡与趣味，不管是休闲娱乐还是竞技对战都超友好，更有海量优质DIY资源等你来玩～<br>
             服务器地址：ygopro3.cn<br>
-            端口：50010 ✨</p>
+            端口：50010</p>
         </div>
 
         <div class="section">
@@ -55,12 +59,24 @@
             <h2>规则简介</h2>
             <p>使用专属禁卡表以规制环境</p>
             <p>常规采用Genesys-Ext规则</p>
-            <p>LF2代码为本服OT合表</p>
+            <p style="white-space:pre-line;font-family:Consolas,'Courier New',monospace;font-size:0.9rem;line-height:1.6;">
+不输入--默认为Genesys-Ext模式
+LF2--OT合表模式
+NF--无禁限模式
+M--三局两胜模式
+T--双打模式
+LP数字--设置基本分
+TM数字--设置回合时限
+ST数字--设置开局手卡数
+DR数字--设置回合抽卡数
+NS--不洗切卡组
+            </p>
         </div>
 
         <div class="section">
             <h2>最新公告</h2>
             <div class="announcement-box">
+                <p>2026.06.22：服务器主站V1.2.0更新：移动端全面优化（布局/性能/交互），桌面端新增入场动画，卡包部署流程改进</p>
                 <p>2026.06.10：服务器主站V1.1.1更新：UI美化，滑动优化，卡池内新增新卡列表</p>
                 <p>2026.06.09：服务器主站V1.1.0更新：优化整体框架，“主轴评分”替换为“晓白相关”</p>
                 <p>2026.05.14：服务器主站V1.0.6更新：优化主页样式，优化卡池信息加载逻辑</p>
@@ -335,28 +351,8 @@
      ═══════════════════════════════════════════════════════ -->
 <section id="section-xiaobai" class="content-section">
     <button class="back-btn" onclick="showSection('section-main')">← 返回首页</button>
-
-    <h1 class="page-title">晓白形象投票</h1>
-    <p class="page-subtitle">为你喜欢的群吉祥物形象投上一票吧！每个IP可投 <span class="highlight">2</span> 票</p>
-
-    <div class="vote-status" id="voteStatus">
-        剩余票数：<span id="remainingVotes">--</span>
-    </div>
-
-    <div class="image-grid" id="imageGrid">
-        <p style="color:#888;">加载中…</p>
-    </div>
-
-    <div class="results-section" id="resultsSection" style="display:none;">
-        <h2>当前票数</h2>
-        <div id="resultsList"></div>
-    </div>
-
-    <!-- 灯箱 -->
-    <div class="lightbox" id="lightbox" onclick="closeLightbox()">
-        <span class="lightbox-close">&times;</span>
-        <img class="lightbox-img" id="lightboxImg" src="" alt="原图">
-        <div class="lightbox-hint">点击任意位置关闭</div>
+    <div style="display:flex;align-items:center;justify-content:center;min-height:60vh;color:#888;font-size:1.2rem;">
+        形象投票已结束，功能正在装修中...
     </div>
 </section>
 

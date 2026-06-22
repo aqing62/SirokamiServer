@@ -25,9 +25,7 @@
 .back-btn {
     position: fixed;
     top: 20px;
-    left: 50%; /* 改为居中定位 */
-    transform: translateX(-50%); /* 水平居中 */
-    margin-left: -800px; /* 微调位置，避免遮挡标题 */
+    left: 20px;
     background: linear-gradient(135deg, var(--red), var(--dark-red));
     color: var(--light-gold);
     border: none;

@@ -269,6 +269,10 @@
         height: 92vh;
         border-radius: 14px;
     }
+    .new-cards-overlay {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+    }
     .new-cards-topbar {
         flex-wrap: wrap;
         gap: 10px;
@@ -277,14 +281,57 @@
     .new-cards-topbar-left {
         flex-wrap: wrap;
     }
+
+    /* 卡片网格 */
     .new-cards-grid {
         grid-template-columns: 1fr;
-        padding: 14px;
-        gap: 14px;
+        padding: 10px 12px;
+        gap: 8px;
     }
+
+    /* 卡片横排：左图右文 */
     .new-cards-grid .card-item {
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
+        flex-direction: row;
+        align-items: flex-start;
+        text-align: left;
+        padding: 8px;
+        gap: 8px;
+        border-radius: 8px;
+        border-width: 1px;
+        transition: none;
+    }
+    .new-cards-grid .card-item:hover {
+        transform: none;
+    }
+
+    /* 缩略图 */
+    .new-cards-grid .card-image {
+        width: 72px;
+        height: 104px;
+        border-radius: 6px;
+        flex-shrink: 0;
+    }
+
+    /* 紧凑字体 */
+    .new-cards-grid .card-name {
+        font-size: 12px;
+        text-shadow: none;
+    }
+    .new-cards-grid .card-id {
+        font-size: 10px;
+    }
+    .new-cards-grid .card-desc {
+        font-size: 11px;
+        line-height: 1.35;
+    }
+    .new-cards-grid .card-author {
+        font-size: 10px;
+        margin-top: 2px;
+        text-align: left;
+    }
+    .new-cards-grid .card-info > div {
+        font-size: 11px;
+        line-height: 1.3;
+        margin: 1px 0;
     }
 }

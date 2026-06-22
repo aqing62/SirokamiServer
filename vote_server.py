@@ -5,6 +5,7 @@
 import hashlib
 import json
 import logging
+import sqlite3
 import threading
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
@@ -17,9 +18,31 @@ ROOT = Path(__file__).resolve().parent
 IMG_DIR = ROOT / "xiaobairenshe"
 THUMB_DIR = ROOT / "xiaobairenshe_thumb"
 DATA_FILE = ROOT / "vote_data.json"
+CDB_FILE = ROOT / "DIY_Sirokami.cdb"
 MAX_VOTES = 2
 THUMB_WIDTH = 200
 THUMB_QUALITY = 72
+
+# ── CDB 类型常量 (与前端 card-pool-info.js 保持一致) ──────
+TYPE_MASKS = {
+    0x1: "怪兽", 0x2: "魔法", 0x4: "陷阱", 0x10: "通常", 0x20: "效果",
+    0x40: "融合", 0x80: "仪式", 0x200: "灵魂", 0x400: "同盟", 0x800: "二重",
+    0x1000: "调整", 0x2000: "同调", 0x4000: "衍生物", 0x200000: "反转",
+    0x400000: "卡通", 0x800000: "超量", 0x1000000: "灵摆", 0x2000000: "特殊召唤",
+    0x4000000: "连接", 0x10000: "速攻", 0x20000: "永续", 0x40000: "装备",
+    0x80000: "场地", 0x100000: "反击",
+}
+RACE_MAP = {
+    0x0: "无", 0x1: "战士族", 0x2: "魔法师族", 0x4: "天使族", 0x8: "恶魔族",
+    0x10: "不死族", 0x20: "机械族", 0x40: "水族", 0x80: "炎族", 0x100: "岩石族",
+    0x200: "鸟兽族", 0x400: "植物族", 0x800: "昆虫族", 0x1000: "雷族",
+    0x2000: "龙族", 0x4000: "兽族", 0x8000: "兽战士族", 0x10000: "恐龙族",
+    0x20000: "鱼族", 0x40000: "海龙族", 0x80000: "爬虫类族",
+    0x100000: "念动力族", 0x200000: "幻神兽族", 0x400000: "创造神族",
+    0x800000: "幻龙族", 0x1000000: "电子界族", 0x2000000: "幻想魔族",
+}
+ATTR_MAP = {0x0: "无", 0x1: "地", 0x2: "水", 0x4: "炎", 0x8: "风", 0x10: "光", 0x20: "暗", 0x40: "神"}
+EXCLUDED_MONSTER_SUBTYPES = {"仪式", "融合", "同调", "超量", "灵摆", "连接"}
 
 STATIC_EXTS = {
     ".html": "text/html; charset=utf-8",
@@ -141,6 +164,134 @@ class VoteStore:
 store = VoteStore(DATA_FILE)
 
 
+# ── CDB → JSON 预处理器 ──────────────────────────────────
+
+def _parse_type(type_val: int) -> dict:
+    """解析卡牌类型位掩码 (复刻前端 preParseCard 逻辑)。"""
+    type_parts = []
+    base_type = ""
+    for mask_val, name in TYPE_MASKS.items():
+        if type_val & mask_val:
+            type_parts.append(name)
+            if name in ("怪兽", "魔法", "陷阱"):
+                base_type = name
+
+    sub_types = [t for t in type_parts if t not in ("怪兽", "魔法", "陷阱")]
+    monster_category = "其他怪兽"
+    if base_type == "怪兽":
+        has_excluded = any(s in EXCLUDED_MONSTER_SUBTYPES for s in sub_types)
+        if not has_excluded and "效果" in sub_types:
+            monster_category = "纯效果怪兽"
+        elif "仪式" in sub_types:
+            monster_category = "仪式怪兽"
+        elif "融合" in sub_types:
+            monster_category = "融合怪兽"
+        elif "同调" in sub_types:
+            monster_category = "同调怪兽"
+        elif "超量" in sub_types:
+            monster_category = "超量怪兽"
+        elif "灵摆" in sub_types:
+            monster_category = "灵摆怪兽"
+        elif "连接" in sub_types:
+            monster_category = "连接怪兽"
+
+    return {
+        "fullType": " ".join(type_parts) or "未知类型",
+        "baseType": base_type,
+        "subTypes": sub_types,
+        "monsterCategory": monster_category,
+    }
+
+
+def _parse_race(race_val: int) -> str:
+    """解析种族位掩码 (取第一个匹配的位)。"""
+    for mask_val, name in RACE_MAP.items():
+        if race_val & mask_val:
+            return name
+    return "未知种族"
+
+
+def _parse_attr(attr_val: int) -> str:
+    """解析属性位掩码 (取第一个匹配的位)。"""
+    for mask_val, name in ATTR_MAP.items():
+        if attr_val & mask_val:
+            return name
+    return "未知属性"
+
+
+def _extract_author_and_desc(desc: str) -> tuple:
+    """从效果文本中提取 DIY 作者和纯效果描述。"""
+    author = ""
+    processed_desc = "无效果描述"
+    if desc:
+        lines = desc.split("\n")
+        effect_lines = []
+        for line in lines:
+            t = line.strip()
+            if t.startswith("DIY by"):
+                author = t
+                break
+            effect_lines.append(line)
+        processed_desc = "\n".join(effect_lines).strip() or "无效果描述"
+    return author, processed_desc
+
+
+def load_cards_from_cdb(cdb_path: Path) -> list:
+    """从 CDB 读取全量卡牌数据，预解析后返回与前端 preParseCard 一致的 dict 列表。"""
+    if not cdb_path.is_file():
+        logger.warning(f"CDB 文件不存在: {cdb_path}")
+        return []
+
+    conn = sqlite3.connect(str(cdb_path))
+    try:
+        rows = conn.execute(
+            "SELECT datas.id, texts.name, datas.type, datas.atk, datas.def, "
+            "datas.level, datas.race, datas.attribute, texts.desc "
+            "FROM datas JOIN texts ON datas.id = texts.id"
+        ).fetchall()
+    finally:
+        conn.close()
+
+    cards = []
+    for row in rows:
+        card_id, name, type_val, atk, def_, level, race, attr, desc = row
+        type_info = _parse_type(type_val)
+        cards.append({
+            "id": card_id,
+            "name": name,
+            "type": type_val,
+            "atk": atk,
+            "def": def_,
+            "level": level or 0,
+            "race": race,
+            "attribute": attr,
+            "desc": desc,
+            "typeInfo": type_info,
+            "raceName": _parse_race(race),
+            "attrName": _parse_attr(attr),
+            "author": _extract_author_and_desc(desc)[0],
+            "processedDesc": _extract_author_and_desc(desc)[1],
+        })
+
+    logger.info(f"CDB 加载完成: {len(cards)} 张卡牌")
+    return cards
+
+
+# 全局卡牌缓存 (启动时加载，内存驻留)
+_cards_cache: list = []
+_cards_json: bytes = b"[]"
+_cards_etag: str = ""
+
+
+def refresh_cards_cache():
+    """重新从 CDB 加载卡牌数据并更新缓存。"""
+    global _cards_cache, _cards_json, _cards_etag
+    _cards_cache = load_cards_from_cdb(CDB_FILE)
+    _cards_json = json.dumps(_cards_cache, ensure_ascii=False).encode("utf-8")
+    _cards_etag = f'"{hashlib.md5(_cards_json).hexdigest()}"'
+    logger.info(f"卡牌缓存已刷新: {len(_cards_cache)} 张, {len(_cards_json) / 1024:.0f} KB JSON")
+
+
 # ── HTTP 请求处理器 ───────────────────────────────────────
 class VoteHandler(SimpleHTTPRequestHandler):
     """投票 API + 静态文件服务"""
@@ -216,6 +367,20 @@ class VoteHandler(SimpleHTTPRequestHandler):
 
         elif path == "/api/results":
             self._json_response(store.get_results())
+
+        elif path == "/api/cards":
+            # ETag 缓存: 304 未修改则免传输
+            if self.headers.get("If-None-Match") == _cards_etag:
+                self.send_response(304)
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", len(_cards_json))
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("ETag", _cards_etag)
+            self.end_headers()
+            self.wfile.write(_cards_json)
 
         else:
             self.send_error(404)
@@ -299,6 +464,7 @@ if __name__ == "__main__":
     logger.info(f"数据文件: {DATA_FILE}")
     logger.info(f"每IP票数: {MAX_VOTES}")
     logger.info(f"Pillow: {'YES' if HAS_PILLOW else 'NO (pip install Pillow)'}")
+    refresh_cards_cache()
     generate_thumbnails()
 
     server = ThreadingHTTPServer((HOST, PORT), VoteHandler)

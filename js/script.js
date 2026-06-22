@@ -112,6 +112,8 @@ function lazyInit(sectionId) {
     let animating = false;
 
     window.addEventListener('wheel', function (e) {
+        // 手机端交给原生滚动
+        if (window.innerWidth <= 768) return;
         // 如果事件来自模态框或可滚动弹窗内，交给原生滚动处理
         const el = e.target.closest('.new-cards-grid, .new-cards-overlay, .filter-modal, .pool-filter-overlay, .filter-popup, .mobile-open');
         if (el) return;
@@ -139,11 +141,128 @@ function lazyInit(sectionId) {
     }
 })();
 
+// ── 桌面端入场动画控制器 ──────────────────────────────
+function runIntroAnimation() {
+    var overlay = document.getElementById('intro-overlay');
+    var mainContent = document.querySelector('.main-content');
+    var logoImg = mainContent.querySelector('.logo-img');
+    var titleH1 = mainContent.querySelector('.server-title h1');
+    var subtitle = mainContent.querySelector('.server-title p');
+    var sections = mainContent.querySelectorAll('.section');
+    var sidebarBtns = document.querySelectorAll('.sidebar .sidebar-btn');
+
+    function delay(ms) { return new Promise(function(r) { setTimeout(r, ms); }); }
+
+    // ── SVG 描边动画 ──────────────────────────────────
+    function createStrokeSVG() {
+        var cs = getComputedStyle(titleH1);
+        var w = titleH1.offsetWidth;
+        var h = titleH1.offsetHeight;
+
+        var svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+        svg.classList.add('stroke-svg');
+        svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+
+        var text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        // 左对齐，与 h1 文字同原点
+        text.setAttribute('x', '0');
+        text.setAttribute('y', h * 0.78);
+        text.setAttribute('text-anchor', 'start');
+        text.setAttribute('font-size', parseFloat(cs.fontSize));
+        text.setAttribute('font-weight', cs.fontWeight);
+        text.setAttribute('font-family', cs.fontFamily);
+        text.setAttribute('class', 'stroke-path');
+        text.textContent = titleH1.textContent;
+
+        svg.appendChild(text);
+        titleH1.appendChild(svg);
+
+        var len = text.getComputedTextLength();
+        text.setAttribute('stroke-dasharray', len);
+        text.setAttribute('stroke-dashoffset', len);
+
+        return { svg: svg, text: text, len: len };
+    }
+
+    function animateStroke(text, len, duration) {
+        return new Promise(function(resolve) {
+            var start = performance.now();
+            function tick(now) {
+                var p = Math.min((now - start) / duration, 1);
+                var ease = p < 0.5 ? 2 * p * p : -1 + (4 - 2 * p) * p;
+                text.setAttribute('stroke-dashoffset', len * (1 - ease));
+                if (p < 1) {
+                    requestAnimationFrame(tick);
+                } else {
+                    resolve();
+                }
+            }
+            requestAnimationFrame(tick);
+        });
+    }
+
+    async function sequence() {
+        // 1. 先藏标题+小标题，再显示页面
+        titleH1.classList.add('intro-stroke');
+        subtitle.style.opacity = '0';
+        document.body.classList.remove('loading');
+
+        // 2. Logo 缩放弹入 + 黑屏同步淡出
+        logoImg.classList.add('intro-zoom');
+        await delay(400);
+        overlay.classList.add('fade-out');  // 黑屏在 logo 缩放期间淡出
+        await delay(900);
+        logoImg.classList.add('zoom-done');
+        // 强制 reflow 让 zoom-done 生效后再触发 glow 过渡
+        void logoImg.offsetWidth;
+        logoImg.classList.add('glow-in');
+
+        // 3. 标题描边
+        var svgData = createStrokeSVG();
+        await delay(100);
+
+        // 描边过半时：文字颜色先出现（发光等 SVG 删掉后再来）
+        setTimeout(function() {
+            svgData.text.setAttribute('fill', '#F0E68C');
+            svgData.text.setAttribute('stroke-opacity', '0');
+            svgData.text.style.transition = 'stroke-opacity 0.35s ease';
+            titleH1.style.transition = 'color 0.5s ease';
+            titleH1.style.color = '#F0E68C';
+        }, 750);
+
+        // UI 在描边期间就分段弹入
+        sections.forEach(function(sec, i) {
+            setTimeout(function() { sec.classList.add('reveal'); }, i * 120);
+        });
+        sidebarBtns.forEach(function(btn, i) {
+            setTimeout(function() { btn.classList.add('reveal'); }, sections.length * 120 + i * 80);
+        });
+
+        await animateStroke(svgData.text, svgData.len, 1200);
+        await delay(200);
+
+        // 先删 SVG，再恢复 h1 样式
+        svgData.svg.remove();
+        titleH1.classList.remove('intro-stroke');
+        titleH1.style.color = '';
+        titleH1.style.textShadow = '';
+        titleH1.style.transition = '';
+
+        // 小标题缓入
+        subtitle.style.transition = 'opacity 0.6s ease';
+        subtitle.style.opacity = '1';
+
+        // 等发光过渡完
+        await delay(800);
+        document.body.classList.add('loaded');
+        overlay.remove();
+    }
+
+    sequence();
+}
+
 // ── 侧边栏 + 公告 (DOMContentLoaded) ─────────────────────
 document.addEventListener('DOMContentLoaded', function () {
-    // CSS加载完成，显示页面
-    document.body.classList.remove('loading');
-    document.body.classList.add('loaded');
 
     // 侧边栏导航
     document.getElementById('eightDecksBtn').onclick = function () {
@@ -158,6 +277,15 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('cardPoolInfoBtn').onclick = function () {
         showSection('section-card-pool');
     };
+
+    // ── 桌面端入场动画 ──────────────────────────────────
+    if (window.innerWidth > 768) {
+        runIntroAnimation();
+    } else {
+        // 手机端直接显示
+        document.body.classList.remove('loading');
+        document.body.classList.add('loaded');
+    }
 
     // 公告展开/收起
     const toggle = document.querySelector('.announcement-toggle');
@@ -326,6 +454,8 @@ function initXiaobaiModule() {
 // 全局电路板流光背景
 // ═══════════════════════════════════════════════════════
 (function () {
+    // 手机端不跑背景动画（省 GPU / 省电）
+    if (window.innerWidth <= 768) return;
     const canvas = document.getElementById('bgCanvas');
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
