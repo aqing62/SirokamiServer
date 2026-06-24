@@ -8,11 +8,12 @@ const _inited = {};
 
 // ── 样式表映射 ──────────────────────────────────────────
 const CSS_MAP = {
-    'section-main':       [],
-    'section-card-list':  ['css-card-list'],
-    'section-card-pool':  ['css-card-pool', 'css-new-cards'],
-    'section-eight-decks':['css-eight-decks'],
-    'section-xiaobai':    ['css-xiaobai'],
+    'section-main':          [],
+    'section-card-list':     ['css-card-list'],
+    'section-card-pool':     ['css-card-pool', 'css-new-cards'],
+    'section-eight-decks':   ['css-eight-decks'],
+    'section-xiaobai':       ['css-xiaobai'],
+    'section-player-ranking':['css-player-ranking'],
 };
 
 // ── Section 切换 ────────────────────────────────────────
@@ -276,6 +277,9 @@ document.addEventListener('DOMContentLoaded', function () {
     };
     document.getElementById('cardPoolInfoBtn').onclick = function () {
         showSection('section-card-pool');
+    };
+    document.getElementById('playerRankingBtn').onclick = function () {
+        showSection('section-player-ranking');
     };
 
     // ── 桌面端入场动画 ──────────────────────────────────

@@ -11,6 +11,7 @@
     <link rel="stylesheet" href="css/eight-decks.css" id="css-eight-decks" media="not all">
     <link rel="stylesheet" href="css/xiaobairenshe.css" id="css-xiaobai" media="not all">
     <link rel="stylesheet" href="css/new-cards.css" id="css-new-cards" media="not all">
+    <link rel="stylesheet" href="css/player-ranking.css" id="css-player-ranking" media="not all">
     <style>body.loading { visibility: hidden; }</style>
 </head>
 <body class="loading">
@@ -347,6 +348,49 @@ NS--不洗切卡组
 </section>
 
 <!-- ═══════════════════════════════════════════════════════
+     SECTION: 玩家排名
+     ═══════════════════════════════════════════════════════ -->
+<section id="section-player-ranking" class="content-section">
+    <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
+
+    <div class="ranking-wrapper">
+        <div class="ranking-title">🏆 玩家排名</div>
+        <div class="ranking-subtitle">M#比赛房间双方登录对局计入 · ELO算法 · TOP50</div>
+
+        <div class="ranking-search">
+            <input type="text" id="rankingSearchInput" placeholder="输入玩家名精确搜索...">
+            <button id="rankingSearchBtn">搜索</button>
+            <button id="rankingClearBtn" class="search-clear">清除</button>
+        </div>
+
+        <table class="rank-table">
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>玩家</th>
+                    <th>积分</th>
+                    <th>战绩</th>
+                    <th>胜率</th>
+                    <th>场次</th>
+                    <th>连胜</th>
+                </tr>
+            </thead>
+            <tbody id="rankTableBody">
+                <tr>
+                    <td colspan="7">
+                        <div class="ranking-empty">加载中...</div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="ranking-footer">
+            数据每场M#对局结束后更新 · 仅统计双方均已登录的对局
+        </div>
+    </div>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
      SECTION: 晓白投票
      ═══════════════════════════════════════════════════════ -->
 <section id="section-xiaobai" class="content-section">
@@ -364,6 +408,7 @@ NS--不洗切卡组
     <div class="sidebar-btn" id="xiaobaiBtn">晓白相关</div>
     <div class="sidebar-btn" id="cardListBtn">禁限分值</div>
     <div class="sidebar-btn" id="cardPoolInfoBtn">卡池信息</div>
+    <div class="sidebar-btn" id="playerRankingBtn">玩家排名</div>
 </div>
 <div class="sidebar-trigger" id="sidebarTrigger"></div>
 
@@ -374,5 +419,6 @@ NS--不洗切卡组
 <script src="js/card-list.js"></script>
 <script src="js/card-pool-info.js"></script>
 <script src="js/eight-decks.js"></script>
+<script src="js/player-ranking.js"></script>
 </body>
 </html>
