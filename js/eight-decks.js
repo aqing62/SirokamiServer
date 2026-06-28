@@ -16,6 +16,7 @@ function initEightDecksModule() {
                 "<div style='grid-column:1/-1;text-align:center;padding:30px;'>暂无赛事数据</div>";
             return;
         }
+        decksData.tournaments.reverse();
         const list = decksData.tournaments.map(t => [t.folder, t.name]);
         renderButtons(document.getElementById("buttonContainer"), list);
         renderButtons(document.getElementById("popupButtonContainer"), list);

@@ -233,4 +233,453 @@
     .rank-table td:nth-child(7) {
         display: none;
     }
+
+    .deck-btn {
+        font-size: 0.7rem;
+        padding: 4px 8px;
+    }
+}
+
+/* ── 查看卡组按钮 ── */
+.deck-btn {
+    background: linear-gradient(135deg, var(--red, #D81E44), var(--dark-red, #A51834));
+    color: #fff;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+}
+
+.deck-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 8px rgba(216, 30, 68, 0.5);
+}
+
+/* ── 卡组弹窗（全屏自适应）── */
+.deck-modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+
+.deck-modal-overlay.active {
+    display: flex;
+}
+
+.deck-modal {
+    display: flex;
+    flex-direction: column;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 12px;
+    width: 98vw;
+    max-width: 1800px;
+    max-height: 96vh;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--red, #D81E44) transparent;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+
+.deck-modal::-webkit-scrollbar { width: 5px; }
+.deck-modal::-webkit-scrollbar-track { background: transparent; }
+.deck-modal::-webkit-scrollbar-thumb { background: var(--red, #D81E44); border-radius: 3px; }
+
+.deck-modal-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid #333;
+    background: #1a1a1a;
+}
+
+.deck-modal-title {
+    color: var(--gold, #D4AF37);
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.deck-modal-close {
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+
+.deck-modal-close:hover {
+    color: #fff;
+}
+
+.deck-modal-body {
+    flex: 1;
+    padding: 8px 16px 10px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow-x: clip;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--red, #D81E44) transparent;
+}
+
+.deck-modal-body::-webkit-scrollbar { width: 5px; }
+.deck-modal-body::-webkit-scrollbar-track { background: transparent; }
+.deck-modal-body::-webkit-scrollbar-thumb { background: var(--red, #D81E44); border-radius: 3px; }
+
+.deck-loading,
+.deck-empty {
+    text-align: center;
+    color: #888;
+    padding: 30px 0;
+    font-size: 1rem;
+}
+
+.deck-info {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 6px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid #2a2a2a;
+    flex-shrink: 0;
+}
+
+.deck-info-item {
+    color: #aaa;
+    font-size: 0.8rem;
+}
+
+.deck-section-title {
+    color: var(--gold, #D4AF37);
+    font-weight: 600;
+    font-size: 0.8rem;
+    margin-bottom: 3px;
+    flex-shrink: 0;
+}
+
+/* ── 卡图网格 ── */
+.deck-cards-grid {
+    display: grid;
+    gap: 2px;
+    background: #111;
+    padding: 4px;
+    border-radius: 4px;
+    border: 1px solid #2a2a2a;
+    align-content: start;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--red, #D81E44) transparent;
+}
+
+.deck-cards-grid::-webkit-scrollbar {
+    width: 5px;
+}
+.deck-cards-grid::-webkit-scrollbar-track {
+    background: transparent;
+}
+.deck-cards-grid::-webkit-scrollbar-thumb {
+    background: var(--red, #D81E44);
+    border-radius: 3px;
+}
+
+.deck-cards-main {
+    flex: 1;
+    min-height: 0;
+}
+
+
+.deck-card-img {
+    width: 100%;
+    aspect-ratio: 42/61;
+    object-fit: cover;
+    border-radius: 2px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+}
+
+.deck-empty-tip {
+    color: #666;
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 10px;
+}
+
+/* ── 双栏布局：桌面左右 / 手机上下 ── */
+.deck-two-col {
+    flex: 1;
+    display: flex;
+    gap: 10px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.deck-col-main {
+    flex: 1 1 58%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+.deck-col-side {
+    flex: 0 0 38%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    gap: 2px;
+}
+
+.deck-cards-main {
+    flex: 1;
+    min-height: 0;
+    /* grid columns set via JS inline style for 4-row layout */
+}
+
+.deck-cards-extra {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: repeat(8, 1fr);
+}
+
+.deck-cards-side {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: repeat(8, 1fr);
+}
+
+/* ── 手机端：上下堆叠 ── */
+@media (max-width: 1024px) {
+    .deck-two-col {
+        flex-direction: column;
+        overflow-y: auto; padding-bottom: 60px;
+    }
+    .deck-col-main,
+    .deck-col-side {
+        flex: auto;
+        min-height: auto;
+    }
+    .deck-cards-main {
+        flex: none;
+        grid-template-columns: repeat(10, 1fr) !important;
+        grid-template-rows: auto !important;
+    }
+    .deck-cards-extra {
+        flex: none;
+        grid-template-columns: repeat(10, 1fr) !important;
+    }
+    .deck-cards-side {
+        flex: none;
+        grid-template-columns: repeat(10, 1fr) !important;
+    }
+    .deck-modal {
+        width: 100vw;
+        height: 100vh;
+        border-radius: 0;
+    }
+    .deck-modal-body {
+        overflow-y: auto; padding-bottom: 60px;
+    }
+    .podium-top .stat-card { width: 50% !important; }
+    .podium-bottom .stat-card { width: 40% !important; }
+    .stats-panel .deck-cards-grid { grid-template-columns: repeat(5, 1fr) !important; }
+}
+
+/* ── 卡片统计 ── */
+.stats-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.stats-tab {
+    flex: 1;
+    padding: 10px;
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 8px;
+    color: #aaa;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.stats-tab.active {
+    background: var(--red, #D81E44);
+    border-color: var(--red, #D81E44);
+    color: #fff;
+    font-weight: 600;
+}
+
+.stats-tab:hover:not(.active) {
+    border-color: #555;
+    color: #fff;
+}
+
+.stats-panel {
+    display: none;
+}
+
+.stats-panel.active {
+    display: block;
+    flex: 1;
+    overflow-x: clip;
+    overflow-y: auto;
+    min-height: 0;
+    scrollbar-width: thin;
+    scrollbar-color: var(--red, #D81E44) transparent;
+}
+
+.stats-panel.active::-webkit-scrollbar { width: 5px; }
+.stats-panel.active::-webkit-scrollbar-track { background: transparent; }
+.stats-panel.active::-webkit-scrollbar-thumb { background: var(--red, #D81E44); border-radius: 3px; }
+
+.stats-panel .deck-cards-grid {
+    grid-template-columns: repeat(10, 1fr);
+    gap: 3px;
+    overflow-x: clip;
+    overflow-y: visible;
+}
+
+/* ── 领奖台 TOP3 ── */
+.stats-podium {
+    margin-bottom: 12px;
+}
+
+.podium-top {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 6px;
+}
+
+.podium-top .stat-card {
+    width: 14%;
+    position: relative;
+}
+
+.podium-top .stat-card::before {
+    content: '🥇';
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    font-size: 1.2rem;
+    z-index: 3;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8));
+}
+
+.podium-bottom {
+    display: flex;
+    justify-content: center;
+    gap: 8%;
+}
+
+.podium-bottom .stat-card {
+    width: 11%;
+    position: relative;
+}
+
+.podium-bottom .stat-card:first-child::before {
+    content: '🥈';
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    font-size: 1rem;
+    z-index: 3;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8));
+}
+
+.podium-bottom .stat-card:last-child::before {
+    content: '🥉';
+    position: absolute;
+    top: 3px;
+    left: 4px;
+    font-size: 1rem;
+    z-index: 3;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.8));
+}
+
+.stats-footer {
+    text-align: center;
+    color: #666;
+    font-size: 0.8rem;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid #2a2a2a;
+}
+
+/* 统计卡片 */
+.stat-card {
+    position: relative;
+    border-radius: 4px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.stat-card:hover {
+    transform: scale(1.08);
+    z-index: 2;
+}
+
+.stat-card .deck-card-img {
+    width: 100%;
+    aspect-ratio: 42/61;
+    object-fit: cover;
+    border-radius: 4px;
+    border: 1px solid #444;
+    display: block;
+}
+
+.stat-card-info {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.85));
+    padding: 3px 2px 2px;
+    text-align: center;
+}
+
+.stat-card-rate {
+    display: block;
+    color: var(--gold, #D4AF37);
+    font-size: 0.85rem;
+    font-weight: 700;
+    line-height: 1.1;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+
+.stat-card-count {
+    display: block;
+    color: #aaa;
+    font-size: 0.7rem;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.9);
+}
+
+@media (max-width: 900px) {
+    .deck-cards-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+    .stats-tab {
+        font-size: 0.78rem;
+        padding: 8px 6px;
+    }
+    .stat-card-rate {
+        font-size: 0.7rem;
+    }
 }

@@ -85,6 +85,8 @@ NS--不洗切卡组
         <div class="section">
             <h2>最新公告</h2>
             <div class="announcement-box">
+                <p>2026.06.29：服务器主站V1.3.2更新：新卡列表最新一期卡图叠加logo标记，灵摆卡自动识别偏移</p>
+	                <p>2026.06.25：服务器V1.3.1更新：天梯胜者卡组查询，卡片使用率胜率统计，同名异画卡数据合并，手机端适配优化</p>
                 <p>2026.06.25：服务器V1.3.0更新：新增账号登录系统，M#比赛房ELO天梯积分制，主站「玩家排名」板块上线</p>
                 <p>2026.06.22：服务器主站V1.2.0更新：移动端全面优化（布局/性能/交互），桌面端新增入场动画，卡包部署流程改进</p>
                 <p>2026.06.10：服务器主站V1.1.1更新：UI美化，滑动优化，卡池内新增新卡列表</p>
@@ -370,6 +372,7 @@ NS--不洗切卡组
             <input type="text" id="rankingSearchInput" placeholder="输入玩家名精确搜索...">
             <button id="rankingSearchBtn">搜索</button>
             <button id="rankingClearBtn" class="search-clear">清除</button>
+            <button id="cardStatsBtn" class="search-clear">📊 卡片统计</button>
         </div>
 
         <table class="rank-table">
@@ -382,11 +385,12 @@ NS--不洗切卡组
                     <th>胜率</th>
                     <th>场次</th>
                     <th>连胜</th>
+                    <th>卡组</th>
                 </tr>
             </thead>
             <tbody id="rankTableBody">
                 <tr>
-                    <td colspan="7">
+                    <td colspan="8">
                         <div class="ranking-empty">加载中...</div>
                     </td>
                 </tr>
@@ -395,6 +399,17 @@ NS--不洗切卡组
 
         <div class="ranking-footer">
             数据每场M#对局结束后更新 · 仅统计双方均已登录的对局
+        </div>
+    </div>
+
+    <!-- 卡组弹窗 -->
+    <div class="deck-modal-overlay" id="deckModalOverlay">
+        <div class="deck-modal">
+            <div class="deck-modal-header">
+                <span class="deck-modal-title" id="deckModalTitle">胜者卡组</span>
+                <button class="deck-modal-close" id="deckModalClose">&times;</button>
+            </div>
+            <div class="deck-modal-body" id="deckModalBody"></div>
         </div>
     </div>
 </section>

@@ -749,6 +749,9 @@ function renderNewCards() {
         return;
     }
 
+    // 判断是否为最新一期
+    const isLatest = newCardsActiveDate === newCardsDates[0];
+
     grid.innerHTML = '';
     matched.forEach(card => {
         const ti = card.typeInfo;
@@ -762,8 +765,11 @@ function renderNewCards() {
         cardEl.className = 'card-item';
         cardEl.innerHTML = `
             <div class="card-image-wrapper">
-                <img class="card-image" src="${PLACEHOLDER_SVG}"
-                     data-src="https://api.ygopro3.cn/pics/siro/${card.id}.jpg" alt="${card.name}">
+                <div class="card-image-inner">
+                    <img class="card-image" src="${PLACEHOLDER_SVG}"
+                         data-src="https://api.ygopro3.cn/pics/siro/${card.id}.jpg" alt="${card.name}">
+                    ${isLatest ? `<img class="new-card-badge${ti.subTypes.includes('灵摆') ? ' pendulum-badge' : ''}" src="cardlogo.png" alt="NEW">` : ''}
+                </div>
                 ${card.author ? `<div class="card-author">${card.author}</div>` : ''}
             </div>
             <div class="card-info">
