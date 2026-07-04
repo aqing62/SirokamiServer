@@ -203,6 +203,10 @@
 
 /* ── 响应式 ── */
 @media (max-width: 768px) {
+    #section-player-ranking .back-btn {
+        top: 60px;
+    }
+
     .ranking-wrapper {
         padding: 20px 12px;
     }

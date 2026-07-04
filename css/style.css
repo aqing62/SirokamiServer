@@ -98,6 +98,7 @@
     #intro-overlay { display: none !important; }
     .main-content .section,
     .sidebar .sidebar-btn { opacity: 1; transform: none; }
+    .back-btn { display: none; }
 }
 body {
     overflow-x: hidden;

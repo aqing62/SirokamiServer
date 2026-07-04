@@ -85,6 +85,7 @@ NS--不洗切卡组
         <div class="section">
             <h2>最新公告</h2>
             <div class="announcement-box">
+                <p>2026.07.05：服务器V1.4.0更新：D#比赛房落地，对接Tabulator排表系统，主站「比赛相关」板块上线（支持单淘/瑞士轮对阵图与实时排名），ELO积分系统重构</p>
                 <p>2026.06.29：服务器主站V1.3.2更新：新卡列表最新一期卡图叠加logo标记，灵摆卡自动识别偏移</p>
 	                <p>2026.06.25：服务器V1.3.1更新：天梯胜者卡组查询，卡片使用率胜率统计，同名异画卡数据合并，手机端适配优化</p>
                 <p>2026.06.25：服务器V1.3.0更新：新增账号登录系统，M#比赛房ELO天梯积分制，主站「玩家排名」板块上线</p>
@@ -337,23 +338,44 @@ NS--不洗切卡组
 <section id="section-eight-decks" class="content-section">
     <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
 
-    <button class="filter-float-btn" id="filterFloatBtn">☰</button>
+    <!-- 右上角：原八强卡组入口按钮（仿新卡列表 placement） -->
+    <button class="old-decks-trigger" id="oldDecksTrigger" title="历届八强">📋 历届八强</button>
 
-    <div class="filter-mask" id="filterMask"></div>
-    <div class="filter-popup" id="filterPopup">
-        <button class="filter-close-btn" id="filterCloseBtn">×</button>
-        <h3>赛事列表</h3>
-        <div id="popupButtonContainer"></div>
-    </div>
-
-    <h1 class="page-title">八强卡组</h1>
+    <h1 class="page-title">比赛相关</h1>
     <div class="red-line"></div>
 
-    <div class="main-wrap">
-        <div class="container" id="container">加载中...</div>
-        <div class="filter-panel">
-            <h3>赛事列表</h3>
-            <div id="buttonContainer"></div>
+    <!-- 比赛信息栏 -->
+    <div id="tournamentHeader" class="tournament-header" style="display:none;">
+        <span id="tourneyName"></span>
+        <span id="tourneyRule" class="badge rule-badge"></span>
+        <span id="tourneyStatus" class="badge status-badge"></span>
+    </div>
+
+    <!-- 主体：比赛数据动态渲染 -->
+    <div class="tournament-main" id="tournamentMain">
+        <div class="loading-hint">加载比赛数据中...</div>
+    </div>
+
+    <!-- 原八强卡组 modal（点击右上角按钮打开） -->
+    <div class="old-decks-overlay" id="oldDecksOverlay">
+        <div class="old-decks-modal" id="oldDecksModal">
+            <button class="old-decks-close" id="oldDecksClose">×</button>
+            <h2>历届八强</h2>
+            <div class="old-decks-body">
+                <div class="filter-panel old-filter-panel">
+                    <h3>赛事列表</h3>
+                    <div id="buttonContainer"></div>
+                </div>
+                <div class="container old-container" id="oldContainer">加载中...</div>
+            </div>
+            <!-- 移动端筛选（modal 内） -->
+            <button class="filter-float-btn" id="filterFloatBtn">☰</button>
+            <div class="filter-mask" id="filterMask"></div>
+            <div class="filter-popup" id="filterPopup">
+                <button class="filter-close-btn" id="filterCloseBtn">×</button>
+                <h3>赛事列表</h3>
+                <div id="popupButtonContainer"></div>
+            </div>
         </div>
     </div>
 </section>
@@ -428,7 +450,7 @@ NS--不洗切卡组
      SIDEBAR — 全局侧边栏
      ═══════════════════════════════════════════════════════ -->
 <div class="sidebar" id="sidebar">
-    <div class="sidebar-btn" id="eightDecksBtn">八强卡组</div>
+    <div class="sidebar-btn" id="eightDecksBtn">比赛相关</div>
     <div class="sidebar-btn" id="xiaobaiBtn">晓白相关</div>
     <div class="sidebar-btn" id="cardListBtn">禁限分值</div>
     <div class="sidebar-btn" id="cardPoolInfoBtn">卡池信息</div>

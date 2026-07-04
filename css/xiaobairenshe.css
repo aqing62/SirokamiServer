@@ -267,3 +267,7 @@
     color: #666;
     font-size: 0.85rem;
 }
+
+@media (max-width: 768px) {
+    .back-btn { top: 60px; }
+}

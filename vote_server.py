@@ -6,7 +6,11 @@ import hashlib
 import json
 import logging
 import sqlite3
+import ssl
 import threading
+import time
+import urllib.request
+import urllib.error
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import unquote
@@ -22,6 +26,12 @@ CDB_FILE = ROOT / "DIY_Sirokami.cdb"
 MAX_VOTES = 2
 THUMB_WIDTH = 200
 THUMB_QUALITY = 72
+
+# ── 比赛排表代理配置 ──────────────────────────────────────
+TOURNAMENT_ID = "151"  # 比赛ID，每次新比赛改这里
+TABULATOR_API_URL = "https://api-tabulator.moecube.com:444/api/tournament"
+TABULATOR_API_KEY = "MRAUXnLph1YP2sVeC9fQr7MKSK9KvbmoKrPchtED2YjKuVe5Q2x1zv32HrRxjfiC"
+TOURNAMENT_CACHE_TTL = 15  # 缓存秒数
 
 # ── CDB 类型常量 (与前端 card-pool-info.js 保持一致) ──────
 TYPE_MASKS = {
@@ -282,6 +292,10 @@ _cards_cache: list = []
 _cards_json: bytes = b"[]"
 _cards_etag: str = ""
 
+# 比赛数据缓存 (惰性加载，定期刷新)
+_tournament_cache: dict | None = None
+_tournament_cache_time: float = 0
+
 
 def refresh_cards_cache():
     """重新从 CDB 加载卡牌数据并更新缓存。"""
@@ -290,6 +304,37 @@ def refresh_cards_cache():
     _cards_json = json.dumps(_cards_cache, ensure_ascii=False).encode("utf-8")
     _cards_etag = f'"{hashlib.md5(_cards_json).hexdigest()}"'
     logger.info(f"卡牌缓存已刷新: {len(_cards_cache)} 张, {len(_cards_json) / 1024:.0f} KB JSON")
+
+
+def _get_tournament_data() -> dict:
+    """获取比赛数据 (带内存缓存)。"""
+    global _tournament_cache, _tournament_cache_time
+    now = time.time()
+    if (_tournament_cache is not None
+            and (now - _tournament_cache_time) < TOURNAMENT_CACHE_TTL):
+        return _tournament_cache
+
+    url = f"{TABULATOR_API_URL}/{TOURNAMENT_ID}"
+    req = urllib.request.Request(url)
+    req.add_header("Authorization", "Bearer " + TABULATOR_API_KEY)
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+            raw = resp.read()
+            data = json.loads(raw)
+            _tournament_cache = data
+            _tournament_cache_time = now
+            logger.info(f"比赛数据已刷新 (ID={TOURNAMENT_ID})")
+            return data
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise Exception(f"上游API返回 {e.code}: {body}")
+    except Exception as e:
+        raise Exception(f"请求上游API失败: {e}")
 
 
 # ── HTTP 请求处理器 ───────────────────────────────────────
@@ -381,6 +426,14 @@ class VoteHandler(SimpleHTTPRequestHandler):
             self.send_header("ETag", _cards_etag)
             self.end_headers()
             self.wfile.write(_cards_json)
+
+        elif path == "/api/tournament":
+            try:
+                data = _get_tournament_data()
+                self._json_response(data)
+            except Exception as e:
+                logger.error(f"获取比赛数据失败: {e}")
+                self._json_response({"error": str(e)}, status=502)
 
         else:
             self.send_error(404)

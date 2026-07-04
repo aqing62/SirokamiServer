@@ -17,7 +17,9 @@ const CSS_MAP = {
 };
 
 // ── Section 切换 ────────────────────────────────────────
+var _currentSection = 'section-main';
 function showSection(sectionId) {
+    _currentSection = sectionId;
     document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
     const target = document.getElementById(sectionId);
     if (target) target.classList.add('active');
@@ -265,22 +267,21 @@ function runIntroAnimation() {
 // ── 侧边栏 + 公告 (DOMContentLoaded) ─────────────────────
 document.addEventListener('DOMContentLoaded', function () {
 
-    // 侧边栏导航
-    document.getElementById('eightDecksBtn').onclick = function () {
-        showSection('section-eight-decks');
-    };
-    document.getElementById('xiaobaiBtn').onclick = function () {
-        showSection('section-xiaobai');
-    };
-    document.getElementById('cardListBtn').onclick = function () {
-        showSection('section-card-list');
-    };
-    document.getElementById('cardPoolInfoBtn').onclick = function () {
-        showSection('section-card-pool');
-    };
-    document.getElementById('playerRankingBtn').onclick = function () {
-        showSection('section-player-ranking');
-    };
+    // 侧边栏导航（再点同一页回到主页）
+    function makeToggle(sectionId) {
+        return function () {
+            if (_currentSection === sectionId) {
+                showSection('section-main');
+            } else {
+                showSection(sectionId);
+            }
+        };
+    }
+    document.getElementById('eightDecksBtn').onclick = makeToggle('section-eight-decks');
+    document.getElementById('xiaobaiBtn').onclick = makeToggle('section-xiaobai');
+    document.getElementById('cardListBtn').onclick = makeToggle('section-card-list');
+    document.getElementById('cardPoolInfoBtn').onclick = makeToggle('section-card-pool');
+    document.getElementById('playerRankingBtn').onclick = makeToggle('section-player-ranking');
 
     // ── 桌面端入场动画 ──────────────────────────────────
     if (window.innerWidth > 768) {
