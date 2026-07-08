@@ -1,0 +1,12 @@
+=== js/script.js 改动 ===
+
+[1] CSS_MAP 里，把 section-eight-decks 那行改成：
+    'section-eight-decks':   ['css-eight-decks', 'css-live-duels'],
+
+[2] 在 lazyInit 函数里，section-eight-decks 的 case 中，把：
+    if (typeof initEightDecksModule === 'function') initEightDecksModule();
+    改成：
+    if (typeof initEightDecksModule === 'function') { initEightDecksModule(); initLiveDuelsModule(); }
+
+    或者在 eight-decks.js 的 initEightDecksModule() 函数末尾加一行：
+    initLiveDuelsModule();

@@ -11,7 +11,7 @@ const CSS_MAP = {
     'section-main':          [],
     'section-card-list':     ['css-card-list'],
     'section-card-pool':     ['css-card-pool', 'css-new-cards'],
-    'section-eight-decks':   ['css-eight-decks'],
+    'section-eight-decks':   ['css-eight-decks', 'css-live-duels'],
     'section-xiaobai':       ['css-xiaobai'],
     'section-player-ranking':['css-player-ranking'],
 };
@@ -101,6 +101,7 @@ function lazyInit(sectionId) {
             break;
         case 'section-eight-decks':
             if (typeof initEightDecksModule === 'function') initEightDecksModule();
+            if (typeof initLiveDuelsModule === 'function') initLiveDuelsModule();
             break;
         case 'section-xiaobai':
             initXiaobaiModule();

@@ -13,7 +13,7 @@ import urllib.request
 import urllib.error
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import unquote, urlencode
 
 # ── 配置 ──────────────────────────────────────────────────
 HOST = "0.0.0.0"
@@ -32,6 +32,11 @@ TOURNAMENT_ID = "151"  # 比赛ID，每次新比赛改这里
 TABULATOR_API_URL = "https://api-tabulator.moecube.com:444/api/tournament"
 TABULATOR_API_KEY = "MRAUXnLph1YP2sVeC9fQr7MKSK9KvbmoKrPchtED2YjKuVe5Q2x1zv32HrRxjfiC"
 TOURNAMENT_CACHE_TTL = 15  # 缓存秒数
+
+# ── srvpro2 服务器对局监控代理配置 ─────────────────────────
+SRVPRO_API_URL = "https://127.0.0.1:50009"
+SRVPRO_READ_USER = "readonly"
+SRVPRO_READ_PASS = "readonly123"
 
 # ── CDB 类型常量 (与前端 card-pool-info.js 保持一致) ──────
 TYPE_MASKS = {
@@ -337,6 +342,30 @@ def _get_tournament_data() -> dict:
         raise Exception(f"请求上游API失败: {e}")
 
 
+# ── srvpro2 API 代理 ───────────────────────────────────────
+
+def _srvpro_fetch(endpoint: str, params: dict) -> dict:
+    """代理请求到 srvpro2 API (HTTPS, 自签证书)。"""
+    url = f"{SRVPRO_API_URL}{endpoint}"
+    qs = urlencode(params)
+    full_url = f"{url}?{qs}" if qs else url
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    req = urllib.request.Request(full_url)
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+            raw = resp.read()
+            return json.loads(raw)
+    except urllib.error.HTTPError as e:
+        body = e.read().decode("utf-8", errors="replace")
+        raise Exception(f"srvpro2 API 返回 {e.code}: {body}")
+    except Exception as e:
+        raise Exception(f"请求 srvpro2 API 失败: {e}")
+
+
 # ── HTTP 请求处理器 ───────────────────────────────────────
 class VoteHandler(SimpleHTTPRequestHandler):
     """投票 API + 静态文件服务"""
@@ -434,7 +463,34 @@ class VoteHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 logger.error(f"获取比赛数据失败: {e}")
                 self._json_response({"error": str(e)}, status=502)
+        elif path == "/api/liverooms":
+            try:
+                data = _srvpro_fetch("/api/getrooms", {
+                    "username": SRVPRO_READ_USER,
+                    "pass": SRVPRO_READ_PASS,
+                })
+                self._json_response(data)
+            except Exception as e:
+                logger.error(f"获取服务器对局数据失败: {e}")
+                self._json_response({"error": str(e)}, status=502)
 
+        elif path == "/api/admin":
+            query = {}
+            raw_query = unquote(self.path.split("?", 1)[1]) if "?" in self.path else ""
+            for part in raw_query.split("&"):
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    query[k] = v
+            action_keys = [k for k in query if k not in ("username", "pass", "password", "callback")]
+            if not action_keys:
+                self._json_response({"error": "缺少操作参数"}, status=400)
+                return
+            try:
+                data = _srvpro_fetch("/api/message", query)
+                self._json_response(data)
+            except Exception as e:
+                logger.error(f"管理员操作失败: {e}")
+                self._json_response({"error": str(e)}, status=502)
         else:
             self.send_error(404)
 

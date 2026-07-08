@@ -5,8 +5,8 @@
 /* ── 触发按钮 ────────────────────────────────────────── */
 .live-duels-trigger {
   position: absolute;
-  top: 24px;
-  right: 170px;
+  top: 64px;
+  right: 24px;
   background: linear-gradient(135deg, #1E1E1E, #121212);
   color: var(--light-gold);
   border: 1px solid rgba(216, 30, 68, 0.5);
@@ -281,8 +281,9 @@
 /* ── 移动端 ──────────────────────────────────────────── */
 @media (max-width: 768px) {
   .live-duels-trigger {
-    top: 10px;
-    right: 110px;
+    position: fixed;
+    top: 100px;
+    right: 12px;
     font-size: 0.75rem;
     padding: 7px 12px;
     border-radius: 8px;

@@ -349,7 +349,7 @@
         <!-- 右上角：原八强卡组入口按钮（仿新卡列表 placement） -->
         <button class="old-decks-trigger" id="oldDecksTrigger" title="历届八强">📋 历届八强</button>
         <!-- 右上角：服务器对局（仿新卡列表 placement） -->
-        <button class="live-duels-trigger" id="liveDuelsTrigger">服务器对局</button>
+        <button class="live-duels-trigger" id="liveDuelsTrigger">⚡ 当前对局</button>
 
         <h1 class="page-title">比赛相关</h1>
         <div class="red-line"></div>
@@ -398,12 +398,15 @@
                 </div>
                 <div class="live-duels-admin">
                     <div id="adminLoginForm" class="admin-login-form" style="display:flex;gap:6px;align-items:center;">
+                        <label for="adminUsername" style="display:none;">账号</label>
                         <input type="text" id="adminUsername" placeholder="账号" style="width:100px;">
+                        <label for="adminPassword" style="display:none;">密码</label>
                         <input type="password" id="adminPassword" placeholder="密码" style="width:100px;">
                         <button class="admin-btn" id="adminLoginBtn">登录</button>
                     </div>
                     <div id="adminLoggedIn" class="admin-logged-in" style="display:none;">
                         <span class="admin-name" id="adminNameDisplay"></span>
+                        <label for="adminShoutInput" style="display:none;">广播</label>
                         <input type="text" id="adminShoutInput" placeholder="输入广播消息...">
                         <button class="admin-btn" id="adminShoutBtn">广播</button>
                         <button class="admin-btn danger" id="adminLogoutBtn">退出</button>
