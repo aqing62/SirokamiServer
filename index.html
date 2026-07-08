@@ -12,150 +12,235 @@
     <link rel="stylesheet" href="css/xiaobairenshe.css" id="css-xiaobai" media="not all">
     <link rel="stylesheet" href="css/new-cards.css" id="css-new-cards" media="not all">
     <link rel="stylesheet" href="css/player-ranking.css" id="css-player-ranking" media="not all">
-    <style>body.loading { visibility: hidden; }</style>
+    <link rel="stylesheet" href="css/live-duels.css" id="css-live-duels" media="not all">
+    <style>
+        body.loading {
+            visibility: hidden;
+        }
+    </style>
 </head>
 <body class="loading">
-<canvas id="bgCanvas"></canvas>
+    <canvas id="bgCanvas"></canvas>
 
-<!-- ═══════════════════════════════════════════════════════
-     INTRO 黑屏遮罩（仅桌面端，动画结束后移除）
-     ═══════════════════════════════════════════════════════ -->
-<div id="intro-overlay"></div>
+    <!-- ═══════════════════════════════════════════════════════
+         INTRO 黑屏遮罩（仅桌面端，动画结束后移除）
+         ═══════════════════════════════════════════════════════ -->
+    <div id="intro-overlay"></div>
 
-<!-- ═══════════════════════════════════════════════════════
-     SECTION: 主页
-     ═══════════════════════════════════════════════════════ -->
-<section id="section-main" class="content-section active">
-    <div class="main-content">
-        <div class="logo-container">
-            <img src="logo.png" class="logo-img" alt="LOGO" loading="lazy">
-            <div class="server-title">
-                <h1>Sirokami</h1>
-                <p>为了更注重游戏性与平衡的游戏王</p>
+    <!-- ═══════════════════════════════════════════════════════
+         SECTION: 主页
+         ═══════════════════════════════════════════════════════ -->
+    <section id="section-main" class="content-section active">
+        <div class="main-content">
+            <div class="logo-container">
+                <img src="logo.png" class="logo-img" alt="LOGO" loading="lazy">
+                <div class="server-title">
+                    <h1>Sirokami</h1>
+                    <p>为了更注重游戏性与平衡的游戏王</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>服务器介绍</h2>
+                <p>
+                    ✨ 白神服Sirokami，致力于打造超对味的游戏王体验！✨<br>
+                    卡图质量拉满、效果设计用心打磨，禁限环境兼顾平衡与趣味，不管是休闲娱乐还是竞技对战都超友好，更有海量优质DIY资源等你来玩～<br>
+                    服务器地址：ygopro3.cn<br>
+                    端口：50010
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>下载与卡包</h2>
+                <div class="btn-group">
+                    <a href="https://pan.quark.cn/s/ca2e4e7a8c63#/list/share" class="action-btn" target="_blank">客户端下载</a>
+                    <a href="https://api.ygopro3.cn/file/siro.ypk" class="action-btn" target="_blank">卡包下载</a>
+                    <a href="https://mycard.world/" class="action-btn" target="_blank">萌卡下载</a>
+                </div>
+                <p style="margin-top: 15px; color: #aaa;">QQ群号：817861164</p>
+                <p style="margin-top: 8px; font-size: 1rem; color: #ccc;">卡包安装：</p>
+                <p style="margin-top: 8px; font-size: 1rem; color: #ccc;">将卡包文件放入客户端/expansions目录下即可</p>
+                <p style="margin-top: 8px; font-size: 1rem; color: #ccc;">MDPro3用户可使用拓展卡包下载自定义卡：https://api.ygopro3.cn/file/siro.ypk</p>
+            </div>
+
+            <div class="section">
+                <h2>规则简介</h2>
+                <p>使用专属禁卡表以规制环境</p>
+                <p>常规采用Genesys-Ext规则</p>
+                <p style="white-space:pre-line;font-family:Consolas,'Courier New',monospace;font-size:0.9rem;line-height:1.6;">
+                    不输入--默认为Genesys-Ext模式
+                    LF2--OT合表模式
+                    NF--无禁限模式
+                    M--三局两胜模式
+                    T--双打模式
+                    LP数字--设置基本分
+                    TM数字--设置回合时限
+                    ST数字--设置开局手卡数
+                    DR数字--设置回合抽卡数
+                    NS--不洗切卡组
+                </p>
+            </div>
+
+            <div class="section">
+                <h2>🏆 天梯模式</h2>
+                <p>创建M#比赛房间，双方登录后自动开启天梯</p>
+                <p>ELO积分制，初始1000分，胜方加分败方扣分，分差越大加减越少</p>
+                <p>房间内指令：<code>/login 用户名 密码</code> 登录 · <code>/rating</code> 查分 · <code>/ladder</code> 排行榜</p>
+                <p>主站「玩家排名」板块可查看TOP50及精准搜索</p>
+            </div>
+
+            <div class="section">
+                <h2>最新公告</h2>
+                <div class="announcement-box">
+                    <p>2026.07.08：服务器V1.5.0更新：主站「服务器对局」上线，可实时查看当前所有对局（房间号/玩家/LP/卡组），管理员支持全服喊话、死三倒计时、关闭房间，修复ChallongeJoinHandler导致第二人进房变观战的bug</p>
+                    <p>2026.07.05：服务器V1.4.0更新：D#比赛房落地，对接Tabulator排表系统，主站「比赛相关」板块上线（支持单淘/瑞士轮对阵图与实时排名），ELO积分系统重构</p>
+                    <p>2026.06.29：服务器主站V1.3.2更新：新卡列表最新一期卡图叠加logo标记，灵摆卡自动识别偏移</p>
+                    <p>2026.06.25：服务器V1.3.1更新：天梯胜者卡组查询，卡片使用率胜率统计，同名异画卡数据合并，手机端适配优化</p>
+                    <p>2026.06.25：服务器V1.3.0更新：新增账号登录系统，M#比赛房ELO天梯积分制，主站「玩家排名」板块上线</p>
+                    <p>2026.06.22：服务器主站V1.2.0更新：移动端全面优化（布局/性能/交互），桌面端新增入场动画，卡包部署流程改进</p>
+                    <p>2026.06.10：服务器主站V1.1.1更新：UI美化，滑动优化，卡池内新增新卡列表</p>
+                    <p>2026.06.09：服务器主站V1.1.0更新：优化整体框架，“主轴评分”替换为“晓白相关”</p>
+                    <p>2026.05.14：服务器主站V1.0.6更新：优化主页样式，优化卡池信息加载逻辑</p>
+                    <p>2026.05.12：服务器主站V1.0.5更新：完全优化卡池信息页面</p>
+                    <p>2026.05.11：服务器主站V1.0.4更新：修复连接怪兽守备力显示错误</p>
+                    <p>2026.05.11：服务器主站V1.0.3更新：修复"？"攻守时显示错误</p>
+                    <p>2026.05.08：服务器主站V1.0.2更新：新增卡池展示</p>
+                    <p>2026.04.25：服务器主站V1.0.1更新：新增禁卡表去重，不再显示重复卡</p>
+                    <p>2026.04.22：服务器主站V1.0.0上线</p>
+                </div>
+                <div class="announcement-toggle">往期更新</div>
+                <div class="announcement-close">▲</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SECTION: 禁限分值
+         ═══════════════════════════════════════════════════════ -->
+    <section id="section-card-list" class="content-section">
+        <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
+
+        <!-- 移动端悬浮筛选按钮 -->
+        <button class="mobile-filter-btn" id="mobileFilterBtn">&#9881;</button>
+
+        <!-- 移动端筛选弹窗 -->
+        <div class="filter-modal" id="filterModal">
+            <div class="filter-modal-content">
+                <button class="close-modal-btn" id="closeModalBtn">&times;</button>
+
+                <div class="toggle-group">
+                    <span class="toggle-label">G-Ext</span>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="modeToggle">
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <span class="toggle-label">OT</span>
+                </div>
+
+                <div class="filter-title">卡片筛选/排序</div>
+
+                <div class="score-filter-group" id="scoreFilterGroup">
+                    <div class="filter-group">
+                        <label class="filter-label">卡名搜索</label>
+                        <input type="text" id="nameSearch" class="filter-input" placeholder="输入卡名关键词...">
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">分数区间</label>
+                        <div class="score-range">
+                            <input type="number" id="scoreMin" class="filter-input" placeholder="最小值" min="0">
+                            <input type="number" id="scoreMax" class="filter-input" placeholder="最大值" min="0">
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">分数排序</label>
+                        <div class="sort-group">
+                            <button class="sort-btn active" id="sortDesc">降序</button>
+                            <button class="sort-btn" id="sortAsc">升序</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="ot-filter-group" id="otFilterGroup">
+                    <div class="filter-group">
+                        <label class="filter-label">卡名搜索（包含字即可）</label>
+                        <input type="text" id="otNameSearch" class="filter-input" placeholder="输入卡名关键词...">
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">规制类型</label>
+                        <div class="ot-type-filter">
+                            <button class="ot-type-btn active" data-type="all">全部</button>
+                            <button class="ot-type-btn" data-type="forbidden">禁用(0)</button>
+                            <button class="ot-type-btn" data-type="limit">限制(1)</button>
+                            <button class="ot-type-btn" data-type="semi">准限制(2)</button>
+                            <button class="ot-type-btn" data-type="no-limit">无限制</button>
+                        </div>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">卡片分类</label>
+                        <div class="ot-type-filter">
+                            <button class="ot-type-btn active" data-category="all">全部</button>
+                            <button class="ot-type-btn" data-category="DIY">DIY</button>
+                            <button class="ot-type-btn" data-category="non-DIY">OT</button>
+                            <button class="ot-type-btn" data-category="non-DIY-mod">特别规制</button>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="reset-btn" id="resetFilter">重置筛选/排序</button>
             </div>
         </div>
 
-        <div class="section">
-            <h2>服务器介绍</h2>
-            <p>✨ 白神服Sirokami，致力于打造超对味的游戏王体验！✨<br>
-            卡图质量拉满、效果设计用心打磨，禁限环境兼顾平衡与趣味，不管是休闲娱乐还是竞技对战都超友好，更有海量优质DIY资源等你来玩～<br>
-            服务器地址：ygopro3.cn<br>
-            端口：50010</p>
-        </div>
-
-        <div class="section">
-            <h2>下载与卡包</h2>
-            <div class="btn-group">
-                <a href="https://pan.quark.cn/s/ca2e4e7a8c63#/list/share" class="action-btn" target="_blank">客户端下载</a>
-                <a href="https://api.ygopro3.cn/file/siro.ypk" class="action-btn" target="_blank">卡包下载</a>
-                <a href="https://mycard.world/" class="action-btn" target="_blank">萌卡下载</a>
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <h1 class="page-title">
+                <span class="title-g-ext">Genesys-Ext分数表</span>
+                <span class="title-ot">OT 禁限表</span>
+            </h1>
+            <div class="card-container" id="cardList"></div>
+            <div class="error-tip" id="errorTip" style="display: none;"></div>
+            <div class="empty-tip" id="emptyTip" style="display: none;">暂无符合条件的卡片</div>
+            <div class="empty-tip" id="gExtEmptyTip" style="display: none; color: #F0E68C;">
+                G-Ext分数制暂无数据（请检查conf文件中!DIY_Sirokami前是否有分数制卡片）
             </div>
-            <p style="margin-top: 15px; color: #aaa;">QQ群号：817861164</p>
-            <p style="margin-top: 8px; font-size: 1rem; color: #ccc;">卡包安装：</p>
-            <p style="margin-top: 8px; font-size: 1rem; color: #ccc;">将卡包文件放入客户端/expansions目录下即可</p>
-            <p style="margin-top: 8px; font-size: 1rem; color: #ccc;">MDPro3用户可使用拓展卡包下载自定义卡：https://api.ygopro3.cn/file/siro.ypk</p>
         </div>
 
-        <div class="section">
-            <h2>规则简介</h2>
-            <p>使用专属禁卡表以规制环境</p>
-            <p>常规采用Genesys-Ext规则</p>
-            <p style="white-space:pre-line;font-family:Consolas,'Courier New',monospace;font-size:0.9rem;line-height:1.6;">
-不输入--默认为Genesys-Ext模式
-LF2--OT合表模式
-NF--无禁限模式
-M--三局两胜模式
-T--双打模式
-LP数字--设置基本分
-TM数字--设置回合时限
-ST数字--设置开局手卡数
-DR数字--设置回合抽卡数
-NS--不洗切卡组
-            </p>
-        </div>
-
-        <div class="section">
-            <h2>🏆 天梯模式</h2>
-            <p>创建M#比赛房间，双方登录后自动开启天梯</p>
-            <p>ELO积分制，初始1000分，胜方加分败方扣分，分差越大加减越少</p>
-            <p>房间内指令：<code>/login 用户名 密码</code> 登录 · <code>/rating</code> 查分 · <code>/ladder</code> 排行榜</p>
-            <p>主站「玩家排名」板块可查看TOP50及精准搜索</p>
-        </div>
-
-        <div class="section">
-            <h2>最新公告</h2>
-            <div class="announcement-box">
-                <p>2026.07.05：服务器V1.4.0更新：D#比赛房落地，对接Tabulator排表系统，主站「比赛相关」板块上线（支持单淘/瑞士轮对阵图与实时排名），ELO积分系统重构</p>
-                <p>2026.06.29：服务器主站V1.3.2更新：新卡列表最新一期卡图叠加logo标记，灵摆卡自动识别偏移</p>
-	                <p>2026.06.25：服务器V1.3.1更新：天梯胜者卡组查询，卡片使用率胜率统计，同名异画卡数据合并，手机端适配优化</p>
-                <p>2026.06.25：服务器V1.3.0更新：新增账号登录系统，M#比赛房ELO天梯积分制，主站「玩家排名」板块上线</p>
-                <p>2026.06.22：服务器主站V1.2.0更新：移动端全面优化（布局/性能/交互），桌面端新增入场动画，卡包部署流程改进</p>
-                <p>2026.06.10：服务器主站V1.1.1更新：UI美化，滑动优化，卡池内新增新卡列表</p>
-                <p>2026.06.09：服务器主站V1.1.0更新：优化整体框架，“主轴评分”替换为“晓白相关”</p>
-                <p>2026.05.14：服务器主站V1.0.6更新：优化主页样式，优化卡池信息加载逻辑</p>
-                <p>2026.05.12：服务器主站V1.0.5更新：完全优化卡池信息页面</p>
-                <p>2026.05.11：服务器主站V1.0.4更新：修复连接怪兽守备力显示错误</p>
-                <p>2026.05.11：服务器主站V1.0.3更新：修复"？"攻守时显示错误</p>
-                <p>2026.05.08：服务器主站V1.0.2更新：新增卡池展示</p>
-                <p>2026.04.25：服务器主站V1.0.1更新：新增禁卡表去重，不再显示重复卡</p>
-                <p>2026.04.22：服务器主站V1.0.0上线</p>
-            </div>
-            <div class="announcement-toggle">往期更新</div>
-            <div class="announcement-close">▲</div>
-        </div>
-    </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════
-     SECTION: 禁限分值
-     ═══════════════════════════════════════════════════════ -->
-<section id="section-card-list" class="content-section">
-    <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
-
-    <!-- 移动端悬浮筛选按钮 -->
-    <button class="mobile-filter-btn" id="mobileFilterBtn">&#9881;</button>
-
-    <!-- 移动端筛选弹窗 -->
-    <div class="filter-modal" id="filterModal">
-        <div class="filter-modal-content">
-            <button class="close-modal-btn" id="closeModalBtn">&times;</button>
-
+        <!-- 桌面端筛选面板（移动端隐藏） -->
+        <div class="filter-panel">
             <div class="toggle-group">
                 <span class="toggle-label">G-Ext</span>
                 <label class="toggle-switch">
-                    <input type="checkbox" id="modeToggle">
+                    <input type="checkbox" id="desktopModeToggle">
                     <span class="toggle-slider"></span>
                 </label>
                 <span class="toggle-label">OT</span>
             </div>
-
             <div class="filter-title">卡片筛选/排序</div>
 
-            <div class="score-filter-group" id="scoreFilterGroup">
+            <div class="score-filter-group" id="desktopScoreFilterGroup">
                 <div class="filter-group">
                     <label class="filter-label">卡名搜索</label>
-                    <input type="text" id="nameSearch" class="filter-input" placeholder="输入卡名关键词...">
+                    <input type="text" id="desktopNameSearch" class="filter-input" placeholder="输入卡名关键词...">
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">分数区间</label>
                     <div class="score-range">
-                        <input type="number" id="scoreMin" class="filter-input" placeholder="最小值" min="0">
-                        <input type="number" id="scoreMax" class="filter-input" placeholder="最大值" min="0">
+                        <input type="number" id="desktopScoreMin" class="filter-input" placeholder="最小值" min="0">
+                        <input type="number" id="desktopScoreMax" class="filter-input" placeholder="最大值" min="0">
                     </div>
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">分数排序</label>
                     <div class="sort-group">
-                        <button class="sort-btn active" id="sortDesc">降序</button>
-                        <button class="sort-btn" id="sortAsc">升序</button>
+                        <button class="sort-btn active" id="desktopSortDesc">降序</button>
+                        <button class="sort-btn" id="desktopSortAsc">升序</button>
                     </div>
                 </div>
             </div>
 
-            <div class="ot-filter-group" id="otFilterGroup">
+            <div class="ot-filter-group" id="desktopOtFilterGroup">
                 <div class="filter-group">
                     <label class="filter-label">卡名搜索（包含字即可）</label>
-                    <input type="text" id="otNameSearch" class="filter-input" placeholder="输入卡名关键词...">
+                    <input type="text" id="desktopOtNameSearch" class="filter-input" placeholder="输入卡名关键词...">
                 </div>
                 <div class="filter-group">
                     <label class="filter-label">规制类型</label>
@@ -178,293 +263,246 @@ NS--不洗切卡组
                 </div>
             </div>
 
-            <button class="reset-btn" id="resetFilter">重置筛选/排序</button>
+            <button class="reset-btn" id="desktopResetFilter">重置筛选/排序</button>
         </div>
-    </div>
+    </section>
 
-    <!-- 主内容区 -->
-    <div class="main-content">
-        <h1 class="page-title">
-            <span class="title-g-ext">Genesys-Ext分数表</span>
-            <span class="title-ot">OT 禁限表</span>
-        </h1>
-        <div class="card-container" id="cardList"></div>
-        <div class="error-tip" id="errorTip" style="display: none;"></div>
-        <div class="empty-tip" id="emptyTip" style="display: none;">暂无符合条件的卡片</div>
-        <div class="empty-tip" id="gExtEmptyTip" style="display: none; color: #F0E68C;">
-            G-Ext分数制暂无数据（请检查conf文件中!DIY_Sirokami前是否有分数制卡片）
-        </div>
-    </div>
+    <!-- ═══════════════════════════════════════════════════════
+         SECTION: 卡池信息
+         ═══════════════════════════════════════════════════════ -->
+    <section id="section-card-pool" class="content-section">
+        <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
+        <div class="title">🎴 DIY_Sirokami 卡池信息</div>
 
-    <!-- 桌面端筛选面板（移动端隐藏） -->
-    <div class="filter-panel">
-        <div class="toggle-group">
-            <span class="toggle-label">G-Ext</span>
-            <label class="toggle-switch">
-                <input type="checkbox" id="desktopModeToggle">
-                <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label">OT</span>
-        </div>
-        <div class="filter-title">卡片筛选/排序</div>
-
-        <div class="score-filter-group" id="desktopScoreFilterGroup">
-            <div class="filter-group">
-                <label class="filter-label">卡名搜索</label>
-                <input type="text" id="desktopNameSearch" class="filter-input" placeholder="输入卡名关键词...">
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">分数区间</label>
-                <div class="score-range">
-                    <input type="number" id="desktopScoreMin" class="filter-input" placeholder="最小值" min="0">
-                    <input type="number" id="desktopScoreMax" class="filter-input" placeholder="最大值" min="0">
-                </div>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">分数排序</label>
-                <div class="sort-group">
-                    <button class="sort-btn active" id="desktopSortDesc">降序</button>
-                    <button class="sort-btn" id="desktopSortAsc">升序</button>
-                </div>
-            </div>
+        <div class="stats" id="stats" style="display:none">
+            <div class="stat-item">总卡牌数 <div class="num" id="total">0</div></div>
+            <div class="stat-item">怪兽卡 <div class="num" id="monster">0</div></div>
+            <div class="stat-item">魔法卡 <div class="num" id="totalSpell">0</div></div>
+            <div class="stat-item">陷阱卡 <div class="num" id="totalTrap">0</div></div>
         </div>
 
-        <div class="ot-filter-group" id="desktopOtFilterGroup">
-            <div class="filter-group">
-                <label class="filter-label">卡名搜索（包含字即可）</label>
-                <input type="text" id="desktopOtNameSearch" class="filter-input" placeholder="输入卡名关键词...">
+        <div class="search-filter-container" style="display:none">
+            <div class="search-wrapper">
+                <input type="text" class="search" id="search" placeholder="搜索卡名 / ID / 效果...">
             </div>
-            <div class="filter-group">
-                <label class="filter-label">规制类型</label>
-                <div class="ot-type-filter">
-                    <button class="ot-type-btn active" data-type="all">全部</button>
-                    <button class="ot-type-btn" data-type="forbidden">禁用(0)</button>
-                    <button class="ot-type-btn" data-type="limit">限制(1)</button>
-                    <button class="ot-type-btn" data-type="semi">准限制(2)</button>
-                    <button class="ot-type-btn" data-type="no-limit">无限制</button>
+            <div class="multi-filter-group">
+                <div class="filter-collapse-item">
+                    <div class="filter-collapse-header">卡片种类</div>
+                    <div class="filter-collapse-content">
+                        <div id="filterTypeContainer" class="filter-row"></div>
+                    </div>
                 </div>
-            </div>
-            <div class="filter-group">
-                <label class="filter-label">卡片分类</label>
-                <div class="ot-type-filter">
-                    <button class="ot-type-btn active" data-category="all">全部</button>
-                    <button class="ot-type-btn" data-category="DIY">DIY</button>
-                    <button class="ot-type-btn" data-category="non-DIY">OT</button>
-                    <button class="ot-type-btn" data-category="non-DIY-mod">特别规制</button>
+                <div class="filter-collapse-item">
+                    <div class="filter-collapse-header">属性</div>
+                    <div class="filter-collapse-content">
+                        <div id="filterAttributeContainer" class="filter-row"></div>
+                    </div>
                 </div>
-            </div>
-        </div>
-
-        <button class="reset-btn" id="desktopResetFilter">重置筛选/排序</button>
-    </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════
-     SECTION: 卡池信息
-     ═══════════════════════════════════════════════════════ -->
-<section id="section-card-pool" class="content-section">
-    <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
-    <div class="title">🎴 DIY_Sirokami 卡池信息</div>
-
-    <div class="stats" id="stats" style="display:none">
-        <div class="stat-item">总卡牌数 <div class="num" id="total">0</div></div>
-        <div class="stat-item">怪兽卡 <div class="num" id="monster">0</div></div>
-        <div class="stat-item">魔法卡 <div class="num" id="totalSpell">0</div></div>
-        <div class="stat-item">陷阱卡 <div class="num" id="totalTrap">0</div></div>
-    </div>
-
-    <div class="search-filter-container" style="display:none">
-        <div class="search-wrapper">
-            <input type="text" class="search" id="search" placeholder="搜索卡名 / ID / 效果...">
-        </div>
-        <div class="multi-filter-group">
-            <div class="filter-collapse-item">
-                <div class="filter-collapse-header">卡片种类</div>
-                <div class="filter-collapse-content">
-                    <div id="filterTypeContainer" class="filter-row"></div>
+                <div class="filter-collapse-item">
+                    <div class="filter-collapse-header">种族</div>
+                    <div class="filter-collapse-content">
+                        <div id="filterRaceContainer" class="filter-row"></div>
+                    </div>
                 </div>
-            </div>
-            <div class="filter-collapse-item">
-                <div class="filter-collapse-header">属性</div>
-                <div class="filter-collapse-content">
-                    <div id="filterAttributeContainer" class="filter-row"></div>
-                </div>
-            </div>
-            <div class="filter-collapse-item">
-                <div class="filter-collapse-header">种族</div>
-                <div class="filter-collapse-content">
-                    <div id="filterRaceContainer" class="filter-row"></div>
-                </div>
-            </div>
-            <div class="filter-collapse-item">
-                <div class="filter-collapse-header">等级/攻防</div>
-                <div class="filter-collapse-content">
-                    <div class="range-filter-group">
-                        <div class="range-item">
-                            <label>等级</label>
-                            <input type="number" min="0" id="levelMin" placeholder="最低">
-                            <span>~</span>
-                            <input type="number" min="0" id="levelMax" placeholder="最高">
-                        </div>
-                        <div class="range-item">
-                            <label>攻击力</label>
-                            <input type="number" min="-2" id="atkMin" placeholder="最低">
-                            <span>~</span>
-                            <input type="number" min="-2" id="atkMax" placeholder="最高">
-                        </div>
-                        <div class="range-item">
-                            <label>守备力</label>
-                            <input type="number" min="-2" id="defMin" placeholder="最低">
-                            <span>~</span>
-                            <input type="number" min="-2" id="defMax" placeholder="最高">
+                <div class="filter-collapse-item">
+                    <div class="filter-collapse-header">等级/攻防</div>
+                    <div class="filter-collapse-content">
+                        <div class="range-filter-group">
+                            <div class="range-item">
+                                <label>等级</label>
+                                <input type="number" min="0" id="levelMin" placeholder="最低">
+                                <span>~</span>
+                                <input type="number" min="0" id="levelMax" placeholder="最高">
+                            </div>
+                            <div class="range-item">
+                                <label>攻击力</label>
+                                <input type="number" min="-2" id="atkMin" placeholder="最低">
+                                <span>~</span>
+                                <input type="number" min="-2" id="atkMax" placeholder="最高">
+                            </div>
+                            <div class="range-item">
+                                <label>守备力</label>
+                                <input type="number" min="-2" id="defMin" placeholder="最低">
+                                <span>~</span>
+                                <input type="number" min="-2" id="defMax" placeholder="最高">
+                            </div>
                         </div>
                     </div>
                 </div>
+                <button class="reset-filter-btn" id="resetFilterBtn">重置所有筛选</button>
             </div>
-            <button class="reset-filter-btn" id="resetFilterBtn">重置所有筛选</button>
         </div>
-    </div>
 
-    <div id="cardContainer" class="card-grid">
-        <div class="loading-tip">正在加载卡牌数据，请稍候...</div>
-    </div>
+        <div id="cardContainer" class="card-grid">
+            <div class="loading-tip">正在加载卡牌数据，请稍候...</div>
+        </div>
 
-    <div id="pagination" style="display:none;"></div>
-</section>
+        <div id="pagination" style="display:none;"></div>
+    </section>
 
-<!-- ═══════════════════════════════════════════════════════
-     SECTION: 八强卡组
-     ═══════════════════════════════════════════════════════ -->
-<section id="section-eight-decks" class="content-section">
-    <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
+    <!-- ═══════════════════════════════════════════════════════
+         SECTION: 八强卡组
+         ═══════════════════════════════════════════════════════ -->
+    <section id="section-eight-decks" class="content-section">
+        <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
 
-    <!-- 右上角：原八强卡组入口按钮（仿新卡列表 placement） -->
-    <button class="old-decks-trigger" id="oldDecksTrigger" title="历届八强">📋 历届八强</button>
+        <!-- 右上角：原八强卡组入口按钮（仿新卡列表 placement） -->
+        <button class="old-decks-trigger" id="oldDecksTrigger" title="历届八强">📋 历届八强</button>
+        <!-- 右上角：服务器对局（仿新卡列表 placement） -->
+        <button class="live-duels-trigger" id="liveDuelsTrigger">服务器对局</button>
 
-    <h1 class="page-title">比赛相关</h1>
-    <div class="red-line"></div>
+        <h1 class="page-title">比赛相关</h1>
+        <div class="red-line"></div>
 
-    <!-- 比赛信息栏 -->
-    <div id="tournamentHeader" class="tournament-header" style="display:none;">
-        <span id="tourneyName"></span>
-        <span id="tourneyRule" class="badge rule-badge"></span>
-        <span id="tourneyStatus" class="badge status-badge"></span>
-    </div>
+        <!-- 比赛信息栏 -->
+        <div id="tournamentHeader" class="tournament-header" style="display:none;">
+            <span id="tourneyName"></span>
+            <span id="tourneyRule" class="badge rule-badge"></span>
+            <span id="tourneyStatus" class="badge status-badge"></span>
+        </div>
 
-    <!-- 主体：比赛数据动态渲染 -->
-    <div class="tournament-main" id="tournamentMain">
-        <div class="loading-hint">加载比赛数据中...</div>
-    </div>
+        <!-- 主体：比赛数据动态渲染 -->
+        <div class="tournament-main" id="tournamentMain">
+            <div class="loading-hint">加载比赛数据中...</div>
+        </div>
 
-    <!-- 原八强卡组 modal（点击右上角按钮打开） -->
-    <div class="old-decks-overlay" id="oldDecksOverlay">
-        <div class="old-decks-modal" id="oldDecksModal">
-            <button class="old-decks-close" id="oldDecksClose">×</button>
-            <h2>历届八强</h2>
-            <div class="old-decks-body">
-                <div class="filter-panel old-filter-panel">
-                    <h3>赛事列表</h3>
-                    <div id="buttonContainer"></div>
+        <!-- 原八强卡组 modal（点击右上角按钮打开） -->
+        <div class="old-decks-overlay" id="oldDecksOverlay">
+            <div class="old-decks-modal" id="oldDecksModal">
+                <button class="old-decks-close" id="oldDecksClose">×</button>
+                <h2>历届八强</h2>
+                <div class="old-decks-body">
+                    <div class="filter-panel old-filter-panel">
+                        <h3>赛事列表</h3>
+                        <div id="buttonContainer"></div>
+                    </div>
+                    <div class="container old-container" id="oldContainer">加载中...</div>
                 </div>
-                <div class="container old-container" id="oldContainer">加载中...</div>
+                <!-- 移动端筛选（modal 内） -->
+                <button class="filter-float-btn" id="filterFloatBtn">☰</button>
+                <div class="filter-mask" id="filterMask"></div>
+                <div class="filter-popup" id="filterPopup">
+                    <button class="filter-close-btn" id="filterCloseBtn">×</button>
+                    <h3>赛事列表</h3>
+                    <div id="popupButtonContainer"></div>
+                </div>
             </div>
-            <!-- 移动端筛选（modal 内） -->
-            <button class="filter-float-btn" id="filterFloatBtn">☰</button>
-            <div class="filter-mask" id="filterMask"></div>
-            <div class="filter-popup" id="filterPopup">
-                <button class="filter-close-btn" id="filterCloseBtn">×</button>
-                <h3>赛事列表</h3>
-                <div id="popupButtonContainer"></div>
+        </div>
+        <!-- 服务器对局（点击右上角按钮打开） -->
+        <div class="live-duels-overlay" id="liveDuelsOverlay">
+            <div class="live-duels-modal" id="liveDuelsModal">
+                <div class="live-duels-header">
+                    <h2>服务器实时对局</h2>
+                    <span class="live-duels-count" id="liveDuelsCount">0</span>
+                    <button class="live-duels-close" id="liveDuelsClose">&times;</button>
+                </div>
+                <div class="live-duels-admin">
+                    <div id="adminLoginForm" class="admin-login-form" style="display:flex;gap:6px;align-items:center;">
+                        <input type="text" id="adminUsername" placeholder="账号" style="width:100px;">
+                        <input type="password" id="adminPassword" placeholder="密码" style="width:100px;">
+                        <button class="admin-btn" id="adminLoginBtn">登录</button>
+                    </div>
+                    <div id="adminLoggedIn" class="admin-logged-in" style="display:none;">
+                        <span class="admin-name" id="adminNameDisplay"></span>
+                        <input type="text" id="adminShoutInput" placeholder="输入广播消息...">
+                        <button class="admin-btn" id="adminShoutBtn">广播</button>
+                        <button class="admin-btn danger" id="adminLogoutBtn">退出</button>
+                    </div>
+                </div>
+                <div class="live-duels-body" id="liveDuelsBody">
+                    <div class="loading-hint">加载中...</div>
+                </div>
+                <div class="live-duels-toast" id="liveDuelsToast"></div>
             </div>
         </div>
-    </div>
-</section>
+    </section>
 
-<!-- ═══════════════════════════════════════════════════════
-     SECTION: 玩家排名
-     ═══════════════════════════════════════════════════════ -->
-<section id="section-player-ranking" class="content-section">
-    <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
+    <!-- ═══════════════════════════════════════════════════════
+         SECTION: 玩家排名
+         ═══════════════════════════════════════════════════════ -->
+    <section id="section-player-ranking" class="content-section">
+        <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
 
-    <div class="ranking-wrapper">
-        <div class="ranking-title">🏆 玩家排名</div>
-        <div class="ranking-subtitle">M#比赛房间双方登录对局计入 · ELO算法 · TOP50</div>
+        <div class="ranking-wrapper">
+            <div class="ranking-title">🏆 玩家排名</div>
+            <div class="ranking-subtitle">M#比赛房间双方登录对局计入 · ELO算法 · TOP50</div>
 
-        <div class="ranking-search">
-            <input type="text" id="rankingSearchInput" placeholder="输入玩家名精确搜索...">
-            <button id="rankingSearchBtn">搜索</button>
-            <button id="rankingClearBtn" class="search-clear">清除</button>
-            <button id="cardStatsBtn" class="search-clear">📊 卡片统计</button>
-        </div>
-
-        <table class="rank-table">
-            <thead>
-                <tr>
-                    <th>#</th>
-                    <th>玩家</th>
-                    <th>积分</th>
-                    <th>战绩</th>
-                    <th>胜率</th>
-                    <th>场次</th>
-                    <th>连胜</th>
-                    <th>卡组</th>
-                </tr>
-            </thead>
-            <tbody id="rankTableBody">
-                <tr>
-                    <td colspan="8">
-                        <div class="ranking-empty">加载中...</div>
-                    </td>
-                </tr>
-            </tbody>
-        </table>
-
-        <div class="ranking-footer">
-            数据每场M#对局结束后更新 · 仅统计双方均已登录的对局
-        </div>
-    </div>
-
-    <!-- 卡组弹窗 -->
-    <div class="deck-modal-overlay" id="deckModalOverlay">
-        <div class="deck-modal">
-            <div class="deck-modal-header">
-                <span class="deck-modal-title" id="deckModalTitle">胜者卡组</span>
-                <button class="deck-modal-close" id="deckModalClose">&times;</button>
+            <div class="ranking-search">
+                <input type="text" id="rankingSearchInput" placeholder="输入玩家名精确搜索...">
+                <button id="rankingSearchBtn">搜索</button>
+                <button id="rankingClearBtn" class="search-clear">清除</button>
+                <button id="cardStatsBtn" class="search-clear">📊 卡片统计</button>
             </div>
-            <div class="deck-modal-body" id="deckModalBody"></div>
+
+            <table class="rank-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>玩家</th>
+                        <th>积分</th>
+                        <th>战绩</th>
+                        <th>胜率</th>
+                        <th>场次</th>
+                        <th>连胜</th>
+                        <th>卡组</th>
+                    </tr>
+                </thead>
+                <tbody id="rankTableBody">
+                    <tr>
+                        <td colspan="8">
+                            <div class="ranking-empty">加载中...</div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="ranking-footer">
+                数据每场M#对局结束后更新 · 仅统计双方均已登录的对局
+            </div>
         </div>
+
+        <!-- 卡组弹窗 -->
+        <div class="deck-modal-overlay" id="deckModalOverlay">
+            <div class="deck-modal">
+                <div class="deck-modal-header">
+                    <span class="deck-modal-title" id="deckModalTitle">胜者卡组</span>
+                    <button class="deck-modal-close" id="deckModalClose">&times;</button>
+                </div>
+                <div class="deck-modal-body" id="deckModalBody"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SECTION: 晓白投票
+         ═══════════════════════════════════════════════════════ -->
+    <section id="section-xiaobai" class="content-section">
+        <button class="back-btn" onclick="showSection('section-main')">← 返回首页</button>
+        <div style="display:flex;align-items:center;justify-content:center;min-height:60vh;color:#888;font-size:1.2rem;">
+            形象投票已结束，功能正在装修中...
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SIDEBAR — 全局侧边栏
+         ═══════════════════════════════════════════════════════ -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-btn" id="eightDecksBtn">比赛相关</div>
+        <div class="sidebar-btn" id="xiaobaiBtn">晓白相关</div>
+        <div class="sidebar-btn" id="cardListBtn">禁限分值</div>
+        <div class="sidebar-btn" id="cardPoolInfoBtn">卡池信息</div>
+        <div class="sidebar-btn" id="playerRankingBtn">玩家排名</div>
     </div>
-</section>
+    <div class="sidebar-trigger" id="sidebarTrigger"></div>
 
-<!-- ═══════════════════════════════════════════════════════
-     SECTION: 晓白投票
-     ═══════════════════════════════════════════════════════ -->
-<section id="section-xiaobai" class="content-section">
-    <button class="back-btn" onclick="showSection('section-main')">← 返回首页</button>
-    <div style="display:flex;align-items:center;justify-content:center;min-height:60vh;color:#888;font-size:1.2rem;">
-        形象投票已结束，功能正在装修中...
-    </div>
-</section>
-
-<!-- ═══════════════════════════════════════════════════════
-     SIDEBAR — 全局侧边栏
-     ═══════════════════════════════════════════════════════ -->
-<div class="sidebar" id="sidebar">
-    <div class="sidebar-btn" id="eightDecksBtn">比赛相关</div>
-    <div class="sidebar-btn" id="xiaobaiBtn">晓白相关</div>
-    <div class="sidebar-btn" id="cardListBtn">禁限分值</div>
-    <div class="sidebar-btn" id="cardPoolInfoBtn">卡池信息</div>
-    <div class="sidebar-btn" id="playerRankingBtn">玩家排名</div>
-</div>
-<div class="sidebar-trigger" id="sidebarTrigger"></div>
-
-<!-- ═══════════════════════════════════════════════════════
-     SCRIPTS — 全部JS
-     ═══════════════════════════════════════════════════════ -->
-<script src="js/script.js"></script>
-<script src="js/card-list.js"></script>
-<script src="js/card-pool-info.js"></script>
-<script src="js/eight-decks.js"></script>
-<script src="js/player-ranking.js"></script>
+    <!-- ═══════════════════════════════════════════════════════
+         SCRIPTS — 全部JS
+         ═══════════════════════════════════════════════════════ -->
+    <script src="js/script.js"></script>
+    <script src="js/card-list.js"></script>
+    <script src="js/card-pool-info.js"></script>
+    <script src="js/eight-decks.js"></script>
+    <script src="js/player-ranking.js"></script>
+    <script src="js/live-duels.js"></script>
 </body>
 </html>
