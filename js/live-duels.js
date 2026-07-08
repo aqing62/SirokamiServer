@@ -128,9 +128,9 @@ function parseDeckInfo(d) {
     if (!d) return '—';
     try {
         var parts = d.replace('ydke://', '').split('!');
-        var mc = parts[0] ? Math.max(0, Math.floor(parts[0].length / 4 * 3 / 4) - 1) : 0;
-        var ec = parts[1] ? Math.max(0, Math.floor(parts[1].length / 4 * 3 / 4) - 1) : 0;
-        if (mc > 0 || ec > 0) return '主' + mc + '·额' + ec;
+        var mc = Math.floor((parts[0] || '').length * 3 / 16);
+        var ec = Math.floor((parts[1] || '').length * 3 / 16);
+        return '主' + mc + '·额' + ec;
     } catch(e) {}
     return '已上传';
 }
