@@ -505,7 +505,7 @@ class VoteHandler(SimpleHTTPRequestHandler):
                     users = room.get("users", [])
                     p0 = next((u for u in users if u.get("pos") == 0), None)
                     p1 = next((u for u in users if u.get("pos") == 1), None)
-                    bothLoggedIn = (p0 and p0.get("loggedIn")) and (p1 and p1.get("loggedIn"))
+                    bothLoggedIn = bool(p0 and p0.get("loggedIn") and p1 and p1.get("loggedIn"))
                     room["isLadder"] = isM and bothLoggedIn
                 self._json_response(data)
             except Exception as e:
