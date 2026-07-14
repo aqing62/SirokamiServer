@@ -3,6 +3,8 @@
 """晓白形象投票后端服务器 — 端口 8092"""
 
 import hashlib
+import hmac
+import base64
 import json
 import logging
 import sqlite3
@@ -32,6 +34,11 @@ TOURNAMENT_ID = "151"  # 比赛ID，每次新比赛改这里
 TABULATOR_API_URL = "https://api-tabulator.moecube.com:444/api/tournament"
 TABULATOR_API_KEY = "MRAUXnLph1YP2sVeC9fQr7MKSK9KvbmoKrPchtED2YjKuVe5Q2x1zv32HrRxjfiC"
 TOURNAMENT_CACHE_TTL = 15  # 缓存秒数
+
+# ── Cookie 认证配置 ─────────────────────────────────────────
+COOKIE_NAME = "siro_admin"
+COOKIE_SECRET = "siro_admin_secret_2026_f1a8c"
+COOKIE_MAX_AGE = 86400  # 24 小时
 
 # ── srvpro2 服务器对局监控代理配置 ─────────────────────────
 SRVPRO_API_URL = "https://127.0.0.1:50009"
@@ -366,6 +373,28 @@ def _srvpro_fetch(endpoint: str, params: dict) -> dict:
         raise Exception(f"请求 srvpro2 API 失败: {e}")
 
 
+def _sign_cookie(username: str, password: str) -> str:
+    payload = f"{username}:{password}:{int(time.time())}"
+    sig = hmac.new(COOKIE_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:24]
+    return base64.b64encode(f"{payload}:{sig}".encode()).decode()
+
+
+def _verify_cookie(token: str) -> tuple | None:
+    try:
+        raw = base64.b64decode(token).decode()
+        parts = raw.rsplit(":", 1)
+        payload, sig = parts[0], parts[1]
+        expected = hmac.new(COOKIE_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:24]
+        if not hmac.compare_digest(sig, expected):
+            return None
+        username, password, ts = payload.split(":", 2)
+        if int(time.time()) - int(ts) > COOKIE_MAX_AGE:
+            return None
+        return username, password
+    except Exception:
+        return None
+
+
 # ── HTTP 请求处理器 ───────────────────────────────────────
 class VoteHandler(SimpleHTTPRequestHandler):
     """投票 API + 静态文件服务"""
@@ -469,12 +498,20 @@ class VoteHandler(SimpleHTTPRequestHandler):
                     "username": SRVPRO_READ_USER,
                     "pass": SRVPRO_READ_PASS,
                 })
+                rooms = data.get("rooms", [])
+                for room in rooms:
+                    room["isLadder"] = room.get("roomname", "").startswith("M#")
                 self._json_response(data)
             except Exception as e:
                 logger.error(f"获取服务器对局数据失败: {e}")
                 self._json_response({"error": str(e)}, status=502)
 
         elif path == "/api/admin":
+            creds = self._get_admin_cookie()
+            if not creds:
+                self._json_response({"error": "未登录"}, status=401)
+                return
+            username, password = creds
             query = {}
             raw_query = unquote(self.path.split("?", 1)[1]) if "?" in self.path else ""
             for part in raw_query.split("&"):
@@ -485,19 +522,54 @@ class VoteHandler(SimpleHTTPRequestHandler):
             if not action_keys:
                 self._json_response({"error": "缺少操作参数"}, status=400)
                 return
+            query["username"] = username
+            query["pass"] = password
             try:
                 data = _srvpro_fetch("/api/message", query)
                 self._json_response(data)
             except Exception as e:
                 logger.error(f"管理员操作失败: {e}")
                 self._json_response({"error": str(e)}, status=502)
+        elif path == "/api/admin/status":
+            creds = self._get_admin_cookie()
+            self._json_response({"loggedIn": creds is not None})
+
         else:
             self.send_error(404)
 
     # ── API POST ───────────────────────────────────────
 
     def _handle_api_post(self, path: str, payload: dict):
-        if path == "/api/vote":
+        if path == "/api/admin/login":
+            username = payload.get("username", "").strip()
+            password = payload.get("password", "")
+            if not username or not password:
+                self._json_response({"ok": False, "error": "缺少用户名或密码"}, status=400)
+                return
+            try:
+                _srvpro_fetch("/api/message", {
+                    "username": username, "pass": password, "shout": "test"
+                })
+            except Exception:
+                self._json_response({"ok": False, "error": "账号或密码错误"}, status=401)
+                return
+            token = _sign_cookie(username, password)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Set-Cookie",
+                f"{COOKIE_NAME}={token}; HttpOnly; SameSite=Strict; Max-Age={COOKIE_MAX_AGE}; Path=/")
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8"))
+
+        elif path == "/api/admin/logout":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Set-Cookie",
+                f"{COOKIE_NAME}=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/")
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8"))
+
+        elif path == "/api/vote":
             image = payload.get("image", "")
             if not image:
                 self._json_response({"ok": False, "error": "缺少 image 参数"},
@@ -556,6 +628,15 @@ class VoteHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     # ── 辅助方法 ───────────────────────────────────────
+
+    def _get_admin_cookie(self) -> tuple | None:
+        cookie_header = self.headers.get("Cookie", "")
+        for part in cookie_header.split(";"):
+            part = part.strip()
+            if part.startswith(f"{COOKIE_NAME}="):
+                token = part[len(COOKIE_NAME) + 1:]
+                return _verify_cookie(token)
+        return None
 
     def _json_response(self, obj, status: int = 200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")

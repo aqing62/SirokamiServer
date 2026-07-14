@@ -3,8 +3,7 @@
  */
 
 var POLL_INTERVAL_LIVE = 5000;
-var STORAGE_KEY = 'live_duels_admin';
-var adminCredentials = null;
+var adminLoggedIn = false;
 var livePollTimer = null;
 var liveDuelsOpen = false;
 
@@ -81,7 +80,7 @@ function renderLiveDuels(rooms) {
     var html = '<div style="overflow-x:auto;"><table class="live-duels-table"><thead><tr>' +
         '<th>房间名</th><th>玩家1</th><th>LP</th><th>玩家2</th><th>LP</th>' +
         '<th>状态</th><th>卡组1</th><th>卡组2</th>';
-    if (adminCredentials) html += '<th>操作</th>';
+    if (adminLoggedIn) html += '<th>操作</th>';
     html += '</tr></thead><tbody>';
 
     active.forEach(function(room) {
@@ -94,7 +93,8 @@ function renderLiveDuels(rooms) {
         var deck1 = p1 && p1.deck ? parseDeckInfo(p1.deck) : '—';
         var deck2 = p2 && p2.deck ? parseDeckInfo(p2.deck) : '—';
         html += '<tr class="' + rowClass + '">' +
-            '<td>' + esc(room.roomname.replace(/\$.*$/, '')) + '</td>' +
+            '<td>' + esc(room.roomname.replace(/\$.*$/, '')) + (room.isLadder ? ' <span
+  style = "color:#2ecc71;font-size:11px" > 天梯</span > ' : '') + '</td > ' +
             '<td>' + (p1 ? esc(p1.name) : '—') + '</td>' +
             '<td class="' + lpClass(p1) + '">' + fmtLp(p1) + '</td>' +
             '<td>' + (p2 ? esc(p2.name) : '—') + '</td>' +
@@ -102,7 +102,7 @@ function renderLiveDuels(rooms) {
             '<td>' + fmtInfo(room.istart) + '</td>' +
             '<td>' + deck1 + '</td>' +
             '<td>' + deck2 + '</td>';
-        if (adminCredentials) {
+        if (adminLoggedIn) {
             var rid = escAttr(room.roomid || room.roomname);
             html += '<td class="actions-cell">' +
                 '<button class="action-btn-sm death-btn" onclick="window._death(\'' + rid + '\')">死三</button>' +
@@ -156,8 +156,13 @@ function fmtInfo(s) {
     return s;
 }
 
-function restoreAdminSession() {
-    try { var s = localStorage.getItem(STORAGE_KEY); if (s) adminCredentials = JSON.parse(s); } catch(e) {}
+async function restoreAdminSession() {
+    try {
+        var r = await fetch('/api/admin/status');
+        var d = await r.json();
+        adminLoggedIn = d.loggedIn;
+    } catch(e) { adminLoggedIn = false; }
+    updateAdminUI();
 }
 
 async function adminLogin() {
@@ -165,30 +170,34 @@ async function adminLogin() {
     var p = document.getElementById('adminPassword').value;
     if (!u || !p) { toast('请输入账号和密码'); return; }
     try {
-        var qs = 'username=' + encodeURIComponent(u) + '&pass=' + encodeURIComponent(p) + '&shout=test';
-        var r = await fetch('/api/admin?' + qs);
+        var r = await fetch('/api/admin/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username: u, password: p })
+        });
         var d = await r.json();
-        if (d && d[0] && d[0].indexOf('密码') >= 0) { toast('账号或密码错误'); return; }
-        adminCredentials = { username: u, password: p };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(adminCredentials));
+        if (!d.ok) { toast(d.error || '登录失败'); return; }
+        adminLoggedIn = true;
         updateAdminUI();
         toast('管理员登录成功');
         fetchLiveRooms();
     } catch(e) { toast('连接失败'); }
 }
 
-function adminLogout() {
-    adminCredentials = null; localStorage.removeItem(STORAGE_KEY);
+async function adminLogout() {
+    try {
+        await fetch('/api/admin/logout', { method: 'POST' });
+    } catch(e) {}
+    adminLoggedIn = false;
     updateAdminUI(); toast('已退出'); fetchLiveRooms();
 }
 
 async function sendShout() {
     var inp = document.getElementById('adminShoutInput');
     var t = inp.value.trim();
-    if (!t || !adminCredentials) return;
+    if (!t || !adminLoggedIn) return;
     try {
-        var qs = 'username=' + encodeURIComponent(adminCredentials.username) + '&pass=' + encodeURIComponent(adminCredentials.password) + '&shout=' + encodeURIComponent(t);
-        var r = await fetch('/api/admin?' + qs);
+        var r = await fetch('/api/admin?shout=' + encodeURIComponent(t));
         var d = await r.json();
         toast(d && d[0] === 'shout ok' ? '广播成功' : '失败');
         if (d && d[0] === 'shout ok') inp.value = '';
@@ -196,19 +205,17 @@ async function sendShout() {
 }
 
 window._death = function(rid) {
-    if (!adminCredentials) return;
+    if (!adminLoggedIn) return;
     if (!confirm('确定对该房间开始死三倒计时？')) return;
-    var qs = 'username=' + encodeURIComponent(adminCredentials.username) + '&pass=' + encodeURIComponent(adminCredentials.password) + '&death=' + encodeURIComponent(rid);
-    fetch('/api/admin?' + qs).then(function(r) { return r.json(); }).then(function(d) {
+    fetch('/api/admin?death=' + encodeURIComponent(rid)).then(function(r) { return r.json(); }).then(function(d) {
         toast(d && d[0] === 'death ok' ? '死三已启动' : '失败'); fetchLiveRooms();
     }).catch(function() { toast('操作失败'); });
 };
 
 window._kick = function(rid) {
-    if (!adminCredentials) return;
+    if (!adminLoggedIn) return;
     if (!confirm('确定关闭该房间？')) return;
-    var qs = 'username=' + encodeURIComponent(adminCredentials.username) + '&pass=' + encodeURIComponent(adminCredentials.password) + '&kick=' + encodeURIComponent(rid);
-    fetch('/api/admin?' + qs).then(function(r) { return r.json(); }).then(function(d) {
+    fetch('/api/admin?kick=' + encodeURIComponent(rid)).then(function(r) { return r.json(); }).then(function(d) {
         toast(d && d[0] === 'kick ok' ? '已关闭' : '失败'); fetchLiveRooms();
     }).catch(function() { toast('操作失败'); });
 };
@@ -216,9 +223,8 @@ window._kick = function(rid) {
 function updateAdminUI() {
     var lf = document.getElementById('adminLoginForm');
     var li = document.getElementById('adminLoggedIn');
-    if (adminCredentials) {
+    if (adminLoggedIn) {
         lf.style.display = 'none'; li.style.display = 'flex';
-        document.getElementById('adminNameDisplay').textContent = adminCredentials.username;
     } else {
         lf.style.display = 'flex'; li.style.display = 'none';
     }
