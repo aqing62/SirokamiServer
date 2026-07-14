@@ -500,7 +500,13 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 })
                 rooms = data.get("rooms", [])
                 for room in rooms:
-                    room["isLadder"] = room.get("roomname", "").startswith("M#")
+                    # 天梯 = M# 前缀 + 双方都已登录
+                    isM = room.get("roomname", "").startswith("M#")
+                    users = room.get("users", [])
+                    p0 = next((u for u in users if u.get("pos") == 0), None)
+                    p1 = next((u for u in users if u.get("pos") == 1), None)
+                    bothLoggedIn = (p0 and p0.get("loggedIn")) and (p1 and p1.get("loggedIn"))
+                    room["isLadder"] = isM and bothLoggedIn
                 self._json_response(data)
             except Exception as e:
                 logger.error(f"获取服务器对局数据失败: {e}")
