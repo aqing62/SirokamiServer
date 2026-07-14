@@ -93,8 +93,7 @@ function renderLiveDuels(rooms) {
         var deck1 = p1 && p1.deck ? parseDeckInfo(p1.deck) : '—';
         var deck2 = p2 && p2.deck ? parseDeckInfo(p2.deck) : '—';
         html += '<tr class="' + rowClass + '">' +
-            '<td>' + esc(room.roomname.replace(/\$.*$/, '')) + (room.isLadder ? ' <span
-  style = "color:#2ecc71;font-size:11px" > 天梯</span > ' : '') + '</td > ' +
+            '<td>' + esc(room.roomname.replace(/\$.*$/, '')) + (room.isLadder ? ' <span style="color:#2ecc71;font-size:11px">天梯</span> ' : '') + '</td>' +
             '<td>' + (p1 ? esc(p1.name) : '—') + '</td>' +
             '<td class="' + lpClass(p1) + '">' + fmtLp(p1) + '</td>' +
             '<td>' + (p2 ? esc(p2.name) : '—') + '</td>' +
