@@ -84,6 +84,8 @@ function renderLiveDuels(rooms) {
     html += '</tr></thead><tbody>';
 
     active.forEach(function(room) {
+        // 非管理员隐藏随机匹配房间
+        if (!adminLoggedIn && room.roomname && room.roomname.indexOf('RANDOM') >= 0) return;
         var players = room.users.filter(function(u) { return u.pos >= 0 && u.pos <= 3; });
         var p1 = players.find(function(p) { return p.pos === 0; });
         var p2 = players.find(function(p) { return p.pos === 1; });
