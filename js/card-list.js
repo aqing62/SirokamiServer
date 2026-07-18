@@ -9,6 +9,7 @@
  * ================================================================ */
 
 const OCG_CARD_IMAGE_URL = "https://cdn.233.momobako.com/ygopro/pics/";
+const SUPER_PRE_URL = "https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/";
 const DIY_CARD_IMAGE_URL = "https://api.ygopro3.cn/pics/siro/";
 
 const LAZY_LOAD_CONFIG = {
@@ -183,12 +184,19 @@ function loadCardImage(imgContainer) {
         if (cardCategory === 'DIY') {
             this.src = `${OCG_CARD_IMAGE_URL}${cardId}.jpg`;
             this.onerror = function () {
+                this.onerror = null;
+                this.src = `${SUPER_PRE_URL}${cardId}.jpg`;
+                this.onerror = function () {
+                    imgContainer.innerHTML = `卡图缺失<br>${cardId}`;
+                    imgContainer.classList.remove('loading');
+                };
+            };
+        } else {
+            this.src = `${SUPER_PRE_URL}${cardId}.jpg`;
+            this.onerror = function () {
                 imgContainer.innerHTML = `卡图缺失<br>${cardId}`;
                 imgContainer.classList.remove('loading');
             };
-        } else {
-            imgContainer.innerHTML = `卡图缺失<br>${cardId}`;
-            imgContainer.classList.remove('loading');
         }
     };
 

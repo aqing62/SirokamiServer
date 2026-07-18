@@ -5,6 +5,7 @@
 import hashlib
 import hmac
 import base64
+import gzip
 import json
 import logging
 import sqlite3
@@ -302,6 +303,7 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
 # 全局卡牌缓存 (启动时加载，内存驻留)
 _cards_cache: list = []
 _cards_json: bytes = b"[]"
+_cards_json_gz: bytes = b""
 _cards_etag: str = ""
 
 # 比赛数据缓存 (惰性加载，定期刷新)
@@ -311,11 +313,12 @@ _tournament_cache_time: float = 0
 
 def refresh_cards_cache():
     """重新从 CDB 加载卡牌数据并更新缓存。"""
-    global _cards_cache, _cards_json, _cards_etag
+    global _cards_cache, _cards_json, _cards_json_gz, _cards_etag
     _cards_cache = load_cards_from_cdb(CDB_FILE)
     _cards_json = json.dumps(_cards_cache, ensure_ascii=False).encode("utf-8")
+    _cards_json_gz = gzip.compress(_cards_json, compresslevel=6)
     _cards_etag = f'"{hashlib.md5(_cards_json).hexdigest()}"'
-    logger.info(f"卡牌缓存已刷新: {len(_cards_cache)} 张, {len(_cards_json) / 1024:.0f} KB JSON")
+    logger.info(f"卡牌缓存已刷新: {len(_cards_cache)} 张, {len(_cards_json) / 1024:.0f} KB JSON → {len(_cards_json_gz) / 1024:.0f} KB gzip")
 
 
 def _get_tournament_data() -> dict:
@@ -479,11 +482,19 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 return
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", len(_cards_json))
             self.send_header("Cache-Control", "public, max-age=3600")
             self.send_header("ETag", _cards_etag)
-            self.end_headers()
-            self.wfile.write(_cards_json)
+            # gzip 压缩传输（浏览器均支持）
+            accept = self.headers.get("Accept-Encoding", "")
+            if "gzip" in accept and _cards_json_gz:
+                self.send_header("Content-Encoding", "gzip")
+                self.send_header("Content-Length", len(_cards_json_gz))
+                self.end_headers()
+                self.wfile.write(_cards_json_gz)
+            else:
+                self.send_header("Content-Length", len(_cards_json))
+                self.end_headers()
+                self.wfile.write(_cards_json)
 
         elif path == "/api/tournament":
             try:

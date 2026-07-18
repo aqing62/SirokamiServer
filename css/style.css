@@ -353,22 +353,296 @@ body {
     .sidebar-trigger { display: none !important; }
 }
 
-/* 公告功能样式 */
-.announcement-box p:nth-child(n+4) {
+/* ── 公告列表 ── */
+.announcement-box {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.announcement-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    background: rgba(40, 40, 40, 0.9);
+    border: 1px solid rgba(216, 30, 68, 0.15);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: #ccc;
+    transition: border-color 0.2s;
+}
+.announcement-item:hover {
+    border-color: rgba(216, 30, 68, 0.2);
+}
+.announcement-item:nth-child(n+4) {
     display: none;
 }
+.ann-date {
+    color: #888;
+    font-size: 0.8rem;
+    font-family: Consolas, 'Courier New', monospace;
+    white-space: nowrap;
+    min-width: 42px;
+}
+.ann-badge {
+    background: var(--red);
+    color: #fff;
+    font-size: 0.72rem;
+    padding: 1px 7px;
+    border-radius: 4px;
+    font-weight: 600;
+    white-space: nowrap;
+}
 .announcement-toggle {
-    color: #FFD700;
+    color: var(--light-gold);
     cursor: pointer;
-    margin-top: 8px;
+    margin-top: 4px;
     display: inline-block;
+    font-size: 0.9rem;
+}
+.announcement-toggle:hover {
+    color: #fff;
 }
 .announcement-close {
     color: #888;
     cursor: pointer;
     text-align: right;
-    margin-top: 8px;
+    margin-top: 4px;
     display: none;
+    font-size: 0.9rem;
+}
+.announcement-close:hover {
+    color: #fff;
+}
+
+/* ── 下载与卡包 ── */
+.download-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 16px;
+}
+.download-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    background: rgba(30, 30, 30, 0.7);
+    border: 1px solid rgba(216, 30, 68, 0.25);
+    border-radius: 14px;
+    padding: 18px 14px;
+    text-decoration: none;
+    transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.download-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--red);
+    box-shadow: 0 6px 20px rgba(216, 30, 68, 0.25);
+}
+.download-icon {
+    font-size: 2rem;
+}
+.download-title {
+    color: #eee;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+.download-hint {
+    color: #777;
+    font-size: 0.8rem;
+}
+.download-install {
+    background: rgba(212, 175, 55, 0.06);
+    border: 1px solid rgba(212, 175, 55, 0.15);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 0.95rem;
+    line-height: 1.8;
+    color: #bbb;
+}
+.download-install code {
+    background: #2a2a2a;
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--light-gold);
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
+@media (max-width: 768px) {
+    .download-grid {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 8px;
+    }
+    .download-card {
+        padding: 12px 8px;
+    }
+    .download-icon {
+        font-size: 1.5rem;
+    }
+    .download-title {
+        font-size: 0.85rem;
+    }
+    .download-hint {
+        font-size: 0.7rem;
+    }
+    .download-install {
+        font-size: 0.82rem;
+    }
+}
+
+/* ── 服务器介绍 ── */
+.server-desc {
+    font-size: 1.15rem;
+    line-height: 1.8;
+    margin-bottom: 15px;
+    color: #ddd;
+}
+.server-features {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-bottom: 18px;
+}
+.feature-item {
+    background: rgba(216, 30, 68, 0.1);
+    border: 1px solid rgba(216, 30, 68, 0.2);
+    border-radius: 10px;
+    padding: 10px 14px;
+    font-size: 1rem;
+    color: #ccc;
+}
+.server-address {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #1a1a1a;
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 12px;
+    padding: 14px 20px;
+    font-size: 1.2rem;
+    flex-wrap: wrap;
+}
+.addr-label {
+    color: #888;
+    font-size: 0.85rem;
+    margin-right: 4px;
+}
+.server-address code {
+    color: var(--light-gold);
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 1.2rem;
+    background: #111;
+    padding: 4px 10px;
+    border-radius: 5px;
+}
+.addr-sep {
+    color: #555;
+    font-weight: bold;
+}
+
+@media (max-width: 768px) {
+    .server-features {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+    }
+    .feature-item {
+        font-size: 0.85rem;
+        padding: 8px 10px;
+    }
+    .server-address {
+        font-size: 1rem;
+        padding: 10px 14px;
+    }
+    .server-address code {
+        font-size: 1rem;
+    }
+}
+
+/* ── 玩法规则 Tab 切换 ── */
+.rules-tabs {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 18px;
+    flex-wrap: wrap;
+}
+.rules-tab {
+    flex: 1;
+    min-width: 120px;
+    padding: 10px 14px;
+    background: #222;
+    border: 1px solid #333;
+    border-radius: 10px;
+    color: #aaa;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+.rules-tab.active {
+    background: var(--red);
+    border-color: var(--red);
+    color: #fff;
+    font-weight: 600;
+}
+.rules-tab:hover:not(.active) {
+    border-color: #555;
+    color: #fff;
+}
+.rules-panel {
+    display: none;
+}
+.rules-panel.active {
+    display: block;
+}
+.rules-panel p {
+    font-size: 1.05rem;
+    line-height: 1.7;
+    margin-bottom: 8px;
+}
+.rules-panel p:last-child {
+    margin-bottom: 0;
+}
+.code-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 6px;
+}
+.code-table td {
+    padding: 6px 10px;
+    font-size: 0.95rem;
+    border-bottom: 1px solid #2a2a2a;
+}
+.code-table td:first-child {
+    white-space: nowrap;
+    width: 140px;
+}
+.code-table code {
+    background: #2a2a2a;
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: var(--light-gold);
+    font-family: Consolas, 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+.code-table .param {
+    color: #888;
+    font-style: italic;
+}
+.section .code-table td p {
+    margin: 0;
+    font-size: 0.95rem;
+}
+
+@media (max-width: 768px) {
+    .rules-tab {
+        font-size: 0.82rem;
+        padding: 8px 10px;
+    }
+    .code-table td:first-child {
+        width: auto;
+    }
 }
 
 /* ── 统一返回按钮动画：从小到大 + 白光闪现 ── */

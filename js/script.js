@@ -296,18 +296,20 @@ document.addEventListener('DOMContentLoaded', function () {
     // 公告展开/收起
     const toggle = document.querySelector('.announcement-toggle');
     const close = document.querySelector('.announcement-close');
-    const items = document.querySelectorAll('.announcement-box p');
+    const items = document.querySelectorAll('.announcement-item');
 
-    toggle.onclick = () => {
-        items.forEach((el, i) => i >= 3 && (el.style.display = 'block'));
-        toggle.style.display = 'none';
-        close.style.display = 'block';
-    };
-    close.onclick = () => {
-        items.forEach((el, i) => i >= 3 && (el.style.display = 'none'));
-        toggle.style.display = 'block';
-        close.style.display = 'none';
-    };
+    if (toggle && close) {
+        toggle.onclick = () => {
+            items.forEach((el, i) => i >= 3 && (el.style.display = 'flex'));
+            toggle.style.display = 'none';
+            close.style.display = 'block';
+        };
+        close.onclick = () => {
+            items.forEach((el, i) => i >= 3 && (el.style.display = 'none'));
+            toggle.style.display = 'block';
+            close.style.display = 'none';
+        };
+    }
 });
 
 // ═══════════════════════════════════════════════════════

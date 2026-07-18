@@ -5,6 +5,7 @@
   const DECKS_API_URL = 'https://api.ygopro3.cn/api/ladder/decks';
   const CARD_STATS_URL = 'https://api.ygopro3.cn/api/ladder/card-stats';
   const OCG_PIC_URL = 'https://cdn.233.momobako.com/ygopro/pics/';
+  const SUPER_PRE_URL = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
   const DIY_PIC_URL = 'https://api.ygopro3.cn/pics/siro/';
   const FALLBACK_PIC = 'cover.jpg';
   const section = document.getElementById('section-player-ranking');
@@ -74,7 +75,7 @@
   function cardImgs(ids) {
     if (!ids || !ids.length) return '<div class="deck-empty-tip">无</div>';
     return sortCards(ids).map(function (id) {
-      return '<img src="' + OCG_PIC_URL + id + '.jpg" class="deck-card-img" alt="' + id + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + DIY_PIC_URL + id + '.jpg\';this.onerror=function(){this.src=\'' + FALLBACK_PIC + '\';}">';
+      return '<img src="' + OCG_PIC_URL + id + '.jpg" class="deck-card-img" alt="' + id + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + SUPER_PRE_URL + id + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'' + DIY_PIC_URL + id + '.jpg\';this.onerror=function(){this.src=\'' + FALLBACK_PIC + '\';}}">';
     }).join('');
   }
 
@@ -223,7 +224,7 @@
 
   function statCardImg(c) {
     return '<div class="stat-card" title="#' + c.cardId + ' 使用率' + c.usageRate + ' 胜率' + c.winRate + ' 胜' + c.wins + '/' + c.total + '">' +
-      '<img src="' + OCG_PIC_URL + c.cardId + '.jpg" class="deck-card-img" alt="' + c.cardId + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + DIY_PIC_URL + c.cardId + '.jpg\';this.onerror=function(){this.src=\'' + FALLBACK_PIC + '\';}">' +
+      '<img src="' + OCG_PIC_URL + c.cardId + '.jpg" class="deck-card-img" alt="' + c.cardId + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + SUPER_PRE_URL + c.cardId + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'' + DIY_PIC_URL + c.cardId + '.jpg\';this.onerror=function(){this.src=\'' + FALLBACK_PIC + '\';}}">' +
       '<div class="stat-card-info"><span class="stat-card-rate">使用' + c.usageRate + '</span><span class="stat-card-count">胜率' + c.winRate + ' (' + c.wins + '/' + c.total + ')</span></div>' +
       '</div>';
   }

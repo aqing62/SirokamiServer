@@ -3,6 +3,7 @@
  * v3: 对接Tabulator排表系统 + 保留历届卡组浏览
  */
 const OCG_URL = "https://cdn.233.momobako.com/ygopro/pics/";
+const SUPER_PRE_URL = "https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/";
 const DIY_URL = "https://api.ygopro3.cn/pics/siro/";
 const FALLBACK = "cover.jpg";
 const POLL_INTERVAL = 30000;  // 30秒轮询
@@ -571,8 +572,12 @@ function imgs(ids) {
             loading="lazy"
             onerror="
                 this.onerror=null;
-                this.src='${DIY_URL}${id}.jpg';
-                this.onerror=function(){this.src='${FALLBACK}';}
+                this.src='${SUPER_PRE_URL}${id}.jpg';
+                this.onerror=function(){
+                    this.onerror=null;
+                    this.src='${DIY_URL}${id}.jpg';
+                    this.onerror=function(){this.src='${FALLBACK}';}
+                }
             ">`).join("");
 }
 

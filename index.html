@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>白神服Sirokami - 游戏王DIY服务器</title>
     <link rel="icon" href="favicon.ico">
-    <link rel="stylesheet" href="css/style.css" id="css-style">
+    <link rel="stylesheet" href="css/style.css?v=20260718" id="css-style">
     <link rel="stylesheet" href="css/card-list.css" id="css-card-list" media="not all">
     <link rel="stylesheet" href="css/card-pool-info.css" id="css-card-pool" media="not all">
     <link rel="stylesheet" href="css/eight-decks.css" id="css-eight-decks" media="not all">
@@ -42,74 +42,124 @@
 
             <div class="section">
                 <h2>服务器介绍</h2>
-                <p>
-                    ✨ 白神服Sirokami，致力于打造超对味的游戏王体验！✨<br>
-                    卡图质量拉满、效果设计用心打磨，禁限环境兼顾平衡与趣味，不管是休闲娱乐还是竞技对战都超友好，更有海量优质DIY资源等你来玩～<br>
-                    服务器地址：ygopro3.cn<br>
-                    端口：50010
+                <p class="server-desc">
+                    白神服 Sirokami — 致力于打造<strong>更注重游戏性与平衡</strong>的游戏王 DIY 体验。
                 </p>
+                <div class="server-features">
+                    <div class="feature-item">🎨 卡图精心打磨</div>
+                    <div class="feature-item">⚖️ 禁限环境兼顾平衡与趣味</div>
+                    <div class="feature-item">🏆 竞技/休闲双模式</div>
+                    <div class="feature-item">📦 海量原创 DIY 资源</div>
+                </div>
+                <div class="server-address">
+                    <span class="addr-label">服务器地址</span>
+                    <code>ygopro3.cn</code>
+                    <span class="addr-sep">:</span>
+                    <code>50010</code>
+                </div>
             </div>
 
             <div class="section">
                 <h2>下载与卡包</h2>
-                <div class="btn-group">
-                    <a href="https://pan.quark.cn/s/ca2e4e7a8c63#/list/share" class="action-btn" target="_blank">客户端下载</a>
-                    <a href="https://api.ygopro3.cn/file/siro.ypk" class="action-btn" target="_blank">卡包下载</a>
-                    <a href="https://mycard.world/" class="action-btn" target="_blank">萌卡下载</a>
+                <div class="download-grid">
+                    <a href="https://pan.quark.cn/s/ca2e4e7a8c63#/list/share" class="download-card" target="_blank">
+                        <span class="download-icon">📥</span>
+                        <span class="download-title">MDPro3下载</span>
+                        <span class="download-hint">夸克网盘</span>
+                    </a>
+                    <a href="https://api.ygopro3.cn/file/siro.ypk" class="download-card" target="_blank">
+                        <span class="download-icon">📦</span>
+                        <span class="download-title">DIY卡包下载</span>
+                        <span class="download-hint">siro.ypk 直链</span>
+                    </a>
+                    <a href="https://mycard.world/" class="download-card" target="_blank">
+                        <span class="download-icon">🌐</span>
+                        <span class="download-title">萌卡平台下载</span>
+                        <span class="download-hint">mycard.world</span>
+                    </a>
                 </div>
-                <p style="margin-top: 15px; color: #aaa;">QQ群号：817861164</p>
-                <p style="margin-top: 8px; font-size: 1rem; color: #ccc;">卡包安装：</p>
-                <p style="margin-top: 8px; font-size: 1rem; color: #ccc;">将卡包文件放入客户端/expansions目录下即可</p>
-                <p style="margin-top: 8px; font-size: 1rem; color: #ccc;">MDPro3用户可使用拓展卡包下载自定义卡：https://api.ygopro3.cn/file/siro.ypk</p>
+                <div class="download-install">
+                    <p>💬 QQ群：<strong>817861164</strong></p>
+                    <p>📂 卡包安装：将 <code>siro.ypk</code> 放入客户端 <code>expansions</code> 目录，MDPro3 可在拓展卡包中直接输入链接下载。</p>
+                </div>
             </div>
 
             <div class="section">
-                <h2>规则简介</h2>
-                <p>使用专属禁卡表以规制环境</p>
-                <p>常规采用Genesys-Ext规则</p>
-                <p style="white-space:pre-line;font-family:Consolas,'Courier New',monospace;font-size:0.9rem;line-height:1.6;">
-                    不输入--默认为Genesys-Ext模式
-                    LF2--OT合表模式
-                    NF--无禁限模式
-                    M--三局两胜模式
-                    T--双打模式
-                    LP数字--设置基本分
-                    TM数字--设置回合时限
-                    ST数字--设置开局手卡数
-                    DR数字--设置回合抽卡数
-                    NS--不洗切卡组
-                </p>
-            </div>
+                <h2>玩法规则</h2>
+                <div class="rules-tabs">
+                    <button class="rules-tab active" data-tab="tab-roomcode">🔑 房间代码</button>
+                    <button class="rules-tab" data-tab="tab-ladder">🏆 天梯模式</button>
+                    <button class="rules-tab" data-tab="tab-chronicle">📜 编年史模式</button>
+                </div>
 
-            <div class="section">
-                <h2>🏆 天梯模式</h2>
-                <p>创建M#比赛房间，双方登录后自动开启天梯</p>
-                <p>ELO积分制，初始1000分，胜方加分败方扣分，分差越大加减越少</p>
-                <p>房间内指令：<code>/login 用户名 密码</code> 登录 · <code>/rating</code> 查分 · <code>/ladder</code> 排行榜</p>
-                <p>主站「玩家排名」板块可查看TOP50及精准搜索</p>
+                <!-- 房间代码 -->
+                <div class="rules-panel active" id="tab-roomcode">
+                    <p>服务器默认使用 <strong>Genesys-Ext</strong> 专属禁卡表，可通过房间密码切换规则：</p>
+                    <table class="code-table">
+                        <tr><td><code>（不输入）</code></td><td>Genesys-Ext 模式</td></tr>
+                        <tr><td><code>LF2</code></td><td>OT 合表模式</td></tr>
+                        <tr><td><code>NF</code></td><td>无禁限模式</td></tr>
+                        <tr><td><code>M</code></td><td>三局两胜（BO3）</td></tr>
+                        <tr><td><code>T</code></td><td>双打模式</td></tr>
+                        <tr><td><code>C</code></td><td>编年史模式（随机卡组对战）</td></tr>
+                        <tr><td><code>LP<span class="param">数字</span></code></td><td>设置基本分（如 <code>LP8000</code>）</td></tr>
+                        <tr><td><code>TM<span class="param">数字</span></code></td><td>设置回合时限（秒）</td></tr>
+                        <tr><td><code>ST<span class="param">数字</span></code></td><td>设置开局手卡数</td></tr>
+                        <tr><td><code>DR<span class="param">数字</span></code></td><td>设置回合抽卡数</td></tr>
+                        <tr><td><code>NS</code></td><td>不洗切卡组</td></tr>
+                    </table>
+                    <p style="margin-top:12px;color:#aaa;">多个代码可组合使用，如 <code>T,C#32</code> = 双打编年史房间。代码后加 <code>#</code> 再接房间名。</p>
+                </div>
+
+                <!-- 天梯模式 -->
+                <div class="rules-panel" id="tab-ladder">
+                    <p>创建 <code>M#</code> 房间，<strong>双方登录后</strong>自动开启天梯对战。</p>
+                    <p>采用 <strong>ELO 积分制</strong>，初始 1000 分，胜方加分败方扣分，分差越大分数变动越小。</p>
+                    <p>🛡️ <strong>防刷分机制</strong>：新玩家考察期 10 场，同对手连胜超过 5 场后不再加分，需至少 3 名不同对手方可进入排行榜。</p>
+                    <p>📝 <strong>注册</strong>：首次使用需先 <code>/register 用户名 密码 显示名</code> 注册，之后用 <code>/login 用户名 密码</code> 登录。</p>
+                    <p>房间内指令：</p>
+                    <table class="code-table">
+                        <tr><td><code>/register 用户名 密码 显示名</code></td><td>注册新账号（首次）</td></tr>
+                        <tr><td><code>/login 用户名 密码</code></td><td>登录已有账号</td></tr>
+                        <tr><td><code>/rating</code></td><td>查看自己积分</td></tr>
+                        <tr><td><code>/rating 玩家名</code></td><td>查看指定玩家积分</td></tr>
+                        <tr><td><code>/ladder</code></td><td>查看天梯排行榜</td></tr>
+                    </table>
+                    <p style="margin-top:12px;">主站「<strong>玩家排名</strong>」板块可查看 TOP50 及精准搜索。</p>
+                </div>
+
+                <!-- C模式·编年史 -->
+                <div class="rules-panel" id="tab-chronicle">
+                    <p>房间代码 <code>C</code>，服务器为双方<strong>随机分配卡组</strong>，展开公平的即兴对决。</p>
+                    <p>🎴 双方各获得<strong>不同</strong>的随机卡组，进入备牌阶段可<strong>调整 90 秒</strong>后提交。</p>
+                    <p>📊 每张卡片设有<strong>分值</strong>，卡组总分 ≤ 100 分，确保对局相对平衡。</p>
+                    <p>📚 卡组池由策划组<strong>精心挑选</strong>，持续更新中，欢迎投稿。</p>
+                    <p style="color:#aaa;margin-top:12px;">编年史模式与下赛季同步上线，敬请期待！</p>
+                </div>
             </div>
 
             <div class="section">
                 <h2>最新公告</h2>
                 <div class="announcement-box">
-                    <p>2026.07.08：服务器V1.5.0更新：主站「服务器对局」上线，可实时查看当前所有对局（房间号/玩家/LP/卡组），管理员支持全服喊话、死三倒计时、关闭房间，修复ChallongeJoinHandler导致第二人进房变观战的bug</p>
-                    <p>2026.07.05：服务器V1.4.0更新：D#比赛房落地，对接Tabulator排表系统，主站「比赛相关」板块上线（支持单淘/瑞士轮对阵图与实时排名），ELO积分系统重构</p>
-                    <p>2026.06.29：服务器主站V1.3.2更新：新卡列表最新一期卡图叠加logo标记，灵摆卡自动识别偏移</p>
-                    <p>2026.06.25：服务器V1.3.1更新：天梯胜者卡组查询，卡片使用率胜率统计，同名异画卡数据合并，手机端适配优化</p>
-                    <p>2026.06.25：服务器V1.3.0更新：新增账号登录系统，M#比赛房ELO天梯积分制，主站「玩家排名」板块上线</p>
-                    <p>2026.06.22：服务器主站V1.2.0更新：移动端全面优化（布局/性能/交互），桌面端新增入场动画，卡包部署流程改进</p>
-                    <p>2026.06.10：服务器主站V1.1.1更新：UI美化，滑动优化，卡池内新增新卡列表</p>
-                    <p>2026.06.09：服务器主站V1.1.0更新：优化整体框架，“主轴评分”替换为“晓白相关”</p>
-                    <p>2026.05.14：服务器主站V1.0.6更新：优化主页样式，优化卡池信息加载逻辑</p>
-                    <p>2026.05.12：服务器主站V1.0.5更新：完全优化卡池信息页面</p>
-                    <p>2026.05.11：服务器主站V1.0.4更新：修复连接怪兽守备力显示错误</p>
-                    <p>2026.05.11：服务器主站V1.0.3更新：修复"？"攻守时显示错误</p>
-                    <p>2026.05.08：服务器主站V1.0.2更新：新增卡池展示</p>
-                    <p>2026.04.25：服务器主站V1.0.1更新：新增禁卡表去重，不再显示重复卡</p>
-                    <p>2026.04.22：服务器主站V1.0.0上线</p>
+                    <div class="announcement-item"><span class="ann-date">07.20</span><span class="ann-badge">V1.6.0</span>主站首页大更新：服务器介绍/下载卡片重设计，玩法规则三 Tab 切换（房间代码·天梯模式·编年史模式），公告板时间线卡片化，CDB 数据 gzip 压缩加载加速</div>
+                    <div class="announcement-item"><span class="ann-date">07.08</span><span class="ann-badge">V1.5.0</span>主站「服务器对局」上线，可实时查看当前所有对局（房间号/玩家/LP/卡组），管理员支持全服喊话、死三倒计时、关闭房间，修复ChallongeJoinHandler导致第二人进房变观战的bug</div>
+                    <div class="announcement-item"><span class="ann-date">07.05</span><span class="ann-badge">V1.4.0</span>D#比赛房落地，对接Tabulator排表系统，主站「比赛相关」板块上线（支持单淘/瑞士轮对阵图与实时排名），ELO积分系统重构</div>
+                    <div class="announcement-item"><span class="ann-date">06.29</span><span class="ann-badge">V1.3.2</span>新卡列表最新一期卡图叠加logo标记，灵摆卡自动识别偏移</div>
+                    <div class="announcement-item"><span class="ann-date">06.25</span><span class="ann-badge">V1.3.1</span>天梯胜者卡组查询，卡片使用率胜率统计，同名异画卡数据合并，手机端适配优化</div>
+                    <div class="announcement-item"><span class="ann-date">06.25</span><span class="ann-badge">V1.3.0</span>新增账号登录系统，M#比赛房ELO天梯积分制，主站「玩家排名」板块上线</div>
+                    <div class="announcement-item"><span class="ann-date">06.22</span><span class="ann-badge">V1.2.0</span>移动端全面优化（布局/性能/交互），桌面端新增入场动画，卡包部署流程改进</div>
+                    <div class="announcement-item"><span class="ann-date">06.10</span><span class="ann-badge">V1.1.1</span>UI美化，滑动优化，卡池内新增新卡列表</div>
+                    <div class="announcement-item"><span class="ann-date">06.09</span><span class="ann-badge">V1.1.0</span>优化整体框架，"主轴评分"替换为"晓白相关"</div>
+                    <div class="announcement-item"><span class="ann-date">05.14</span><span class="ann-badge">V1.0.6</span>优化主页样式，优化卡池信息加载逻辑</div>
+                    <div class="announcement-item"><span class="ann-date">05.12</span><span class="ann-badge">V1.0.5</span>完全优化卡池信息页面</div>
+                    <div class="announcement-item"><span class="ann-date">05.11</span><span class="ann-badge">V1.0.4</span>修复连接怪兽守备力显示错误</div>
+                    <div class="announcement-item"><span class="ann-date">05.11</span><span class="ann-badge">V1.0.3</span>修复"？"攻守时显示错误</div>
+                    <div class="announcement-item"><span class="ann-date">05.08</span><span class="ann-badge">V1.0.2</span>新增卡池展示</div>
+                    <div class="announcement-item"><span class="ann-date">04.25</span><span class="ann-badge">V1.0.1</span>新增禁卡表去重，不再显示重复卡</div>
+                    <div class="announcement-item"><span class="ann-date">04.22</span><span class="ann-badge">V1.0.0</span>白神服 Sirokami 正式上线</div>
                 </div>
-                <div class="announcement-toggle">往期更新</div>
-                <div class="announcement-close">▲</div>
+                <div class="announcement-toggle">查看更多 ▼</div>
+                <div class="announcement-close">收起 ▲</div>
             </div>
         </div>
     </section>
@@ -501,11 +551,23 @@
     <!-- ═══════════════════════════════════════════════════════
          SCRIPTS — 全部JS
          ═══════════════════════════════════════════════════════ -->
-    <script src="js/script.js"></script>
-    <script src="js/card-list.js"></script>
-    <script src="js/card-pool-info.js"></script>
-    <script src="js/eight-decks.js"></script>
-    <script src="js/player-ranking.js"></script>
-    <script src="js/live-duels.js"></script>
+    <script src="js/script.js?v=20260718"></script>
+    <script src="js/card-list.js?v=20260718"></script>
+    <script src="js/card-pool-info.js?v=20260718"></script>
+    <script src="js/eight-decks.js?v=20260718"></script>
+    <script src="js/player-ranking.js?v=20260718"></script>
+    <script src="js/live-duels.js?v=20260718"></script>
+    <script>
+        // 玩法规则 Tab 切换
+        document.querySelectorAll('.rules-tab').forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                var targetId = this.getAttribute('data-tab');
+                document.querySelectorAll('.rules-tab').forEach(function(b) { b.classList.remove('active'); });
+                document.querySelectorAll('.rules-panel').forEach(function(p) { p.classList.remove('active'); });
+                this.classList.add('active');
+                document.getElementById(targetId).classList.add('active');
+            });
+        });
+    </script>
 </body>
 </html>

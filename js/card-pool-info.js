@@ -80,9 +80,21 @@ function processImageQueue() {
             processImageQueue();
         };
         img.onload = onDone;
-        img.onerror = () => {
-            img.src = ERROR_SVG;
-            onDone();
+        img.onerror = function() {
+            if (!this._triedSuperPre) {
+                this._triedSuperPre = true;
+                const match = url.match(/\/(\d+)\.jpg/);
+                const cardId = match ? match[1] : '';
+                this.src = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + cardId + '.jpg';
+            } else if (!this._triedOcg) {
+                this._triedOcg = true;
+                const match = url.match(/\/(\d+)\.jpg/);
+                const cardId = match ? match[1] : '';
+                this.src = 'https://cdn.233.momobako.com/ygopro/pics/' + cardId + '.jpg';
+            } else {
+                this.src = ERROR_SVG;
+                onDone();
+            }
         };
         img.src = url;
     }
