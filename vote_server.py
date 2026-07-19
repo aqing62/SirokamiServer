@@ -31,7 +31,7 @@ THUMB_WIDTH = 200
 THUMB_QUALITY = 72
 
 # ── 比赛排表代理配置 ──────────────────────────────────────
-TOURNAMENT_ID = "151"  # 比赛ID，每次新比赛改这里
+TOURNAMENT_ID = "159"  # 比赛ID，每次新比赛改这里
 TABULATOR_API_URL = "https://api-tabulator.moecube.com:444/api/tournament"
 TABULATOR_API_KEY = "MRAUXnLph1YP2sVeC9fQr7MKSK9KvbmoKrPchtED2YjKuVe5Q2x1zv32HrRxjfiC"
 TOURNAMENT_CACHE_TTL = 15  # 缓存秒数
