@@ -47,6 +47,25 @@ function parseGExtData(text) {
         }
         if (line.startsWith('#') || line.startsWith('!') || line.startsWith('$genesys')) return;
 
+        // 匹配被直接禁止的卡（无 $genesys 前缀，仅 0）
+        let fbM = line.match(/^(\d+)\s+0\s+--(.+?)(?:\s+#(.+))?$/);
+        if (fbM) {
+            const cardId = fbM[1];
+            if (!tempIdSet.has(cardId)) {
+                tempIdSet.add(cardId);
+                cards.push({
+                    id: fbM[1],
+                    score: 0,
+                    name: fbM[2].trim(),
+                    reason: fbM[3] ? fbM[3].trim() : '无备注',
+                    cardType: 'g-ext',
+                    category: currentCategory,
+                    forbidden: true,
+                });
+            }
+            return;
+        }
+
         let m = line.match(/^(\d+)\s+\$genesys\s+(\d+)\s+--(.+?)(?:\s+#(.+))?$/);
         if (!m) return;
 
@@ -339,11 +358,14 @@ function renderGExtCards(cards) {
     cards.forEach(c => {
         let div = document.createElement('div');
         div.className = 'card-item';
+        let scoreHtml = c.forbidden
+            ? `<div class="card-score g-ext-forbidden">🚫 禁止</div>`
+            : `<div class="card-score">分数：${c.score}</div>`;
         div.innerHTML = makeCardImageHtml(c.id, c.category) + `
         <div class="card-info">
             <div class="card-name">${c.name}</div>
             <div class="card-id">${c.id}</div>
-            <div class="card-score">分数：${c.score}</div>
+            ${scoreHtml}
             <div class="card-reason">${c.reason}</div>
         </div>`;
         ctn.appendChild(div);

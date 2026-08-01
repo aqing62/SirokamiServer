@@ -52,16 +52,19 @@
 
 /* ── S1 赛季信息横幅 ── */
 .season-banner {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%);
-    border: 1px solid #2a3a5c;
+    background: transparent;
+    border: 1px solid rgba(212, 175, 55, 0.3);
     border-radius: 10px;
     padding: 18px 22px;
     margin-bottom: 25px;
     text-align: center;
+    position: relative;
+    overflow: hidden;
 }
 
 .season-header {
     margin-bottom: 10px;
+    position: relative;
 }
 
 .season-badge {
@@ -74,6 +77,20 @@
     border-radius: 4px;
     margin-right: 10px;
     vertical-align: middle;
+    position: relative;
+}
+
+/* 桌面端：S1 徽章呼吸发光 */
+@media (min-width: 769px) {
+    .season-badge {
+        animation: badge-glow 2s ease-in-out infinite;
+        box-shadow: 0 0 12px rgba(212, 175, 55, 0.5);
+    }
+}
+
+@keyframes badge-glow {
+    0%, 100% { box-shadow: 0 0 8px rgba(212, 175, 55, 0.4); }
+    50%      { box-shadow: 0 0 20px rgba(255, 215, 0, 0.7), 0 0 40px rgba(212, 175, 55, 0.3); }
 }
 
 .season-title {
@@ -88,6 +105,7 @@
     font-size: 0.85rem;
     line-height: 1.8;
     margin-bottom: 14px;
+    position: relative;
 }
 
 .season-detail strong {
@@ -99,12 +117,25 @@
     flex-wrap: wrap;
     justify-content: center;
     gap: 6px 14px;
+    position: relative;
 }
 
 .tier-item {
     color: #ccc;
     font-size: 0.82rem;
     white-space: nowrap;
+}
+
+/* 桌面端：巅峰称号闪烁 */
+@media (min-width: 769px) {
+    .tier-item:first-child {
+        animation: peak-shine 1.5s ease-in-out infinite;
+    }
+}
+
+@keyframes peak-shine {
+    0%, 100% { color: #ccc; }
+    50%      { color: #FFD700; text-shadow: 0 0 6px rgba(255, 215, 0, 0.6); }
 }
 
 .tier-item em {
@@ -117,6 +148,16 @@
     color: #FF9800;
     margin-left: 4px;
     font-size: 0.78rem;
+}
+
+/* 桌面端：段位悬停微动 */
+@media (min-width: 769px) {
+    .tier-item {
+        transition: transform 0.2s;
+    }
+    .tier-item:hover {
+        transform: translateY(-1px);
+    }
 }
 
 @media (max-width: 768px) {

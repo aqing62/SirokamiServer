@@ -374,6 +374,12 @@ input:checked + .toggle-slider:before {
     display: block;
 }
 
+.card-score.g-ext-forbidden {
+    color: #ff1744;
+    text-shadow: 0 0 6px rgba(255, 23, 68, 0.6);
+    font-size: 0.95rem;
+}
+
 .card-ot {
     font-size: 0.9rem;
     font-weight: bold;
