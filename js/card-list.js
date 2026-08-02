@@ -18,6 +18,112 @@ const LAZY_LOAD_CONFIG = {
     threshold: 0.1,
 };
 
+let _cardInfoMap = null;
+let _cardListAliasMap = null;
+let _cardListTooltipEl = null;
+
+function buildAliasMap(cardMap) {
+    var aliasMap = {};
+    cardMap.forEach(function (card) {
+        if (card.alias) aliasMap[parseInt(card.id)] = parseInt(card.alias);
+    });
+    return aliasMap;
+}
+
+function resolveCardListInfo(cardId) {
+    if (_cardInfoMap) {
+        var card = _cardInfoMap.get(cardId);
+        if (card) return card;
+        var aliasId = _cardListAliasMap && _cardListAliasMap[cardId];
+        if (aliasId) return _cardInfoMap.get(aliasId) || null;
+    }
+    return null;
+}
+
+async function loadCardInfo() {
+    if (_cardInfoMap) return _cardInfoMap;
+    if (window._cardIndex && window._cardIndex.size) {
+        _cardInfoMap = window._cardIndex;
+        _cardListAliasMap = buildAliasMap(window._cardIndex);
+        return _cardInfoMap;
+    }
+    try {
+        const resp = await fetch('/api/cards');
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        const cards = await resp.json();
+        _cardInfoMap = new Map();
+        cards.forEach(function (c) { _cardInfoMap.set(parseInt(c.id), c); });
+        _cardListAliasMap = buildAliasMap(_cardInfoMap);
+        return _cardInfoMap;
+    } catch (e) {
+        console.warn('Failed to load card info for tooltip:', e);
+        _cardInfoMap = new Map();
+        _cardListAliasMap = {};
+        return _cardInfoMap;
+    }
+}
+
+function ensureCardListTooltip() {
+    if (_cardListTooltipEl) return _cardListTooltipEl;
+    _cardListTooltipEl = document.createElement('div');
+    _cardListTooltipEl.className = 'card-tooltip';
+    _cardListTooltipEl.style.display = 'none';
+    document.body.appendChild(_cardListTooltipEl);
+    return _cardListTooltipEl;
+}
+
+function showCardListTooltip(e, card) {
+    var tip = ensureCardListTooltip();
+    var isMonster = card.typeInfo && card.typeInfo.baseType === '怪兽';
+    var atkDef = isMonster
+        ? '<div class="tooltip-atkdef">ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (card.def < 0 ? '?' : card.def) + '</div>'
+        : '';
+    var raceAttr = isMonster
+        ? '<div class="tooltip-raceattr">' + card.attrName + ' | ' + card.raceName + (card.level ? ' | Lv' + card.level : '') + '</div>'
+        : '';
+    tip.innerHTML = '<div class="tooltip-name">' + (card.name || '') + '</div>'
+        + '<div class="tooltip-type">' + (card.typeInfo ? card.typeInfo.fullType : '') + '</div>'
+        + raceAttr
+        + atkDef
+        + '<div class="tooltip-desc">' + (card.processedDesc || '') + '</div>';
+    tip.style.display = 'block';
+    var x = e.clientX + 14;
+    var y = e.clientY + 10;
+    var tw = tip.offsetWidth;
+    var th = tip.offsetHeight;
+    if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
+    if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+}
+
+function hideCardListTooltip() {
+    if (_cardListTooltipEl) _cardListTooltipEl.style.display = 'none';
+}
+
+function attachCardListHover() {
+    document.querySelectorAll('#cardList .card-item').forEach(function (item) {
+        item.addEventListener('mouseenter', function (e) {
+            var cardId = parseInt(item.getAttribute('data-card-id'));
+            if (!cardId || !_cardInfoMap) return;
+            var card = resolveCardListInfo(cardId);
+            if (card) showCardListTooltip(e, card);
+        });
+        item.addEventListener('mousemove', function (e) {
+            if (!_cardListTooltipEl || _cardListTooltipEl.style.display === 'none') return;
+            var x = e.clientX + 14;
+            var y = e.clientY + 10;
+            var tw = _cardListTooltipEl.offsetWidth;
+            var th = _cardListTooltipEl.offsetHeight;
+            if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
+            if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
+            _cardListTooltipEl.style.left = x + 'px';
+            _cardListTooltipEl.style.top = y + 'px';
+        });
+        item.addEventListener('mouseleave', hideCardListTooltip);
+    });
+}
+
 let originalCards = [];   // G-Ext 原始数据
 let originalOtCards = []; // OT 原始数据
 let currentMode = "g-ext";
@@ -358,6 +464,7 @@ function renderGExtCards(cards) {
     cards.forEach(c => {
         let div = document.createElement('div');
         div.className = 'card-item';
+        div.setAttribute('data-card-id', c.id);
         let scoreHtml = c.forbidden
             ? `<div class="card-score g-ext-forbidden">🚫 禁止</div>`
             : `<div class="card-score">分数：${c.score}</div>`;
@@ -373,6 +480,7 @@ function renderGExtCards(cards) {
 
     resetLazyLoadObserver();
     initLazyLoadObserver();
+    loadCardInfo().then(attachCardListHover);
 }
 
 function renderOtCards(cards) {
@@ -399,6 +507,7 @@ function renderOtCards(cards) {
         }
         let div = document.createElement('div');
         div.className = 'card-item';
+        div.setAttribute('data-card-id', c.id);
         div.innerHTML = makeCardImageHtml(c.id, c.category) + `
         <div class="card-info">
             <div class="card-name">${c.name}</div>
@@ -411,6 +520,7 @@ function renderOtCards(cards) {
 
     resetLazyLoadObserver();
     initLazyLoadObserver();
+    loadCardInfo().then(attachCardListHover);
 }
 
 /* ================================================================

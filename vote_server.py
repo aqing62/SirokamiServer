@@ -8,6 +8,7 @@ import base64
 import gzip
 import json
 import logging
+import re
 import sqlite3
 import ssl
 import threading
@@ -269,7 +270,7 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
     try:
         rows = conn.execute(
             "SELECT datas.id, texts.name, datas.type, datas.atk, datas.def, "
-            "datas.level, datas.race, datas.attribute, texts.desc "
+            "datas.level, datas.race, datas.attribute, texts.desc, datas.alias "
             "FROM datas JOIN texts ON datas.id = texts.id"
         ).fetchall()
     finally:
@@ -277,7 +278,7 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
 
     cards = []
     for row in rows:
-        card_id, name, type_val, atk, def_, level, race, attr, desc = row
+        card_id, name, type_val, atk, def_, level, race, attr, desc, alias = row
         type_info = _parse_type(type_val)
         cards.append({
             "id": card_id,
@@ -289,6 +290,7 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
             "race": race,
             "attribute": attr,
             "desc": desc,
+            "alias": alias or 0,
             "typeInfo": type_info,
             "raceName": _parse_race(race),
             "attrName": _parse_attr(attr),
@@ -306,6 +308,10 @@ _cards_json: bytes = b"[]"
 _cards_json_gz: bytes = b""
 _cards_etag: str = ""
 
+# G-Ext 分数缓存 (启动时加载，alias 已解析)
+_scores_cache: dict = {}
+_scores_json: bytes = b"{}"
+
 # 比赛数据缓存 (惰性加载，定期刷新)
 _tournament_cache: dict | None = None
 _tournament_cache_time: float = 0
@@ -319,6 +325,78 @@ def refresh_cards_cache():
     _cards_json_gz = gzip.compress(_cards_json, compresslevel=6)
     _cards_etag = f'"{hashlib.md5(_cards_json).hexdigest()}"'
     logger.info(f"卡牌缓存已刷新: {len(_cards_cache)} 张, {len(_cards_json) / 1024:.0f} KB JSON → {len(_cards_json_gz) / 1024:.0f} KB gzip")
+
+
+def refresh_scores_cache():
+    """解析 lflist.conf G-Ext 分数，结合 CDB alias + 同名卡补充分数。"""
+    global _scores_cache, _scores_json
+    lflist = ROOT / "lflist.conf"
+    if not lflist.is_file():
+        logger.warning("lflist.conf 不存在，跳过分数缓存")
+        return
+
+    text = lflist.read_text(encoding="utf-8")
+    sirokami_idx = text.find("!DIY_Sirokami")
+    gext = text[:sirokami_idx] if sirokami_idx > -1 else text
+
+    scores = {}
+    for line in gext.split("\n"):
+        line = line.strip()
+        if not line or line.startswith("#") or line.startswith("!") or line.startswith("$genesys"):
+            continue
+        m = re.match(r"^(\d+)\s+0\s+--", line)
+        if m:
+            scores[int(m.group(1))] = {"score": 0, "forbidden": True}
+            continue
+        m = re.match(r"^(\d+)\s+\$genesys\s+(\d+)\s+--", line)
+        if m:
+            scores[int(m.group(1))] = {"score": int(m.group(2)), "forbidden": False}
+
+    # ── 从 CDB (DIY + OCG) 构建 alias 映射 + 卡名索引 ──
+    aliases = {}
+    name_to_ids = {}  # 卡名 → 所有同名卡 ID
+    for cdb_path in [CDB_FILE, ROOT / "cards_ocg.cdb"]:
+        if cdb_path.is_file():
+            conn = sqlite3.connect(str(cdb_path))
+            try:
+                for row in conn.execute("SELECT id, alias FROM datas WHERE alias != 0"):
+                    aliases[int(row[0])] = int(row[1])
+                for row in conn.execute(
+                    "SELECT datas.id, texts.name FROM datas JOIN texts ON datas.id = texts.id"
+                ):
+                    cid, cname = int(row[0]), row[1]
+                    name_to_ids.setdefault(cname, []).append(cid)
+            finally:
+                conn.close()
+
+    # ── Step 1: alias 直接复制分数 ──
+    for alt_id, canon_id in aliases.items():
+        if alt_id not in scores and canon_id in scores:
+            scores[alt_id] = scores[canon_id]
+
+    # ── Step 2: 同名卡补充 (有分直接用分，没分按同名卡的分) ──
+    # 对有分数的卡，按卡名建立分数映射
+    name_score = {}
+    for cid, sc in scores.items():
+        # 找这个 cid 对应的卡名
+        for cname, id_list in name_to_ids.items():
+            if cid in id_list:
+                # 如果同名卡有多个分数，保留第一个遇到的 (已有的不覆盖)
+                if cname not in name_score:
+                    name_score[cname] = sc
+                break
+
+    # 为没分数的同名卡补充分数
+    filled = 0
+    for cname, sc in name_score.items():
+        for cid in name_to_ids.get(cname, []):
+            if cid not in scores:
+                scores[cid] = sc
+                filled += 1
+
+    _scores_cache = scores
+    _scores_json = json.dumps(scores, ensure_ascii=False).encode("utf-8")
+    logger.info(f"分数缓存已刷新: {len(scores)} 张, alias {len(aliases)} 条, 同名补充 {filled} 张")
 
 
 def _get_tournament_data() -> dict:
@@ -547,6 +625,14 @@ class VoteHandler(SimpleHTTPRequestHandler):
             except Exception as e:
                 logger.error(f"管理员操作失败: {e}")
                 self._json_response({"error": str(e)}, status=502)
+        elif path == "/api/scores":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("Content-Length", len(_scores_json))
+            self.end_headers()
+            self.wfile.write(_scores_json)
+
         elif path == "/api/admin/status":
             creds = self._get_admin_cookie()
             self._json_response({"loggedIn": creds is not None})
@@ -672,6 +758,7 @@ if __name__ == "__main__":
     logger.info(f"每IP票数: {MAX_VOTES}")
     logger.info(f"Pillow: {'YES' if HAS_PILLOW else 'NO (pip install Pillow)'}")
     refresh_cards_cache()
+    refresh_scores_cache()
     generate_thumbnails()
 
     server = ThreadingHTTPServer((HOST, PORT), VoteHandler)

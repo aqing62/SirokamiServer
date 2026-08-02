@@ -8,6 +8,9 @@
   const SUPER_PRE_URL = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
   const DIY_PIC_URL = 'https://api.ygopro3.cn/pics/siro/';
   const FALLBACK_PIC = 'cover.jpg';
+  let _lflistCache = null;
+  let _cardInfoMap = null;
+  let _aliasMap = null;
   const section = document.getElementById('section-player-ranking');
   const tableBody = document.getElementById('rankTableBody');
   const searchInput = document.getElementById('rankingSearchInput');
@@ -72,11 +75,140 @@
     return (ids || []).slice().sort(function (a, b) { return a - b; });
   }
 
-  function cardImgs(ids) {
+  function cardImgs(ids, scoreMap) {
     if (!ids || !ids.length) return '<div class="deck-empty-tip">无</div>';
     return sortCards(ids).map(function (id) {
-      return '<img src="' + OCG_PIC_URL + id + '.jpg" class="deck-card-img" alt="' + id + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + SUPER_PRE_URL + id + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'' + DIY_PIC_URL + id + '.jpg\';this.onerror=function(){this.src=\'' + FALLBACK_PIC + '\';}}">';
+      var scoreBadge = '';
+      if (scoreMap && scoreMap[id]) {
+        if (scoreMap[id].forbidden) {
+          scoreBadge = '<div class="card-score-badge forbidden">🚫</div>';
+        } else {
+          scoreBadge = '<div class="card-score-badge">' + scoreMap[id].score + '</div>';
+        }
+      }
+      return '<div class="card-img-wrapper" data-card-id="' + id + '"><img src="' + OCG_PIC_URL + id + '.jpg" class="deck-card-img" alt="' + id + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + SUPER_PRE_URL + id + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'' + DIY_PIC_URL + id + '.jpg\';this.onload=function(){var w=this.closest(\'.card-img-wrapper\');if(w&&!w.querySelector(\'.card-diy-badge\')){var b=document.createElement(\'div\');b.className=\'card-diy-badge\';b.textContent=\'DIY\';w.appendChild(b);}};this.onerror=function(){this.src=\'' + FALLBACK_PIC + '\';}}">' + scoreBadge + '</div>';
     }).join('');
+  }
+
+  async function loadScoreMap() {
+    if (_lflistCache) return _lflistCache;
+    try {
+      var resp = await fetch('/api/scores');
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      _lflistCache = await resp.json();
+      return _lflistCache;
+    } catch (e) {
+      console.warn('Failed to load scores:', e);
+      _lflistCache = {};
+      return _lflistCache;
+    }
+  }
+
+  async function loadCardInfoMap() {
+    if (_cardInfoMap) return _cardInfoMap;
+    // 优先复用卡池页面已加载的数据
+    if (window._cardIndex && window._cardIndex.size) {
+      _cardInfoMap = window._cardIndex;
+      _aliasMap = _buildAliasMap(window._cardIndex);
+      return _cardInfoMap;
+    }
+    try {
+      var resp = await fetch('/api/cards');
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var cards = await resp.json();
+      _cardInfoMap = new Map();
+      cards.forEach(function (c) { _cardInfoMap.set(parseInt(c.id), c); });
+      _aliasMap = _buildAliasMap(_cardInfoMap);
+      return _cardInfoMap;
+    } catch (e) {
+      console.warn('Failed to load card info:', e);
+      _cardInfoMap = new Map();
+      _aliasMap = {};
+      return _cardInfoMap;
+    }
+  }
+
+  function _buildAliasMap(cardMap) {
+    var aliasMap = {};
+    cardMap.forEach(function (card) {
+      if (card.alias) aliasMap[parseInt(card.id)] = parseInt(card.alias);
+    });
+    return aliasMap;
+  }
+
+  function resolveCardInfo(cardId) {
+    if (_cardInfoMap) {
+      var card = _cardInfoMap.get(cardId);
+      if (card) return card;
+      var aliasId = _aliasMap && _aliasMap[cardId];
+      if (aliasId) return _cardInfoMap.get(aliasId) || null;
+    }
+    return null;
+  }
+
+  // ── 卡图悬停 tooltip ──
+  var _tooltipEl = null;
+  function ensureTooltip() {
+    if (_tooltipEl) return _tooltipEl;
+    _tooltipEl = document.createElement('div');
+    _tooltipEl.className = 'card-tooltip';
+    _tooltipEl.style.display = 'none';
+    document.body.appendChild(_tooltipEl);
+    return _tooltipEl;
+  }
+
+  function showTooltip(e, card) {
+    var tip = ensureTooltip();
+    var isMonster = card.typeInfo && card.typeInfo.baseType === '怪兽';
+    var atkDef = isMonster
+      ? '<div class="tooltip-atkdef">ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (card.def < 0 ? '?' : card.def) + '</div>'
+      : '';
+    var raceAttr = isMonster
+      ? '<div class="tooltip-raceattr">' + card.attrName + ' | ' + card.raceName + (card.level ? ' | Lv' + card.level : '') + '</div>'
+      : '';
+    tip.innerHTML = '<div class="tooltip-name">' + (card.name || '') + '</div>'
+      + '<div class="tooltip-type">' + (card.typeInfo ? card.typeInfo.fullType : '') + '</div>'
+      + raceAttr
+      + atkDef
+      + '<div class="tooltip-desc">' + (card.processedDesc || '') + '</div>';
+    tip.style.display = 'block';
+
+    // 定位：跟随鼠标，保持在视口内
+    var x = e.clientX + 14;
+    var y = e.clientY + 10;
+    var tw = tip.offsetWidth;
+    var th = tip.offsetHeight;
+    if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
+    if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  }
+
+  function hideTooltip() {
+    if (_tooltipEl) _tooltipEl.style.display = 'none';
+  }
+
+  function attachDeckHover() {
+    deckModalBody.querySelectorAll('.card-img-wrapper').forEach(function (wrapper) {
+      wrapper.addEventListener('mouseenter', function (e) {
+        var cardId = parseInt(wrapper.getAttribute('data-card-id'));
+        if (!cardId || !_cardInfoMap) return;
+        var card = resolveCardInfo(cardId);
+        if (card) showTooltip(e, card);
+      });
+      wrapper.addEventListener('mousemove', function (e) {
+        if (!_tooltipEl || _tooltipEl.style.display === 'none') return;
+        var x = e.clientX + 14;
+        var y = e.clientY + 10;
+        var tw = _tooltipEl.offsetWidth;
+        var th = _tooltipEl.offsetHeight;
+        if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
+        if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
+        _tooltipEl.style.left = x + 'px';
+        _tooltipEl.style.top = y + 'px';
+      });
+      wrapper.addEventListener('mouseleave', hideTooltip);
+    });
   }
 
   async function fetchPlayerDeck(playerName) {
@@ -99,7 +231,8 @@
       const deck = data.decks[0];
       deckModalTitle.textContent = playerName + ' VS ' + deck.opponent + ' (' + deck.score + '胜)';
 
-      var extraSide = (deck.deck.extra || []).concat(deck.deck.side || []);
+      var scoreMap = await loadScoreMap();
+      var cardInfoMap = await loadCardInfoMap();
 
       deckModalBody.innerHTML = `
         <div class="deck-info">
@@ -109,15 +242,17 @@
         <div class="deck-two-col">
           <div class="deck-col deck-col-main">
             <div class="deck-section-title">主卡组 (${deck.deck.main.length}张)</div>
-            <div class="deck-cards-grid deck-cards-main" style="grid-template-columns:repeat(${Math.ceil(deck.deck.main.length / 4)},1fr);grid-template-rows:repeat(4,1fr);">${cardImgs(deck.deck.main)}</div>
+            <div class="deck-cards-grid deck-cards-main" style="grid-template-columns:repeat(${Math.ceil(deck.deck.main.length / 4)},1fr);grid-template-rows:repeat(4,1fr);">${cardImgs(deck.deck.main, scoreMap)}</div>
           </div>
           <div class="deck-col deck-col-side">
-            ${deck.deck.extra.length ? '<div class="deck-section-title">额外卡组 (' + deck.deck.extra.length + '张)</div><div class="deck-cards-grid deck-cards-extra">' + cardImgs(deck.deck.extra) + '</div>' : ''}
-            ${deck.deck.side.length ? '<div class="deck-section-title">副卡组 (' + deck.deck.side.length + '张)</div><div class="deck-cards-grid deck-cards-side">' + cardImgs(deck.deck.side) + '</div>' : ''}
+            ${deck.deck.extra.length ? '<div class="deck-section-title">额外卡组 (' + deck.deck.extra.length + '张)</div><div class="deck-cards-grid deck-cards-extra">' + cardImgs(deck.deck.extra, scoreMap) + '</div>' : ''}
+            ${deck.deck.side.length ? '<div class="deck-section-title">副卡组 (' + deck.deck.side.length + '张)</div><div class="deck-cards-grid deck-cards-side">' + cardImgs(deck.deck.side, scoreMap) + '</div>' : ''}
             ${!deck.deck.extra.length && !deck.deck.side.length ? '<div class="deck-empty-tip">无</div>' : ''}
           </div>
         </div>
       `;
+
+      attachDeckHover();
     } catch (e) {
       deckModalBody.innerHTML = '<div class="deck-empty">加载失败: ' + e.message + '</div>';
     }

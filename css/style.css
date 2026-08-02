@@ -654,3 +654,51 @@ body {
 .back-btn.animate-in {
     animation: backBtnAppear 0.5s ease-out both;
 }
+
+/* ── 卡图悬停 tooltip（禁限分值 / 玩家排名共用）── */
+.card-tooltip {
+    position: fixed;
+    z-index: 99999;
+    max-width: 280px;
+    padding: 10px 12px;
+    background: rgba(10, 10, 10, 0.95);
+    border: 1px solid var(--red, #D81E44);
+    border-radius: 6px;
+    color: #ddd;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+}
+
+.tooltip-name {
+    color: var(--gold, #D4AF37);
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-bottom: 2px;
+}
+
+.tooltip-type {
+    color: #aaa;
+    font-size: 0.7rem;
+}
+
+.tooltip-raceattr {
+    color: #999;
+    font-size: 0.7rem;
+}
+
+.tooltip-atkdef {
+    color: #ccc;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.tooltip-desc {
+    color: #bbb;
+    font-size: 0.72rem;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    white-space: pre-wrap;
+}

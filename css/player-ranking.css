@@ -539,6 +539,113 @@
     background: #1a1a1a;
 }
 
+/* ── 卡图容器 + 禁限分数角标 ── */
+.card-img-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 42/61;
+    align-self: start;
+    overflow: hidden;
+    border-radius: 2px;
+}
+
+.card-img-wrapper .deck-card-img {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+}
+
+.card-score-badge {
+    position: absolute;
+    bottom: 2px;
+    left: 2px;
+    min-width: 18px;
+    height: 17px;
+    line-height: 15px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.85);
+    color: #FFD700;
+    font-size: 0.65rem;
+    font-weight: 700;
+    border: 1px solid var(--red, #D81E44);
+    border-radius: 2px;
+    padding: 0 4px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.card-score-badge.forbidden {
+    font-size: 0.55rem;
+    min-width: 17px;
+    line-height: 15px;
+}
+
+.card-diy-badge {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    height: 14px;
+    line-height: 12px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.85);
+    color: #FFD700;
+    font-size: 0.5rem;
+    font-weight: 700;
+    border: 1px solid var(--red, #D81E44);
+    border-radius: 2px;
+    padding: 0 3px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* ── 卡图悬停 tooltip ── */
+.card-tooltip {
+    position: fixed;
+    z-index: 99999;
+    max-width: 280px;
+    padding: 10px 12px;
+    background: rgba(10, 10, 10, 0.95);
+    border: 1px solid var(--red, #D81E44);
+    border-radius: 6px;
+    color: #ddd;
+    font-size: 0.78rem;
+    line-height: 1.5;
+    pointer-events: none;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.7);
+}
+
+.tooltip-name {
+    color: var(--gold, #D4AF37);
+    font-weight: 700;
+    font-size: 0.85rem;
+    margin-bottom: 2px;
+}
+
+.tooltip-type {
+    color: #aaa;
+    font-size: 0.7rem;
+}
+
+.tooltip-raceattr {
+    color: #999;
+    font-size: 0.7rem;
+}
+
+.tooltip-atkdef {
+    color: #ccc;
+    font-size: 0.75rem;
+    font-weight: 600;
+}
+
+.tooltip-desc {
+    color: #bbb;
+    font-size: 0.72rem;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    white-space: pre-wrap;
+}
+
 .deck-empty-tip {
     color: #666;
     font-size: 0.8rem;

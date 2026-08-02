@@ -13,6 +13,7 @@ dist/
 
 # Runtime data
 vote_data.json
+cards_ocg.cdb
 
 # User content (images, thumbnails)
 xiaobairenshe/
