@@ -87,14 +87,19 @@ function showCardListTooltip(e, card) {
         + atkDef
         + '<div class="tooltip-desc">' + (card.processedDesc || '') + '</div>';
     tip.style.display = 'block';
-    var x = e.clientX + 14;
-    var y = e.clientY + 10;
-    var tw = tip.offsetWidth;
-    var th = tip.offsetHeight;
-    if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
-    if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
-    tip.style.left = x + 'px';
-    tip.style.top = y + 'px';
+    if (window.innerWidth <= 768) {
+      tip.style.left = Math.max(4, (window.innerWidth - tip.offsetWidth) / 2) + 'px';
+      tip.style.top = '8px';
+    } else {
+      var x = e.clientX + 14;
+      var y = e.clientY + 10;
+      var tw = tip.offsetWidth;
+      var th = tip.offsetHeight;
+      if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
+      if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
+      tip.style.left = x + 'px';
+      tip.style.top = y + 'px';
+    }
 }
 
 function hideCardListTooltip() {
@@ -111,14 +116,16 @@ function attachCardListHover() {
         });
         item.addEventListener('mousemove', function (e) {
             if (!_cardListTooltipEl || _cardListTooltipEl.style.display === 'none') return;
-            var x = e.clientX + 14;
-            var y = e.clientY + 10;
-            var tw = _cardListTooltipEl.offsetWidth;
-            var th = _cardListTooltipEl.offsetHeight;
-            if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
-            if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
-            _cardListTooltipEl.style.left = x + 'px';
-            _cardListTooltipEl.style.top = y + 'px';
+            if (window.innerWidth > 768) {
+              var x = e.clientX + 14;
+              var y = e.clientY + 10;
+              var tw = _cardListTooltipEl.offsetWidth;
+              var th = _cardListTooltipEl.offsetHeight;
+              if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
+              if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
+              _cardListTooltipEl.style.left = x + 'px';
+              _cardListTooltipEl.style.top = y + 'px';
+            }
         });
         item.addEventListener('mouseleave', hideCardListTooltip);
         // 移动端触摸

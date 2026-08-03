@@ -173,15 +173,20 @@
       + '<div class="tooltip-desc">' + (card.processedDesc || '') + '</div>';
     tip.style.display = 'block';
 
-    // 定位：跟随鼠标，保持在视口内
-    var x = e.clientX + 14;
-    var y = e.clientY + 10;
-    var tw = tip.offsetWidth;
-    var th = tip.offsetHeight;
-    if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
-    if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
-    tip.style.left = x + 'px';
-    tip.style.top = y + 'px';
+    // 定位：窄屏居中顶部，宽屏跟随鼠标
+    if (window.innerWidth <= 768) {
+      tip.style.left = Math.max(4, (window.innerWidth - tip.offsetWidth) / 2) + 'px';
+      tip.style.top = '8px';
+    } else {
+      var x = e.clientX + 14;
+      var y = e.clientY + 10;
+      var tw = tip.offsetWidth;
+      var th = tip.offsetHeight;
+      if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
+      if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
+      tip.style.left = x + 'px';
+      tip.style.top = y + 'px';
+    }
   }
 
   function hideTooltip() {
@@ -198,14 +203,16 @@
       });
       wrapper.addEventListener('mousemove', function (e) {
         if (!_tooltipEl || _tooltipEl.style.display === 'none') return;
-        var x = e.clientX + 14;
-        var y = e.clientY + 10;
-        var tw = _tooltipEl.offsetWidth;
-        var th = _tooltipEl.offsetHeight;
-        if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
-        if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
-        _tooltipEl.style.left = x + 'px';
-        _tooltipEl.style.top = y + 'px';
+        if (window.innerWidth > 768) {
+          var x = e.clientX + 14;
+          var y = e.clientY + 10;
+          var tw = _tooltipEl.offsetWidth;
+          var th = _tooltipEl.offsetHeight;
+          if (x + tw > window.innerWidth - 10) x = e.clientX - tw - 14;
+          if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
+          _tooltipEl.style.left = x + 'px';
+          _tooltipEl.style.top = y + 'px';
+        }
       });
       wrapper.addEventListener('mouseleave', hideTooltip);
       // 移动端触摸
