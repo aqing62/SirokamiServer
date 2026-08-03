@@ -208,6 +208,17 @@
         _tooltipEl.style.top = y + 'px';
       });
       wrapper.addEventListener('mouseleave', hideTooltip);
+      // 移动端触摸
+      wrapper.addEventListener('touchstart', function (e) {
+        var cardId = parseInt(wrapper.getAttribute('data-card-id'));
+        if (!cardId || !_cardInfoMap) return;
+        var card = resolveCardInfo(cardId);
+        if (card) {
+          e.preventDefault();
+          showTooltip(e.touches[0], card);
+        }
+      }, { passive: false });
+      wrapper.addEventListener('touchend', hideTooltip);
     });
   }
 

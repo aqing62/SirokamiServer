@@ -905,6 +905,40 @@
     text-shadow: 0 1px 3px rgba(0,0,0,0.9);
 }
 
+/* ── 手机端：角标缩小防止重叠 ── */
+@media (max-width: 768px) {
+    .card-score-badge {
+        bottom: 1px;
+        left: 1px;
+        min-width: 13px;
+        height: 12px;
+        line-height: 10px;
+        font-size: 0.48rem;
+        padding: 0 2px;
+        border-radius: 1px;
+    }
+    .card-score-badge.forbidden {
+        font-size: 0.42rem;
+        min-width: 12px;
+    }
+    .card-diy-badge {
+        bottom: 1px;
+        right: 1px;
+        height: 11px;
+        line-height: 9px;
+        font-size: 0.4rem;
+        padding: 0 2px;
+        border-radius: 1px;
+    }
+    .card-tooltip {
+        max-width: 220px;
+        font-size: 0.7rem;
+        padding: 8px 10px;
+    }
+    .tooltip-name { font-size: 0.75rem; }
+    .tooltip-desc { font-size: 0.65rem; }
+}
+
 @media (max-width: 900px) {
     .deck-cards-grid {
         grid-template-columns: repeat(5, 1fr);

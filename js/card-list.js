@@ -121,6 +121,17 @@ function attachCardListHover() {
             _cardListTooltipEl.style.top = y + 'px';
         });
         item.addEventListener('mouseleave', hideCardListTooltip);
+        // 移动端触摸
+        item.addEventListener('touchstart', function (e) {
+            var cardId = parseInt(item.getAttribute('data-card-id'));
+            if (!cardId || !_cardInfoMap) return;
+            var card = resolveCardListInfo(cardId);
+            if (card) {
+                e.preventDefault();
+                showCardListTooltip(e.touches[0], card);
+            }
+        }, { passive: false });
+        item.addEventListener('touchend', hideCardListTooltip);
     });
 }
 
