@@ -453,6 +453,27 @@
     color: #fff;
 }
 
+.deck-modal-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.deck-modal-dl-btn {
+    background: rgba(216, 30, 68, 0.75);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+.deck-modal-dl-btn:hover {
+    background: rgba(216, 30, 68, 1);
+}
+
 .deck-modal-body {
     flex: 1;
     padding: 8px 16px 10px;

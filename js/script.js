@@ -26,7 +26,7 @@ function showSection(sectionId) {
 
     // 动态启停样式表
     document.querySelectorAll('link[rel="stylesheet"]').forEach(l => {
-        if (l.id !== 'css-style') l.media = 'not all';
+        if (l.id !== 'css-style' && l.id !== 'css-deck-viewer') l.media = 'not all';
     });
     (CSS_MAP[sectionId] || []).forEach(id => {
         const link = document.getElementById(id);

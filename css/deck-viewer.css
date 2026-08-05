@@ -1,0 +1,505 @@
+/**
+ * 白神服Sirokami — 全局卡组查看器样式
+ * 拖拽覆盖层 + 剪贴板提示 + 卡组弹窗（复用玩家排名卡组样式）
+ */
+
+/* ═══════════════════════════════════════════════════════
+   DRAG OVERLAY — 拖拽覆盖层
+   ═══════════════════════════════════════════════════════ */
+.deck-drag-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 99999;
+    background: rgba(10, 5, 15, 0.88);
+    display: none;
+    align-items: center;
+    justify-content: center;
+}
+.deck-drag-overlay.active {
+    display: flex;
+}
+.deck-drag-dropzone {
+    width: min(560px, 92vw);
+    padding: 56px 32px;
+    border: 3px dashed rgba(216, 30, 68, 0.65);
+    border-radius: 18px;
+    background: rgba(216, 30, 68, 0.06);
+    text-align: center;
+    transition: border-color 0.2s, background 0.2s, transform 0.2s;
+}
+.deck-drag-overlay.active .deck-drag-dropzone {
+    border-color: rgba(216, 30, 68, 0.9);
+    background: rgba(216, 30, 68, 0.12);
+    transform: scale(1.02);
+}
+.deck-drag-icon {
+    font-size: 3.5rem;
+    margin-bottom: 14px;
+    display: block;
+    animation: deckDragPulse 1.4s ease-in-out infinite;
+}
+@keyframes deckDragPulse {
+    0%, 100% { transform: translateY(0); opacity: 1; }
+    50% { transform: translateY(-8px); opacity: 0.7; }
+}
+.deck-drag-title {
+    font-size: 1.35rem;
+    color: #F0E68C;
+    font-weight: 700;
+    margin-bottom: 8px;
+}
+.deck-drag-hint {
+    font-size: 0.92rem;
+    color: #aaa;
+}
+
+/* ═══════════════════════════════════════════════════════
+   CLIPBOARD TOAST — 剪贴板提示条（移动端）
+   ═══════════════════════════════════════════════════════ */
+.clipboard-toast {
+    position: fixed;
+    bottom: 28px;
+    left: 50%;
+    transform: translateX(-50%) translateY(120px);
+    z-index: 100001;
+    background: #1a1a2e;
+    border: 1.5px solid rgba(216, 30, 68, 0.55);
+    border-radius: 14px;
+    padding: 16px 22px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 8px 36px rgba(0, 0, 0, 0.6);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    max-width: 94vw;
+}
+.clipboard-toast.show {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) translateY(0);
+}
+.clipboard-toast-icon {
+    font-size: 1.6rem;
+    flex-shrink: 0;
+}
+.clipboard-toast-text {
+    color: #ddd;
+    font-size: 0.9rem;
+    line-height: 1.4;
+    flex: 1;
+    min-width: 0;
+}
+.clipboard-toast-text strong {
+    color: #F0E68C;
+}
+.clipboard-toast-btn {
+    flex-shrink: 0;
+    background: rgba(216, 30, 68, 0.85);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 20px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+.clipboard-toast-btn:hover {
+    background: rgba(216, 30, 68, 1);
+}
+.clipboard-toast-close {
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: #888;
+    font-size: 1.2rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+.clipboard-toast-close:hover {
+    color: #fff;
+}
+
+/* ═══════════════════════════════════════════════════════
+   DECK VIEWER MODAL — 卡组查看弹窗
+   ═══════════════════════════════════════════════════════ */
+.deck-viewer-modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100000;
+    background: rgba(0, 0, 0, 0.82);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+}
+.deck-viewer-modal-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+.deck-viewer-modal {
+    background: #12121c;
+    border: 1px solid rgba(216, 30, 68, 0.3);
+    border-radius: 18px;
+    width: min(1100px, 97vw);
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 12px 60px rgba(0, 0, 0, 0.7);
+}
+.deck-viewer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 22px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+    background: #0e0e18;
+}
+.deck-viewer-title {
+    font-size: 1.1rem;
+    color: #F0E68C;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.deck-viewer-close {
+    background: none;
+    border: none;
+    color: #aaa;
+    font-size: 1.8rem;
+    cursor: pointer;
+    padding: 4px 8px;
+    line-height: 1;
+    transition: color 0.2s;
+}
+.deck-viewer-close:hover {
+    color: #fff;
+}
+.deck-viewer-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.deck-viewer-dl-btn {
+    background: rgba(216, 30, 68, 0.75);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 16px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.2s;
+}
+.deck-viewer-dl-btn:hover {
+    background: rgba(216, 30, 68, 1);
+}
+.deck-viewer-body {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    padding: 14px 16px;
+    min-height: 0;
+}
+.deck-viewer-body .deck-info {
+    display: flex;
+    gap: 20px;
+    font-size: 0.82rem;
+    color: #aaa;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+.deck-viewer-body .deck-info .deck-info-item {
+    white-space: nowrap;
+}
+
+/* ── 复用玩家排名卡组样式（独立定义，确保 deck-viewer 始终可用） ── */
+.deck-viewer-body .deck-section-title {
+    color: var(--gold, #D4AF37);
+    font-weight: 600;
+    font-size: 0.8rem;
+    margin-bottom: 3px;
+    flex-shrink: 0;
+}
+
+.deck-viewer-body .deck-cards-grid {
+    display: grid;
+    gap: 2px;
+    background: #111;
+    padding: 4px;
+    border-radius: 4px;
+    border: 1px solid #2a2a2a;
+    align-content: start;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--red, #D81E44) transparent;
+}
+.deck-viewer-body .deck-cards-grid::-webkit-scrollbar {
+    width: 5px;
+}
+.deck-viewer-body .deck-cards-grid::-webkit-scrollbar-track {
+    background: transparent;
+}
+.deck-viewer-body .deck-cards-grid::-webkit-scrollbar-thumb {
+    background: var(--red, #D81E44);
+    border-radius: 3px;
+}
+
+.deck-viewer-body .deck-cards-main {
+    flex: 1;
+    min-height: 0;
+}
+
+.deck-viewer-body .deck-card-img {
+    width: 100%;
+    aspect-ratio: 42/61;
+    object-fit: cover;
+    border-radius: 2px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+}
+
+.deck-viewer-body .card-img-wrapper {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 42/61;
+    align-self: start;
+    overflow: hidden;
+    border-radius: 2px;
+}
+.deck-viewer-body .card-img-wrapper .deck-card-img {
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+}
+
+.deck-viewer-body .card-score-badge {
+    position: absolute;
+    bottom: 2px;
+    left: 2px;
+    min-width: 18px;
+    height: 17px;
+    line-height: 15px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.85);
+    color: #FFD700;
+    font-size: 0.65rem;
+    font-weight: 700;
+    border: 1px solid var(--red, #D81E44);
+    border-radius: 2px;
+    padding: 0 4px;
+    pointer-events: none;
+    z-index: 2;
+}
+.deck-viewer-body .card-score-badge.forbidden {
+    font-size: 0.55rem;
+    min-width: 17px;
+    line-height: 15px;
+}
+
+.deck-viewer-body .card-diy-badge {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    height: 14px;
+    line-height: 12px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.85);
+    color: #FFD700;
+    font-size: 0.5rem;
+    font-weight: 700;
+    border: 1px solid var(--red, #D81E44);
+    border-radius: 2px;
+    padding: 0 3px;
+    pointer-events: none;
+    z-index: 2;
+}
+
+/* ── 双栏布局：桌面左右 / 手机上下 ── */
+.deck-viewer-body .deck-two-col {
+    flex: 1;
+    display: flex;
+    gap: 10px;
+    min-height: 0;
+    overflow: hidden;
+}
+.deck-viewer-body .deck-col-main {
+    flex: 1 1 58%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+.deck-viewer-body .deck-col-side {
+    flex: 0 0 38%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    gap: 2px;
+}
+.deck-viewer-body .deck-cards-extra {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: repeat(8, 1fr);
+}
+.deck-viewer-body .deck-cards-side {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: repeat(8, 1fr);
+}
+
+/* ── 卡图 tooltip ── */
+.deck-viewer-tooltip {
+    position: fixed;
+    z-index: 100010;
+    max-width: 280px;
+    padding: 10px 12px;
+    background: rgba(10, 10, 10, 0.95);
+    border: 1px solid var(--red, #D81E44);
+    border-radius: 6px;
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: #ccc;
+    pointer-events: none;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+}
+.deck-viewer-tooltip .tt-name {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: #F0E68C;
+    margin-bottom: 4px;
+}
+.deck-viewer-tooltip .tt-type {
+    color: #aaa;
+    margin-bottom: 3px;
+}
+.deck-viewer-tooltip .tt-raceattr {
+    color: #999;
+    margin-bottom: 2px;
+}
+.deck-viewer-tooltip .tt-atkdef {
+    color: #ddd;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+.deck-viewer-tooltip .tt-desc {
+    color: #bbb;
+    font-size: 0.73rem;
+    white-space: pre-line;
+}
+
+/* Empty */
+.deck-viewer-body .deck-empty-tip {
+    color: #666;
+    font-size: 0.8rem;
+    text-align: center;
+    padding: 10px;
+}
+
+/* ═══════════════════════════════════════════════════════
+   MOBILE ADAPTATION
+   ═══════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+    .deck-viewer-body .deck-two-col {
+        flex-direction: column;
+        overflow-y: auto;
+        padding-bottom: 60px;
+    }
+    .deck-viewer-body .deck-col-main,
+    .deck-viewer-body .deck-col-side {
+        flex: auto;
+        min-height: auto;
+    }
+    .deck-viewer-body .deck-cards-main {
+        min-height: 0;
+    }
+    .deck-viewer-body .deck-cards-extra {
+        grid-template-columns: repeat(6, 1fr);
+    }
+    .deck-viewer-body .deck-cards-side {
+        grid-template-columns: repeat(6, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .deck-drag-dropzone {
+        padding: 36px 20px;
+    }
+    .deck-drag-icon {
+        font-size: 2.5rem;
+    }
+    .deck-drag-title {
+        font-size: 1.1rem;
+    }
+
+    .deck-viewer-modal {
+        width: 100vw;
+        max-height: 100vh;
+        border-radius: 0;
+        border: none;
+    }
+    .deck-viewer-header {
+        padding: 12px 14px;
+    }
+    .deck-viewer-title {
+        font-size: 1rem;
+    }
+    .deck-viewer-body {
+        padding: 10px;
+    }
+    .deck-viewer-body .deck-cards-extra,
+    .deck-viewer-body .deck-cards-side {
+        grid-template-columns: repeat(5, 1fr);
+    }
+
+    /* 手机端：角标缩小防止重叠 */
+    .deck-viewer-body .card-score-badge {
+        bottom: 1px;
+        left: 1px;
+        min-width: 13px;
+        height: 12px;
+        line-height: 10px;
+        font-size: 0.48rem;
+        padding: 0 2px;
+        border-radius: 1px;
+    }
+    .deck-viewer-body .card-score-badge.forbidden {
+        font-size: 0.42rem;
+        min-width: 12px;
+    }
+    .deck-viewer-body .card-diy-badge {
+        bottom: 1px;
+        right: 1px;
+        height: 11px;
+        line-height: 9px;
+        font-size: 0.4rem;
+        padding: 0 2px;
+        border-radius: 1px;
+    }
+
+    .clipboard-toast {
+        bottom: 16px;
+        padding: 12px 16px;
+        gap: 10px;
+    }
+    .clipboard-toast-text {
+        font-size: 0.82rem;
+    }
+    .clipboard-toast-btn {
+        padding: 8px 14px;
+        font-size: 0.8rem;
+    }
+}

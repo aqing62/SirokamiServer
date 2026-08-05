@@ -20,9 +20,13 @@
   const deckModalTitle = document.getElementById('deckModalTitle');
   const deckModalBody = document.getElementById('deckModalBody');
   const deckModalClose = document.getElementById('deckModalClose');
+  const deckModalDl = document.getElementById('deckModalDl');
 
   let currentData = [];
   let searchMode = false;
+  let _currentDeckData = null;
+  let _currentPlayerName = '';
+  let _lastDlTime = 0;
 
   function renderTable(players, highlightName) {
     if (!players || !players.length) {
@@ -247,6 +251,9 @@
       }
 
       const deck = data.decks[0];
+      _currentDeckData = deck.deck;
+      _currentPlayerName = playerName;
+      deckModalDl.style.display = 'inline-block';
       deckModalTitle.textContent = playerName + ' VS ' + deck.opponent + ' (' + deck.score + '胜)';
 
       var scoreMap = await loadScoreMap();
@@ -286,7 +293,44 @@
   function closeDeckModal() {
     deckModalOverlay.classList.remove('active');
     document.body.style.overflow = '';
+    _currentDeckData = null;
+    _currentPlayerName = '';
+    deckModalDl.style.display = 'none';
   }
+
+  function downloadCurrentDeck() {
+    if (!_currentDeckData) return;
+    var now = Date.now();
+    if (now - _lastDlTime < 5000) return;
+    _lastDlTime = now;
+
+    var lines = ['#created by Sirokami'];
+    var d = _currentDeckData;
+    if (d.main && d.main.length) {
+      lines.push('#main');
+      for (var i = 0; i < d.main.length; i++) lines.push(String(d.main[i]));
+    }
+    if (d.extra && d.extra.length) {
+      lines.push('#extra');
+      for (var j = 0; j < d.extra.length; j++) lines.push(String(d.extra[j]));
+    }
+    if (d.side && d.side.length) {
+      lines.push('!side');
+      for (var k = 0; k < d.side.length; k++) lines.push(String(d.side[k]));
+    }
+    var content = lines.join('\n');
+    var blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = (_currentPlayerName || 'deck').replace(/[\\/:*?"<>|]/g, '_') + '.ydk';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  deckModalDl.addEventListener('click', downloadCurrentDeck);
 
   // Manual wheel scroll for modal
   deckModalOverlay.addEventListener('wheel', function (e) {
