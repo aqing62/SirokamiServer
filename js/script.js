@@ -125,12 +125,10 @@ function lazyInit(sectionId) {
     let animating = false;
 
     function isInsideScrollable(el) {
-        // 这些弹窗有自己的滚轮处理逻辑
-        if (el.closest('#deckModalOverlay')) return true;
         while (el && el !== document.body) {
             var style = window.getComputedStyle(el);
-            var overflowY = style.overflowY;
-            if (overflowY === 'auto' || overflowY === 'scroll') {
+            var oy = style.overflowY;
+            if (oy === 'auto' || oy === 'scroll') {
                 return el.scrollHeight - el.clientHeight > 2;
             }
             el = el.parentElement;

@@ -338,6 +338,7 @@
     if (modal) {
       modal.scrollTop += e.deltaY;
       e.preventDefault();
+      e.stopPropagation();
     }
   }, { passive: false });
 
