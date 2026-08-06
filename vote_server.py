@@ -502,6 +502,26 @@ def _srvpro_post(endpoint: str, params: dict, payload: dict) -> dict:
     except Exception as e:
         raise Exception(f"请求 srvpro2 API 失败: {e}")
 
+def _srvpro_put(endpoint: str, params: dict, payload: dict) -> dict:
+    """代理 PUT 请求到 srvpro2 API。"""
+    url = f"{SRVPRO_API_URL}{endpoint}"
+    qs = urlencode(params)
+    full_url = f"{url}?{qs}" if qs else url
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(full_url, data=body, method="PUT")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+            return json.loads(resp.read())
+    except urllib.error.HTTPError as e:
+        body_text = e.read().decode("utf-8", errors="replace")
+        raise Exception(f"srvpro2 API 返回 {e.code}: {body_text}")
+    except Exception as e:
+        raise Exception(f"请求 srvpro2 API 失败: {e}")
+
 def _srvpro_delete(endpoint: str, params: dict) -> dict:
     """代理 DELETE 请求到 srvpro2 API。"""
     url = f"{SRVPRO_API_URL}{endpoint}"
@@ -934,6 +954,33 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 self._json_response(data)
             except Exception as e:
                 logger.error(f"论坛 DELETE 失败: {e}")
+                self._json_response({"error": str(e)}, status=502)
+        else:
+            self.send_error(404)
+
+    # ── API PUT ─────────────────────────────────────
+
+    def do_PUT(self):
+        path = self.path.split("?", 1)[0]
+        if path.startswith("/api/forum/"):
+            creds = self._get_community_cookie()
+            if not creds:
+                self._json_response({"error": "未登录"}, status=401)
+                return
+            content_len = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_len) if content_len else b"{}"
+            try:
+                payload = json.loads(body)
+            except json.JSONDecodeError:
+                payload = {}
+            username, password = creds
+            payload["username"] = username
+            payload["password"] = password
+            try:
+                data = _srvpro_put(path, {"username": username, "pass": password}, payload)
+                self._json_response(data)
+            except Exception as e:
+                logger.error(f"论坛 PUT 失败: {e}")
                 self._json_response({"error": str(e)}, status=502)
         else:
             self.send_error(404)
