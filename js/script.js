@@ -128,7 +128,7 @@ function lazyInit(sectionId) {
         // 手机端交给原生滚动
         if (window.innerWidth <= 768) return;
         // 如果事件来自模态框或可滚动弹窗内，交给原生滚动处理
-        const el = e.target.closest('.new-cards-grid, .new-cards-overlay, .filter-modal, .pool-filter-overlay, .filter-popup, .mobile-open, .community-modal-body, .deck-viewer-body');
+        const el = e.target.closest('.new-cards-grid, .new-cards-overlay, .filter-modal, .pool-filter-overlay, .filter-popup, .mobile-open, .community-modal-body, .deck-viewer-body, .deck-modal-body');
         if (el) return;
         e.preventDefault();
         target += e.deltaY;
