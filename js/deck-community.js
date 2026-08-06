@@ -572,7 +572,7 @@ function initCommunityModule() {
         } else {
             replyData.replies.forEach(function (r) {
                 html += '<div class="community-reply">';
-                html += '<span class="cr-author">' + esc(r.authorName) + '</span>';
+                html += avatarImg(r.accountName) + '<span class="cr-author">' + esc(r.authorName) + '</span>';
                 html += '<span class="cr-time">' + timeAgo(r.createTime) + '</span>';
                 // 自己的回复显示编辑/删除
                 if (window._communityUsername && window._communityUsername === r.accountName) {
