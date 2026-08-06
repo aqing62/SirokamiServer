@@ -1439,14 +1439,14 @@ function initCommunityModule() {
             if (!file) return;
             var reader = new FileReader();
             reader.onload = function () {
-                showCropDialog(reader.result, username);
+                showCropDialog(reader.result, username, curVersion);
             };
             reader.readAsDataURL(file);
         };
         input.click();
     }
 
-    function showCropDialog(dataUrl, username) {
+    function showCropDialog(dataUrl, username, curVersion) {
         var overlay = document.createElement('div');
         overlay.className = 'community-modal-overlay active';
         overlay.style.zIndex = '100001';
