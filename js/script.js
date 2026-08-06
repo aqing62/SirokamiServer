@@ -17,6 +17,18 @@ const CSS_MAP = {
     'section-community':     ['css-deck-community'],
 };
 
+// ── 手机端登录框可见性 ──────────────────────────────────
+function updateLoginVisibility() {
+    if (window.innerWidth > 768) return;
+    var loginBox = document.getElementById('globalLogin');
+    if (!loginBox) return;
+    if (_currentSection === 'section-community') {
+        loginBox.style.display = 'block';
+    } else {
+        loginBox.style.display = 'none';
+    }
+}
+
 // ── Section 切换 ────────────────────────────────────────
 var _currentSection = 'section-main';
 function showSection(sectionId) {
@@ -138,15 +150,8 @@ function lazyInit(sectionId) {
 
     window.addEventListener('wheel', function (e) {
         if (window.innerWidth <= 768) return;
-        if (e.defaultPrevented) {
-            console.log('wheel: defaultPrevented, skip');
-            return;
-        }
-        if (isInsideScrollable(e.target)) {
-            console.log('wheel: inside scrollable, skip');
-            return;
-        }
-        console.log('wheel: applying smooth scroll, target=', e.target.tagName, e.target.className);
+        if (e.defaultPrevented) return;
+        if (isInsideScrollable(e.target)) return;
         e.preventDefault();
         target += e.deltaY;
         var max = document.documentElement.scrollHeight - window.innerHeight;
@@ -325,18 +330,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         updateLoginVisibility();
     };
-
-    // 手机端：登录框仅在论坛页面显示
-    function updateLoginVisibility() {
-        if (window.innerWidth > 768) return;
-        var loginBox = document.getElementById('globalLogin');
-        if (!loginBox) return;
-        if (_currentSection === 'section-community') {
-            loginBox.style.display = 'block';
-        } else {
-            loginBox.style.display = 'none';
-        }
-    }
 
     // ── 桌面端入场动画 ──────────────────────────────────
     if (window.innerWidth > 768) {
