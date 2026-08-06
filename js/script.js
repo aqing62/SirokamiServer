@@ -125,6 +125,8 @@ function lazyInit(sectionId) {
     let animating = false;
 
     function isInsideScrollable(el) {
+        // 这些弹窗有自己的滚轮处理逻辑
+        if (el.closest('#deckModalOverlay')) return true;
         while (el && el !== document.body) {
             var style = window.getComputedStyle(el);
             var overflowY = style.overflowY;
