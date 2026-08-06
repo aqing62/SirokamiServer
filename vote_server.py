@@ -1105,7 +1105,9 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 self._json_response({"error": str(e)}, status=500)
             return
 
-        # 普通 POST 代理
+        # 普通 POST 代理 — 注入凭证到 body，srvpro2 从 body 读
+        payload["username"] = username
+        payload["password"] = password
         try:
             data = _srvpro_post(path, query, payload)
             self._json_response(data)
