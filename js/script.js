@@ -124,16 +124,26 @@ function lazyInit(sectionId) {
     let current = target;
     let animating = false;
 
+    function isInsideScrollable(el) {
+        while (el && el !== document.body) {
+            var style = window.getComputedStyle(el);
+            var overflowY = style.overflowY;
+            if (overflowY === 'auto' || overflowY === 'scroll') {
+                return el.scrollHeight - el.clientHeight > 2;
+            }
+            el = el.parentElement;
+        }
+        return false;
+    }
+
     window.addEventListener('wheel', function (e) {
-        // 手机端交给原生滚动
         if (window.innerWidth <= 768) return;
-        // 如果已被其他 handler 阻止，或来自模态框内，跳过
         if (e.defaultPrevented) return;
-        const el = e.target.closest('.new-cards-grid, .new-cards-overlay, .filter-modal, .pool-filter-overlay, .filter-popup, .mobile-open, .community-modal-body, .deck-viewer-body, .deck-modal-body, .deck-modal-overlay, .deck-modal, .stats-panel');
-        if (el) return;
+        // 如果鼠标在可滚动容器内，交给原生滚动
+        if (isInsideScrollable(e.target)) return;
         e.preventDefault();
         target += e.deltaY;
-        const max = document.documentElement.scrollHeight - window.innerHeight;
+        var max = document.documentElement.scrollHeight - window.innerHeight;
         target = Math.max(0, Math.min(target, max));
         if (!animating) {
             animating = true;
@@ -142,7 +152,6 @@ function lazyInit(sectionId) {
     }, { passive: false });
 
     function step() {
-        // 缓动插值 (ease-out)
         current += (target - current) * 0.12;
         window.scrollTo(0, Math.round(current));
         if (Math.abs(target - current) > 0.5) {
