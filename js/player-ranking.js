@@ -332,15 +332,10 @@
 
   deckModalDl.addEventListener('click', downloadCurrentDeck);
 
-  // Manual wheel scroll for modal
+  // 阻止滚轮事件冒泡到全局处理器，让浏览器原生处理弹窗滚动
   deckModalOverlay.addEventListener('wheel', function (e) {
-    var modal = deckModalOverlay.querySelector('.deck-modal');
-    if (modal) {
-      modal.scrollTop += e.deltaY;
-      e.preventDefault();
-      e.stopPropagation();
-    }
-  }, { passive: false });
+    e.stopPropagation();
+  }, { passive: true });
 
   // Modal close events
   deckModalClose.addEventListener('click', closeDeckModal);
