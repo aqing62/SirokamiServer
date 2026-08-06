@@ -1157,7 +1157,7 @@ function initCommunityModule() {
 
         var overlay = document.createElement('div');
         overlay.className = 'community-modal-overlay active';
-        overlay.style.zIndex = '50001';
+        overlay.style.zIndex = '100000';
         overlay.innerHTML = '<div class="community-modal profile-modal" style="width:min(600px,95vw);">'
             + '<div class="community-modal-header">'
             + '<span class="community-modal-title">个人中心</span>'
@@ -1449,6 +1449,7 @@ function initCommunityModule() {
     function showCropDialog(dataUrl, username) {
         var overlay = document.createElement('div');
         overlay.className = 'community-modal-overlay active';
+        overlay.style.zIndex = '100001';
         overlay.innerHTML = '<div class="community-modal" style="width:min(600px,95vw);">'
             + '<div class="community-modal-header">'
             + '<span class="community-modal-title">裁剪头像</span>'
