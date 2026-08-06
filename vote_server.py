@@ -42,6 +42,31 @@ COOKIE_NAME = "siro_admin"
 COOKIE_SECRET = "siro_admin_secret_2026_f1a8c"
 COOKIE_MAX_AGE = 86400  # 24 小时
 
+COMMUNITY_COOKIE_NAME = "siro_community"
+COMMUNITY_COOKIE_SECRET = "siro_community_secret_2026_g3b2d"
+COMMUNITY_COOKIE_MAX_AGE = 604800  # 7 天
+
+AVATAR_DIR = ROOT / "avatars"
+AVATAR_SIZE = 64
+
+# ── 腾讯云文本内容安全（TMS）配置 ─────────────────────────
+TMS_ENDPOINT = "tms.tencentcloudapi.com"
+TMS_ENABLED = True  # 设为 False 可临时关闭检测
+
+def _load_tms_config():
+    """从 config.local.json 加载密钥（不提交到 git）。"""
+    config_path = ROOT / "config.local.json"
+    if config_path.is_file():
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                cfg = json.load(f)
+            return cfg.get("tms_secret_id", ""), cfg.get("tms_secret_key", "")
+        except Exception:
+            pass
+    return "", ""
+
+TMS_SECRET_ID, TMS_SECRET_KEY = _load_tms_config()
+
 # ── srvpro2 服务器对局监控代理配置 ─────────────────────────
 SRVPRO_API_URL = "https://127.0.0.1:50009"
 SRVPRO_READ_USER = "readonly"
@@ -454,9 +479,137 @@ def _srvpro_fetch(endpoint: str, params: dict) -> dict:
         raise Exception(f"请求 srvpro2 API 失败: {e}")
 
 
+def _srvpro_post(endpoint: str, params: dict, payload: dict) -> dict:
+    """代理 POST 请求到 srvpro2 API (HTTPS, 自签证书)。"""
+    url = f"{SRVPRO_API_URL}{endpoint}"
+    qs = urlencode(params)
+    full_url = f"{url}?{qs}" if qs else url
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(full_url, data=body, method="POST")
+    req.add_header("Content-Type", "application/json")
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+            raw = resp.read()
+            return json.loads(raw)
+    except urllib.error.HTTPError as e:
+        body_text = e.read().decode("utf-8", errors="replace")
+        raise Exception(f"srvpro2 API 返回 {e.code}: {body_text}")
+    except Exception as e:
+        raise Exception(f"请求 srvpro2 API 失败: {e}")
+
+def _srvpro_delete(endpoint: str, params: dict) -> dict:
+    """代理 DELETE 请求到 srvpro2 API。"""
+    url = f"{SRVPRO_API_URL}{endpoint}"
+    qs = urlencode(params)
+    full_url = f"{url}?{qs}" if qs else url
+
+    ctx = ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+
+    req = urllib.request.Request(full_url, method="DELETE")
+    try:
+        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
+            raw = resp.read()
+            return json.loads(raw)
+    except urllib.error.HTTPError as e:
+        body_text = e.read().decode("utf-8", errors="replace")
+        raise Exception(f"srvpro2 API 返回 {e.code}: {body_text}")
+    except Exception as e:
+        raise Exception(f"请求 srvpro2 API 失败: {e}")
+
+
+def _tms_check(text: str) -> tuple:
+    """腾讯云文本内容安全检测。返回 (ok: bool, label: str)。"""
+    if not TMS_ENABLED or not text or not text.strip():
+        return (True, "")
+    try:
+        import hashlib as _hashlib
+        import datetime as _dt
+        import uuid as _uuid
+
+        service = "tms"
+        host = TMS_ENDPOINT
+        action = "TextModeration"
+        version = "2020-12-29"
+        region = "ap-guangzhou"
+        algorithm = "TC3-HMAC-SHA256"
+        timestamp = int(time.time())
+        date = _dt.datetime.fromtimestamp(timestamp, _dt.timezone.utc).strftime("%Y-%m-%d")
+
+        # payload — Content 需要 base64 编码
+        content_b64 = base64.b64encode(text.strip().encode("utf-8")).decode("utf-8")
+        payload = json.dumps({"Content": content_b64})
+        # canonical request
+        http_method = "POST"
+        canonical_uri = "/"
+        canonical_querystring = ""
+        ct = "application/json; charset=utf-8"
+        canonical_headers = f"content-type:{ct}\nhost:{host}\nx-tc-action:{action.lower()}\n"
+        signed_headers = "content-type;host;x-tc-action"
+        hashed_payload = _hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        canonical_request = (
+            f"{http_method}\n{canonical_uri}\n{canonical_querystring}\n"
+            f"{canonical_headers}\n{signed_headers}\n{hashed_payload}"
+        )
+        # string to sign
+        credential_scope = f"{date}/{service}/tc3_request"
+        hashed_cr = _hashlib.sha256(canonical_request.encode("utf-8")).hexdigest()
+        string_to_sign = f"{algorithm}\n{timestamp}\n{credential_scope}\n{hashed_cr}"
+        # signature
+        def _hmac_sha256(key, msg):
+            return hmac.new(key, msg.encode("utf-8"), _hashlib.sha256).digest()
+        secret_date = _hmac_sha256(("TC3" + TMS_SECRET_KEY).encode("utf-8"), date)
+        secret_service = _hmac_sha256(secret_date, service)
+        secret_signing = _hmac_sha256(secret_service, "tc3_request")
+        signature = _hashlib.sha256(secret_signing + string_to_sign.encode("utf-8")).hexdigest()
+        if isinstance(signature, bytes):
+            signature = signature.decode()
+        # authorization
+        authorization = (
+            f"{algorithm} Credential={TMS_SECRET_ID}/{credential_scope}, "
+            f"SignedHeaders={signed_headers}, Signature={signature}"
+        )
+        # request
+        req = urllib.request.Request(f"https://{host}/", data=payload.encode("utf-8"))
+        req.add_header("Content-Type", ct)
+        req.add_header("Host", host)
+        req.add_header("X-TC-Action", action)
+        req.add_header("X-TC-Version", version)
+        req.add_header("X-TC-Region", region)
+        req.add_header("X-TC-Timestamp", str(timestamp))
+        req.add_header("Authorization", authorization)
+
+        ctx = ssl.create_default_context()
+        with urllib.request.urlopen(req, context=ctx, timeout=5) as resp:
+            result = json.loads(resp.read())
+        resp_data = result.get("Response", {})
+        if resp_data.get("Error"):
+            logger.warning(f"TMS API 错误: {resp_data.get('Error')}")
+            return (True, "")  # API 异常放行，避免阻塞用户
+        suggestion = resp_data.get("Suggestion", "Pass")
+        label = resp_data.get("Label", "")
+        if suggestion == "Pass":
+            return (True, "")
+        return (False, label)
+    except Exception as e:
+        logger.warning(f"TMS 检测失败 (放行): {e}")
+        return (True, "")  # 网络异常放行
+
+
 def _sign_cookie(username: str, password: str) -> str:
     payload = f"{username}:{password}:{int(time.time())}"
     sig = hmac.new(COOKIE_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:24]
+    return base64.b64encode(f"{payload}:{sig}".encode()).decode()
+
+def _sign_community_cookie(username: str, password: str) -> str:
+    payload = f"{username}:{password}:{int(time.time())}"
+    sig = hmac.new(COMMUNITY_COOKIE_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:24]
     return base64.b64encode(f"{payload}:{sig}".encode()).decode()
 
 
@@ -470,6 +623,21 @@ def _verify_cookie(token: str) -> tuple | None:
             return None
         username, password, ts = payload.split(":", 2)
         if int(time.time()) - int(ts) > COOKIE_MAX_AGE:
+            return None
+        return username, password
+    except Exception:
+        return None
+
+def _verify_community_cookie(token: str) -> tuple | None:
+    try:
+        raw = base64.b64decode(token).decode()
+        parts = raw.rsplit(":", 1)
+        payload, sig = parts[0], parts[1]
+        expected = hmac.new(COMMUNITY_COOKIE_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()[:24]
+        if not hmac.compare_digest(sig, expected):
+            return None
+        username, password, ts = payload.split(":", 2)
+        if int(time.time()) - int(ts) > COMMUNITY_COOKIE_MAX_AGE:
             return None
         return username, password
     except Exception:
@@ -637,6 +805,36 @@ class VoteHandler(SimpleHTTPRequestHandler):
             creds = self._get_admin_cookie()
             self._json_response({"loggedIn": creds is not None})
 
+        # ── 论坛社区 API (GET, 代理到 srvpro2) ──
+
+        elif path == "/api/forum/status":
+            creds = self._get_community_cookie()
+            self._json_response({
+                "loggedIn": creds is not None,
+                "username": creds[0] if creds else None,
+            })
+
+        elif path.startswith("/api/forum/avatar/"):
+            account_name = path.split("/api/forum/avatar/", 1)[1]
+            if not account_name:
+                self.send_error(404)
+                return
+            avatar_file = AVATAR_DIR / f"{account_name}.png"
+            if avatar_file.is_file():
+                with open(avatar_file, "rb") as f:
+                    data = f.read()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/png")
+                self.send_header("Cache-Control", "public, max-age=86400")
+                self.send_header("Content-Length", len(data))
+                self.end_headers()
+                self.wfile.write(data)
+            else:
+                self.send_error(404)
+
+        elif path.startswith("/api/forum/"):
+            self._proxy_forum_get(path)
+
         else:
             self.send_error(404)
 
@@ -681,6 +879,62 @@ class VoteHandler(SimpleHTTPRequestHandler):
             result = store.vote(image, self.get_client_ip())
             status = 200 if result["ok"] else 400
             self._json_response(result, status=status)
+
+        # ── 论坛社区 API (POST) ──
+
+        elif path == "/api/forum/login":
+            username = payload.get("username", "").strip()
+            password = payload.get("password", "")
+            if not username or not password:
+                self._json_response({"ok": False, "error": "缺少用户名或密码"}, status=400)
+                return
+            try:
+                result = _srvpro_post("/api/forum/verify", {}, {
+                    "username": username, "password": password,
+                })
+                if not result.get("ok"):
+                    raise Exception("账号或密码错误")
+            except Exception:
+                self._json_response({"ok": False, "error": "账号或密码错误"}, status=401)
+                return
+            token = _sign_community_cookie(username, password)
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Set-Cookie",
+                f"{COMMUNITY_COOKIE_NAME}={token}; HttpOnly; SameSite=Strict; Max-Age={COMMUNITY_COOKIE_MAX_AGE}; Path=/")
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": True, "username": username}, ensure_ascii=False).encode("utf-8"))
+
+        elif path == "/api/forum/logout":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Set-Cookie",
+                f"{COMMUNITY_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/")
+            self.end_headers()
+            self.wfile.write(json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8"))
+
+        elif path.startswith("/api/forum/"):
+            self._proxy_forum_post(path, payload)
+
+        else:
+            self.send_error(404)
+
+    # ── API DELETE ─────────────────────────────────────
+
+    def do_DELETE(self):
+        path = self.path.split("?", 1)[0]
+        if path.startswith("/api/forum/"):
+            creds = self._get_community_cookie()
+            if not creds:
+                self._json_response({"error": "未登录"}, status=401)
+                return
+            username, password = creds
+            try:
+                data = _srvpro_delete(path, {"username": username, "pass": password})
+                self._json_response(data)
+            except Exception as e:
+                logger.error(f"论坛 DELETE 失败: {e}")
+                self._json_response({"error": str(e)}, status=502)
         else:
             self.send_error(404)
 
@@ -733,13 +987,131 @@ class VoteHandler(SimpleHTTPRequestHandler):
     # ── 辅助方法 ───────────────────────────────────────
 
     def _get_admin_cookie(self) -> tuple | None:
+        return self._get_cookie(COOKIE_NAME, _verify_cookie)
+
+    def _get_community_cookie(self) -> tuple | None:
+        return self._get_cookie(COMMUNITY_COOKIE_NAME, _verify_community_cookie)
+
+    def _get_cookie(self, name: str, verifier) -> tuple | None:
         cookie_header = self.headers.get("Cookie", "")
         for part in cookie_header.split(";"):
             part = part.strip()
-            if part.startswith(f"{COOKIE_NAME}="):
-                token = part[len(COOKIE_NAME) + 1:]
-                return _verify_cookie(token)
+            if part.startswith(f"{name}="):
+                token = part[len(name) + 1:]
+                return verifier(token)
         return None
+
+    # ── 论坛代理方法 ───────────────────────────────────
+
+    def _proxy_forum_get(self, path: str):
+        """将 GET 请求代理到 srvpro2 论坛 API。"""
+        query = {}
+        raw_query = unquote(self.path.split("?", 1)[1]) if "?" in self.path else ""
+        for part in raw_query.split("&"):
+            if "=" in part:
+                k, v = part.split("=", 1)
+                query[k] = v
+
+        # 需要登录的操作自动附上 cookie 凭证
+        creds = self._get_community_cookie()
+        if creds:
+            query["username"] = creds[0]
+            query["pass"] = creds[1]
+
+        try:
+            data = _srvpro_fetch(path, query)
+            self._json_response(data)
+        except Exception as e:
+            logger.error(f"论坛 GET 代理失败 {path}: {e}")
+            self._json_response({"error": str(e)}, status=502)
+
+    def _proxy_forum_post(self, path: str, payload: dict):
+        """将 POST 请求代理到 srvpro2 论坛 API。"""
+        creds = self._get_community_cookie()
+        if not creds:
+            self._json_response({"error": "未登录"}, status=401)
+            return
+        username, password = creds
+        query = {"username": username, "pass": password}
+
+        # ── 内容安全检测 ──
+        if path == "/api/forum/posts":
+            check_text = (payload.get("title", "") + " " + payload.get("content", "")).strip()
+            if check_text:
+                ok, label = _tms_check(check_text)
+                if not ok:
+                    self._json_response({"error": "内容包含违规信息，请修改后重试"}, status=400)
+                    return
+        elif path.startswith("/api/forum/posts/") and path.endswith("/replies"):
+            check_text = (payload.get("content", "")).strip()
+            if check_text:
+                ok, label = _tms_check(check_text)
+                if not ok:
+                    self._json_response({"error": "内容包含违规信息，请修改后重试"}, status=400)
+                    return
+        elif path == "/api/forum/profile/display-name":
+            check_text = (payload.get("displayName", "")).strip()
+            if check_text:
+                ok, label = _tms_check(check_text)
+                if not ok:
+                    self._json_response({"error": "显示名包含违规信息，请修改后重试"}, status=400)
+                    return
+
+        # 头像上传特殊处理：base64 → Pillow 64×64 → 存文件
+        if path == "/api/forum/profile/avatar":
+            try:
+                avatar_b64 = payload.get("avatar", "")
+                if not avatar_b64:
+                    self._json_response({"error": "缺少 avatar 数据"}, status=400)
+                    return
+                # 去掉 data:image/...;base64, 前缀
+                if "," in avatar_b64:
+                    avatar_b64 = avatar_b64.split(",", 1)[1]
+                import binascii
+                try:
+                    img_data = base64.b64decode(avatar_b64)
+                except binascii.Error:
+                    self._json_response({"error": "无效的图片数据"}, status=400)
+                    return
+
+                # Pillow 缩放为 64×64
+                try:
+                    from io import BytesIO
+                    img = Image.open(BytesIO(img_data))
+                    img = img.convert("RGB")
+                    img.thumbnail((AVATAR_SIZE, AVATAR_SIZE), Image.LANCZOS)
+                    # 补到 64×64，居中
+                    out = Image.new("RGB", (AVATAR_SIZE, AVATAR_SIZE), (30, 30, 30))
+                    offset_x = (AVATAR_SIZE - img.width) // 2
+                    offset_y = (AVATAR_SIZE - img.height) // 2
+                    out.paste(img, (offset_x, offset_y))
+                    # 保存
+                    AVATAR_DIR.mkdir(parents=True, exist_ok=True)
+                    avatar_path = AVATAR_DIR / f"{username}.png"
+                    out.save(avatar_path, "PNG")
+                except Exception as img_err:
+                    self._json_response({"error": f"图片处理失败: {img_err}"}, status=400)
+                    return
+
+                # 通知 srvpro2 更新 avatarVersion
+                try:
+                    data = _srvpro_post(path, query, {"avatar_version_increment": True})
+                    self._json_response(data)
+                except Exception:
+                    # 即使 srvpro2 通知失败，文件已保存，也算成功
+                    self._json_response({"ok": True, "avatarSaved": True})
+            except Exception as e:
+                logger.error(f"头像上传失败: {e}")
+                self._json_response({"error": str(e)}, status=500)
+            return
+
+        # 普通 POST 代理
+        try:
+            data = _srvpro_post(path, query, payload)
+            self._json_response(data)
+        except Exception as e:
+            logger.error(f"论坛 POST 代理失败 {path}: {e}")
+            self._json_response({"error": str(e)}, status=502)
 
     def _json_response(self, obj, status: int = 200):
         body = json.dumps(obj, ensure_ascii=False).encode("utf-8")

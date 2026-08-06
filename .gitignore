@@ -19,6 +19,9 @@ cards_ocg.cdb
 xiaobairenshe/
 xiaobairenshe_thumb/
 
+# Config / secrets
+config.local.json
+
 # IDE
 .vscode/
 .idea/

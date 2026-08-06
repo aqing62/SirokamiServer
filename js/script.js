@@ -14,6 +14,7 @@ const CSS_MAP = {
     'section-eight-decks':   ['css-eight-decks', 'css-live-duels'],
     'section-xiaobai':       ['css-xiaobai'],
     'section-player-ranking':['css-player-ranking'],
+    'section-community':     ['css-deck-community'],
 };
 
 // ── Section 切换 ────────────────────────────────────────
@@ -34,10 +35,14 @@ function showSection(sectionId) {
     });
 
     // 侧边栏：主页始终显示，子页隐藏（鼠标靠近右边缘滑出）
+    // 论坛页面内容较多，禁用边缘滑出避免误触
     const sidebar = document.getElementById('sidebar');
     const trigger = document.getElementById('sidebarTrigger');
     if (sectionId === 'section-main') {
         sidebar.classList.remove('hidden');
+        trigger.style.display = 'none';
+    } else if (sectionId === 'section-community') {
+        sidebar.classList.add('hidden');
         trigger.style.display = 'none';
     } else {
         sidebar.classList.add('hidden');
@@ -54,6 +59,7 @@ function showSection(sectionId) {
 
     // 懒初始化
     lazyInit(sectionId);
+    updateLoginVisibility();
 }
 
 // ── 侧边栏悬停滑出 ──────────────────────────────────────
@@ -105,6 +111,9 @@ function lazyInit(sectionId) {
             break;
         case 'section-xiaobai':
             initXiaobaiModule();
+            break;
+        case 'section-community':
+            if (typeof initCommunityModule === 'function') initCommunityModule();
             break;
     }
 }
@@ -242,6 +251,14 @@ function runIntroAnimation() {
             setTimeout(function() { btn.classList.add('reveal'); }, sections.length * 120 + i * 80);
         });
 
+        // 登录按钮跟随侧边栏动画
+        var loginTrigger = document.getElementById('glLoginTrigger');
+        if (loginTrigger) {
+            setTimeout(function() {
+                loginTrigger.classList.add('reveal');
+            }, sections.length * 120 + sidebarBtns.length * 80 + 60);
+        }
+
         await animateStroke(svgData.text, svgData.len, 1200);
         await delay(200);
 
@@ -283,6 +300,27 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('cardListBtn').onclick = makeToggle('section-card-list');
     document.getElementById('cardPoolInfoBtn').onclick = makeToggle('section-card-pool');
     document.getElementById('playerRankingBtn').onclick = makeToggle('section-player-ranking');
+    // 论坛入口（无需登录即可浏览）
+    document.getElementById('communityBtn').onclick = function () {
+        if (_currentSection === 'section-community') {
+            showSection('section-main');
+        } else {
+            showSection('section-community');
+        }
+        updateLoginVisibility();
+    };
+
+    // 手机端：登录框仅在论坛页面显示
+    function updateLoginVisibility() {
+        if (window.innerWidth > 768) return;
+        var loginBox = document.getElementById('globalLogin');
+        if (!loginBox) return;
+        if (_currentSection === 'section-community') {
+            loginBox.style.display = 'block';
+        } else {
+            loginBox.style.display = 'none';
+        }
+    }
 
     // ── 桌面端入场动画 ──────────────────────────────────
     if (window.innerWidth > 768) {
@@ -291,6 +329,14 @@ document.addEventListener('DOMContentLoaded', function () {
         // 手机端直接显示
         document.body.classList.remove('loading');
         document.body.classList.add('loaded');
+        var loginTriggerM = document.getElementById('glLoginTrigger');
+        if (loginTriggerM) loginTriggerM.classList.add('reveal');
+    }
+
+    // 非首次访问（body 已有 loaded 类，动画不会触发），直接显示登录按钮
+    if (document.body.classList.contains('loaded')) {
+        var loginTriggerL = document.getElementById('glLoginTrigger');
+        if (loginTriggerL) loginTriggerL.classList.add('reveal');
     }
 
     // 公告展开/收起
@@ -311,6 +357,171 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
 });
+
+// ═══════════════════════════════════════════════════════
+// 全局登录模块
+// ═══════════════════════════════════════════════════════
+
+window._communityLoggedIn = false;
+window._communityUsername = '';
+window._communityAuth = null; // {username, password}
+
+(function () {
+    var glLoginTrigger = document.getElementById('glLoginTrigger');
+    var glLoggedin = document.getElementById('glLoggedin');
+    var glModalOverlay = document.getElementById('glModalOverlay');
+    var glModalClose = document.getElementById('glModalClose');
+    var glError = document.getElementById('glError');
+    var glUsername = document.getElementById('glUsername');
+    var glPassword = document.getElementById('glPassword');
+    var glLoginBtn = document.getElementById('glLoginBtn');
+    var glAvatar = document.getElementById('glAvatar');
+    var glName = document.getElementById('glName');
+    var glProfile = document.getElementById('glProfile');
+
+    function showError(msg) {
+        if (glError) {
+            glError.textContent = msg;
+            glError.style.display = 'block';
+            setTimeout(function () { glError.style.display = 'none'; }, 3000);
+        }
+    }
+
+    function openLoginModal() {
+        if (glModalOverlay) glModalOverlay.classList.add('active');
+        if (glError) glError.style.display = 'none';
+        if (glUsername) glUsername.value = '';
+        if (glPassword) glPassword.value = '';
+        setTimeout(function () {
+            if (glUsername) glUsername.focus();
+        }, 100);
+    }
+
+    function closeLoginModal() {
+        if (glModalOverlay) glModalOverlay.classList.remove('active');
+    }
+
+    function setLoggedIn(username, password) {
+        window._communityLoggedIn = true;
+        window._communityUsername = username;
+        window._communityAuth = { username: username, password: password };
+        if (glLoginTrigger) glLoginTrigger.style.display = 'none';
+        if (glLoggedin) glLoggedin.style.display = 'flex';
+        if (glName) glName.textContent = username;
+        closeLoginModal();
+        updateAvatar();
+        if (typeof window._onCommunityLogin === 'function') {
+            window._onCommunityLogin(username, password);
+        }
+        // 刷新论坛手机端头像
+        if (typeof window._refreshMobileAvatar === 'function') window._refreshMobileAvatar();
+    }
+
+    function setLoggedOut() {
+        window._communityLoggedIn = false;
+        window._communityUsername = '';
+        window._communityAuth = null;
+        if (glLoginTrigger) glLoginTrigger.style.display = '';
+        if (glLoggedin) glLoggedin.style.display = 'none';
+        if (glAvatar) glAvatar.src = 'cover.jpg';
+        if (typeof window._onCommunityLogout === 'function') {
+            window._onCommunityLogout();
+        }
+        if (typeof window._refreshMobileAvatar === 'function') window._refreshMobileAvatar();
+    }
+
+    function updateAvatar() {
+        var username = window._communityUsername;
+        if (!username) return;
+        fetch('/api/forum/profile?' + new URLSearchParams({
+            username: window._communityAuth.username,
+            pass: window._communityAuth.password,
+        })).then(function (r) { return r.json(); }).then(function (data) {
+            if (glAvatar && data.avatarVersion) {
+                glAvatar.src = '/api/forum/avatar/' + encodeURIComponent(username) + '?v=' + data.avatarVersion;
+            }
+            if (glName && data.displayName) {
+                glName.textContent = data.displayName;
+            }
+        }).catch(function () {});
+    }
+
+    // 登录触发按钮 → 弹出模态框
+    if (glLoginTrigger) {
+        glLoginTrigger.addEventListener('click', openLoginModal);
+    }
+
+    // 关闭模态框
+    if (glModalClose) {
+        glModalClose.addEventListener('click', closeLoginModal);
+    }
+
+    // 登录按钮
+    if (glLoginBtn) {
+        glLoginBtn.addEventListener('click', function () {
+            var u = (glUsername.value || '').trim();
+            var p = glPassword.value || '';
+            if (!u || !p) {
+                showError('请输入账号和密码');
+                return;
+            }
+            glLoginBtn.disabled = true;
+            glLoginBtn.textContent = '登录中...';
+            fetch('/api/forum/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p }),
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (data.ok) {
+                    setLoggedIn(u, p);
+                } else {
+                    showError(data.error || '登录失败');
+                }
+            }).catch(function () {
+                showError('网络错误');
+            }).finally(function () {
+                glLoginBtn.disabled = false;
+                glLoginBtn.textContent = '登录';
+            });
+        });
+    }
+
+    // Enter 快捷登录
+    if (glPassword) {
+        glPassword.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' && glLoginBtn) glLoginBtn.click();
+        });
+    }
+
+    // 个人中心入口
+    if (glProfile) {
+        glProfile.addEventListener('click', function () {
+            if (!window._communityLoggedIn) return;
+            // 确保论坛模块已初始化
+            if (typeof initCommunityModule === 'function' && !_inited['section-community']) {
+                _inited['section-community'] = true;
+                initCommunityModule();
+            }
+            // 直接弹个人中心，不切换页面
+            if (typeof window._openProfilePanel === 'function') {
+                window._openProfilePanel();
+            }
+        });
+    }
+
+    // 启动时检查登录状态
+    fetch('/api/forum/status').then(function (r) { return r.json(); }).then(function (data) {
+        if (data.loggedIn && data.username) {
+            window._communityLoggedIn = true;
+            window._communityUsername = data.username;
+            window._communityAuth = { username: data.username, password: '' };
+            if (glLoginTrigger) glLoginTrigger.style.display = 'none';
+            if (glLoggedin) glLoggedin.style.display = 'flex';
+            if (glName) glName.textContent = data.username;
+            updateAvatar();
+        }
+    }).catch(function () {});
+})();
 
 // ═══════════════════════════════════════════════════════
 // 晓白投票模块 (从 xiaobairenshe.html 提取)

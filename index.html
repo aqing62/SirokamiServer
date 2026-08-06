@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>白神服Sirokami - 游戏王DIY服务器</title>
     <link rel="icon" href="favicon.ico">
-    <link rel="stylesheet" href="css/style.css?v=20260806a" id="css-style">
+    <link rel="stylesheet" href="css/style.css?v=20260807a" id="css-style">
     <link rel="stylesheet" href="css/card-list.css" id="css-card-list" media="not all">
     <link rel="stylesheet" href="css/card-pool-info.css" id="css-card-pool" media="not all">
     <link rel="stylesheet" href="css/eight-decks.css" id="css-eight-decks" media="not all">
@@ -14,6 +14,7 @@
     <link rel="stylesheet" href="css/player-ranking.css" id="css-player-ranking" media="not all">
     <link rel="stylesheet" href="css/live-duels.css" id="css-live-duels" media="not all">
     <link rel="stylesheet" href="css/deck-viewer.css" id="css-deck-viewer">
+    <link rel="stylesheet" href="css/deck-community.css" id="css-deck-community" media="not all">
     <style>
         body.loading {
             visibility: hidden;
@@ -71,7 +72,7 @@
                     <a href="https://api.ygopro3.cn/file/siro.ypk" class="download-card" target="_blank">
                         <span class="download-icon">📦</span>
                         <span class="download-title">DIY卡包下载</span>
-                        <span class="download-hint">siro.ypk 直链</span>
+                        <span class="download-hint">右键复制下载链接</span>
                     </a>
                     <a href="https://mycard.world/" class="download-card" target="_blank">
                         <span class="download-icon">🌐</span>
@@ -109,16 +110,16 @@
                         <tr><td><code>DR<span class="param">数字</span></code></td><td>设置回合抽卡数</td></tr>
                         <tr><td><code>NS</code></td><td>不洗切卡组</td></tr>
                     </table>
-                    <p style="margin-top:12px;color:#aaa;">多个代码可组合使用，如 <code>T,C#32</code> = 双打编年史房间。代码后加 <code>#</code> 再接房间名。</p>
+                    <p style="margin-top:12px;color:#aaa;">多个代码可组合使用，如 <code>T,C#32</code> = 双打编年史房间，代码后加 <code>#</code> 再接房间名</p>
                 </div>
 
                 <!-- 天梯模式 -->
                 <div class="rules-panel" id="tab-ladder">
-                    <p>创建 <code>M#</code> 房间，<strong>双方登录后</strong>自动开启天梯对战。随机匹配房同样计入天梯。</p>
-                    <p>采用 <strong>纯正向积分制</strong>：胜 +10（对手分每高 100 额外 +1，上限 +5），负 0，平 +3，每日首胜额外 +2，初始 0 分。</p>
-                    <p>🏅 <strong>段位系统</strong>：基于活跃玩家百分比实时计算 — 大师 8%、钻石 18%、黄金 35%、白银 60%，需完成 5 场定级赛方可上榜。</p>
-                    <p>🛡️ <strong>防刷分机制</strong>：新玩家考察期 5 场，同对手连胜超过 5 场后不再加分，需至少 3 名不同对手方可进入排行榜。同账号、同 IP 不计分。</p>
-                    <p>📝 <strong>注册</strong>：首次使用需先 <code>/register 用户名 密码 显示名</code> 注册，之后用 <code>/login 用户名 密码</code> 登录。</p>
+                    <p>创建 <code>M#</code> 房间，<strong>双方登录后</strong>自动开启天梯对战，随机匹配房同样计入天梯</p>
+                    <p>采用 <strong>纯正向积分制</strong>：胜 +10（对手分每高 100 额外 +1，上限 +5），负 0，平 +3，每日首胜额外 +2，初始 0 分</p>
+                    <p>🏅 <strong>段位系统</strong>：基于活跃玩家百分比实时计算 — 大师 8%、钻石 18%、黄金 35%、白银 60%，需完成 5 场定级赛方可上榜</p>
+                    <p>🛡️ <strong>防刷分机制</strong>：新玩家考察期 5 场，同对手连胜超过 5 场后不再加分，需至少 3 名不同对手方可进入排行榜，同账号、同 IP 不计分</p>
+                    <p>📝 <strong>注册</strong>：请到游戏服务器房间内的聊天框输入 <code>/register 用户名 密码 显示名</code> 注册，之后用 <code>/login 用户名 密码</code> 登录</p>
                     <p>房间内指令：</p>
                     <table class="code-table">
                         <tr><td><code>/register 用户名 密码 显示名</code></td><td>注册新账号（首次）</td></tr>
@@ -127,21 +128,22 @@
                         <tr><td><code>/rating 玩家名</code></td><td>查看指定玩家积分</td></tr>
                         <tr><td><code>/ladder</code></td><td>查看天梯排行榜</td></tr>
                     </table>
-                    <p style="margin-top:12px;">主站「<strong>玩家排名</strong>」板块可查看 TOP50 及精准搜索。</p>
+                    <p style="margin-top:12px;">主站「<strong>玩家排名</strong>」板块可查看 TOP50 及精准搜索</p>
                 </div>
 
                 <!-- C模式·编年史 -->
                 <div class="rules-panel" id="tab-chronicle">
-                    <p>房间代码 <code>C</code>，服务器为双方<strong>随机分配卡组</strong>，展开公平的即兴对决。</p>
-                    <p>🎴 双方各获得<strong>不同</strong>的随机卡组，就位后<strong>直接开始</strong>对战。</p>
-                    <p>📊 每张卡片设有<strong>分值</strong>，卡组总分 ≤ 100 分，确保对局相对平衡。</p>
-                    <p>📚 卡组池由策划组<strong>精心挑选</strong>，持续更新中，欢迎投稿。</p>
+                    <p>房间代码 <code>C</code>，服务器为双方<strong>随机分配卡组</strong>，展开公平的即兴对决</p>
+                    <p>🎴 双方各获得<strong>不同</strong>的随机卡组，就位后<strong>直接开始</strong>对战</p>
+                    <p>📊 每张卡片设有<strong>分值</strong>，卡组总分 ≤ 100 分，确保对局相对平衡</p>
+                    <p>📚 卡组池由策划组<strong>精心挑选</strong>，持续更新中，欢迎投稿</p>
                 </div>
             </div>
 
             <div class="section">
                 <h2>最新公告</h2>
                 <div class="announcement-box">
+                    <div class="announcement-item"><span class="ann-date">08.07</span><span class="ann-badge">V1.7.0</span>玩家论坛上线：四大分区（休闲杂谈/卡片反馈/卡组分享/答疑解忧），支持卡组嵌入+卡片嵌入+表情包，账号登录系统（注册在游戏内），个人中心（修改头像/显示名/我的发帖），全局搜索/标签/浏览量/置顶/点赞</div>
                     <div class="announcement-item"><span class="ann-date">08.06</span><span class="ann-badge">V1.6.2</span>全局卡组查看器：桌面端拖拽 .ydk 文件 / 粘贴卡组码即可查看卡组详情，手机端识别剪贴板卡组码，胜者卡组新增一键下载 .ydk 文件</div>
                     <div class="announcement-item"><span class="ann-date">08.03</span><span class="ann-badge">V1.6.1</span>天梯卡组禁限分数角标 + DIY角标，卡图悬停/触摸显示效果文本，卡池筛选补充装备魔法，修复异画卡分数不显示，移动端适配</div>
                     <div class="announcement-item"><span class="ann-date">07.20</span><span class="ann-badge">V1.6.0</span>主站首页大更新：服务器介绍/下载卡片重设计，玩法规则三 Tab 切换（房间代码·天梯模式·编年史模式），公告板时间线卡片化，CDB 数据 gzip 压缩加载加速</div>
@@ -562,27 +564,71 @@
     </section>
 
     <!-- ═══════════════════════════════════════════════════════
+         GLOBAL LOGIN — 全局登录框（右下角固定）
+         ═══════════════════════════════════════════════════════ -->
+    <div class="global-login" id="globalLogin">
+        <!-- 未登录 -->
+        <button class="gl-login-trigger" id="glLoginTrigger">点此登录</button>
+        <!-- 已登录 -->
+        <div class="gl-loggedin" id="glLoggedin" style="display:none;align-items:center;gap:8px;">
+            <div class="gl-profile" id="glProfile">
+                <img class="gl-avatar" id="glAvatar" src="cover.jpg" alt="头像" title="点击进入个人中心">
+                <span class="gl-name" id="glName">玩家</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 登录弹窗 -->
+    <div class="gl-modal-overlay" id="glModalOverlay">
+        <div class="gl-modal">
+            <div class="gl-modal-header">
+                <span class="gl-modal-title">登录账号</span>
+                <button class="gl-modal-close" id="glModalClose">&times;</button>
+            </div>
+            <div class="gl-modal-body">
+                <input type="text" class="gl-input" id="glUsername" placeholder="游戏账号">
+                <input type="password" class="gl-input" id="glPassword" placeholder="密码">
+                <button class="gl-btn" id="glLoginBtn">登录</button>
+                <div class="gl-error" id="glError" style="display:none;"></div>
+                <div class="gl-hint">注册请在游戏房间聊天框内输入 /register 账号 密码 显示名</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════
+         SECTION: 玩家论坛
+         ═══════════════════════════════════════════════════════ -->
+    <section id="section-community" class="content-section">
+        <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
+        <div class="community-wrapper" id="communityWrapper">
+            <div class="community-loading">论坛加载中...</div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
          SIDEBAR — 全局侧边栏
          ═══════════════════════════════════════════════════════ -->
     <div class="sidebar" id="sidebar">
-        <div class="sidebar-btn" id="eightDecksBtn">比赛相关</div>
-        <div class="sidebar-btn" id="xiaobaiBtn">晓白相关</div>
-        <div class="sidebar-btn" id="cardListBtn">禁限分值</div>
-        <div class="sidebar-btn" id="cardPoolInfoBtn">卡池信息</div>
-        <div class="sidebar-btn" id="playerRankingBtn">玩家排名</div>
+        <div class="sidebar-btn" id="eightDecksBtn">比赛<span class="sb-break"></span>相关</div>
+        <div class="sidebar-btn" id="xiaobaiBtn">晓白<span class="sb-break"></span>相关</div>
+        <div class="sidebar-btn" id="cardListBtn">禁限<span class="sb-break"></span>分值</div>
+        <div class="sidebar-btn" id="cardPoolInfoBtn">卡池<span class="sb-break"></span>信息</div>
+        <div class="sidebar-btn" id="playerRankingBtn">玩家<span class="sb-break"></span>排名</div>
+        <div class="sidebar-btn" id="communityBtn">玩家<span class="sb-break"></span>论坛</div>
     </div>
     <div class="sidebar-trigger" id="sidebarTrigger"></div>
 
     <!-- ═══════════════════════════════════════════════════════
          SCRIPTS — 全部JS
          ═══════════════════════════════════════════════════════ -->
-    <script src="js/script.js?v=20260806a"></script>
-    <script src="js/card-list.js?v=20260806a"></script>
-    <script src="js/card-pool-info.js?v=20260806a"></script>
-    <script src="js/eight-decks.js?v=20260806a"></script>
-    <script src="js/player-ranking.js?v=20260806a"></script>
-    <script src="js/live-duels.js?v=20260806a"></script>
-    <script src="js/deck-viewer.js?v=20260806a"></script>
+    <script src="js/script.js?v=20260807a"></script>
+    <script src="js/card-list.js?v=20260807a"></script>
+    <script src="js/card-pool-info.js?v=20260807a"></script>
+    <script src="js/eight-decks.js?v=20260807a"></script>
+    <script src="js/player-ranking.js?v=20260807a"></script>
+    <script src="js/live-duels.js?v=20260807a"></script>
+    <script src="js/deck-viewer.js?v=20260807a"></script>
+    <script src="js/deck-community.js?v=20260807a"></script>
     <script>
         // 玩法规则 Tab 切换
         document.querySelectorAll('.rules-tab').forEach(function(btn) {

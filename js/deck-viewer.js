@@ -343,7 +343,7 @@
             var sideLen = deck.side.length;
 
             // 主卡组 grid 4行布局
-            var mainCols = Math.max(1, Math.ceil(mainLen / 4));
+            var mainCols = Math.max(10, Math.ceil(mainLen / 4));
             var mainGridStyle = mainLen > 0
                 ? 'style="grid-template-columns:repeat(' + mainCols + ',1fr);grid-template-rows:repeat(4,1fr);"'
                 : '';
@@ -699,6 +699,14 @@
 
     // ── 公开 API ──
     window.DeckViewer = {
+        parse: parseYdk,
+        showDeck: function (deck, sourceName) {
+            if (!deck || (!deck.main && !deck.extra && !deck.side)) {
+                showToast('卡组数据无效', false);
+                return;
+            }
+            openDeckModal(deck, sourceName || '卡组');
+        },
         openDeck: function (ydkText, sourceName) {
             var deck = parseYdk(ydkText);
             if (!deck) {

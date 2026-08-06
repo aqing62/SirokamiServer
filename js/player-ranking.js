@@ -267,7 +267,7 @@
         <div class="deck-two-col">
           <div class="deck-col deck-col-main">
             <div class="deck-section-title">主卡组 (${deck.deck.main.length}张)</div>
-            <div class="deck-cards-grid deck-cards-main" style="grid-template-columns:repeat(${Math.ceil(deck.deck.main.length / 4)},1fr);grid-template-rows:repeat(4,1fr);">${cardImgs(deck.deck.main, scoreMap)}</div>
+            <div class="deck-cards-grid deck-cards-main" style="grid-template-columns:repeat(${Math.max(10, Math.ceil(deck.deck.main.length / 4))},1fr);grid-template-rows:repeat(4,1fr);">${cardImgs(deck.deck.main, scoreMap)}</div>
           </div>
           <div class="deck-col deck-col-side">
             ${deck.deck.extra.length ? '<div class="deck-section-title">额外卡组 (' + deck.deck.extra.length + '张)</div><div class="deck-cards-grid deck-cards-extra">' + cardImgs(deck.deck.extra, scoreMap) + '</div>' : ''}
