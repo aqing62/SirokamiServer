@@ -57,6 +57,13 @@ function initCommunityModule() {
             + 'this.onload=function(){' + cardImgOnLoad(cardId) + '};';
     }
 
+    function avatarImg(accountName) {
+        if (!accountName) return '';
+        return '<img src="/api/forum/avatar/' + encodeURIComponent(accountName) + '?v=' + Date.now() + '"'
+            + ' style="width:24px;height:24px;border-radius:3px;border:1px solid rgba(216,30,68,0.3);object-fit:cover;flex-shrink:0;margin-right:6px;"'
+            + ' onerror="this.style.display=\'none\'">';
+    }
+
     function cardThumbImg(cardId) {
         return '<img src="' + cardImgSrc(cardId) + '" style="width:44px;height:64px;object-fit:cover;border-radius:3px;flex-shrink:0;"'
             + ' onerror="' + cardImgOnError(cardId) + '">';
@@ -399,6 +406,7 @@ function initCommunityModule() {
                 html += getPreviewThumbs(post.contentJson);
                 html += '<div class="cp-meta">';
                 var tags = (post.tags || '').split(',').filter(Boolean);
+                html += avatarImg(post.accountName);
                 html += '<span>' + esc(post.authorName) + '</span>';
                 html += '<span>' + timeAgo(post.createTime) + '</span>';
                 html += '<span class="cp-section-tag">' + SECTION_NAMES[post.section] + '</span>';
@@ -506,6 +514,7 @@ function initCommunityModule() {
         });
         html += '</div>';
         html += '<div class="cp-meta" style="margin-bottom:10px;">';
+        html += avatarImg(post.accountName);
         html += '<span>' + esc(post.authorName) + '</span>';
         html += '<span>' + timeAgo(post.createTime) + '</span>';
         html += '<span class="cp-section-tag">' + SECTION_NAMES[post.section] + '</span>';
