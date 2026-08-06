@@ -127,7 +127,8 @@ function lazyInit(sectionId) {
     window.addEventListener('wheel', function (e) {
         // 手机端交给原生滚动
         if (window.innerWidth <= 768) return;
-        // 如果事件来自模态框或可滚动弹窗内，交给原生滚动处理
+        // 如果已被其他 handler 阻止，或来自模态框内，跳过
+        if (e.defaultPrevented) return;
         const el = e.target.closest('.new-cards-grid, .new-cards-overlay, .filter-modal, .pool-filter-overlay, .filter-popup, .mobile-open, .community-modal-body, .deck-viewer-body, .deck-modal-body, .deck-modal-overlay, .deck-modal, .stats-panel');
         if (el) return;
         e.preventDefault();
