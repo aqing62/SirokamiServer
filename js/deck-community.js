@@ -747,30 +747,16 @@ function initCommunityModule() {
             });
         });
 
-        // 编辑帖子
+        // 编辑帖子 — 复用发帖 UI
         var editBtn = document.getElementById('cmEditPost');
         if (editBtn) editBtn.addEventListener('click', function () {
-            var newTitle = prompt('编辑标题:', post.title);
-            if (newTitle === null) return;
-            var newContent = prompt('编辑内容:', post.content);
-            if (newContent === null) return;
-            var newTags = prompt('编辑标签（逗号分隔）:', post.tags || '');
-            if (newTags === null) return;
-            if (USE_MOCK) {
-                post.title = newTitle.trim();
-                post.content = newContent.trim();
-                post.tags = newTags.trim();
-                post.contentJson = buildContentJson(newContent.trim(), null);
-                closeDetail();
-                openDetail(post.id);
-                return;
-            }
-            authApi('/api/forum/posts/' + post.id, {
-                method: 'PUT',
-                body: { title: newTitle.trim(), content: newContent.trim(), tags: newTags.trim(),
-                    contentJson: buildContentJson(newContent.trim(), null), username: window._communityAuth.username, password: window._communityAuth.password },
-            }).then(function () { closeDetail(); openDetail(post.id); })
-              .catch(function (e) { alert('编辑失败: ' + (e && e.message)); });
+            openPublish({
+                id: post.id,
+                section: post.section,
+                title: post.title,
+                content: post.content,
+                tags: post.tags || '',
+            });
         });
         // 删除帖子
         var delBtn = document.getElementById('cmDelPost');
@@ -840,27 +826,29 @@ function initCommunityModule() {
 
     var _publishOverlay = null;
     var _publishDeck = null;
+    var _editingPostId = null;
 
-    function openPublish() {
+    function openPublish(editData) {
+        var isEdit = !!editData;
         var overlay = document.createElement('div');
         overlay.className = 'community-modal-overlay active';
         overlay.innerHTML = '<div class="community-modal" style="width:min(600px,95vw);">'
             + '<div class="community-modal-header">'
-            + '<span class="community-modal-title">发布帖子</span>'
+            + '<span class="community-modal-title">' + (isEdit ? '编辑帖子' : '发布帖子') + '</span>'
             + '<button class="community-modal-close">&times;</button>'
             + '</div>'
             + '<div class="community-modal-body">'
             + '<label class="community-form-label">分区</label>'
             + '<select class="community-input" id="cmPubSection" style="width:auto;">'
-            + SECTIONS.filter(function (s) { return s !== 'all'; }).map(function (s) { return '<option value="' + s + '">' + SECTION_NAMES[s] + '</option>'; }).join('')
+            + SECTIONS.filter(function (s) { return s !== 'all'; }).map(function (s) { return '<option value="' + s + '"' + (editData && editData.section === s ? ' selected' : '') + '>' + SECTION_NAMES[s] + '</option>'; }).join('')
             + '</select>'
             + '<label class="community-form-label">标题</label>'
-            + '<input class="community-input" id="cmPubTitle" maxlength="60" placeholder="帖子标题">'
+            + '<input class="community-input" id="cmPubTitle" maxlength="60" placeholder="帖子标题" value="' + (editData ? esc(editData.title) : '') + '">'
             + '<label class="community-form-label">标签（逗号分隔，如「构筑,已解决」）</label>'
-            + '<input class="community-input" id="cmPubTags" maxlength="100" placeholder="可选标签">'
+            + '<input class="community-input" id="cmPubTags" maxlength="100" placeholder="可选标签" value="' + (editData ? esc(editData.tags || '') : '') + '">'
             + '<label class="community-form-label">正文（支持 [deck]...[/deck] 卡组，[card]ID[/card] 卡片）</label>'
             + '<textarea class="community-input community-textarea" id="cmPubContent" maxlength="2000"'
-            + ' placeholder="在这里写下你想分享的内容..."></textarea>'
+            + ' placeholder="在这里写下你想分享的内容...">' + (editData ? esc(editData.content) : '') + '</textarea>'
             + '<div style="display:flex;gap:8px;margin-bottom:10px;">'
             + '<button class="community-sort" id="cmPubDeckBtn">📦 卡组</button>'
             + '<button class="community-sort" id="cmPubCardBtn">🔍 卡片</button>'
@@ -869,12 +857,13 @@ function initCommunityModule() {
             + '<div id="cmPubPreview" style="margin-bottom:10px;"></div>'
             + '<div style="display:flex;gap:10px;">'
             + '<button class="community-page-btn" id="cmPubCancel">取消</button>'
-            + '<button class="community-btn" id="cmPubSubmit" style="flex:1;">发布</button>'
+            + '<button class="community-btn" id="cmPubSubmit" style="flex:1;">' + (isEdit ? '保存' : '发布') + '</button>'
             + '</div>'
             + '</div></div>';
         document.body.appendChild(overlay);
         _publishOverlay = overlay;
         _publishDeck = null;
+        _editingPostId = isEdit ? editData.id : null;
         document.body.style.overflow = 'hidden';
 
         overlay.querySelector('.community-modal-close').addEventListener('click', closePublish);
@@ -918,33 +907,47 @@ function initCommunityModule() {
             if (!title) { alert('请输入标题'); return; }
             if (!content && !_publishDeck) { alert('请输入内容'); return; }
 
-            // 构建 contentJson
             var contentJson = buildContentJson(content, _publishDeck);
-
             var btn = document.getElementById('cmPubSubmit');
             btn.disabled = true;
-            btn.textContent = '发布中...';
+            btn.textContent = _editingPostId ? '保存中...' : '发布中...';
 
-            if (USE_MOCK) {
-                mockNewPost(section, title, content, contentJson, tags);
-                closePublish();
-                state.page = 1;
-                loadFeed();
-                return;
+            if (_editingPostId) {
+                // 编辑模式
+                authApi('/api/forum/posts/' + _editingPostId, {
+                    method: 'PUT',
+                    body: { title: title, content: content, contentJson: contentJson, tags: tags },
+                }).then(function () {
+                    closePublish();
+                    if (_detailPostId === _editingPostId) { closeDetail(); }
+                    loadFeed();
+                }).catch(function (e) {
+                    alert('保存失败: ' + e.message);
+                    btn.disabled = false;
+                    btn.textContent = '保存';
+                });
+            } else {
+                // 新建模式
+                if (USE_MOCK) {
+                    mockNewPost(section, title, content, contentJson, tags);
+                    closePublish();
+                    state.page = 1;
+                    loadFeed();
+                    return;
+                }
+                authApi('/api/forum/posts', {
+                    method: 'POST',
+                    body: { section: section, title: title, content: content, contentJson: contentJson, tags: tags },
+                }).then(function () {
+                    closePublish();
+                    state.page = 1;
+                    loadFeed();
+                }).catch(function (e) {
+                    alert('发布失败: ' + e.message);
+                    btn.disabled = false;
+                    btn.textContent = '发布';
+                });
             }
-
-            authApi('/api/forum/posts', {
-                method: 'POST',
-                body: { section: section, title: title, content: content, contentJson: contentJson, tags: tags },
-            }).then(function () {
-                closePublish();
-                state.page = 1;
-                loadFeed();
-            }).catch(function (e) {
-                alert('发布失败: ' + e.message);
-                btn.disabled = false;
-                btn.textContent = '发布';
-            });
         });
     }
 
@@ -953,6 +956,7 @@ function initCommunityModule() {
             _publishOverlay.remove();
             _publishOverlay = null;
             _publishDeck = null;
+            _editingPostId = null;
             document.body.style.overflow = '';
         }
     }
