@@ -1489,78 +1489,103 @@ function initCommunityModule() {
             var selSize = Math.min(canvas.width, canvas.height) * 0.7;
             var selX = (canvas.width - selSize) / 2;
             var selY = (canvas.height - selSize) / 2;
-            var dragging = false;
+            var dragging = false, resizing = false;
             var dragStart = { x: 0, y: 0 };
-            var dragSelStart = { x: 0, y: 0 };
+            var dragSelStart = { x: 0, y: 0, s: 0 };
+            var handleSize = 12;
+            var minSel = 30;
 
             function redraw() {
                 ctx.clearRect(0, 0, canvas.width, canvas.height);
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                // 暗色遮罩
                 ctx.fillStyle = 'rgba(0,0,0,0.5)';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                // 裁剪区亮色
-                ctx.drawImage(img,
-                    selX / scale, selY / scale, selSize / scale, selSize / scale,
-                    selX, selY, selSize, selSize);
-                // 边框
+                ctx.drawImage(img, selX / scale, selY / scale, selSize / scale, selSize / scale, selX, selY, selSize, selSize);
                 ctx.strokeStyle = '#F0E68C';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(selX, selY, selSize, selSize);
-                // 预览
-                pctx.drawImage(img,
-                    selX / scale, selY / scale, selSize / scale, selSize / scale,
-                    0, 0, 64, 64);
+                // 拖拽角标
+                ctx.fillStyle = '#F0E68C';
+                ctx.fillRect(selX + selSize - handleSize, selY + selSize - handleSize, handleSize, handleSize);
+                pctx.drawImage(img, selX / scale, selY / scale, selSize / scale, selSize / scale, 0, 0, 64, 64);
             }
 
             redraw();
 
-            canvas.addEventListener('mousedown', function (e) {
+            function getPos(e) {
                 var rect = canvas.getBoundingClientRect();
-                var mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-                var my = (e.clientY - rect.top) * (canvas.height / rect.height);
-                if (mx >= selX && mx <= selX + selSize && my >= selY && my <= selY + selSize) {
+                return {
+                    x: (e.clientX - rect.left) * (canvas.width / rect.width),
+                    y: (e.clientY - rect.top) * (canvas.height / rect.height)
+                };
+            }
+
+            canvas.addEventListener('wheel', function (e) {
+                e.preventDefault();
+                var delta = e.deltaY > 0 ? -10 : 10;
+                var newSize = Math.max(minSel, Math.min(Math.min(canvas.width, canvas.height), selSize + delta));
+                var cx = selX + selSize / 2, cy = selY + selSize / 2;
+                selSize = newSize;
+                selX = Math.max(0, cx - selSize / 2);
+                selY = Math.max(0, cy - selSize / 2);
+                if (selX + selSize > canvas.width) selX = canvas.width - selSize;
+                if (selY + selSize > canvas.height) selY = canvas.height - selSize;
+                redraw();
+            }, { passive: false });
+
+            canvas.addEventListener('mousedown', function (e) {
+                var p = getPos(e);
+                // 右下角resize
+                if (Math.abs(p.x - (selX + selSize)) < 20 && Math.abs(p.y - (selY + selSize)) < 20) {
+                    resizing = true;
+                    dragStart = p;
+                    dragSelStart = { x: selX, y: selY, s: selSize };
+                    canvas.style.cursor = 'nwse-resize';
+                } else if (p.x >= selX && p.x <= selX + selSize && p.y >= selY && p.y <= selY + selSize) {
                     dragging = true;
-                    dragStart = { x: mx, y: my };
-                    dragSelStart = { x: selX, y: selY };
+                    dragStart = p;
+                    dragSelStart = { x: selX, y: selY, s: selSize };
                     canvas.style.cursor = 'grabbing';
                 }
             });
             canvas.addEventListener('mousemove', function (e) {
-                if (!dragging) return;
-                var rect = canvas.getBoundingClientRect();
-                var mx = (e.clientX - rect.left) * (canvas.width / rect.width);
-                var my = (e.clientY - rect.top) * (canvas.height / rect.height);
-                selX = Math.max(0, Math.min(canvas.width - selSize, dragSelStart.x + (mx - dragStart.x)));
-                selY = Math.max(0, Math.min(canvas.height - selSize, dragSelStart.y + (my - dragStart.y)));
-                redraw();
+                var p = getPos(e);
+                if (dragging) {
+                    selX = Math.max(0, Math.min(canvas.width - selSize, dragSelStart.x + (p.x - dragStart.x)));
+                    selY = Math.max(0, Math.min(canvas.height - selSize, dragSelStart.y + (p.y - dragStart.y)));
+                    redraw();
+                } else if (resizing) {
+                    var ns = Math.max(minSel, Math.min(Math.min(canvas.width, canvas.height), dragSelStart.s + (p.x - dragStart.x)));
+                    selSize = ns;
+                    redraw();
+                } else {
+                    canvas.style.cursor = (Math.abs(p.x - (selX + selSize)) < 20 && Math.abs(p.y - (selY + selSize)) < 20) ? 'nwse-resize' : 'crosshair';
+                }
             });
-            document.addEventListener('mouseup', function () {
-                dragging = false;
-                canvas.style.cursor = 'crosshair';
-            });
-            // 触摸支持
+            document.addEventListener('mouseup', function () { dragging = false; resizing = false; canvas.style.cursor = 'crosshair'; });
+
+            // 触摸
             canvas.addEventListener('touchstart', function (e) {
-                var rect = canvas.getBoundingClientRect();
-                var mx = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
-                var my = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
-                if (mx >= selX && mx <= selX + selSize && my >= selY && my <= selY + selSize) {
-                    dragging = true;
-                    dragStart = { x: mx, y: my };
-                    dragSelStart = { x: selX, y: selY };
+                var p = getPos(e.touches[0]);
+                if (Math.abs(p.x - (selX + selSize)) < 20 && Math.abs(p.y - (selY + selSize)) < 20) {
+                    resizing = true; dragStart = p; dragSelStart = { x: selX, y: selY, s: selSize };
+                } else if (p.x >= selX && p.x <= selX + selSize && p.y >= selY && p.y <= selY + selSize) {
+                    dragging = true; dragStart = p; dragSelStart = { x: selX, y: selY, s: selSize };
                 }
             }, { passive: false });
             canvas.addEventListener('touchmove', function (e) {
-                if (!dragging) return;
+                if (!dragging && !resizing) return;
                 e.preventDefault();
-                var rect = canvas.getBoundingClientRect();
-                var mx = (e.touches[0].clientX - rect.left) * (canvas.width / rect.width);
-                var my = (e.touches[0].clientY - rect.top) * (canvas.height / rect.height);
-                selX = Math.max(0, Math.min(canvas.width - selSize, dragSelStart.x + (mx - dragStart.x)));
-                selY = Math.max(0, Math.min(canvas.height - selSize, dragSelStart.y + (my - dragStart.y)));
+                var p = getPos(e.touches[0]);
+                if (dragging) {
+                    selX = Math.max(0, Math.min(canvas.width - selSize, dragSelStart.x + (p.x - dragStart.x)));
+                    selY = Math.max(0, Math.min(canvas.height - selSize, dragSelStart.y + (p.y - dragStart.y)));
+                } else if (resizing) {
+                    selSize = Math.max(minSel, Math.min(Math.min(canvas.width, canvas.height), dragSelStart.s + (p.x - dragStart.x)));
+                }
                 redraw();
             }, { passive: false });
-            canvas.addEventListener('touchend', function () { dragging = false; });
+            canvas.addEventListener('touchend', function () { dragging = false; resizing = false; });
 
             // 确认上传
             document.getElementById('cmCropConfirm').addEventListener('click', function () {
