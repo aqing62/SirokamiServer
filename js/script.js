@@ -138,9 +138,15 @@ function lazyInit(sectionId) {
 
     window.addEventListener('wheel', function (e) {
         if (window.innerWidth <= 768) return;
-        if (e.defaultPrevented) return;
-        // 如果鼠标在可滚动容器内，交给原生滚动
-        if (isInsideScrollable(e.target)) return;
+        if (e.defaultPrevented) {
+            console.log('wheel: defaultPrevented, skip');
+            return;
+        }
+        if (isInsideScrollable(e.target)) {
+            console.log('wheel: inside scrollable, skip');
+            return;
+        }
+        console.log('wheel: applying smooth scroll, target=', e.target.tagName, e.target.className);
         e.preventDefault();
         target += e.deltaY;
         var max = document.documentElement.scrollHeight - window.innerHeight;
