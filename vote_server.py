@@ -835,7 +835,7 @@ class VoteHandler(SimpleHTTPRequestHandler):
             })
 
         elif path.startswith("/api/forum/avatar/"):
-            account_name = path.split("/api/forum/avatar/", 1)[1]
+            account_name = unquote(path.split("/api/forum/avatar/", 1)[1])
             if not account_name:
                 self.send_error(404)
                 return
