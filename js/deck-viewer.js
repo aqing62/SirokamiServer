@@ -241,20 +241,52 @@
         }
     }
 
+    // 解析 ygocdb types 字符串（"[怪兽|效果] 龙/暗\n[★7] 2500/2000"）为 DIY 展示结构
+    function parseYgocdbTypes(types) {
+        var res = { fullType: '', raceAttr: '', atkDef: '' };
+        if (!types) return res;
+        var lines = types.split(/\r?\n/);
+        if (lines[0]) {
+            var m = lines[0].match(/^(\[[^\]]*\])\s*(.*)$/);
+            if (m) {
+                res.fullType = m[1];
+                var ra = (m[2] || '').trim();
+                var parts = ra.split('/');
+                if (parts.length === 2) {
+                    // 格式为 种族/属性，DIY 展示顺序为 属性 | 种族
+                    res.raceAttr = parts[1].trim() + ' | ' + parts[0].trim();
+                } else if (ra) {
+                    res.raceAttr = ra;
+                }
+            } else {
+                res.fullType = lines[0];
+            }
+        }
+        if (lines[1]) {
+            var m2 = lines[1].match(/^\[★(\d+)\]\s*(\d+|-{1,2}|\?)\s*\/\s*(\d+|-{1,2}|\?)/);
+            if (m2) {
+                res.raceAttr = (res.raceAttr ? res.raceAttr + ' | ' : '') + 'Lv' + m2[1];
+                res.atkDef = 'ATK ' + m2[2] + ' / DEF ' + m2[3];
+            }
+        }
+        return res;
+    }
+
     function showTooltipOfficial(e, data) {
         var t = (data && data.text) ? data.text : {};
         var name = data.sc_name || data.cn_name || data.en_name || t.name || ('卡牌 ' + data.id);
         var tip = ensureTooltip();
-        // 效果文本含 \r\n，tooltip 用 pre-line 保留换行，不再转 <br>
-        var types = t.types ? t.types.replace(/\r\n/g, '\n') : '';
+        // 与 DIY 卡悬浮效果保持同一结构：卡名/类型/属性·种族·等级/ATK·DEF/效果文本
+        var info = parseYgocdbTypes(t.types);
         var desc = t.desc ? t.desc.replace(/\r\n/g, '\n') : '';
         tip.innerHTML =
             '<div class="tt-name">' + escapeHtml(name) + '</div>'
-            + (types ? '<div class="tt-type">' + escapeHtml(types) + '</div>' : '')
+            + (info.fullType ? '<div class="tt-type">' + escapeHtml(info.fullType) + '</div>' : '')
+            + (info.raceAttr ? '<div class="tt-raceattr">' + escapeHtml(info.raceAttr) + '</div>' : '')
+            + (info.atkDef ? '<div class="tt-atkdef">' + escapeHtml(info.atkDef) + '</div>' : '')
             + (desc
                 ? '<div class="tt-desc">' + escapeHtml(desc) + '</div>'
-                : '<div class="tt-desc" style="color:#999;">暂无效果文本</div>')
-            + '<div class="tt-source">📖 官方卡查数据</div>';
+                : '<div class="tt-desc" style="color:#999;">暂无效果文本</div>');
         tip.style.display = 'block';
         positionTooltip(e, tip);
     }
