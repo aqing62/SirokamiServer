@@ -1283,6 +1283,27 @@ function initCommunityModule() {
             html += '<button class="community-btn" id="cmTitleSaveBtn" style="margin-top:8px;">保存称号</button>';
             box.innerHTML = html;
 
+            // 主称号：点击互斥高亮（金色）
+            box.querySelectorAll('input[name="cmMainTitle"]').forEach(function (inp) {
+                inp.addEventListener('change', function () {
+                    box.querySelectorAll('input[name="cmMainTitle"]').forEach(function (i) {
+                        var lb = i.parentElement;
+                        var on = i.checked;
+                        lb.style.borderColor = on ? '#ffd700' : '#444';
+                        lb.style.color = on ? '#ffd700' : '#ccc';
+                    });
+                });
+            });
+            // 副称号：点击切换高亮（蓝色）
+            box.querySelectorAll('input[name="cmSubTitle"]').forEach(function (inp) {
+                inp.addEventListener('change', function () {
+                    var lb = inp.parentElement;
+                    var on = inp.checked;
+                    lb.style.borderColor = on ? '#7fbfff' : '#444';
+                    lb.style.color = on ? '#7fbfff' : '#ccc';
+                });
+            });
+
             document.getElementById('cmTitleSaveBtn').addEventListener('click', function () {
                 var m = box.querySelector('input[name="cmMainTitle"]:checked');
                 var s = box.querySelector('input[name="cmSubTitle"]:checked');
