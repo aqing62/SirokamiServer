@@ -96,6 +96,7 @@
         var stats = document.getElementById('stats');
         // 只隐藏筛选组，保留搜索框（搜索框在 .search-filter-container 内，由 card-pool-info 控制显隐）
         var filterGroup = document.querySelector('.multi-filter-group');
+        var pagination = document.getElementById('pagination');
         var searchInput = document.getElementById('search');
         var container = document.getElementById('cardContainer');
         var _diyQuery = '';
@@ -106,6 +107,14 @@
             ygoBtn.classList.toggle('active', isYgo);
             if (stats) stats.style.display = isYgo ? 'none' : '';
             if (filterGroup) filterGroup.style.display = isYgo ? 'none' : '';
+            // 官方模式隐藏分页（避免点页码触发 DIY 渲染）；切回 DIY 时恢复
+            if (pagination) {
+                if (isYgo) {
+                    pagination.style.display = 'none';
+                } else if (typeof renderPagination === 'function') {
+                    renderPagination();
+                }
+            }
             if (searchInput) {
                 if (isYgo) {
                     _diyQuery = searchInput.value;
