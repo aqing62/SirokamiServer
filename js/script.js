@@ -8,7 +8,7 @@ const _inited = {};
 
 // ── 样式表映射 ──────────────────────────────────────────
 const CSS_MAP = {
-    'section-main':          [],
+    'section-main':          ['css-chronicle-decks'],
     'section-card-list':     ['css-card-list'],
     'section-card-pool':     ['css-card-pool', 'css-new-cards'],
     'section-eight-decks':   ['css-eight-decks', 'css-live-duels'],
