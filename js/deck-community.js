@@ -1268,7 +1268,7 @@ function initCommunityModule() {
             html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;">';
             titles.forEach(function (t) {
                 var sel = t === main ? ' checked' : '';
-                html += '<label style="padding:4px 10px;border:1px solid ' + (sel ? '#ffd700' : '#444') + ';border-radius:12px;cursor:pointer;font-size:0.75rem;color:' + (sel ? '#ffd700' : '#ccc') + ';">'
+                html += '<label style="padding:4px 10px;border:1px solid ' + (sel ? '#ff6b6b' : '#444') + ';border-radius:12px;cursor:pointer;font-size:0.75rem;color:' + (sel ? '#ff6b6b' : '#ccc') + ';">'
                     + '<input type="radio" name="cmMainTitle" value="' + esc(t) + '"' + sel + ' style="display:none;">' + esc(t) + '</label>';
             });
             html += '</div>';
@@ -1276,7 +1276,7 @@ function initCommunityModule() {
             html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;">';
             titles.forEach(function (t) {
                 var sel = t === sub ? ' checked' : '';
-                html += '<label style="padding:4px 10px;border:1px solid ' + (sel ? '#7fbfff' : '#444') + ';border-radius:12px;cursor:pointer;font-size:0.75rem;color:' + (sel ? '#7fbfff' : '#ccc') + ';">'
+                html += '<label style="padding:4px 10px;border:1px solid ' + (sel ? '#ffd700' : '#444') + ';border-radius:12px;cursor:pointer;font-size:0.75rem;color:' + (sel ? '#ffd700' : '#ccc') + ';">'
                     + '<input type="radio" name="cmSubTitle" value="' + esc(t) + '"' + sel + ' style="display:none;">' + esc(t) + '</label>';
             });
             html += '</div>';
@@ -1305,8 +1305,8 @@ function initCommunityModule() {
                     });
                 });
             }
-            bindTitleToggle('cmMainTitle', '#ffd700');
-            bindTitleToggle('cmSubTitle', '#7fbfff');
+            bindTitleToggle('cmMainTitle', '#ff6b6b');
+            bindTitleToggle('cmSubTitle', '#ffd700');
 
             document.getElementById('cmTitleSaveBtn').addEventListener('click', function () {
                 var m = box.querySelector('input[name="cmMainTitle"]:checked');
