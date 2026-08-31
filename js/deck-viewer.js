@@ -249,7 +249,8 @@
         if (lines[0]) {
             var m = lines[0].match(/^(\[[^\]]*\])\s*(.*)$/);
             if (m) {
-                res.fullType = m[1];
+                // [怪兽|效果|灵摆] → 怪兽 效果 灵摆（去括号去竖线，空格分隔，与 DIY 一致）
+                res.fullType = m[1].replace(/^\[|\]$/g, '').replace(/\|/g, ' ');
                 var ra = (m[2] || '').trim();
                 var parts = ra.split('/');
                 if (parts.length === 2) {

@@ -92,7 +92,14 @@
                     + '<div>'
                     + '<div class="ygocdb-detail-name">' + escapeHtml(title) + '</div>'
                     + '<div class="ygocdb-detail-meta">密码 ' + c.id + ' · CID ' + c.cid + '</div>'
-                    + (t.types ? '<div class="ygocdb-types">' + escapeHtml(t.types.replace(/\r\n/g, '\n')) + '</div>' : '')
+                    + (t.types
+                        ? '<div class="ygocdb-types">' + escapeHtml(
+                            t.types.replace(/\r\n/g, '\n').split('\n').map(function (line, i) {
+                                // 第一行类型去掉括号竖线（[怪兽|效果] → 怪兽 效果），其余行保留
+                                return i === 0 ? line.replace(/\[([^\]]*)\]/g, function (m, inner) { return inner.replace(/\|/g, ' '); }) : line;
+                            }).join('\n')
+                        ) + '</div>'
+                        : '')
                     + '</div></div>'
                     + (desc ? '<div class="ygocdb-desc">' + desc + '</div>' : '')
                     + (t.jp_name ? '<div class="ygocdb-other">日文名：' + escapeHtml(t.jp_name) + '</div>' : '')
