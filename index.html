@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="css/live-duels.css" id="css-live-duels" media="not all">
     <link rel="stylesheet" href="css/deck-viewer.css" id="css-deck-viewer">
     <link rel="stylesheet" href="css/deck-community.css" id="css-deck-community" media="not all">
+    <link rel="stylesheet" href="css/chronicle-decks.css" id="css-chronicle-decks">
     <style>
         body.loading {
             visibility: hidden;
@@ -137,6 +138,10 @@
                     <p>🎴 双方各获得<strong>不同</strong>的随机卡组，就位后<strong>直接开始</strong>对战</p>
                     <p>📊 每张卡片设有<strong>分值</strong>，卡组总分 ≤ 100 分，确保对局相对平衡</p>
                     <p>📚 卡组池由策划组<strong>精心挑选</strong>，持续更新中，欢迎投稿</p>
+                    <div class="chronicle-decks-box">
+                        <h4 class="chronicle-decks-title">📚 现有卡组池（点击卡组名查看卡组详情）</h4>
+                        <div class="chronicle-deck-list" id="chronicleDeckList"><div class="loading-hint">加载卡组列表中...</div></div>
+                    </div>
                 </div>
             </div>
 
@@ -629,6 +634,7 @@
     <script src="js/live-duels.js?v=20260807b"></script>
     <script src="js/deck-viewer.js?v=20260807b"></script>
     <script src="js/deck-community.js?v=20260807b"></script>
+    <script src="js/chronicle-decks.js?v=20260901a"></script>
     <script>
         // 玩法规则 Tab 切换
         document.querySelectorAll('.rules-tab').forEach(function(btn) {

@@ -1,0 +1,40 @@
+/* 编年史模式 — 现有卡组池 */
+.chronicle-decks-box {
+    margin-top: 16px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.chronicle-decks-title {
+    margin: 0 0 12px;
+    font-size: 15px;
+    font-weight: bold;
+    color: var(--light-gold);
+}
+.chronicle-deck-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    max-height: 260px;
+    overflow-y: auto;
+    padding: 2px;
+}
+.chronicle-deck-btn {
+    padding: 7px 14px;
+    background: linear-gradient(135deg, var(--red), var(--dark-red));
+    color: var(--light-gold);
+    border: none;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.25s;
+}
+.chronicle-deck-btn:hover {
+    transform: scale(1.06);
+    box-shadow: 0 0 8px rgba(216, 30, 68, 0.5);
+}
+@media (max-width: 768px) {
+    .chronicle-deck-list {
+        max-height: 200px;
+    }
+}
