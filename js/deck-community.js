@@ -1296,13 +1296,15 @@ function initCommunityModule() {
                     });
                 });
             });
-            // 副称号：点击切换高亮（蓝色）
+            // 副称号：点击切换高亮（蓝色，单选互斥）
             box.querySelectorAll('input[name="cmSubTitle"]').forEach(function (inp) {
                 inp.addEventListener('change', function () {
-                    var lb = inp.parentElement;
-                    var on = inp.checked;
-                    lb.style.borderColor = on ? '#7fbfff' : '#444';
-                    lb.style.color = on ? '#7fbfff' : '#ccc';
+                    box.querySelectorAll('input[name="cmSubTitle"]').forEach(function (i) {
+                        var lb = i.parentElement;
+                        var on = i.checked;
+                        lb.style.borderColor = on ? '#7fbfff' : '#444';
+                        lb.style.color = on ? '#7fbfff' : '#ccc';
+                    });
                 });
             });
 
