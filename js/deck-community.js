@@ -1272,10 +1272,8 @@ function initCommunityModule() {
                     + '<input type="radio" name="cmMainTitle" value="' + esc(t) + '"' + sel + ' style="display:none;">' + esc(t) + '</label>';
             });
             html += '</div>';
-            html += '<div style="color:#ccc;font-size:0.75rem;margin:10px 0 4px;">副称号（可选，单选）</div>';
+            html += '<div style="color:#ccc;font-size:0.75rem;margin:10px 0 4px;">副称号（可选）</div>';
             html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;">';
-            html += '<label style="padding:4px 10px;border:1px solid ' + (!sub ? '#7fbfff' : '#444') + ';border-radius:12px;cursor:pointer;font-size:0.75rem;color:' + (!sub ? '#7fbfff' : '#ccc') + ';">'
-                + '<input type="radio" name="cmSubTitle" value=""' + (!sub ? ' checked' : '') + ' style="display:none;">无</label>';
             titles.forEach(function (t) {
                 var sel = t === sub ? ' checked' : '';
                 html += '<label style="padding:4px 10px;border:1px solid ' + (sel ? '#7fbfff' : '#444') + ';border-radius:12px;cursor:pointer;font-size:0.75rem;color:' + (sel ? '#7fbfff' : '#ccc') + ';">'
@@ -1285,28 +1283,29 @@ function initCommunityModule() {
             html += '<button class="community-btn" id="cmTitleSaveBtn" style="margin-top:8px;">保存称号</button>';
             box.innerHTML = html;
 
-            // 主称号：点击互斥高亮（金色）
-            box.querySelectorAll('input[name="cmMainTitle"]').forEach(function (inp) {
-                inp.addEventListener('change', function () {
-                    box.querySelectorAll('input[name="cmMainTitle"]').forEach(function (i) {
-                        var lb = i.parentElement;
-                        var on = i.checked;
-                        lb.style.borderColor = on ? '#ffd700' : '#444';
-                        lb.style.color = on ? '#ffd700' : '#ccc';
+            // 称号选择：点击选中并互斥高亮，再次点击已选中的取消选择
+            function bindTitleToggle(name, color) {
+                var inputs = box.querySelectorAll('input[name="' + name + '"]');
+                inputs.forEach(function (inp) {
+                    inp.addEventListener('click', function (e) {
+                        e.preventDefault();
+                        if (inp.checked) {
+                            inp.checked = false; // 再次点击 → 取消
+                        } else {
+                            inputs.forEach(function (i) { i.checked = false; });
+                            inp.checked = true;   // 互斥选中
+                        }
+                        inputs.forEach(function (i) {
+                            var lb = i.parentElement;
+                            var on = i.checked;
+                            lb.style.borderColor = on ? color : '#444';
+                            lb.style.color = on ? color : '#ccc';
+                        });
                     });
                 });
-            });
-            // 副称号：点击切换高亮（蓝色，单选互斥）
-            box.querySelectorAll('input[name="cmSubTitle"]').forEach(function (inp) {
-                inp.addEventListener('change', function () {
-                    box.querySelectorAll('input[name="cmSubTitle"]').forEach(function (i) {
-                        var lb = i.parentElement;
-                        var on = i.checked;
-                        lb.style.borderColor = on ? '#7fbfff' : '#444';
-                        lb.style.color = on ? '#7fbfff' : '#ccc';
-                    });
-                });
-            });
+            }
+            bindTitleToggle('cmMainTitle', '#ffd700');
+            bindTitleToggle('cmSubTitle', '#7fbfff');
 
             document.getElementById('cmTitleSaveBtn').addEventListener('click', function () {
                 var m = box.querySelector('input[name="cmMainTitle"]:checked');
