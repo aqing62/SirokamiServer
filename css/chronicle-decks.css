@@ -5,22 +5,29 @@
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 .chronicle-decks-open {
-    padding: 9px 18px;
-    background: linear-gradient(135deg, var(--red), var(--dark-red));
-    color: var(--light-gold);
-    border: none;
-    border-radius: 18px;
+    display: block;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 9px 0;
+    background: var(--black);
+    color: var(--gold);
+    border: 1px solid var(--gold);
+    border-radius: 8px;
     font-size: 14px;
     font-weight: bold;
+    text-align: center;
     cursor: pointer;
     transition: 0.25s;
 }
 .chronicle-decks-open:hover {
-    transform: scale(1.05);
-    box-shadow: 0 0 10px rgba(216, 30, 68, 0.5);
+    border-color: var(--light-gold);
+    color: var(--light-gold);
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
 }
 .chronicle-decks-hint {
-    margin-left: 10px;
+    display: block;
+    text-align: center;
+    margin-top: 6px;
     font-size: 12px;
     color: #999;
 }
