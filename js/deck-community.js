@@ -1249,6 +1249,63 @@ function initCommunityModule() {
         });
     }
 
+    // ═══════════════ 称号选择（个人中心设置共用） ═══════════════
+
+    function renderTitleSettings() {
+        var box = document.getElementById('cmTitleBox');
+        if (!box) return;
+        authApi('/api/forum/profile/titles').then(function (data) {
+            var titles = data.titles || [];
+            if (!titles.length) {
+                box.innerHTML = '<div style="color:#999;font-size:0.78rem;">暂无赛季称号，完成天梯定级赛并在赛季结算后可获得</div>';
+                return;
+            }
+            var main = data.selectedTitle || titles[titles.length - 1];
+            var sub = data.selectedTitle2 || '';
+
+            var html = '';
+            html += '<div style="color:#ccc;font-size:0.75rem;margin-bottom:4px;">主称号</div>';
+            html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;">';
+            titles.forEach(function (t) {
+                var sel = t === main ? ' checked' : '';
+                html += '<label style="padding:4px 10px;border:1px solid ' + (sel ? '#ffd700' : '#444') + ';border-radius:12px;cursor:pointer;font-size:0.75rem;color:' + (sel ? '#ffd700' : '#ccc') + ';">'
+                    + '<input type="radio" name="cmMainTitle" value="' + esc(t) + '"' + sel + ' style="display:none;">' + esc(t) + '</label>';
+            });
+            html += '</div>';
+            html += '<div style="color:#ccc;font-size:0.75rem;margin:10px 0 4px;">副称号（可选）</div>';
+            html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;">';
+            titles.forEach(function (t) {
+                var sel = t === sub ? ' checked' : '';
+                html += '<label style="padding:4px 10px;border:1px solid ' + (sel ? '#7fbfff' : '#444') + ';border-radius:12px;cursor:pointer;font-size:0.75rem;color:' + (sel ? '#7fbfff' : '#ccc') + ';">'
+                    + '<input type="checkbox" name="cmSubTitle" value="' + esc(t) + '"' + sel + ' style="display:none;">' + esc(t) + '</label>';
+            });
+            html += '</div>';
+            html += '<button class="community-btn" id="cmTitleSaveBtn" style="margin-top:8px;">保存称号</button>';
+            box.innerHTML = html;
+
+            document.getElementById('cmTitleSaveBtn').addEventListener('click', function () {
+                var m = box.querySelector('input[name="cmMainTitle"]:checked');
+                var s = box.querySelector('input[name="cmSubTitle"]:checked');
+                var selectedTitle = m ? m.value : '';
+                var selectedTitle2 = s ? s.value : '';
+                if (selectedTitle && selectedTitle === selectedTitle2) {
+                    alert('主称号与副称号不能相同');
+                    return;
+                }
+                authApi('/api/forum/profile/title', {
+                    method: 'POST',
+                    body: { selectedTitle: selectedTitle, selectedTitle2: selectedTitle2 },
+                }).then(function () {
+                    alert('称号已保存，游戏内下次登录生效');
+                }).catch(function (e) {
+                    alert('保存失败: ' + e.message);
+                });
+            });
+        }).catch(function (e) {
+            box.innerHTML = '<div class="cp-empty">加载称号失败: ' + esc(e.message) + '</div>';
+        });
+    }
+
     function openSettingsInModal(overlay) {
         var container = overlay.querySelector('#cmProfileContent');
         if (!container) return;
@@ -1277,9 +1334,15 @@ function initCommunityModule() {
             html += '</div>';
             html += '<div style="color:#666;font-size:0.65rem;">同步天梯显示名 · 每天限1次</div>';
             html += '<hr style="border-color:rgba(255,255,255,0.06);margin:16px 0;">';
+            html += '<label class="community-form-label">称号展示（游戏内显示主+副）</label>';
+            html += '<div id="cmTitleBox"><div class="community-loading">加载称号中...</div></div>';
+            html += '<div style="color:#666;font-size:0.65rem;">赛季结算自动累积 · 可随时切换</div>';
+            html += '<hr style="border-color:rgba(255,255,255,0.06);margin:16px 0;">';
             html += '<button style="display:block;width:100%;background:none;border:1px solid #ff6b6b;color:#ff6b6b;border-radius:4px;padding:8px;font-size:0.78rem;cursor:pointer;" id="cmLogoutBtn">退出登录</button>';
             html += '</div>';
             container.innerHTML = html;
+
+            renderTitleSettings();
 
             var logoutBtn = document.getElementById('cmLogoutBtn');
             if (logoutBtn) logoutBtn.addEventListener('click', function () {
@@ -1409,8 +1472,14 @@ function initCommunityModule() {
                 + (profile.canChangeName ? '保存' : '今天已修改') + '</button>';
             html += '</div>';
             html += '<div style="color:#666;font-size:0.65rem;">同步天梯显示名 · 每天限1次</div>';
+            html += '<hr style="border-color:rgba(255,255,255,0.06);margin:16px 0;">';
+            html += '<label class="community-form-label">称号展示（游戏内显示主+副）</label>';
+            html += '<div id="cmTitleBox"><div class="community-loading">加载称号中...</div></div>';
+            html += '<div style="color:#666;font-size:0.65rem;">赛季结算自动累积 · 可随时切换</div>';
             html += '</div>';
             container.innerHTML = html;
+
+            renderTitleSettings();
 
             // 头像上传
             var avatarBtn = document.getElementById('cmAvatarBtn');
