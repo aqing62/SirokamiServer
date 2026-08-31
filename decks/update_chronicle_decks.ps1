@@ -44,3 +44,15 @@ $result = @{ decks = @($decks) }
 $json = $result | ConvertTo-Json -Depth 5
 [System.IO.File]::WriteAllText($outputFile, $json, [System.Text.UTF8Encoding]::new($false))
 Write-Host 'Done:' $decks.Count 'chronicle decks ->' $outputFile
+
+# 刷新前端版本号，避免浏览器缓存旧 JSON
+$jsPath = Join-Path (Split-Path $scriptDir -Parent) 'js\chronicle-decks.js'
+if (Test-Path $jsPath) {
+    $js = Get-Content $jsPath -Raw -Encoding UTF8
+    $stamp = Get-Date -Format 'yyyyMMddHHmm'
+    $js = [regex]::Replace($js, 'chronicle_decks\.json\?v=\d+', "chronicle_decks.json?v=$stamp")
+    [System.IO.File]::WriteAllText($jsPath, $js, [System.Text.UTF8Encoding]::new($false))
+    Write-Host "前端版本号已刷新: v=$stamp -> $jsPath"
+} else {
+    Write-Host "警告: 未找到 $jsPath，请手动刷新版本号"
+}
