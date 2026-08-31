@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="css/deck-viewer.css" id="css-deck-viewer">
     <link rel="stylesheet" href="css/deck-community.css" id="css-deck-community" media="not all">
     <link rel="stylesheet" href="css/chronicle-decks.css" id="css-chronicle-decks">
+    <link rel="stylesheet" href="css/ygocdb-search.css" id="css-ygocdb">
     <style>
         body.loading {
             visibility: hidden;
@@ -620,6 +621,19 @@
     </section>
 
     <!-- ═══════════════════════════════════════════════════════
+         SECTION: 官方卡查询（百鸽 ygocdb）
+         ═══════════════════════════════════════════════════════ -->
+    <section id="section-ygocdb" class="content-section">
+        <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
+        <div class="title">🔍 官方卡查询</div>
+        <div class="ygocdb-search-box">
+            <input type="text" id="ygocdbSearchInput" placeholder="输入官方卡名 / 效果关键词 / 卡片密码..." maxlength="60">
+            <button id="ygocdbSearchBtn">搜索</button>
+        </div>
+        <div id="ygocdbResult" class="ygocdb-result"><div class="loading-hint">输入关键词查询官方卡数据（数据来源：百鸽 ygocdb.com）</div></div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════════════
          SIDEBAR — 全局侧边栏
          ═══════════════════════════════════════════════════════ -->
     <div class="sidebar" id="sidebar">
@@ -629,6 +643,7 @@
         <div class="sidebar-btn" id="cardPoolInfoBtn">卡池<span class="sb-break"></span>信息</div>
         <div class="sidebar-btn" id="playerRankingBtn">玩家<span class="sb-break"></span>排名</div>
         <div class="sidebar-btn" id="communityBtn">玩家<span class="sb-break"></span>论坛</div>
+        <div class="sidebar-btn" id="ygocdbBtn">官方<span class="sb-break"></span>卡查</div>
     </div>
     <div class="sidebar-trigger" id="sidebarTrigger"></div>
 
@@ -644,6 +659,7 @@
     <script src="js/deck-viewer.js?v=20260807b"></script>
     <script src="js/deck-community.js?v=20260901d"></script>
     <script src="js/chronicle-decks.js?v=20260901a"></script>
+    <script src="js/ygocdb-search.js?v=20260901a"></script>
     <script>
         // 玩法规则 Tab 切换
         document.querySelectorAll('.rules-tab').forEach(function(btn) {

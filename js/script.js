@@ -15,6 +15,7 @@ const CSS_MAP = {
     'section-xiaobai':       ['css-xiaobai'],
     'section-player-ranking':['css-player-ranking'],
     'section-community':     ['css-deck-community'],
+    'section-ygocdb':        ['css-ygocdb'],
 };
 
 // ── 手机端登录框可见性 ──────────────────────────────────
@@ -126,6 +127,9 @@ function lazyInit(sectionId) {
             break;
         case 'section-community':
             if (typeof initCommunityModule === 'function') initCommunityModule();
+            break;
+        case 'section-ygocdb':
+            if (typeof initYgocdbModule === 'function') initYgocdbModule();
             break;
     }
 }
@@ -321,6 +325,7 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('cardListBtn').onclick = makeToggle('section-card-list');
     document.getElementById('cardPoolInfoBtn').onclick = makeToggle('section-card-pool');
     document.getElementById('playerRankingBtn').onclick = makeToggle('section-player-ranking');
+    document.getElementById('ygocdbBtn').onclick = makeToggle('section-ygocdb');
     // 论坛入口（无需登录即可浏览）
     document.getElementById('communityBtn').onclick = function () {
         if (_currentSection === 'section-community') {
