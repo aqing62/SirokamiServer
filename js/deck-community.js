@@ -1272,12 +1272,14 @@ function initCommunityModule() {
                     + '<input type="radio" name="cmMainTitle" value="' + esc(t) + '"' + sel + ' style="display:none;">' + esc(t) + '</label>';
             });
             html += '</div>';
-            html += '<div style="color:#ccc;font-size:0.75rem;margin:10px 0 4px;">副称号（可选）</div>';
+            html += '<div style="color:#ccc;font-size:0.75rem;margin:10px 0 4px;">副称号（可选，单选）</div>';
             html += '<div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:4px;">';
+            html += '<label style="padding:4px 10px;border:1px solid ' + (!sub ? '#7fbfff' : '#444') + ';border-radius:12px;cursor:pointer;font-size:0.75rem;color:' + (!sub ? '#7fbfff' : '#ccc') + ';">'
+                + '<input type="radio" name="cmSubTitle" value=""' + (!sub ? ' checked' : '') + ' style="display:none;">无</label>';
             titles.forEach(function (t) {
                 var sel = t === sub ? ' checked' : '';
                 html += '<label style="padding:4px 10px;border:1px solid ' + (sel ? '#7fbfff' : '#444') + ';border-radius:12px;cursor:pointer;font-size:0.75rem;color:' + (sel ? '#7fbfff' : '#ccc') + ';">'
-                    + '<input type="checkbox" name="cmSubTitle" value="' + esc(t) + '"' + sel + ' style="display:none;">' + esc(t) + '</label>';
+                    + '<input type="radio" name="cmSubTitle" value="' + esc(t) + '"' + sel + ' style="display:none;">' + esc(t) + '</label>';
             });
             html += '</div>';
             html += '<button class="community-btn" id="cmTitleSaveBtn" style="margin-top:8px;">保存称号</button>';
