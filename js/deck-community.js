@@ -1287,8 +1287,9 @@ function initCommunityModule() {
             function bindTitleToggle(name, color) {
                 var inputs = box.querySelectorAll('input[name="' + name + '"]');
                 inputs.forEach(function (inp) {
-                    inp.addEventListener('click', function (e) {
-                        e.preventDefault();
+                    var lb = inp.parentElement;
+                    lb.addEventListener('click', function (e) {
+                        e.preventDefault(); // 阻止 label 隐式激活 input
                         if (inp.checked) {
                             inp.checked = false; // 再次点击 → 取消
                         } else {
@@ -1296,10 +1297,10 @@ function initCommunityModule() {
                             inp.checked = true;   // 互斥选中
                         }
                         inputs.forEach(function (i) {
-                            var lb = i.parentElement;
+                            var lb2 = i.parentElement;
                             var on = i.checked;
-                            lb.style.borderColor = on ? color : '#444';
-                            lb.style.color = on ? color : '#ccc';
+                            lb2.style.borderColor = on ? color : '#444';
+                            lb2.style.color = on ? color : '#ccc';
                         });
                     });
                 });
