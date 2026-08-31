@@ -17,7 +17,23 @@
         return div.innerHTML;
     }
 
+    // ── 译名偏好 ─────────────────────────────────────
+    var TRANS_KEY = 'ygocdb.translation';
+    var TRANS_DEFAULT = 'nwbbs_n'; // 用户选择：NWBBS 译名
+
+    function getTransKey() {
+        try { return localStorage.getItem(TRANS_KEY) || TRANS_DEFAULT; } catch (e) { return TRANS_DEFAULT; }
+    }
+
+    function transName(c) {
+        var k = getTransKey();
+        return c[k] || c.sc_name || c.cn_name || c.en_name || c.name || ('卡片 ' + c.id);
+    }
+
+    var _lastSearch = '';
+
     function ygocdbSearch(q) {
+        _lastSearch = q;
         var container = document.getElementById('cardContainer');
         if (!container || !q) return;
         container.style.opacity = 1;
@@ -34,7 +50,7 @@
                 container.innerHTML = '';
                 list.slice(0, 50).forEach(function (c) {
                     var t = c.text || {};
-                    var name = c.sc_name || c.cn_name || c.en_name || c.name || ('卡片 ' + c.id);
+                    var name = transName(c);
                     var el = document.createElement('div');
                     el.className = 'card-item';
                     el.innerHTML =
@@ -66,7 +82,7 @@
             .then(function (c) {
                 var t = c.text || {};
                 // 详情接口不返回卡名，用搜索结果传入的名字
-                var title = name || t.name || t.sc_name || t.cn_name || t.en_name || ('卡片 ' + c.id);
+                var title = name || transName(c) || ('卡片 ' + c.id);
                 var desc = escapeHtml(t.desc || '').replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
                 container.innerHTML =
                     '<div class="ygocdb-detail" style="grid-column:1/-1;">'
@@ -99,9 +115,20 @@
         // 只隐藏筛选组，保留搜索框（搜索框在 .search-filter-container 内，由 card-pool-info 控制显隐）
         var filterGroup = document.querySelector('.multi-filter-group');
         var pagination = document.getElementById('pagination');
+        var transBar = document.getElementById('ygocdbTransBar');
+        var transSelect = document.getElementById('ygocdbTransSelect');
         var searchInput = document.getElementById('search');
         var container = document.getElementById('cardContainer');
         var _diyQuery = '';
+
+        // 译名选择：初始化 + 变更时重查
+        if (transSelect) {
+            transSelect.value = getTransKey();
+            transSelect.addEventListener('change', function () {
+                try { localStorage.setItem(TRANS_KEY, transSelect.value); } catch (e) {}
+                if (window._poolYgoMode && _lastSearch) ygocdbSearch(_lastSearch);
+            });
+        }
 
         function setMode(isYgo) {
             window._poolYgoMode = isYgo;
@@ -109,6 +136,7 @@
             ygoBtn.classList.toggle('active', isYgo);
             if (stats) stats.style.display = isYgo ? 'none' : '';
             if (filterGroup) filterGroup.style.display = isYgo ? 'none' : '';
+            if (transBar) transBar.style.display = isYgo ? 'flex' : 'none';
             // 官方模式隐藏分页（避免点页码触发 DIY 渲染）；切回 DIY 时恢复
             if (pagination) {
                 if (isYgo) {

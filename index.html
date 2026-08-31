@@ -350,6 +350,18 @@
             <button class="pool-mode-btn" id="poolModeYgo">🔍 官方卡查询</button>
         </div>
 
+        <!-- 官方卡译名选择（仅官方模式显示） -->
+        <div class="ygocdb-trans-bar" id="ygocdbTransBar" style="display:none;">
+            <span>译名</span>
+            <select id="ygocdbTransSelect">
+                <option value="cn_name">YGOPro 译名</option>
+                <option value="sc_name">官方简中</option>
+                <option value="md_name">Master Duel</option>
+                <option value="nwbbs_n">NWBBS 译名</option>
+                <option value="cnocg_n">CNOCG 译名</option>
+            </select>
+        </div>
+
         <div class="stats" id="stats" style="display:none">
             <div class="stat-item">总卡牌数 <div class="num" id="total">0</div></div>
             <div class="stat-item">怪兽卡 <div class="num" id="monster">0</div></div>
@@ -648,10 +660,10 @@
     <script src="js/eight-decks.js?v=20260807b"></script>
     <script src="js/player-ranking.js?v=20260807b"></script>
     <script src="js/live-duels.js?v=20260807b"></script>
-    <script src="js/deck-viewer.js?v=20260901c"></script>
+    <script src="js/deck-viewer.js?v=20260901d"></script>
     <script src="js/deck-community.js?v=20260901d"></script>
     <script src="js/chronicle-decks.js?v=20260901a"></script>
-    <script src="js/ygocdb-search.js?v=20260901d"></script>
+    <script src="js/ygocdb-search.js?v=20260901e"></script>
     <script>
         // 玩法规则 Tab 切换
         document.querySelectorAll('.rules-tab').forEach(function(btn) {

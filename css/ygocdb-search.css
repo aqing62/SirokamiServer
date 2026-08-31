@@ -30,6 +30,28 @@
     color: #fff;
 }
 
+/* 官方卡译名选择 */
+.ygocdb-trans-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: #999;
+}
+.ygocdb-trans-bar select {
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 5px;
+    color: #eee;
+    font-size: 12px;
+    padding: 4px 8px;
+}
+.ygocdb-trans-bar select:focus {
+    outline: none;
+    border-color: #ffd700;
+}
+
 /* 官方卡详情（复用卡池网格 .card-item 的展示风格） */
 .ygocdb-detail {
     background: linear-gradient(135deg, #1a1a1a, var(--black));

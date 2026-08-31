@@ -274,7 +274,10 @@
 
     function showTooltipOfficial(e, data) {
         var t = (data && data.text) ? data.text : {};
-        var name = data.sc_name || data.cn_name || data.en_name || t.name || ('卡牌 ' + data.id);
+        // 译名偏好（与官方卡查询页一致，默认 NWBBS）
+        var transKey = 'nwbbs_n';
+        try { transKey = localStorage.getItem('ygocdb.translation') || transKey; } catch (err) {}
+        var name = data[transKey] || data.sc_name || data.cn_name || data.en_name || t.name || ('卡牌 ' + data.id);
         var tip = ensureTooltip();
         // 与 DIY 卡悬浮效果保持同一结构：卡名/类型/属性·种族·等级/ATK·DEF/效果文本
         var info = parseYgocdbTypes(t.types);
