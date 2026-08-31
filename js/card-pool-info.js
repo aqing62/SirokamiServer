@@ -476,6 +476,7 @@ function renderCards() {
 // ── 搜索防抖 ────────────────────────────────────────────
 let searchDebounceTimer;
 function debouncedRender() {
+    if (window._poolYgoMode) return; // 官方卡查询模式下由 ygocdb 模块接管搜索
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
         currentPage = 1;

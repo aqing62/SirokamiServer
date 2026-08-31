@@ -1,5 +1,4 @@
-/* 官方卡查询（百鸽 ygocdb） */
-/* 卡池信息页 模式切换 */
+/* 卡池信息页：模式切换滑块（DIY 卡池 / 官方卡查询） */
 .pool-mode-switch {
     display: inline-flex;
     border: 1px solid #333;
@@ -28,85 +27,13 @@
 .pool-mode-btn:hover:not(.active) {
     color: #fff;
 }
-.ygocdb-search-box {
-    display: flex;
-    gap: 8px;
-    margin: 16px 0;
-    max-width: 560px;
-}
-.ygocdb-search-box input {
-    flex: 1;
-    padding: 9px 12px;
-    background: #111;
-    border: 1px solid #333;
-    border-radius: 6px;
-    color: #eee;
-    font-size: 14px;
-}
-.ygocdb-search-box input:focus {
-    outline: none;
-    border-color: #ffd700;
-}
-.ygocdb-search-box button {
-    padding: 9px 22px;
-    background: linear-gradient(135deg, var(--red), var(--dark-red));
-    color: var(--light-gold);
-    border: none;
-    border-radius: 6px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.2s;
-}
-.ygocdb-search-box button:hover {
-    transform: scale(1.03);
-}
-.ygocdb-count {
-    color: #999;
-    font-size: 12px;
-    margin-bottom: 10px;
-}
-.ygocdb-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
-    gap: 12px;
-}
-.ygocdb-card {
-    background: linear-gradient(135deg, #1a1a1a, var(--black));
-    border: 1px solid #333;
-    border-radius: 10px;
-    padding: 8px;
-    cursor: pointer;
-    text-align: center;
-    transition: 0.25s;
-}
-.ygocdb-card:hover {
-    border-color: var(--red);
-    transform: translateY(-3px);
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
-}
-.ygocdb-card img {
-    width: 100%;
-    border-radius: 6px;
-}
-.ygocdb-name {
-    margin-top: 6px;
-    font-size: 12px;
-    color: #eee;
-    line-height: 1.3;
-    height: 2.6em;
-    overflow: hidden;
-}
-.ygocdb-id {
-    font-size: 10px;
-    color: #777;
-    margin-top: 2px;
-}
+
+/* 官方卡详情（复用卡池网格 .card-item 的展示风格） */
 .ygocdb-detail {
     background: linear-gradient(135deg, #1a1a1a, var(--black));
     border: 1px solid #333;
     border-radius: 12px;
     padding: 16px;
-    max-width: 720px;
 }
 .ygocdb-back {
     background: none;

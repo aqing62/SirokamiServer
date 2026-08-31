@@ -344,19 +344,10 @@
         <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
         <div class="title">🎴 DIY_Sirokami 卡池信息</div>
 
-        <!-- 模式切换：DIY 卡池 / 官方卡查询 -->
+        <!-- 模式切换：DIY 卡池 / 官方卡查询（复用下方 DIY 的搜索框与卡牌网格） -->
         <div class="pool-mode-switch">
             <button class="pool-mode-btn active" id="poolModeDiy">🎴 DIY 卡池</button>
             <button class="pool-mode-btn" id="poolModeYgo">🔍 官方卡查询</button>
-        </div>
-
-        <!-- 官方卡查询面板（百鸽 ygocdb，默认隐藏） -->
-        <div id="ygocdbPanel" style="display:none;">
-            <div class="ygocdb-search-box">
-                <input type="text" id="ygocdbSearchInput" placeholder="输入官方卡名 / 效果关键词 / 卡片密码..." maxlength="60">
-                <button id="ygocdbSearchBtn">搜索</button>
-            </div>
-            <div id="ygocdbResult" class="ygocdb-result"><div class="loading-hint">输入关键词查询官方卡数据（数据来源：百鸽 ygocdb.com）</div></div>
         </div>
 
         <div class="stats" id="stats" style="display:none">
@@ -660,7 +651,7 @@
     <script src="js/deck-viewer.js?v=20260807b"></script>
     <script src="js/deck-community.js?v=20260901d"></script>
     <script src="js/chronicle-decks.js?v=20260901a"></script>
-    <script src="js/ygocdb-search.js?v=20260901b"></script>
+    <script src="js/ygocdb-search.js?v=20260901c"></script>
     <script>
         // 玩法规则 Tab 切换
         document.querySelectorAll('.rules-tab').forEach(function(btn) {
