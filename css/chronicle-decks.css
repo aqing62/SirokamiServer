@@ -24,13 +24,6 @@
     color: var(--light-gold);
     box-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
 }
-.chronicle-decks-hint {
-    display: block;
-    text-align: center;
-    margin-top: 6px;
-    font-size: 12px;
-    color: #999;
-}
 
 /* 卡组列表弹窗（仿历届八强弹窗） */
 .chronicle-overlay {
