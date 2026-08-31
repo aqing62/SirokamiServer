@@ -34,7 +34,7 @@
                 container.innerHTML = '';
                 list.slice(0, 50).forEach(function (c) {
                     var t = c.text || {};
-                    var name = c.sc_name || c.cn_name || c.en_name || ('卡片 ' + c.id);
+                    var name = c.sc_name || c.cn_name || c.en_name || c.name || ('卡片 ' + c.id);
                     var el = document.createElement('div');
                     el.className = 'card-item';
                     el.innerHTML =
@@ -44,10 +44,10 @@
                         + '<div class="card-info">'
                         + '<div class="card-name">' + escapeHtml(name) + '</div>'
                         + '<div class="card-id">ID: ' + c.id + '</div>'
-                        + (t.types ? '<div class="card-type">' + escapeHtml(t.types) + '</div>' : '')
-                        + (t.desc ? '<div class="card-desc">' + escapeHtml(t.desc).slice(0, 160) + '</div>' : '')
+                        + (t.types ? '<div class="card-type">' + escapeHtml(t.types.replace(/\r\n/g, '\n')) + '</div>' : '')
+                        + (t.desc ? '<div class="card-desc">' + escapeHtml(t.desc).replace(/\r\n/g, '\n').slice(0, 160) + '</div>' : '')
                         + '</div>';
-                    el.addEventListener('click', function () { ygocdbDetail(c.id, q); });
+                    el.addEventListener('click', function () { ygocdbDetail(c.id, q, name); });
                     container.appendChild(el);
                 });
             })
@@ -56,7 +56,7 @@
             });
     }
 
-    function ygocdbDetail(id, q) {
+    function ygocdbDetail(id, q, name) {
         var container = document.getElementById('cardContainer');
         if (!container) return;
         container.innerHTML = '<div class="loading-tip" style="text-align:center;color:#aaa;padding:30px;">加载卡牌详情...</div>';
@@ -65,18 +65,20 @@
             .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(function (c) {
                 var t = c.text || {};
-                var name = t.sc_name || t.cn_name || t.en_name || ('卡片 ' + c.id);
+                // 详情接口不返回卡名，用搜索结果传入的名字
+                var title = name || t.name || t.sc_name || t.cn_name || t.en_name || ('卡片 ' + c.id);
+                var desc = escapeHtml(t.desc || '').replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
                 container.innerHTML =
                     '<div class="ygocdb-detail" style="grid-column:1/-1;">'
                     + '<button class="ygocdb-back" id="ygocdbBackBtn">← 返回结果</button>'
                     + '<div class="ygocdb-detail-head">'
                     + '<img src="' + OCG_PIC + c.id + '.jpg" onerror="this.onerror=null;this.src=\'' + FALLBACK_PIC + '\';">'
                     + '<div>'
-                    + '<div class="ygocdb-detail-name">' + escapeHtml(name) + '</div>'
+                    + '<div class="ygocdb-detail-name">' + escapeHtml(title) + '</div>'
                     + '<div class="ygocdb-detail-meta">密码 ' + c.id + ' · CID ' + c.cid + '</div>'
-                    + (t.types ? '<div class="ygocdb-types">' + escapeHtml(t.types) + '</div>' : '')
+                    + (t.types ? '<div class="ygocdb-types">' + escapeHtml(t.types.replace(/\r\n/g, '\n')) + '</div>' : '')
                     + '</div></div>'
-                    + (t.desc ? '<div class="ygocdb-desc">' + escapeHtml(t.desc).replace(/\n/g, '<br>') + '</div>' : '')
+                    + (desc ? '<div class="ygocdb-desc">' + desc + '</div>' : '')
                     + (t.jp_name ? '<div class="ygocdb-other">日文名：' + escapeHtml(t.jp_name) + '</div>' : '')
                     + (t.en_name ? '<div class="ygocdb-other">英文名：' + escapeHtml(t.en_name) + '</div>' : '')
                     + '</div>';

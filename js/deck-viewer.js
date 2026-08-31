@@ -208,14 +208,16 @@
         if (_ygocdbCardCache[cardId] !== undefined) {
             return Promise.resolve(_ygocdbCardCache[cardId]);
         }
-        return fetch('https://ygocdb.com/api/v0/card/' + cardId + '?show=all')
+        // 详情接口不返回卡名，改用搜索接口按密码查（返回 cn_name/sc_name + text）
+        return fetch('https://ygocdb.com/api/v0/?search=' + cardId)
             .then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();
             })
-            .then(function (c) {
-                _ygocdbCardCache[cardId] = c;
-                return c;
+            .then(function (data) {
+                var card = (data && data.result && data.result[0]) || null;
+                _ygocdbCardCache[cardId] = card;
+                return card;
             })
             .catch(function () {
                 _ygocdbCardCache[cardId] = null;
@@ -241,14 +243,16 @@
 
     function showTooltipOfficial(e, data) {
         var t = (data && data.text) ? data.text : {};
-        var name = t.sc_name || t.cn_name || t.en_name || ('卡牌 ' + data.id);
+        var name = data.sc_name || data.cn_name || data.en_name || t.name || ('卡牌 ' + data.id);
         var tip = ensureTooltip();
-        var types = t.types ? t.types.replace(/\n/g, '<br>') : '';
+        // 效果文本含 \r\n，tooltip 用 pre-line 保留换行，不再转 <br>
+        var types = t.types ? t.types.replace(/\r\n/g, '\n') : '';
+        var desc = t.desc ? t.desc.replace(/\r\n/g, '\n') : '';
         tip.innerHTML =
             '<div class="tt-name">' + escapeHtml(name) + '</div>'
-            + (types ? '<div class="tt-type">' + types + '</div>' : '')
-            + (t.desc
-                ? '<div class="tt-desc">' + escapeHtml(t.desc).replace(/\n/g, '<br>') + '</div>'
+            + (types ? '<div class="tt-type">' + escapeHtml(types) + '</div>' : '')
+            + (desc
+                ? '<div class="tt-desc">' + escapeHtml(desc) + '</div>'
                 : '<div class="tt-desc" style="color:#999;">暂无效果文本</div>')
             + '<div class="tt-source">📖 官方卡查数据</div>';
         tip.style.display = 'block';

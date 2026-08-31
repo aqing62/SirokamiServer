@@ -385,6 +385,7 @@
 .deck-viewer-tooltip .tt-type {
     color: #aaa;
     margin-bottom: 3px;
+    white-space: pre-line;
 }
 .deck-viewer-tooltip .tt-raceattr {
     color: #999;
