@@ -94,7 +94,8 @@
         if (!diyBtn || !ygoBtn) return;
 
         var stats = document.getElementById('stats');
-        var filter = document.querySelector('.search-filter-container');
+        // 只隐藏筛选组，保留搜索框（搜索框在 .search-filter-container 内，由 card-pool-info 控制显隐）
+        var filterGroup = document.querySelector('.multi-filter-group');
         var searchInput = document.getElementById('search');
         var container = document.getElementById('cardContainer');
         var _diyQuery = '';
@@ -104,7 +105,7 @@
             diyBtn.classList.toggle('active', !isYgo);
             ygoBtn.classList.toggle('active', isYgo);
             if (stats) stats.style.display = isYgo ? 'none' : '';
-            if (filter) filter.style.display = isYgo ? 'none' : '';
+            if (filterGroup) filterGroup.style.display = isYgo ? 'none' : '';
             if (searchInput) {
                 if (isYgo) {
                     _diyQuery = searchInput.value;
