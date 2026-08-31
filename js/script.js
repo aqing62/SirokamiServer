@@ -10,12 +10,11 @@ const _inited = {};
 const CSS_MAP = {
     'section-main':          ['css-chronicle-decks'],
     'section-card-list':     ['css-card-list'],
-    'section-card-pool':     ['css-card-pool', 'css-new-cards'],
+    'section-card-pool':     ['css-card-pool', 'css-new-cards', 'css-ygocdb'],
     'section-eight-decks':   ['css-eight-decks', 'css-live-duels'],
     'section-xiaobai':       ['css-xiaobai'],
     'section-player-ranking':['css-player-ranking'],
     'section-community':     ['css-deck-community'],
-    'section-ygocdb':        ['css-ygocdb'],
 };
 
 // ── 手机端登录框可见性 ──────────────────────────────────
@@ -117,6 +116,7 @@ function lazyInit(sectionId) {
             break;
         case 'section-card-pool':
             if (typeof initCardPoolModule === 'function') initCardPoolModule();
+            if (typeof initYgocdbModule === 'function') initYgocdbModule();
             break;
         case 'section-eight-decks':
             if (typeof initEightDecksModule === 'function') initEightDecksModule();
@@ -127,9 +127,6 @@ function lazyInit(sectionId) {
             break;
         case 'section-community':
             if (typeof initCommunityModule === 'function') initCommunityModule();
-            break;
-        case 'section-ygocdb':
-            if (typeof initYgocdbModule === 'function') initYgocdbModule();
             break;
     }
 }
@@ -325,7 +322,6 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('cardListBtn').onclick = makeToggle('section-card-list');
     document.getElementById('cardPoolInfoBtn').onclick = makeToggle('section-card-pool');
     document.getElementById('playerRankingBtn').onclick = makeToggle('section-player-ranking');
-    document.getElementById('ygocdbBtn').onclick = makeToggle('section-ygocdb');
     // 论坛入口（无需登录即可浏览）
     document.getElementById('communityBtn').onclick = function () {
         if (_currentSection === 'section-community') {

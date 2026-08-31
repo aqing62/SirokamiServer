@@ -96,6 +96,27 @@
     }
 
     window.initYgocdbModule = function () {
+        // 模式切换：DIY 卡池 / 官方卡查询（在卡池信息页内）
+        var diyBtn = document.getElementById('poolModeDiy');
+        var ygoBtn = document.getElementById('poolModeYgo');
+        var ygocdbPanel = document.getElementById('ygocdbPanel');
+        var stats = document.getElementById('stats');
+        var filter = document.querySelector('.search-filter-container');
+        var cardContainer = document.getElementById('cardContainer');
+        if (diyBtn && ygoBtn && ygocdbPanel) {
+            var setMode = function (isYgo) {
+                diyBtn.classList.toggle('active', !isYgo);
+                ygoBtn.classList.toggle('active', isYgo);
+                ygocdbPanel.style.display = isYgo ? 'block' : 'none';
+                if (stats) stats.style.display = isYgo ? 'none' : '';
+                if (filter) filter.style.display = isYgo ? 'none' : '';
+                if (cardContainer) cardContainer.style.display = isYgo ? 'none' : '';
+            };
+            diyBtn.onclick = function () { setMode(false); };
+            ygoBtn.onclick = function () { setMode(true); };
+        }
+
+        // 搜索绑定
         var input = document.getElementById('ygocdbSearchInput');
         var btn = document.getElementById('ygocdbSearchBtn');
         if (!input || !btn) return;
