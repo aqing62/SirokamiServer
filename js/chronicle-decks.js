@@ -31,7 +31,7 @@
         var body = document.getElementById('chronicleModalBody');
         body.innerHTML = '<div class="loading-hint">加载中...</div>';
 
-        fetch('decks/chronicle_decks.json?v=20260901b')
+        fetch('decks/chronicle_decks.json?v=202609010001b')
             .then(function (resp) {
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 return resp.json();
