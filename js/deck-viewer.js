@@ -254,8 +254,11 @@
                 var ra = (m[2] || '').trim();
                 var parts = ra.split('/');
                 if (parts.length === 2) {
-                    // 格式为 种族/属性，DIY 展示顺序为 属性 | 种族
-                    res.raceAttr = parts[1].trim() + ' | ' + parts[0].trim();
+                    // 格式为 种族/属性，DIY 展示顺序为 属性 | 种族；种族补"族"字（龙→龙族）
+                    var race = parts[0].trim();
+                    var attr = parts[1].trim();
+                    if (race && race.slice(-1) !== '族') race += '族';
+                    res.raceAttr = attr + ' | ' + race;
                 } else if (ra) {
                     res.raceAttr = ra;
                 }

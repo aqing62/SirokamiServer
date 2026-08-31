@@ -95,8 +95,16 @@
                     + (t.types
                         ? '<div class="ygocdb-types">' + escapeHtml(
                             t.types.replace(/\r\n/g, '\n').split('\n').map(function (line, i) {
-                                // 第一行类型去掉括号竖线（[怪兽|效果] → 怪兽 效果），其余行保留
-                                return i === 0 ? line.replace(/\[([^\]]*)\]/g, function (m, inner) { return inner.replace(/\|/g, ' '); }) : line;
+                                if (i === 0) {
+                                    // 第一行类型去掉括号竖线（[怪兽|效果] → 怪兽 效果），行尾 种族/属性 的种族补"族"字
+                                    line = line.replace(/\[([^\]]*)\]/g, function (m, inner) { return inner.replace(/\|/g, ' '); });
+                                    line = line.replace(/([^\/\s]+)\/([^\/\s]+)$/, function (m, race, attr) {
+                                        var r = race.trim();
+                                        if (r && r.slice(-1) !== '族') r += '族';
+                                        return r + '/' + attr.trim();
+                                    });
+                                }
+                                return line;
                             }).join('\n')
                         ) + '</div>'
                         : '')
