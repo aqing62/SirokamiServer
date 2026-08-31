@@ -139,8 +139,8 @@
                     <p>📊 每张卡片设有<strong>分值</strong>，卡组总分 ≤ 100 分，确保对局相对平衡</p>
                     <p>📚 卡组池由策划组<strong>精心挑选</strong>，持续更新中，欢迎投稿</p>
                     <div class="chronicle-decks-box">
-                        <h4 class="chronicle-decks-title">📚 现有卡组池（点击卡组名查看卡组详情）</h4>
-                        <div class="chronicle-deck-list" id="chronicleDeckList"><div class="loading-hint">加载卡组列表中...</div></div>
+                        <button class="chronicle-decks-open" id="chronicleDecksOpen" type="button">📚 卡组列表</button>
+                        <span class="chronicle-decks-hint">点击查看编年史现有卡组</span>
                     </div>
                 </div>
             </div>
@@ -626,6 +626,14 @@
     <!-- ═══════════════════════════════════════════════════════
          SCRIPTS — 全部JS
          ═══════════════════════════════════════════════════════ -->
+    <!-- 编年史卡组列表弹窗 -->
+    <div class="chronicle-overlay" id="chronicleOverlay">
+        <div class="chronicle-modal">
+            <button class="chronicle-close" id="chronicleModalClose" title="关闭">×</button>
+            <h2>📚 编年史卡组池</h2>
+            <div class="chronicle-modal-body" id="chronicleModalBody"><div class="loading-hint">加载中...</div></div>
+        </div>
+    </div>
     <script src="js/script.js?v=20260807b"></script>
     <script src="js/card-list.js?v=20260807b"></script>
     <script src="js/card-pool-info.js?v=20260807b"></script>
