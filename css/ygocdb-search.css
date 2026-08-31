@@ -1,10 +1,12 @@
 /* 卡池信息页：模式切换滑块（DIY 卡池 / 官方卡查询） */
 .pool-mode-switch {
-    display: inline-flex;
+    display: flex;
+    width: fit-content;
+    margin: 12px auto;
+    justify-content: center;
     border: 1px solid #333;
     border-radius: 20px;
     padding: 3px;
-    margin: 12px 0;
     gap: 2px;
     background: rgba(255, 255, 255, 0.03);
 }
