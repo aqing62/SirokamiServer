@@ -191,6 +191,39 @@
             + '<div class="tt-desc">' + (card.processedDesc || '') + '</div>';
         tip.style.display = 'block';
 
+        positionTooltip(e, tip);
+    }
+
+    function hideTooltip() {
+        if (_tooltipEl) _tooltipEl.style.display = 'none';
+    }
+
+    // ═══════════════════════════════════════════════════
+    // 官方卡效果补充（非 DIY 卡：从百鸽 ygocdb 拉取显示）
+    // ═══════════════════════════════════════════════════
+
+    var _ygocdbCardCache = {};
+
+    function fetchYgocdbCardInfo(cardId) {
+        if (_ygocdbCardCache[cardId] !== undefined) {
+            return Promise.resolve(_ygocdbCardCache[cardId]);
+        }
+        return fetch('https://ygocdb.com/api/v0/card/' + cardId + '?show=all')
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (c) {
+                _ygocdbCardCache[cardId] = c;
+                return c;
+            })
+            .catch(function () {
+                _ygocdbCardCache[cardId] = null;
+                return null;
+            });
+    }
+
+    function positionTooltip(e, tip) {
         if (isMobile) {
             tip.style.left = Math.max(4, (window.innerWidth - tip.offsetWidth) / 2) + 'px';
             tip.style.top = '8px';
@@ -206,8 +239,20 @@
         }
     }
 
-    function hideTooltip() {
-        if (_tooltipEl) _tooltipEl.style.display = 'none';
+    function showTooltipOfficial(e, data) {
+        var t = (data && data.text) ? data.text : {};
+        var name = t.sc_name || t.cn_name || t.en_name || ('卡牌 ' + data.id);
+        var tip = ensureTooltip();
+        var types = t.types ? t.types.replace(/\n/g, '<br>') : '';
+        tip.innerHTML =
+            '<div class="tt-name">' + escapeHtml(name) + '</div>'
+            + (types ? '<div class="tt-type">' + types + '</div>' : '')
+            + (t.desc
+                ? '<div class="tt-desc">' + escapeHtml(t.desc).replace(/\n/g, '<br>') + '</div>'
+                : '<div class="tt-desc" style="color:#999;">暂无效果文本</div>')
+            + '<div class="tt-source">📖 官方卡查数据</div>';
+        tip.style.display = 'block';
+        positionTooltip(e, tip);
     }
 
     function escapeHtml(text) {
@@ -423,7 +468,14 @@
                 var cardId = parseInt(wrapper.getAttribute('data-card-id'));
                 if (!cardId) return;
                 var card = getCardInfo(cardId);
-                if (card) showTooltip(e, card);
+                if (card) {
+                    showTooltip(e, card);
+                } else {
+                    // 非 DIY 卡：从官方卡查补充效果（仍悬停时才显示）
+                    fetchYgocdbCardInfo(cardId).then(function (official) {
+                        if (official && wrapper.matches(':hover')) showTooltipOfficial(e, official);
+                    });
+                }
             });
             wrapper.addEventListener('mousemove', function (e) {
                 if (!_tooltipEl || _tooltipEl.style.display === 'none') return;

@@ -400,6 +400,13 @@
     font-size: 0.73rem;
     white-space: pre-line;
 }
+.deck-viewer-tooltip .tt-source {
+    color: #888;
+    font-size: 0.62rem;
+    margin-top: 5px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
 
 /* Empty */
 .deck-viewer-body .deck-empty-tip {
