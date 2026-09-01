@@ -1059,39 +1059,67 @@ function initCommunityModule() {
         });
     }
 
+    // 官方卡名（按译名偏好，复用 deck-viewer 的字段解析）
+    function officialCardName(c) {
+        if (window.DeckViewer && window.DeckViewer.officialCardFields) {
+            try { return window.DeckViewer.officialCardFields(c).name; } catch (e) {}
+        }
+        return c.sc_name || c.cn_name || c.en_name || ('卡牌 ' + c.id);
+    }
+
     function searchCards(q, onSelect) {
         var results = document.getElementById('csResults');
         if (!results) return;
         results.innerHTML = '<div style="color:#888;text-align:center;padding:20px;grid-column:1/-1;">搜索中...</div>';
 
-        // 优先用已加载的 cardIndex
+        var qLower = q.toLowerCase();
+
+        // DIY 结果（本地卡池）
+        var diyPromise;
         var index = window._cardIndex;
         if (index && index.size) {
             var matches = [];
-            var qLower = q.toLowerCase();
             index.forEach(function (card) {
                 if (matches.length >= 30) return;
-                var nameMatch = (card.name || '').toLowerCase().indexOf(qLower) !== -1;
-                var idMatch = String(card.id).indexOf(q) !== -1;
-                if (nameMatch || idMatch) matches.push(card);
+                if ((card.name || '').toLowerCase().indexOf(qLower) !== -1 || String(card.id).indexOf(q) !== -1) {
+                    matches.push(card);
+                }
             });
-            renderCardSearchResults(matches, onSelect);
+            diyPromise = Promise.resolve(matches);
         } else {
-            // 回退 API
-            fetch('/api/cards').then(function (r) { return r.json(); }).then(function (cards) {
-                var matches = [];
-                var qLower = q.toLowerCase();
+            diyPromise = fetch('/api/cards').then(function (r) { return r.json(); }).then(function (cards) {
+                var m = [];
                 cards.forEach(function (card) {
-                    if (matches.length >= 30) return;
-                    var nameMatch = (card.name || '').toLowerCase().indexOf(qLower) !== -1;
-                    var idMatch = String(card.id).indexOf(q) !== -1;
-                    if (nameMatch || idMatch) matches.push(card);
+                    if (m.length >= 30) return;
+                    if ((card.name || '').toLowerCase().indexOf(qLower) !== -1 || String(card.id).indexOf(q) !== -1) m.push(card);
                 });
-                renderCardSearchResults(matches, onSelect);
-            }).catch(function () {
-                results.innerHTML = '<div style="color:#888;text-align:center;padding:20px;grid-column:1/-1;">搜索失败</div>';
-            });
+                return m;
+            }).catch(function () { return []; });
         }
+
+        // 官方结果（百鸽 ygocdb，与 DIY 合并去重）
+        var officialPromise = fetch('https://ygocdb.com/api/v0/?search=' + encodeURIComponent(q))
+            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+            .then(function (data) { return data.result || []; })
+            .catch(function () { return []; });
+
+        Promise.all([diyPromise, officialPromise]).then(function (parts) {
+            var diy = parts[0];
+            var official = parts[1];
+            var diyIds = {};
+            diy.forEach(function (c) { diyIds[String(c.id)] = true; });
+            var merged = diy.slice(0, 30);
+            official.forEach(function (c) {
+                if (merged.length >= 30) return;
+                if (diyIds[String(c.id)]) return; // DIY 已有的不重复
+                merged.push({
+                    id: c.id,
+                    name: officialCardName(c),
+                    official: true,
+                });
+            });
+            renderCardSearchResults(merged, onSelect);
+        });
     }
 
     function renderCardSearchResults(cards, onSelect) {
@@ -1110,7 +1138,9 @@ function initCommunityModule() {
                 + ' onerror="this.onerror=null;this.src=\'' + SP + c.id + '.jpg\';'
                 + 'this.onerror=function(){this.onerror=null;this.src=\'' + DIY + c.id + '.jpg\';'
                 + 'this.onerror=function(){this.src=\'cover.jpg\';}}">'
-                + '<span class="card-search-item-name">' + esc(c.name || '') + '<br><small style="color:#888;">#' + c.id + '</small></span>'
+                + '<span class="card-search-item-name">' + esc(c.name || '')
+                + (c.official ? ' <small style="color:#7fbfff;">官方</small>' : '')
+                + '<br><small style="color:#888;">#' + c.id + '</small></span>'
                 + '</div>';
         }).join('');
 
