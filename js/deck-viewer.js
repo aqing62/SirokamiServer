@@ -276,6 +276,16 @@
         return res;
     }
 
+    // 组合 灵摆效果(pdesc) + 怪兽效果(desc)
+    function formatOfficialDesc(t) {
+        var pdesc = (t && t.pdesc) ? String(t.pdesc).replace(/\r\n/g, '\n').trim() : '';
+        var desc = (t && t.desc) ? String(t.desc).replace(/\r\n/g, '\n').trim() : '';
+        if (!pdesc) return desc;
+        // desc 已含灵摆段时避免重复
+        if (desc.indexOf('【灵摆效果】') !== -1 || pdesc === desc) return desc;
+        return '【灵摆效果】\n' + pdesc + (desc ? '\n\n【怪兽效果】\n' + desc : '');
+    }
+
     function showTooltipOfficial(e, data) {
         var t = (data && data.text) ? data.text : {};
         // 译名偏好（与官方卡查询页一致，默认 NWBBS）
@@ -285,7 +295,7 @@
         var tip = ensureTooltip();
         // 与 DIY 卡悬浮效果保持同一结构：卡名/类型/属性·种族·等级/ATK·DEF/效果文本
         var info = parseYgocdbTypes(t.types);
-        var desc = t.desc ? t.desc.replace(/\r\n/g, '\n') : '';
+        var desc = formatOfficialDesc(t);
         tip.innerHTML =
             '<div class="tt-name">' + escapeHtml(name) + '</div>'
             + (info.fullType ? '<div class="tt-type">' + escapeHtml(info.fullType) + '</div>' : '')
@@ -832,7 +842,7 @@
                 fullType: info.fullType,
                 raceAttr: info.raceAttr,
                 atkDef: info.atkDef,
-                desc: (t.desc || '').replace(/\r\n/g, '\n'),
+                desc: formatOfficialDesc(t),
             };
         },
     };

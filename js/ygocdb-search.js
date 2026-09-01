@@ -51,6 +51,12 @@
                 list.slice(0, 50).forEach(function (c) {
                     var t = c.text || {};
                     var name = transName(c);
+                    // 完整效果文本（含灵摆效果 pdesc），复用 deck-viewer 的字段解析
+                    var desc = '';
+                    if (window.DeckViewer && window.DeckViewer.officialCardFields) {
+                        try { desc = window.DeckViewer.officialCardFields(c).desc; } catch (e) {}
+                    }
+                    if (!desc && t.desc) desc = t.desc.replace(/\r\n/g, '\n');
                     var el = document.createElement('div');
                     el.className = 'card-item';
                     el.innerHTML =
@@ -61,7 +67,7 @@
                         + '<div class="card-name">' + escapeHtml(name) + '</div>'
                         + '<div class="card-id">ID: ' + c.id + '</div>'
                         + (t.types ? '<div class="card-type">' + escapeHtml(t.types.replace(/\r\n/g, '\n')) + '</div>' : '')
-                        + (t.desc ? '<div class="card-desc">' + escapeHtml(t.desc).replace(/\r\n/g, '\n') + '</div>' : '')
+                        + (desc ? '<div class="card-desc">' + escapeHtml(desc).replace(/\n/g, '<br>') + '</div>' : '')
                         + '</div>';
                     container.appendChild(el);
                 });
