@@ -812,6 +812,13 @@
         },
         close: closeDeckModal,
         checkClipboard: checkClipboardForDeck,
+        // 给任意容器绑定卡牌悬浮（DIY 卡表 + 官方卡补全），供胜者卡组等页面复用
+        attachCardHover: function (container) {
+            if (!container) return;
+            loadCardInfoMap().then(function () {
+                attachCardHover(container);
+            });
+        },
     };
 
     if (document.readyState === 'loading') {

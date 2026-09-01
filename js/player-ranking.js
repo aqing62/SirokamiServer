@@ -277,7 +277,12 @@
         </div>
       `;
 
-      attachDeckHover();
+      // 优先复用全局卡组悬浮（含官方卡效果补全），否则用本页的 DIY-only 悬浮
+      if (window.DeckViewer && window.DeckViewer.attachCardHover) {
+        window.DeckViewer.attachCardHover(deckModalBody);
+      } else {
+        attachDeckHover();
+      }
     } catch (e) {
       deckModalBody.innerHTML = '<div class="deck-empty">加载失败: ' + e.message + '</div>';
     }
