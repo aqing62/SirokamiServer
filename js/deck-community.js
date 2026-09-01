@@ -1126,39 +1126,59 @@ function initCommunityModule() {
     function openCardTooltip(cardId, anchor) {
         var index = window._cardIndex;
         var card = index ? index.get(cardId) : null;
-        var cardName = card ? card.name : ('#' + cardId);
-        var cardType = card && card.typeInfo ? card.typeInfo.fullType : '';
-        var isMonster = card && card.typeInfo && card.typeInfo.baseType === '怪兽';
-        var atkDef = isMonster ? 'ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (card.def < 0 ? '?' : card.def) : '';
-        var desc = card ? (card.processedDesc || '') : '';
-        var attrRace = isMonster ? (card.attrName || '') + ' | ' + (card.raceName || '') + (card.level ? ' | Lv' + card.level : '') : '';
 
-        var overlay = document.createElement('div');
-        overlay.className = 'community-modal-overlay active';
-        overlay.style.zIndex = '60001';
-        overlay.innerHTML = '<div class="community-modal" style="width:min(420px,92vw);">'
-            + '<div class="community-modal-header">'
-            + '<span class="community-modal-title">' + esc(cardName)
-            + ' <small style="color:#888;font-weight:400;">#' + cardId + '</small></span>'
-            + '<button class="community-modal-close">&times;</button>'
-            + '</div>'
-            + '<div class="community-modal-body" style="text-align:center;">'
-            + '<img src="' + OCG_PIC_URL + cardId + '.jpg" style="width:200px;border-radius:6px;margin-bottom:12px;"'
-            + ' onerror="this.onerror=null;this.src=\'' + SP_PIC_URL + cardId + '.jpg\';'
-            + 'this.onerror=function(){this.onerror=null;this.src=\'' + DIY_PIC_URL + cardId + '.jpg\';'
-            + 'this.onerror=function(){this.src=\'cover.jpg\';}}">'
-            + (cardType ? '<div style="color:#aaa;font-size:0.82rem;margin-bottom:4px;">' + esc(cardType) + '</div>' : '')
-            + (attrRace ? '<div style="color:#999;font-size:0.78rem;margin-bottom:2px;">' + esc(attrRace) + '</div>' : '')
-            + (atkDef ? '<div style="color:#ddd;font-weight:600;margin-bottom:8px;">' + atkDef + '</div>' : '')
-            + (desc ? '<div style="color:#bbb;font-size:0.78rem;line-height:1.5;text-align:left;">' + esc(desc) + '</div>' : '')
-            + '</div></div>';
-        document.body.appendChild(overlay);
+        // 渲染弹窗（DIY 或官方字段）
+        var show = function (fields) {
+            var overlay = document.createElement('div');
+            overlay.className = 'community-modal-overlay active';
+            overlay.style.zIndex = '60001';
+            overlay.innerHTML = '<div class="community-modal" style="width:min(420px,92vw);">'
+                + '<div class="community-modal-header">'
+                + '<span class="community-modal-title">' + esc(fields.cardName)
+                + ' <small style="color:#888;font-weight:400;">#' + cardId + '</small></span>'
+                + '<button class="community-modal-close">&times;</button>'
+                + '</div>'
+                + '<div class="community-modal-body" style="text-align:center;">'
+                + '<img src="' + OCG_PIC_URL + cardId + '.jpg" style="width:200px;border-radius:6px;margin-bottom:12px;"'
+                + ' onerror="this.onerror=null;this.src=\'' + SP_PIC_URL + cardId + '.jpg\';'
+                + 'this.onerror=function(){this.onerror=null;this.src=\'' + DIY_PIC_URL + cardId + '.jpg\';'
+                + 'this.onerror=function(){this.src=\'cover.jpg\';}}">'
+                + (fields.cardType ? '<div style="color:#aaa;font-size:0.82rem;margin-bottom:4px;">' + esc(fields.cardType) + '</div>' : '')
+                + (fields.attrRace ? '<div style="color:#999;font-size:0.78rem;margin-bottom:2px;">' + esc(fields.attrRace) + '</div>' : '')
+                + (fields.atkDef ? '<div style="color:#ddd;font-weight:600;margin-bottom:8px;">' + fields.atkDef + '</div>' : '')
+                + (fields.desc ? '<div style="color:#bbb;font-size:0.78rem;line-height:1.5;text-align:left;white-space:pre-line;">' + esc(fields.desc) + '</div>' : '')
+                + '</div></div>';
+            document.body.appendChild(overlay);
 
-        var close = function () { overlay.remove(); };
-        overlay.querySelector('.community-modal-close').addEventListener('click', close);
-        document.addEventListener('keydown', function escClose(e) {
-            if (e.key === 'Escape') { close(); document.removeEventListener('keydown', escClose); }
-        });
+            var close = function () { overlay.remove(); };
+            overlay.querySelector('.community-modal-close').addEventListener('click', close);
+            document.addEventListener('keydown', function escClose(e) {
+                if (e.key === 'Escape') { close(); document.removeEventListener('keydown', escClose); }
+            });
+        };
+
+        if (card) {
+            var isMonster = card.typeInfo && card.typeInfo.baseType === '怪兽';
+            show({
+                cardName: card.name || ('#' + cardId),
+                cardType: card.typeInfo ? card.typeInfo.fullType : '',
+                attrRace: isMonster ? ((card.attrName || '') + ' | ' + (card.raceName || '') + (card.level ? ' | Lv' + card.level : '')) : '',
+                atkDef: isMonster ? ('ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (card.def < 0 ? '?' : card.def)) : '',
+                desc: card.processedDesc || '',
+            });
+        } else if (window.DeckViewer && window.DeckViewer.fetchOfficialCard) {
+            // 非 DIY 卡：从官方卡查补充
+            window.DeckViewer.fetchOfficialCard(cardId).then(function (official) {
+                if (!official) {
+                    show({ cardName: '#' + cardId, cardType: '', attrRace: '', atkDef: '', desc: '' });
+                    return;
+                }
+                var f = window.DeckViewer.officialCardFields(official);
+                show({ cardName: f.name, cardType: f.fullType, attrRace: f.raceAttr, atkDef: f.atkDef, desc: f.desc });
+            });
+        } else {
+            show({ cardName: '#' + cardId, cardType: '', attrRace: '', atkDef: '', desc: '' });
+        }
     }
 
     // ═══════════════════════════ 个人中心 ═══════════════════════

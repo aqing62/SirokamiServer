@@ -819,6 +819,22 @@
                 attachCardHover(container, selector || '.card-img-wrapper');
             });
         },
+        // 官方卡数据与展示字段（供论坛卡片嵌入等复用）
+        fetchOfficialCard: fetchYgocdbCardInfo,
+        officialCardFields: function (data) {
+            var t = (data && data.text) ? data.text : {};
+            var transKey = 'nwbbs_n';
+            try { transKey = localStorage.getItem('ygocdb.translation') || transKey; } catch (err) {}
+            var name = data[transKey] || data.sc_name || data.cn_name || data.en_name || t.name || ('卡牌 ' + data.id);
+            var info = parseYgocdbTypes(t.types);
+            return {
+                name: name,
+                fullType: info.fullType,
+                raceAttr: info.raceAttr,
+                atkDef: info.atkDef,
+                desc: (t.desc || '').replace(/\r\n/g, '\n'),
+            };
+        },
     };
 
     if (document.readyState === 'loading') {
