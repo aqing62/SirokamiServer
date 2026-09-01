@@ -61,63 +61,13 @@
                         + '<div class="card-name">' + escapeHtml(name) + '</div>'
                         + '<div class="card-id">ID: ' + c.id + '</div>'
                         + (t.types ? '<div class="card-type">' + escapeHtml(t.types.replace(/\r\n/g, '\n')) + '</div>' : '')
-                        + (t.desc ? '<div class="card-desc">' + escapeHtml(t.desc).replace(/\r\n/g, '\n').slice(0, 160) + '</div>' : '')
+                        + (t.desc ? '<div class="card-desc">' + escapeHtml(t.desc).replace(/\r\n/g, '\n') + '</div>' : '')
                         + '</div>';
-                    el.addEventListener('click', function () { ygocdbDetail(c.id, q, name); });
                     container.appendChild(el);
                 });
             })
             .catch(function (e) {
                 container.innerHTML = '<div class="empty-tip">⚠️ 查询失败: ' + escapeHtml(String(e.message || e)) + '</div>';
-            });
-    }
-
-    function ygocdbDetail(id, q, name) {
-        var container = document.getElementById('cardContainer');
-        if (!container) return;
-        container.innerHTML = '<div class="loading-tip" style="text-align:center;color:#aaa;padding:30px;">加载卡牌详情...</div>';
-
-        fetch(YGOCDB_API + '/card/' + id + '?show=all')
-            .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-            .then(function (c) {
-                var t = c.text || {};
-                // 详情接口不返回卡名，用搜索结果传入的名字
-                var title = name || transName(c) || ('卡片 ' + c.id);
-                var desc = escapeHtml(t.desc || '').replace(/\r\n/g, '\n').replace(/\n/g, '<br>');
-                container.innerHTML =
-                    '<div class="ygocdb-detail" style="grid-column:1/-1;">'
-                    + '<button class="ygocdb-back" id="ygocdbBackBtn">← 返回结果</button>'
-                    + '<div class="ygocdb-detail-head">'
-                    + '<img src="' + OCG_PIC + c.id + '.jpg" onerror="this.onerror=null;this.src=\'' + FALLBACK_PIC + '\';">'
-                    + '<div>'
-                    + '<div class="ygocdb-detail-name">' + escapeHtml(title) + '</div>'
-                    + '<div class="ygocdb-detail-meta">密码 ' + c.id + ' · CID ' + c.cid + '</div>'
-                    + (t.types
-                        ? '<div class="ygocdb-types">' + escapeHtml(
-                            t.types.replace(/\r\n/g, '\n').split('\n').map(function (line, i) {
-                                if (i === 0) {
-                                    // 第一行类型去掉括号竖线（[怪兽|效果] → 怪兽 效果），行尾 种族/属性 的种族补"族"字
-                                    line = line.replace(/\[([^\]]*)\]/g, function (m, inner) { return inner.replace(/\|/g, ' '); });
-                                    line = line.replace(/([^\/\s]+)\/([^\/\s]+)$/, function (m, race, attr) {
-                                        var r = race.trim();
-                                        if (r && r.slice(-1) !== '族') r += '族';
-                                        return r + '/' + attr.trim();
-                                    });
-                                }
-                                return line;
-                            }).join('\n')
-                        ) + '</div>'
-                        : '')
-                    + '</div></div>'
-                    + (desc ? '<div class="ygocdb-desc">' + desc + '</div>' : '')
-                    + (t.jp_name ? '<div class="ygocdb-other">日文名：' + escapeHtml(t.jp_name) + '</div>' : '')
-                    + (t.en_name ? '<div class="ygocdb-other">英文名：' + escapeHtml(t.en_name) + '</div>' : '')
-                    + '</div>';
-                var back = document.getElementById('ygocdbBackBtn');
-                if (back) back.addEventListener('click', function () { if (q) ygocdbSearch(q); });
-            })
-            .catch(function (e) {
-                container.innerHTML = '<div class="empty-tip">⚠️ 加载详情失败: ' + escapeHtml(String(e.message || e)) + '</div>';
             });
     }
 
