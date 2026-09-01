@@ -498,7 +498,11 @@ function renderGExtCards(cards) {
 
     resetLazyLoadObserver();
     initLazyLoadObserver();
-    loadCardInfo().then(attachCardListHover);
+    if (window.DeckViewer && window.DeckViewer.attachCardHover) {
+        window.DeckViewer.attachCardHover(document.getElementById('cardList'), '.card-item');
+    } else {
+        loadCardInfo().then(attachCardListHover);
+    }
 }
 
 function renderOtCards(cards) {
@@ -538,7 +542,11 @@ function renderOtCards(cards) {
 
     resetLazyLoadObserver();
     initLazyLoadObserver();
-    loadCardInfo().then(attachCardListHover);
+    if (window.DeckViewer && window.DeckViewer.attachCardHover) {
+        window.DeckViewer.attachCardHover(document.getElementById('cardList'), '.card-item');
+    } else {
+        loadCardInfo().then(attachCardListHover);
+    }
 }
 
 /* ================================================================

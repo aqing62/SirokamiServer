@@ -505,8 +505,8 @@
         if (e.key === 'Escape') closeDeckModal();
     }
 
-    function attachCardHover(container) {
-        container.querySelectorAll('.card-img-wrapper').forEach(function (wrapper) {
+    function attachCardHover(container, selector) {
+        container.querySelectorAll(selector || '.card-img-wrapper').forEach(function (wrapper) {
             wrapper.addEventListener('mouseenter', function (e) {
                 var cardId = parseInt(wrapper.getAttribute('data-card-id'));
                 if (!cardId) return;
@@ -812,11 +812,11 @@
         },
         close: closeDeckModal,
         checkClipboard: checkClipboardForDeck,
-        // 给任意容器绑定卡牌悬浮（DIY 卡表 + 官方卡补全），供胜者卡组等页面复用
-        attachCardHover: function (container) {
+        // 给任意容器绑定卡牌悬浮（DIY 卡表 + 官方卡补全），供胜者卡组/禁限分值等页面复用
+        attachCardHover: function (container, selector) {
             if (!container) return;
             loadCardInfoMap().then(function () {
-                attachCardHover(container);
+                attachCardHover(container, selector || '.card-img-wrapper');
             });
         },
     };
