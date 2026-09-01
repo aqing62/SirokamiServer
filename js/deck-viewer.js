@@ -276,14 +276,14 @@
         return res;
     }
 
-    // 组合 灵摆效果(pdesc) + 怪兽效果(desc)
+    // 组合 灵摆效果(pdesc) + 怪兽效果(desc)；与 DIY 卡池一致，连续显示不换行
     function formatOfficialDesc(t) {
-        var pdesc = (t && t.pdesc) ? String(t.pdesc).replace(/\r\n/g, '\n').trim() : '';
-        var desc = (t && t.desc) ? String(t.desc).replace(/\r\n/g, '\n').trim() : '';
-        if (!pdesc) return desc;
-        // desc 已含灵摆段时避免重复
-        if (desc.indexOf('【灵摆效果】') !== -1 || pdesc === desc) return desc;
-        return '【灵摆效果】\n' + pdesc + (desc ? '\n\n【怪兽效果】\n' + desc : '');
+        var pdesc = (t && t.pdesc) ? String(t.pdesc).replace(/\r\n/g, ' ').trim() : '';
+        var desc = (t && t.desc) ? String(t.desc).replace(/\r\n/g, ' ').trim() : '';
+        var collapse = function (s) { return s.replace(/\s+/g, ' '); };
+        if (!pdesc) return collapse(desc);
+        if (desc.indexOf('【灵摆效果】') !== -1 || pdesc === desc) return collapse(desc);
+        return collapse('【灵摆效果】' + pdesc + (desc ? '【怪兽效果】' + desc : ''));
     }
 
     function showTooltipOfficial(e, data) {

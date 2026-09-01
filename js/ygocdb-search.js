@@ -66,8 +66,8 @@
                         + '<div class="card-info">'
                         + '<div class="card-name">' + escapeHtml(name) + '</div>'
                         + '<div class="card-id">ID: ' + c.id + '</div>'
-                        + (t.types ? '<div class="card-type">' + escapeHtml(t.types.replace(/\r\n/g, '\n')) + '</div>' : '')
-                        + (desc ? '<div class="card-desc">' + escapeHtml(desc).replace(/\n/g, '<br>') + '</div>' : '')
+                        + (t.types ? '<div class="card-type">' + escapeHtml(t.types.replace(/\r\n/g, ' ')) + '</div>' : '')
+                        + (desc ? '<div class="card-desc">' + escapeHtml(desc) + '</div>' : '')
                         + '</div>';
                     container.appendChild(el);
                 });
