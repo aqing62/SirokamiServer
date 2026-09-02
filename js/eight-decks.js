@@ -12,6 +12,40 @@ const POLL_INTERVAL = 30000;  // 30秒轮询
 let decksData = null;  // { tournaments: [...] }
 let oldDecksLoaded = false;
 
+// ── G-Ext 分值（历届卡组展示总分） ──────────────────────
+let _eightScoreMap = null;
+let _eightScoreLimit = 100; // 响应头 X-GExt-Limit
+let _eightScoresPromise = null;
+
+function loadEightScores() {
+    if (_eightScoresPromise) return _eightScoresPromise;
+    _eightScoresPromise = fetch('/api/scores')
+        .then(async resp => {
+            if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+            const limit = parseInt(resp.headers.get('X-GExt-Limit'), 10);
+            if (!isNaN(limit) && limit > 0) _eightScoreLimit = limit;
+            _eightScoreMap = await resp.json();
+            return _eightScoreMap;
+        })
+        .catch(e => {
+            console.warn('加载分值失败：', e);
+            _eightScoreMap = {};
+            return _eightScoreMap;
+        });
+    return _eightScoresPromise;
+}
+
+function calcDeckScoreEight(main, extra, side) {
+    let total = 0;
+    [main, extra, side].forEach(ids => {
+        (ids || []).forEach(id => {
+            const s = _eightScoreMap && _eightScoreMap[id];
+            if (s) total += (s.score || 0);
+        });
+    });
+    return total;
+}
+
 // ── 比赛数据 ────────────────────────────────────────────
 let tournamentData = null;  // Tabulator API 返回的完整数据
 let pollTimer = null;
@@ -507,6 +541,7 @@ function createDeckCard(name, main, extra, side) {
     el.className = "deck";
     el.innerHTML = `
         <h3>${escapeHtml(name)}</h3>
+        <div class="deck-total-line">总分：<span class="deck-total-val">…</span></div>
         <div class="deck-sep"></div>
         <div class="deck-section">
             <div class="section-label">主卡组</div>
@@ -522,6 +557,17 @@ function createDeckCard(name, main, extra, side) {
         </div>
     `;
     document.getElementById("oldContainer").appendChild(el);
+
+    // 分值异步就绪后填充总分
+    loadEightScores().then(() => {
+        const line = el.querySelector('.deck-total-line');
+        if (!line) return;
+        const total = calcDeckScoreEight(main, extra, side);
+        const over = total > _eightScoreLimit;
+        line.innerHTML = '总分：<span class="deck-total-val"' + (over ? ' style="color:#ff6b6b;"' : '')
+            + '>' + total + '</span>/' + _eightScoreLimit
+            + (over ? ' <span style="color:#ff6b6b;">⚠️超限</span>' : '');
+    });
 }
 
 function initFilterPopup() {

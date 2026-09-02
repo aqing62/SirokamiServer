@@ -28,6 +28,56 @@ function initCommunityModule() {
         return found;
     }
 
+    // ── G-Ext 分值（卡组块展示总分） ──
+    var _cmScoresCache = null;
+    var _cmScoreLimit = 100;
+
+    function loadCmScores() {
+        if (_cmScoresCache) return Promise.resolve(_cmScoresCache);
+        return fetch('/api/scores').then(function (resp) {
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            var limit = parseInt(resp.headers.get('X-GExt-Limit'), 10);
+            if (!isNaN(limit) && limit > 0) _cmScoreLimit = limit;
+            return resp.json();
+        }).then(function (d) {
+            _cmScoresCache = d;
+            return _cmScoresCache;
+        }).catch(function () {
+            console.warn('加载分值失败');
+            _cmScoresCache = {};
+            return _cmScoresCache;
+        });
+    }
+
+    function calcCmDeckScore(deck, sm) {
+        var t = 0;
+        if (!deck) return 0;
+        ['main', 'extra', 'side'].forEach(function (sec) {
+            (deck[sec] || []).forEach(function (id) {
+                var s = sm && sm[id];
+                if (s) t += (s.score || 0);
+            });
+        });
+        return t;
+    }
+
+    function fillDeckBlockScores(root) {
+        var blocks = (root || document).querySelectorAll('.cp-deck-block[data-deck]');
+        if (!blocks.length) return;
+        loadCmScores().then(function (sm) {
+            blocks.forEach(function (b) {
+                var d;
+                try { d = JSON.parse(b.getAttribute('data-deck')); } catch (e) { return; }
+                var sc = calcCmDeckScore(d, sm);
+                var div = document.createElement('div');
+                div.style.cssText = 'font-size:0.75rem;color:#F0E68C;margin-top:4px;letter-spacing:0.3px;';
+                div.innerHTML = '总分：<b style="color:#fff;">' + sc + '</b>/' + _cmScoreLimit
+                    + (sc > _cmScoreLimit ? ' <span style="color:#ff6b6b;">⚠️超限</span>' : '');
+                b.appendChild(div);
+            });
+        });
+    }
+
     function isAdmin() {
         // TODO: 部署后改为从服务端权限判断
         var adminAccounts = ['aqing', 'root'];
@@ -603,6 +653,9 @@ function initCommunityModule() {
         html += '</div>';
 
         body.innerHTML = html;
+
+        // 卡组块总分（帖子正文 + 回复）
+        fillDeckBlockScores(body);
 
         // 点赞按钮
         var likeBtn = document.getElementById('cmLikeBtn');

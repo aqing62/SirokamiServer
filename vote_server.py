@@ -337,6 +337,7 @@ _cards_etag: str = ""
 # G-Ext 分数缓存 (启动时加载，alias 已解析)
 _scores_cache: dict = {}
 _scores_json: bytes = b"{}"
+_scores_limit: int = 100  # G-Ext 卡组总分上限（lflist.conf $genesys）
 
 # 比赛数据缓存 (惰性加载，定期刷新)
 _tournament_cache: dict | None = None
@@ -355,7 +356,7 @@ def refresh_cards_cache():
 
 def refresh_scores_cache():
     """解析 lflist.conf G-Ext 分数，结合 CDB alias + 同名卡补充分数。"""
-    global _scores_cache, _scores_json
+    global _scores_cache, _scores_json, _scores_limit
     lflist = ROOT / "lflist.conf"
     if not lflist.is_file():
         logger.warning("lflist.conf 不存在，跳过分数缓存")
@@ -364,6 +365,12 @@ def refresh_scores_cache():
     text = lflist.read_text(encoding="utf-8")
     sirokami_idx = text.find("!DIY_Sirokami")
     gext = text[:sirokami_idx] if sirokami_idx > -1 else text
+
+    # G-Ext 上限：$genesys <N> 行
+    m_limit = re.search(r"(?m)^\s*\$genesys\s+(\d+)", gext)
+    if m_limit:
+        _scores_limit = int(m_limit.group(1))
+        logger.info(f"G-Ext 卡组总分上限: {_scores_limit}")
 
     scores = {}
     for line in gext.split("\n"):
@@ -823,6 +830,7 @@ class VoteHandler(SimpleHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Cache-Control", "public, max-age=3600")
+            self.send_header("X-GExt-Limit", str(_scores_limit))
             self.send_header("Content-Length", len(_scores_json))
             self.end_headers()
             self.wfile.write(_scores_json)

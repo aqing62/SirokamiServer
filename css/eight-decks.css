@@ -576,6 +576,19 @@
     margin: 4px 0;
 }
 
+.deck-total-line {
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--light-gold, #F0E68C);
+    font-weight: 600;
+    margin: 2px 0 4px;
+    letter-spacing: 0.5px;
+}
+.deck-total-val {
+    color: #fff;
+    font-size: 0.9rem;
+}
+
 .deck-section {
     margin-bottom: 6px;
 }

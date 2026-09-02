@@ -24,6 +24,7 @@
     var isMobile = window.innerWidth <= 768;
     var _lastClipboardText = '';
     var _scoreMap = null;
+    var _scoreLimit = 100; // G-Ext 卡组总分上限（/api/scores 响应头 X-GExt-Limit）
     var _tooltipEl = null;
     var _toastTimer = 0;
     var _dragOverlay = null;
@@ -97,6 +98,8 @@
         return fetch('/api/scores')
             .then(function (resp) {
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                var limit = parseInt(resp.headers.get('X-GExt-Limit'), 10);
+                if (!isNaN(limit) && limit > 0) _scoreLimit = limit;
                 return resp.json();
             })
             .then(function (data) {
@@ -108,6 +111,20 @@
                 _scoreMap = {};
                 return _scoreMap;
             });
+    }
+
+    // 计算卡组总分（主+额外+副，逐张累加分值；禁止卡分值 0 已含在分数表中）
+    function calcDeckScore(deck, scoreMap) {
+        var total = 0;
+        if (!deck) return 0;
+        ['main', 'extra', 'side'].forEach(function (sec) {
+            var ids = deck[sec] || [];
+            for (var i = 0; i < ids.length; i++) {
+                var s = scoreMap && scoreMap[ids[i]];
+                if (s) total += (s.score || 0);
+            }
+        });
+        return total;
     }
 
     // ═══════════════════════════════════════════════════
@@ -439,6 +456,7 @@
             var mainLen = deck.main.length;
             var extraLen = deck.extra.length;
             var sideLen = deck.side.length;
+            var totalScore = calcDeckScore(deck, scoreMap);
 
             // 主卡组 grid 4行布局
             var mainCols = Math.max(10, Math.ceil(mainLen / 4));
@@ -447,7 +465,13 @@
                 : '';
 
             var html =
-                '<div class="deck-two-col">'
+                '<div class="deck-viewer-meta">'
+                + '<span class="deck-total-badge">总分：<b>' + totalScore + '</b>/' + _scoreLimit + '</span>'
+                + (totalScore > _scoreLimit
+                    ? '<span class="deck-total-warn">⚠️ 超出上限</span>'
+                    : '')
+                + '</div>'
+                + '<div class="deck-two-col">'
                 // 左栏：主卡组
                 + '<div class="deck-col-main">'
                 + '<div class="deck-section-title">主卡组 (' + mainLen + '张)</div>'

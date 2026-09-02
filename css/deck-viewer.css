@@ -225,6 +225,38 @@
     white-space: nowrap;
 }
 
+/* ── 卡组总分条 ── */
+.deck-viewer-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    flex-shrink: 0;
+}
+.deck-total-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(216, 30, 68, 0.12);
+    border: 1px solid rgba(216, 30, 68, 0.4);
+    border-radius: 6px;
+    padding: 4px 12px;
+    font-size: 0.85rem;
+    color: #F0E68C;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    align-self: flex-start;
+}
+.deck-total-badge b {
+    color: #fff;
+    font-size: 0.95rem;
+}
+.deck-total-warn {
+    color: #ff6b6b;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
 /* ── 复用玩家排名卡组样式（独立定义，确保 deck-viewer 始终可用） ── */
 .deck-viewer-body .deck-section-title {
     color: var(--gold, #D4AF37);

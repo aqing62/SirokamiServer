@@ -9,6 +9,7 @@
   const DIY_PIC_URL = 'https://api.ygopro3.cn/pics/siro/';
   const FALLBACK_PIC = 'cover.jpg';
   let _lflistCache = null;
+  let _lflistLimit = 100; // G-Ext 卡组总分上限（/api/scores 响应头 X-GExt-Limit）
   let _cardInfoMap = null;
   let _aliasMap = null;
   const section = document.getElementById('section-player-ranking');
@@ -99,6 +100,8 @@
     try {
       var resp = await fetch('/api/scores');
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      var limit = parseInt(resp.headers.get('X-GExt-Limit'), 10);
+      if (!isNaN(limit) && limit > 0) _lflistLimit = limit;
       _lflistCache = await resp.json();
       return _lflistCache;
     } catch (e) {
@@ -106,6 +109,20 @@
       _lflistCache = {};
       return _lflistCache;
     }
+  }
+
+  // 计算卡组总分（主+额外+副，逐张累加分值）
+  function calcDeckScore(deck, scoreMap) {
+    var total = 0;
+    if (!deck) return 0;
+    ['main', 'extra', 'side'].forEach(function (sec) {
+      var ids = deck[sec] || [];
+      for (var i = 0; i < ids.length; i++) {
+        var s = scoreMap && scoreMap[ids[i]];
+        if (s) total += (s.score || 0);
+      }
+    });
+    return total;
   }
 
   async function loadCardInfoMap() {
@@ -258,11 +275,13 @@
 
       var scoreMap = await loadScoreMap();
       var cardInfoMap = await loadCardInfoMap();
+      var totalScore = calcDeckScore(deck.deck, scoreMap);
 
       deckModalBody.innerHTML = `
         <div class="deck-info">
           <span class="deck-info-item">房间: ${escapeHtml(deck.roomName)}</span>
           <span class="deck-info-item">时间: ${formatTime(deck.time)}</span>
+          <span class="deck-info-item deck-total-item">总分：<b>${totalScore}</b>/${_lflistLimit}${totalScore > _lflistLimit ? ' ⚠️超限' : ''}</span>
         </div>
         <div class="deck-two-col">
           <div class="deck-col deck-col-main">
