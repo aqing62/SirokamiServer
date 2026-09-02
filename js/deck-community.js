@@ -1231,6 +1231,7 @@ function initCommunityModule() {
             + '<button class="community-tab active" data-ptab="posts">我的发帖</button>'
             + '<button class="community-tab" data-ptab="replies">我的回复</button>'
             + '<button class="community-tab" data-ptab="liked">点赞过的</button>'
+            + '<button class="community-tab" data-ptab="duels">⚔ 对战记录</button>'
             + '<button class="community-tab" data-ptab="settings" style="margin-left:auto;">⚙ 设置</button>'
             + '</div><div id="cmProfileContent"></div>'
             + '</div></div>';
@@ -1267,10 +1268,13 @@ function initCommunityModule() {
 
         var url = tab === 'posts' ? '/api/forum/my-posts'
             : tab === 'replies' ? '/api/forum/my-replies'
-                : '/api/forum/liked-posts';
+                : tab === 'duels' ? '/api/forum/profile/duels'
+                    : '/api/forum/liked-posts';
 
         authApi(url).then(function (data) {
-            if (tab === 'replies') {
+            if (tab === 'duels') {
+                renderDuels(data, container);
+            } else if (tab === 'replies') {
                 renderMyReplies(data, container);
             } else {
                 var list = data.posts || [];
@@ -1465,10 +1469,13 @@ function initCommunityModule() {
 
         var url = tab === 'posts' ? '/api/forum/my-posts'
             : tab === 'replies' ? '/api/forum/my-replies'
-                : '/api/forum/liked-posts';
+                : tab === 'duels' ? '/api/forum/profile/duels'
+                    : '/api/forum/liked-posts';
 
         authApi(url).then(function (data) {
-            if (tab === 'replies') {
+            if (tab === 'duels') {
+                renderDuels(data, container);
+            } else if (tab === 'replies') {
                 renderMyReplies(data, container);
             } else {
                 var list = data.posts || [];
@@ -1493,6 +1500,41 @@ function initCommunityModule() {
             }
         }).catch(function (e) {
             container.innerHTML = '<div class="cp-empty">加载失败: ' + esc(e.message) + '</div>';
+        });
+    }
+
+    // 对战记录：时间(小字) 房间(黄) 自己 vs(红) 对手 回放码(黄)，一行一条
+    function renderDuels(data, container) {
+        var list = data.duels || [];
+        if (!list.length) {
+            container.innerHTML = '<div class="cp-empty">暂无对局记录</div>';
+            return;
+        }
+        var html = list.map(function (d) {
+            var t = new Date(d.time);
+            var ts = (t.getMonth() + 1) + '/' + t.getDate() + ' ' +
+                String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+            return '<div class="duel-item">'
+                + '<span class="duel-time">' + ts + '</span>'
+                + '<span class="duel-room">' + esc(d.roomName) + '</span>'
+                + '<span class="duel-name">' + esc(d.selfName) + '</span>'
+                + '<span class="duel-vs">vs</span>'
+                + '<span class="duel-name">' + esc(d.opponentName) + '</span>'
+                + '<span class="duel-replay" data-code="' + esc(d.replayCode) + '" title="点击复制回放码">' + esc(d.replayCode) + '</span>'
+                + '</div>';
+        }).join('');
+        container.innerHTML = '<div class="duel-list">' + html + '</div>';
+
+        container.querySelectorAll('.duel-replay').forEach(function (el) {
+            el.addEventListener('click', function () {
+                var code = el.getAttribute('data-code') || '';
+                var done = function () { alert('已复制回放码: ' + code); };
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(code).then(done).catch(done);
+                } else {
+                    done();
+                }
+            });
         });
     }
 
