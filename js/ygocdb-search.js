@@ -50,13 +50,12 @@
                 container.innerHTML = '';
                 list.slice(0, 50).forEach(function (c) {
                     var t = c.text || {};
-                    var name = transName(c);
-                    // 完整效果文本（含灵摆效果 pdesc），复用 deck-viewer 的字段解析
-                    var desc = '';
+                    // 用 deck-viewer 解析后的字段（类型/属性·种族·等级/ATK·DEF），与 DIY 卡池展示一致
+                    var f = null;
                     if (window.DeckViewer && window.DeckViewer.officialCardFields) {
-                        try { desc = window.DeckViewer.officialCardFields(c).desc; } catch (e) {}
+                        try { f = window.DeckViewer.officialCardFields(c); } catch (e) {}
                     }
-                    if (!desc && t.desc) desc = t.desc.replace(/\r\n/g, '\n');
+                    var name = f ? f.name : transName(c);
                     var el = document.createElement('div');
                     el.className = 'card-item';
                     el.innerHTML =
@@ -66,8 +65,10 @@
                         + '<div class="card-info">'
                         + '<div class="card-name">' + escapeHtml(name) + '</div>'
                         + '<div class="card-id">ID: ' + c.id + '</div>'
-                        + (t.types ? '<div class="card-type">' + escapeHtml(t.types.replace(/\r\n/g, ' ')) + '</div>' : '')
-                        + (desc ? '<div class="card-desc">' + escapeHtml(desc) + '</div>' : '')
+                        + (f && f.fullType ? '<div class="card-type">' + escapeHtml(f.fullType) + '</div>' : '')
+                        + (f && f.raceAttr ? '<div class="card-attrrace">' + escapeHtml(f.raceAttr) + '</div>' : '')
+                        + (f && f.atkDef ? '<div class="card-atkdef">' + escapeHtml(f.atkDef) + '</div>' : '')
+                        + (f && f.desc ? '<div class="card-desc">' + escapeHtml(f.desc) + '</div>' : '')
                         + '</div>';
                     container.appendChild(el);
                 });
