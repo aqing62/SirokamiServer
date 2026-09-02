@@ -611,7 +611,7 @@
         position: fixed;
         top: 14px;
         right: 14px;
-        z-index: 998;
+        z-index: 3000;
     }
     .cm-mobile-avatar img {
         width: 36px !important;

@@ -72,6 +72,10 @@ function showSection(sectionId) {
     // 懒初始化
     lazyInit(sectionId);
     updateLoginVisibility();
+    // 进入论坛时刷新移动端右上角头像入口（确保任何登录时机都显示）
+    if (sectionId === 'section-community' && typeof window._refreshMobileAvatar === 'function') {
+        setTimeout(window._refreshMobileAvatar, 100);
+    }
 }
 
 // ── 侧边栏悬停滑出 ──────────────────────────────────────
