@@ -904,7 +904,7 @@ body {
     .gl-avatar {
         width: 40px !important;
         height: 40px !important;
-        border-radius: 50%;
+        border-radius: 0; /* 直角方块 */
         border: 2px solid var(--red, #D81E44);
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
     }
