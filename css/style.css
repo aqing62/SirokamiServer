@@ -878,19 +878,37 @@ body {
 
 @media (max-width: 768px) {
     .global-login {
-        bottom: 90px;
-        right: 8px;
+        /* 移动端：右上角悬浮（论坛页显示），只露头像 */
+        top: 12px;
+        right: 10px;
+        bottom: auto;
+        left: auto;
+        width: auto;
         display: none; /* 默认隐藏，仅在论坛页面显示 */
+        z-index: 3000;
     }
     .gl-login-trigger {
         padding: 6px 16px;
         font-size: 0.75rem;
     }
+    .gl-loggedin {
+        padding: 0;
+        background: none;
+        border: none;
+    }
+    .gl-profile {
+        padding: 0;
+        background: none;
+        border: none;
+    }
     .gl-avatar {
-        width: 26px;
-        height: 26px;
+        width: 40px !important;
+        height: 40px !important;
+        border-radius: 50%;
+        border: 2px solid var(--red, #D81E44);
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
     }
     .gl-name {
-        font-size: 0.78rem;
+        display: none; /* 只显示头像 */
     }
 }

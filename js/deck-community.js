@@ -261,10 +261,6 @@ function initCommunityModule() {
     function initShell() {
         if (!wrapper) return;
         var html = '';
-        // 手机端：右上角头像入口
-        html += '<div class="cm-mobile-avatar" id="cmMobileAvatar" style="display:none;">';
-        html += '<img id="cmMobileAvatarImg" src="cover.jpg" style="width:32px;height:32px;border-radius:4px;border:1px solid rgba(216,30,68,0.3);object-fit:cover;cursor:pointer;" title="个人中心">';
-        html += '</div>';
         // 固定 Tabs + 搜索（手机端同行）
         html += '<div class="community-tabs" id="cmTabs">';
         SECTIONS.forEach(function (s) {
@@ -289,29 +285,8 @@ function initCommunityModule() {
         html += '<div id="cmFeedArea"><div class="community-loading">加载中...</div></div>';
         wrapper.innerHTML = html;
         bindShellEvents();
-        updateMobileAvatar();
         loadFeed();
     }
-
-    function updateMobileAvatar() {
-        var avatarWrap = document.getElementById('cmMobileAvatar');
-        var avatarImg = document.getElementById('cmMobileAvatarImg');
-        if (!avatarWrap || !avatarImg) return;
-        var isMobile = window.innerWidth <= 768;
-        var loggedIn = window._communityLoggedIn && window._communityUsername;
-        if (isMobile && loggedIn) {
-            avatarWrap.style.display = 'block';
-            var username = window._communityUsername;
-            avatarImg.src = '/api/forum/avatar/' + encodeURIComponent(username) + '?v=' + Date.now();
-            avatarImg.onerror = function () { this.src = 'cover.jpg'; };
-            avatarWrap.onclick = function () {
-                if (typeof window._openProfilePanel === 'function') window._openProfilePanel();
-            };
-        } else {
-            avatarWrap.style.display = 'none';
-        }
-    }
-    window._refreshMobileAvatar = updateMobileAvatar;
 
     function bindShellEvents() {
         // Tabs

@@ -607,18 +607,6 @@
 
 @media (max-width: 768px) {
     #section-community .back-btn { top: 60px; }
-    .cm-mobile-avatar {
-        position: fixed;
-        top: 14px;
-        right: 14px;
-        z-index: 3000;
-    }
-    .cm-mobile-avatar img {
-        width: 36px !important;
-        height: 36px !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.5);
-        border: 2px solid var(--red, #D81E44) !important;
-    }
     .community-tabs { gap: 4px; }
     .community-tab { padding: 6px 12px; font-size: 0.78rem; }
     .community-post { padding: 10px 12px; }

@@ -72,10 +72,6 @@ function showSection(sectionId) {
     // 懒初始化
     lazyInit(sectionId);
     updateLoginVisibility();
-    // 进入论坛时刷新移动端右上角头像入口（确保任何登录时机都显示）
-    if (sectionId === 'section-community' && typeof window._refreshMobileAvatar === 'function') {
-        setTimeout(window._refreshMobileAvatar, 100);
-    }
 }
 
 // ── 侧边栏悬停滑出 ──────────────────────────────────────
@@ -427,8 +423,6 @@ window._communityAuth = null; // {username, password}
         if (typeof window._onCommunityLogin === 'function') {
             window._onCommunityLogin(username, password);
         }
-        // 刷新论坛手机端头像
-        if (typeof window._refreshMobileAvatar === 'function') window._refreshMobileAvatar();
     }
 
     function setLoggedOut() {
@@ -441,7 +435,6 @@ window._communityAuth = null; // {username, password}
         if (typeof window._onCommunityLogout === 'function') {
             window._onCommunityLogout();
         }
-        if (typeof window._refreshMobileAvatar === 'function') window._refreshMobileAvatar();
     }
 
     function updateAvatar() {
