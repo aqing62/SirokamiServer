@@ -311,7 +311,8 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
             "type": type_val,
             "atk": atk,
             "def": def_,
-            "level": level or 0,
+            # level 为 CDB 原始值：灵摆/连接卡是位打包的（低8位为等级/链接标记），需取低8位
+        "level": (level or 0) & 0xFF,
             "race": race,
             "attribute": attr,
             "desc": desc,
