@@ -1221,45 +1221,154 @@ function initCommunityModule() {
         var overlay = document.createElement('div');
         overlay.className = 'community-modal-overlay active';
         overlay.style.zIndex = '100000';
-        overlay.innerHTML = '<div class="community-modal profile-modal" style="width:min(600px,95vw);">'
+        overlay.innerHTML =
+            '<div class="community-modal profile-modal profile-nav-modal" style="width:min(880px,95vw);">'
             + '<div class="community-modal-header">'
             + '<span class="community-modal-title">个人中心</span>'
             + '<button class="community-modal-close">&times;</button>'
             + '</div>'
-            + '<div class="community-modal-body" id="cmProfileBody">'
-            + '<div class="community-tabs profile-panel" style="margin-bottom:12px;">'
-            + '<button class="community-tab active" data-ptab="posts">我的发帖</button>'
-            + '<button class="community-tab" data-ptab="replies">我的回复</button>'
-            + '<button class="community-tab" data-ptab="liked">点赞过的</button>'
-            + '<button class="community-tab" data-ptab="duels">⚔ 对战记录</button>'
-            + '<button class="community-tab" data-ptab="settings" style="margin-left:auto;">⚙ 设置</button>'
-            + '</div><div id="cmProfileContent"></div>'
+            + '<div class="community-modal-body profile-nav-body">'
+            + '<div class="profile-nav">'
+            + '<button class="profile-nav-item active" data-psection="info">👤 个人信息</button>'
+            + '<button class="profile-nav-item" data-psection="forum">💬 论坛信息</button>'
+            + '<button class="profile-nav-item" data-psection="settings">⚙ 编辑设置</button>'
+            + '</div>'
+            + '<div id="cmProfileContent" class="profile-content"></div>'
             + '</div></div>';
         document.body.appendChild(overlay);
 
         var closeProfile = function () { overlay.remove(); };
         overlay.querySelector('.community-modal-close').addEventListener('click', closeProfile);
 
+        function showSection(name) {
+            overlay.querySelectorAll('.profile-nav-item').forEach(function (b) {
+                b.classList.toggle('active', b.getAttribute('data-psection') === name);
+            });
+            if (name === 'settings') {
+                openSettingsInModal(overlay);
+            } else if (name === 'forum') {
+                renderForumInfo(overlay);
+            } else {
+                renderProfileInfo(overlay);
+            }
+        }
 
-        loadProfileTab('posts');
-
-        overlay.querySelectorAll('[data-ptab]').forEach(function (btn) {
+        overlay.querySelectorAll('.profile-nav-item').forEach(function (btn) {
             btn.addEventListener('click', function () {
-                var tab = btn.getAttribute('data-ptab');
-                overlay.querySelectorAll('[data-ptab]').forEach(function (b) { b.classList.remove('active'); });
-                btn.classList.add('active');
-                if (tab === 'settings') {
-                    openSettingsInModal(overlay);
-                } else {
-                    loadProfileTabInModal(tab, overlay);
-                }
+                showSection(btn.getAttribute('data-psection'));
             });
         });
 
         // Esc 关闭
         var escClose = function (e) { if (e.key === 'Escape') { closeProfile(); document.removeEventListener('keydown', escClose); } };
         document.addEventListener('keydown', escClose);
+
+        // 默认：个人信息（头像 + 称号 + 对战记录）
+        renderProfileInfo(overlay);
     };
+
+    // ── 个人信息：头像+称号卡 + 对战记录 ─────────────
+    function renderProfileInfo(overlay) {
+        var container = overlay.querySelector('#cmProfileContent');
+        if (!container) return;
+        container.innerHTML = '<div class="community-loading">加载中...</div>';
+
+        var auth = window._communityAuth;
+        var username = auth ? auth.username : '';
+        api('/api/forum/profile?' + getAuth()).then(function (profile) {
+            var html = '<div class="profile-card">'
+                + '<img class="profile-card-avatar" src="' + (profile.avatarVersion
+                    ? '/api/forum/avatar/' + encodeURIComponent(username) + '?v=' + profile.avatarVersion
+                    : 'cover.jpg') + '" alt="头像">'
+                + '<div class="profile-card-info">'
+                + '<div class="profile-card-name">' + esc(profile.displayName || username) + '</div>'
+                + '<div class="profile-card-account">账号：' + esc(username) + '</div>'
+                + '<div class="profile-card-title" id="profileCardTitle"><span style="color:#888;font-size:12px;">加载称号中...</span></div>'
+                + '</div></div>'
+                + '<div class="profile-section-title">⚔ 对战记录（当前赛季）</div>'
+                + '<div id="profileDuelsBox"><div class="community-loading">加载对局中...</div></div>';
+            container.innerHTML = html;
+
+            // 称号（主+副）
+            authApi('/api/forum/profile/titles').then(function (td) {
+                var box = document.getElementById('profileCardTitle');
+                if (!box) return;
+                var parts = [];
+                if (td.selectedTitle) parts.push(td.selectedTitle);
+                if (td.selectedTitle2) parts.push(td.selectedTitle2);
+                if (!parts.length && td.titles && td.titles.length) parts.push(td.titles[td.titles.length - 1]);
+                box.innerHTML = parts.length
+                    ? parts.map(function (t) { return '<span class="profile-title-chip">' + esc(t) + '</span>'; }).join('')
+                    : '<span style="color:#888;font-size:12px;">暂无称号</span>';
+            }).catch(function () {
+                var box = document.getElementById('profileCardTitle');
+                if (box) box.innerHTML = '';
+            });
+
+            // 对战记录
+            authApi('/api/forum/profile/duels').then(function (data) {
+                var box = document.getElementById('profileDuelsBox');
+                if (box) renderDuels(data, box);
+            }).catch(function (e) {
+                var box = document.getElementById('profileDuelsBox');
+                if (box) box.innerHTML = '<div class="cp-empty">加载失败: ' + esc(e.message) + '</div>';
+            });
+        }).catch(function (e) {
+            container.innerHTML = '<div class="cp-empty">加载失败: ' + esc(e.message) + '</div>';
+        });
+    }
+
+    // ── 论坛信息：发帖/回复/点赞 子页签 ─────────────
+    function renderForumInfo(overlay) {
+        var container = overlay.querySelector('#cmProfileContent');
+        if (!container) return;
+        container.innerHTML =
+            '<div class="forum-sub-tabs">'
+            + '<button class="forum-sub-tab active" data-ftab="posts">我的发帖</button>'
+            + '<button class="forum-sub-tab" data-ftab="replies">我的回复</button>'
+            + '<button class="forum-sub-tab" data-ftab="liked">点赞过的</button>'
+            + '</div>'
+            + '<div id="forumSubContent"></div>';
+        var sub = container.querySelector('#forumSubContent');
+        renderForumList('posts', sub, overlay);
+        container.querySelectorAll('.forum-sub-tab').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+                container.querySelectorAll('.forum-sub-tab').forEach(function (b) { b.classList.remove('active'); });
+                btn.classList.add('active');
+                renderForumList(btn.getAttribute('data-ftab'), sub, overlay);
+            });
+        });
+    }
+
+    function renderForumList(tab, sub, overlay) {
+        sub.innerHTML = '<div class="community-loading">加载中...</div>';
+        var url = tab === 'posts' ? '/api/forum/my-posts'
+            : tab === 'replies' ? '/api/forum/my-replies'
+                : '/api/forum/liked-posts';
+        authApi(url).then(function (data) {
+            if (tab === 'replies') { renderMyReplies(data, sub); return; }
+            var list = data.posts || [];
+            if (!list.length) { sub.innerHTML = '<div class="cp-empty">暂无内容</div>'; return; }
+            sub.innerHTML = '<div class="community-feed">' + list.map(function (p) {
+                return '<div class="community-post" data-id="' + p.id + '">'
+                    + '<div class="cp-title">' + esc(p.title || p.postTitle || '') + '</div>'
+                    + '<div class="cp-meta">'
+                    + '<span>' + timeAgo(p.createTime) + '</span>'
+                    + '<span class="cp-section-tag">' + (SECTION_NAMES[p.section] || '') + '</span>'
+                    + '<span style="margin-left:auto;">❤ ' + (p.likeCount || 0) + ' 💬 ' + (p.replyCount || 0) + '</span>'
+                    + '</div></div>';
+            }).join('') + '</div>';
+            sub.querySelectorAll('.community-post').forEach(function (el) {
+                el.addEventListener('click', function () {
+                    var ov = sub.closest('.community-modal-overlay');
+                    if (ov) ov.remove();
+                    openDetail(parseInt(el.getAttribute('data-id')));
+                });
+            });
+        }).catch(function (e) {
+            sub.innerHTML = '<div class="cp-empty">加载失败: ' + esc(e.message) + '</div>';
+        });
+    }
 
     function loadProfileTabInModal(tab, overlay) {
         var container = overlay.querySelector('#cmProfileContent');
@@ -1417,11 +1526,40 @@ function initCommunityModule() {
             html += '<div id="cmTitleBox"><div class="community-loading">加载称号中...</div></div>';
             html += '<div style="color:#666;font-size:0.65rem;">赛季结算自动累积 · 可随时切换</div>';
             html += '<hr style="border-color:rgba(255,255,255,0.06);margin:16px 0;">';
+            html += '<label class="community-form-label">修改密码</label>';
+            html += '<input class="community-input" id="cmOldPwd" type="password" placeholder="当前密码">';
+            html += '<input class="community-input" id="cmNewPwd" type="password" placeholder="新密码（至少6位）">';
+            html += '<input class="community-input" id="cmNewPwd2" type="password" placeholder="确认新密码">';
+            html += '<button class="community-btn" id="cmPwdBtn" style="font-size:0.78rem;">修改密码</button>';
+            html += '<hr style="border-color:rgba(255,255,255,0.06);margin:16px 0;">';
             html += '<button style="display:block;width:100%;background:none;border:1px solid #ff6b6b;color:#ff6b6b;border-radius:4px;padding:8px;font-size:0.78rem;cursor:pointer;" id="cmLogoutBtn">退出登录</button>';
             html += '</div>';
             container.innerHTML = html;
 
             renderTitleSettings();
+
+            var pwdBtn = document.getElementById('cmPwdBtn');
+            if (pwdBtn) pwdBtn.addEventListener('click', function () {
+                var oldP = (document.getElementById('cmOldPwd').value || '').trim();
+                var np = document.getElementById('cmNewPwd').value || '';
+                var np2 = document.getElementById('cmNewPwd2').value || '';
+                if (!oldP) { alert('请输入当前密码'); return; }
+                if (np.length < 6) { alert('新密码至少 6 位'); return; }
+                if (np !== np2) { alert('两次输入的新密码不一致'); return; }
+                authApi('/api/forum/profile/password', { method: 'POST', body: { oldPassword: oldP, newPassword: np } })
+                    .then(function () {
+                        alert('密码已修改！请重新登录。');
+                        fetch('/api/forum/logout', { method: 'POST' }).then(function () {}).catch(function () {})
+                            .finally(function () {
+                                window._communityLoggedIn = false;
+                                window._communityUsername = '';
+                                window._communityAuth = null;
+                                overlay.remove();
+                                initShell();
+                            });
+                    })
+                    .catch(function (e) { alert('修改失败: ' + (e && e.message)); });
+            });
 
             var logoutBtn = document.getElementById('cmLogoutBtn');
             if (logoutBtn) logoutBtn.addEventListener('click', function () {
