@@ -1283,11 +1283,33 @@ function initCommunityModule() {
                 + '<div class="profile-card-info">'
                 + '<div class="profile-card-name">' + esc(profile.displayName || username) + '</div>'
                 + '<div class="profile-card-account">账号：' + esc(username) + '</div>'
+                + '<div class="profile-card-ladder" id="profileCardLadder">' + (window._profileLadderHtml || '') + '</div>'
                 + '<div class="profile-card-title" id="profileCardTitle"><span style="color:#888;font-size:12px;">加载称号中...</span></div>'
                 + '</div></div>'
                 + '<div class="profile-section-title">⚔ 对战记录（当前赛季）</div>'
                 + '<div id="profileDuelsBox"><div class="community-loading">加载对局中...</div></div>';
             container.innerHTML = html;
+
+            // 天梯排名与段位（当前赛季）
+            authApi('/api/forum/profile/ladder').then(function (ld) {
+                var box = document.getElementById('profileCardLadder');
+                if (!box) return;
+                var tier = (ld.tier || '').replace(/^S\d+\s+/, ''); // S2 钻石 → 钻石
+                var parts = [];
+                if (ld.rank != null && ld.rank > 0) {
+                    parts.push('天梯第 ' + ld.rank + ' 名');
+                } else if (ld.rating > 0) {
+                    parts.push('天梯未上榜');
+                }
+                if (tier) parts.push(tier);
+                if (ld.rating > 0) parts.push(ld.rating + '分');
+                if (parts.length) {
+                    window._profileLadderHtml = parts.join(' · ');
+                    box.innerHTML = esc(parts.join(' · '));
+                } else {
+                    box.innerHTML = '<span style="color:#888;font-size:12px;">暂无天梯数据</span>';
+                }
+            }).catch(function () {});
 
             // 称号（主+副）
             authApi('/api/forum/profile/titles').then(function (td) {
