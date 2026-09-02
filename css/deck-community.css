@@ -198,9 +198,14 @@
     font-weight: bold;
     font-size: 11px;
 }
+.duel-right {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
 .duel-replay {
     color: #ffd700;
-    margin-left: auto;
     cursor: pointer;
     font-size: 12px;
 }
