@@ -724,6 +724,11 @@ class VoteHandler(SimpleHTTPRequestHandler):
     # ── API GET ────────────────────────────────────────
 
     def _handle_api_get(self, path: str):
+        # 百鸽 ygocdb 代理（避免浏览器直连外部域名的网络/CORS问题）
+        if path.startswith("/api/ygocdb/"):
+            self._proxy_ygocdb(path)
+            return
+
         if path == "/api/images":
             imgs = []
             if IMG_DIR.is_dir():
@@ -1161,6 +1166,30 @@ class VoteHandler(SimpleHTTPRequestHandler):
             self._json_response(data)
         except Exception as e:
             logger.error(f"论坛 POST 代理失败 {path}: {e}")
+            self._json_response({"error": str(e)}, status=502)
+
+    def _proxy_ygocdb(self, path: str):
+        """代理百鸽 ygocdb API：/api/ygocdb/<rest> → https://ygocdb.com/api/v0/<rest>"""
+        rest = path[len("/api/ygocdb/"):]
+        url = "https://ygocdb.com/api/v0/" + rest
+        parts = self.path.split("?", 1)
+        if len(parts) > 1:
+            # 对查询串百分号编码（保留已编码的 % 与 & =），兼容 raw 中文
+            url += "?" + urllib.parse.quote(parts[1], safe="=&%")
+        try:
+            req = urllib.request.Request(url, headers={
+                "User-Agent": "Mozilla/5.0",
+                "Accept": "application/json",
+            })
+            with urllib.request.urlopen(req, timeout=20) as resp:
+                body = resp.read()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except Exception as e:
+            logger.error(f"ygocdb 代理失败 {url}: {e}")
             self._json_response({"error": str(e)}, status=502)
 
     def _json_response(self, obj, status: int = 200):

@@ -1097,8 +1097,8 @@ function initCommunityModule() {
             }).catch(function () { return []; });
         }
 
-        // 官方结果（百鸽 ygocdb，与 DIY 合并去重）
-        var officialPromise = fetch('https://ygocdb.com/api/v0/?search=' + encodeURIComponent(q))
+        // 官方结果（百鸽 ygocdb 同源代理，与 DIY 合并去重）
+        var officialPromise = fetch('/api/ygocdb/?search=' + encodeURIComponent(q))
             .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(function (data) { return data.result || []; })
             .catch(function () { return []; });

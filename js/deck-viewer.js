@@ -208,8 +208,8 @@
         if (_ygocdbCardCache[cardId] !== undefined) {
             return Promise.resolve(_ygocdbCardCache[cardId]);
         }
-        // 详情接口不返回卡名，改用搜索接口按密码查（返回 cn_name/sc_name + text）
-        return fetch('https://ygocdb.com/api/v0/?search=' + cardId)
+        // 详情接口不返回卡名，改用搜索接口按密码查（返回 cn_name/sc_name + text）；同源代理避免跨域
+        return fetch('/api/ygocdb/?search=' + cardId)
             .then(function (r) {
                 if (!r.ok) throw new Error('HTTP ' + r.status);
                 return r.json();

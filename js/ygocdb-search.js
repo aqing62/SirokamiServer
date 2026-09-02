@@ -7,7 +7,7 @@
 (function () {
     'use strict';
 
-    var YGOCDB_API = 'https://ygocdb.com/api/v0';
+    var YGOCDB_API = '/api/ygocdb'; // 同源代理（vote_server.py 转发百鸽 ygocdb）
     var OCG_PIC = 'https://cdn.233.momobako.com/ygopro/pics/';
     var FALLBACK_PIC = 'cover.jpg';
 
