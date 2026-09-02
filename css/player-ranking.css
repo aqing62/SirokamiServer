@@ -280,32 +280,6 @@
 .rank-table tbody tr[data-player]:hover {
     background: rgba(216, 30, 68, 0.06);
 }
-.rank-name-link {
-    color: #fff;
-    border-bottom: 1px dashed rgba(255, 255, 255, 0.35);
-    padding-bottom: 1px;
-    transition: color 0.15s, border-color 0.15s;
-}
-.rank-name-link:hover {
-    color: var(--light-gold, #F0E68C);
-    border-bottom-color: var(--gold, #D4AF37);
-}
-.rank-duels-btn {
-    background: none;
-    border: 1px solid rgba(216, 30, 68, 0.4);
-    color: #ddd;
-    font-size: 0.72rem;
-    border-radius: 4px;
-    padding: 1px 5px;
-    margin-left: 6px;
-    cursor: pointer;
-    vertical-align: middle;
-    transition: background 0.15s, color 0.15s;
-}
-.rank-duels-btn:hover {
-    background: rgba(216, 30, 68, 0.25);
-    color: #fff;
-}
 
 .rank-rating {
     color: var(--gold);

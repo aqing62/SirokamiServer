@@ -51,10 +51,7 @@
         return `
         <tr class="${isHighlight ? 'search-highlight' : ''}" data-player="${escapeHtml(p.name)}">
           <td class="rank-num">${i + 1}</td>
-          <td class="rank-name">
-            <span class="rank-name-link" title="点击查看对局记录">${escapeHtml(p.name)}</span>
-            <button class="rank-duels-btn" title="查看对局记录">📜</button>
-          </td>
+          <td class="rank-name">${escapeHtml(p.name)}</td>
           <td class="rank-rating">${p.rating}</td>
           <td class="rank-record">${p.wins}胜 ${p.losses}负 ${p.draws}平</td>
           <td class="rank-winrate">${p.winRate}</td>
