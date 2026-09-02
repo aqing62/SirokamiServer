@@ -1222,7 +1222,7 @@ function initCommunityModule() {
         overlay.className = 'community-modal-overlay active';
         overlay.style.zIndex = '100000';
         overlay.innerHTML =
-            '<div class="community-modal profile-modal profile-nav-modal" style="width:min(880px,95vw);">'
+            '<div class="community-modal profile-modal profile-nav-modal">'
             + '<div class="community-modal-header">'
             + '<span class="community-modal-title">个人中心</span>'
             + '<button class="community-modal-close">&times;</button>'

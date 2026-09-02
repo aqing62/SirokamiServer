@@ -352,10 +352,16 @@
 }
 
 /* ═══ 个人中心：左侧三板块布局 ═══ */
+/* 固定窗口比例（宽 900 / 高 640 左右），内部内容区滚动 */
+.profile-nav-modal {
+    width: min(900px, 94vw);
+    height: min(640px, 86vh);
+}
 .profile-nav-body {
     display: flex;
     padding: 0;
-    min-height: 460px;
+    min-height: 0;
+    overflow: hidden;
 }
 .profile-nav {
     width: 148px;
@@ -366,6 +372,7 @@
     padding: 14px 10px;
     border-right: 1px solid rgba(255, 255, 255, 0.07);
     background: rgba(255, 255, 255, 0.02);
+    overflow-y: auto;
 }
 .profile-nav-item {
     text-align: left;
@@ -389,6 +396,7 @@
 .profile-content {
     flex: 1;
     min-width: 0;
+    min-height: 0;
     padding: 16px 18px;
     overflow-y: auto;
     scrollbar-width: thin;
