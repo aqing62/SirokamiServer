@@ -1229,9 +1229,9 @@ function initCommunityModule() {
             + '</div>'
             + '<div class="community-modal-body profile-nav-body">'
             + '<div class="profile-nav">'
-            + '<button class="profile-nav-item active" data-psection="info">👤 个人信息</button>'
-            + '<button class="profile-nav-item" data-psection="forum">💬 论坛信息</button>'
-            + '<button class="profile-nav-item" data-psection="settings">⚙ 编辑设置</button>'
+            + '<button class="profile-nav-item active" data-psection="info">个人信息</button>'
+            + '<button class="profile-nav-item" data-psection="forum">论坛信息</button>'
+            + '<button class="profile-nav-item" data-psection="settings">编辑设置</button>'
             + '</div>'
             + '<div id="cmProfileContent" class="profile-content"></div>'
             + '</div></div>';
