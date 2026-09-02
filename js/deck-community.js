@@ -1520,6 +1520,7 @@ function initCommunityModule() {
                 + '<span class="duel-name">' + esc(d.selfName) + '</span>'
                 + '<span class="duel-vs">vs</span>'
                 + '<span class="duel-name">' + esc(d.opponentName) + '</span>'
+                + (d.ladder ? '<span class="duel-tag">天梯</span>' : '')
                 + '<span class="duel-replay" data-code="' + esc(d.replayCode) + '" title="点击复制回放码">' + esc(d.replayCode) + '</span>'
                 + '</div>';
         }).join('');
