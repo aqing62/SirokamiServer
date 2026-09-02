@@ -1702,7 +1702,13 @@ function initCommunityModule() {
             var t = new Date(d.time);
             var ts = (t.getMonth() + 1) + '/' + t.getDate() + ' ' +
                 String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+            var resultTag = d.draw
+                ? '<span class="duel-result duel-draw">平</span>'
+                : (d.win
+                    ? '<span class="duel-result duel-win">胜</span>'
+                    : '<span class="duel-result duel-lose">负</span>');
             return '<div class="duel-item">'
+                + resultTag
                 + '<span class="duel-time">' + ts + '</span>'
                 + '<span class="duel-room">' + esc(d.roomName) + '</span>'
                 + '<span class="duel-name">' + esc(d.selfName) + '</span>'

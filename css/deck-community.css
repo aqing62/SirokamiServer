@@ -221,6 +221,26 @@
     border-radius: 3px;
     line-height: 1.4;
 }
+.duel-result {
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 1.4;
+    padding: 1px 8px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+.duel-result.duel-win {
+    background: #ffd700; /* 金底 */
+    color: #000;
+}
+.duel-result.duel-lose {
+    background: #c0c0c0; /* 银底 */
+    color: #000;
+}
+.duel-result.duel-draw {
+    background: #666;
+    color: #fff;
+}
 
 /* 分页 */
 .community-pagination {
