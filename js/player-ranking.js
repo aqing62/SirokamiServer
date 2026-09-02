@@ -3,6 +3,7 @@
 
   const API_URL = 'https://api.ygopro3.cn/api/ladder';
   const DECKS_API_URL = 'https://api.ygopro3.cn/api/ladder/decks';
+  const DUELS_API_URL = 'https://api.ygopro3.cn/api/ladder/duels';
   const CARD_STATS_URL = 'https://api.ygopro3.cn/api/ladder/card-stats';
   const OCG_PIC_URL = 'https://cdn.233.momobako.com/ygopro/pics/';
   const SUPER_PRE_URL = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
@@ -48,9 +49,12 @@
         const isHighlight = highlightName && p.name === highlightName;
         const streakStr = p.streak > 1 ? ` 🔥${p.streak}连胜` : '';
         return `
-        <tr class="${isHighlight ? 'search-highlight' : ''}">
+        <tr class="${isHighlight ? 'search-highlight' : ''}" data-player="${escapeHtml(p.name)}">
           <td class="rank-num">${i + 1}</td>
-          <td class="rank-name">${escapeHtml(p.name)}</td>
+          <td class="rank-name">
+            <span class="rank-name-link" title="点击查看对局记录">${escapeHtml(p.name)}</span>
+            <button class="rank-duels-btn" title="查看对局记录">📜</button>
+          </td>
           <td class="rank-rating">${p.rating}</td>
           <td class="rank-record">${p.wins}胜 ${p.losses}负 ${p.draws}平</td>
           <td class="rank-winrate">${p.winRate}</td>
@@ -61,9 +65,20 @@
       })
       .join('');
 
+    // 查看对局记录：点玩家名 / 📜 / 行（避开卡组按钮）
+    tableBody.querySelectorAll('tr[data-player]').forEach(function (row) {
+      const openDuels = function (e) {
+        if (e.target.closest && e.target.closest('.deck-btn')) return;
+        const playerName = row.getAttribute('data-player');
+        fetchPlayerDuels(playerName);
+      };
+      row.addEventListener('click', openDuels);
+    });
+
     // Bind deck button events
     tableBody.querySelectorAll('.deck-btn').forEach(function (btn) {
-      btn.addEventListener('click', function () {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
         const playerName = btn.getAttribute('data-player');
         fetchPlayerDeck(playerName);
       });
@@ -248,6 +263,71 @@
       }, { passive: false });
       wrapper.addEventListener('touchend', hideTooltip);
     });
+  }
+
+  // ── 查看指定玩家的对局记录列表 ──
+  async function fetchPlayerDuels(playerName) {
+    deckModalTitle.textContent = '⚔ ' + playerName + ' 的对局记录';
+    deckModalBody.innerHTML = '<div class="deck-loading">加载中...</div>';
+    deckModalDl.style.display = 'none';
+    deckModalOverlay.classList.add('active');
+    document.body.style.overflow = 'hidden';
+
+    try {
+      const url = DUELS_API_URL + '?player=' + encodeURIComponent(playerName) + '&limit=50';
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+
+      const list = data.duels || [];
+      if (!list.length) {
+        deckModalBody.innerHTML = '<div class="deck-empty">该玩家暂无对局记录</div>';
+        return;
+      }
+
+      const rows = list.map(function (d) {
+        var t = new Date(d.time);
+        var ts = (t.getMonth() + 1) + '/' + t.getDate() + ' ' +
+          String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+        var resultTag = d.draw
+          ? '<span class="duel-result duel-draw">平</span>'
+          : (d.win
+            ? '<span class="duel-result duel-win">胜</span>'
+            : '<span class="duel-result duel-lose">负</span>');
+        return '<div class="duel-item">'
+          + resultTag
+          + '<span class="duel-time">' + ts + '</span>'
+          + '<span class="duel-room">' + escapeHtml(d.roomName || '') + '</span>'
+          + '<span class="duel-name">' + escapeHtml(d.opponentName || '') + '</span>'
+          + '<span class="duel-right">'
+          + (d.ladder ? '<span class="duel-tag">天梯</span>' : '')
+          + '<span class="duel-replay" data-code="' + escapeHtml(d.replayCode) + '" title="点击复制回放码">' + escapeHtml(d.replayCode) + '</span>'
+          + '</span>'
+          + '</div>';
+      }).join('');
+
+      deckModalBody.innerHTML =
+        '<div class="duel-list" style="gap:0;">'
+        + '<div style="color:#888;font-size:12px;padding:6px 2px 10px;">共 ' + list.length + ' 场 · 点击回放码复制</div>'
+        + rows
+        + '</div>';
+
+      // 复制回放码
+      deckModalBody.querySelectorAll('.duel-replay').forEach(function (el) {
+        el.addEventListener('click', function (e) {
+          e.stopPropagation();
+          var code = el.getAttribute('data-code') || '';
+          var done = function () { alert('已复制回放码: ' + code); };
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(code).then(done).catch(done);
+          } else {
+            done();
+          }
+        });
+      });
+    } catch (e) {
+      deckModalBody.innerHTML = '<div class="deck-empty">加载失败: ' + e.message + '</div>';
+    }
   }
 
   async function fetchPlayerDeck(playerName) {

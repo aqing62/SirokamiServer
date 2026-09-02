@@ -269,6 +269,42 @@
     text-align: left;
     color: #eee;
     font-weight: 600;
+    white-space: nowrap;
+}
+
+/* 玩家行可点击查看对局记录 */
+.rank-table tbody tr[data-player] {
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.rank-table tbody tr[data-player]:hover {
+    background: rgba(216, 30, 68, 0.06);
+}
+.rank-name-link {
+    color: #fff;
+    border-bottom: 1px dashed rgba(255, 255, 255, 0.35);
+    padding-bottom: 1px;
+    transition: color 0.15s, border-color 0.15s;
+}
+.rank-name-link:hover {
+    color: var(--light-gold, #F0E68C);
+    border-bottom-color: var(--gold, #D4AF37);
+}
+.rank-duels-btn {
+    background: none;
+    border: 1px solid rgba(216, 30, 68, 0.4);
+    color: #ddd;
+    font-size: 0.72rem;
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-left: 6px;
+    cursor: pointer;
+    vertical-align: middle;
+    transition: background 0.15s, color 0.15s;
+}
+.rank-duels-btn:hover {
+    background: rgba(216, 30, 68, 0.25);
+    color: #fff;
 }
 
 .rank-rating {
@@ -365,6 +401,79 @@
         font-size: 0.7rem;
         padding: 4px 8px;
     }
+}
+
+/* ── 对局记录列表（弹窗内）── */
+.duel-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+.duel-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    font-size: 13px;
+}
+.duel-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+.duel-time {
+    color: #888;
+    font-size: 11px;
+}
+.duel-room {
+    color: #ffd700;
+    font-weight: 600;
+}
+.duel-name {
+    color: #eee;
+}
+.duel-right {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.duel-replay {
+    color: #ffd700;
+    cursor: pointer;
+    font-size: 12px;
+}
+.duel-replay:hover {
+    text-decoration: underline;
+}
+.duel-tag {
+    background: #ffd700;
+    color: #000;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 1px 5px;
+    border-radius: 3px;
+    line-height: 1.4;
+}
+.duel-result {
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 1.4;
+    padding: 1px 8px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+.duel-result.duel-win {
+    background: #ffd700;
+    color: #000;
+}
+.duel-result.duel-lose {
+    background: #c0c0c0;
+    color: #000;
+}
+.duel-result.duel-draw {
+    background: #666;
+    color: #fff;
 }
 
 /* ── 查看卡组按钮 ── */
