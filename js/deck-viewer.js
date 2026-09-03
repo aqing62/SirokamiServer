@@ -95,7 +95,7 @@
 
     function loadScoreMap() {
         if (_scoreMap) return Promise.resolve(_scoreMap);
-        return fetch('/api/scores')
+        return fetch('/api/scores?t=' + Date.now())
             .then(function (resp) {
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 var limit = parseInt(resp.headers.get('X-GExt-Limit'), 10);

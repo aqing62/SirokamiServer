@@ -34,7 +34,7 @@ function initCommunityModule() {
 
     function loadCmScores() {
         if (_cmScoresCache) return Promise.resolve(_cmScoresCache);
-        return fetch('/api/scores').then(function (resp) {
+        return fetch('/api/scores?t=' + Date.now()).then(function (resp) {
             if (!resp.ok) throw new Error('HTTP ' + resp.status);
             var limit = parseInt(resp.headers.get('X-GExt-Limit'), 10);
             if (!isNaN(limit) && limit > 0) _cmScoreLimit = limit;

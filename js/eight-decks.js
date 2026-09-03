@@ -19,7 +19,7 @@ let _eightScoresPromise = null;
 
 function loadEightScores() {
     if (_eightScoresPromise) return _eightScoresPromise;
-    _eightScoresPromise = fetch('/api/scores')
+    _eightScoresPromise = fetch('/api/scores?t=' + Date.now())
         .then(async resp => {
             if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
             const limit = parseInt(resp.headers.get('X-GExt-Limit'), 10);

@@ -110,7 +110,7 @@
   async function loadScoreMap() {
     if (_lflistCache) return _lflistCache;
     try {
-      var resp = await fetch('/api/scores');
+      var resp = await fetch('/api/scores?t=' + Date.now());
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       var limit = parseInt(resp.headers.get('X-GExt-Limit'), 10);
       if (!isNaN(limit) && limit > 0) _lflistLimit = limit;
