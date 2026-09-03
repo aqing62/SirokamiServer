@@ -829,7 +829,10 @@ class VoteHandler(SimpleHTTPRequestHandler):
         elif path == "/api/scores":
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Cache-Control", "public, max-age=3600")
+            # 禁止缓存：宕机/异常期间的中间缓存可能存坏数据，导致前端拿到空分数表
+            self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+            self.send_header("Pragma", "no-cache")
+            self.send_header("Expires", "0")
             self.send_header("X-GExt-Limit", str(_scores_limit))
             self.send_header("Content-Length", len(_scores_json))
             self.end_headers()
