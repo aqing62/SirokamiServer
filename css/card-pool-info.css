@@ -627,11 +627,10 @@
 /* 左栏：详情 */
 .db-detail-panel { }
 .db-detail-body {
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
-  scrollbar-width: thin;
-  scrollbar-color: var(--red) transparent;
 }
 .db-detail-empty {
   color: #666;
@@ -639,17 +638,26 @@
   font-size: 0.9rem;
   padding: 30px 10px;
   line-height: 1.8;
+  flex: 1;
 }
+/* 头部信息（图/名/分/属性） */
+.db-detail-head {
+  flex-shrink: 0;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.db-detail-head::-webkit-scrollbar { display: none; }
 .db-detail-card {
   display: flex;
   justify-content: center;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 .db-detail-img {
-  width: 200px;
-  height: 290px;
+  width: 130px;
+  height: 188px;
   object-fit: cover;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid rgba(212, 175, 55, 0.3);
   box-shadow: 0 4px 18px rgba(0,0,0,0.5);
 }
@@ -681,11 +689,22 @@
   margin-bottom: 4px;
   flex-wrap: wrap;
 }
+/* 效果文本：独立滚动区（滑块在此栏内） */
+.db-detail-scroll {
+  flex: 1;
+  min-height: 40px;
+  overflow-y: auto;
+  margin-top: 8px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--red) transparent;
+}
+.db-detail-scroll::-webkit-scrollbar { width: 5px; }
+.db-detail-scroll::-webkit-scrollbar-track { background: transparent; }
+.db-detail-scroll::-webkit-scrollbar-thumb { background: var(--red); border-radius: 3px; }
 .db-detail-desc {
   color: #ccc;
   font-size: 0.85rem;
   line-height: 1.7;
-  margin-top: 8px;
   padding: 8px;
   background: rgba(0,0,0,0.35);
   border-radius: 6px;
@@ -696,9 +715,10 @@
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
   border-top: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
 }
 .db-detail-add {
   background: rgba(216, 30, 68, 0.8);

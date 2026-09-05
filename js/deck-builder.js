@@ -201,14 +201,18 @@
             : '<div class="db-detail-score" style="color:#999;">无分值（普通卡）</div>';
         var body = $('dbDetailBody');
         body.innerHTML =
-            '<div class="db-detail-card">'
+            '<div class="db-detail-head">'
+            + '<div class="db-detail-card">'
             + cardImgHtml(id, 'db-detail-img')
             + '</div>'
             + '<div class="db-detail-name">' + escapeHtml(name) + '</div>'
             + scHtml
             + typeHtml
             + detailRowsHtml
+            + '</div>'
+            + '<div class="db-detail-scroll">'
             + '<div class="db-detail-desc">' + (desc || '') + '</div>'
+            + '</div>'
             + '<div class="db-detail-actions">'
             + '<button class="db-detail-add" data-zone="main">加入主卡组</button>'
             + '<button class="db-detail-add" data-zone="extra">加入额外</button>'
@@ -458,13 +462,17 @@
             : '<div class="db-detail-score" style="color:#999;">无分值（普通卡）</div>';
         var body = $('dbDetailBody');
         body.innerHTML =
-            '<div class="db-detail-card">' + cardImgHtml(o.id, 'db-detail-img') + '</div>'
+            '<div class="db-detail-head">'
+            + '<div class="db-detail-card">' + cardImgHtml(o.id, 'db-detail-img') + '</div>'
             + '<div class="db-detail-name">' + escapeHtml(o.name) + '</div>'
             + scHtml
             + (o.fullType ? '<div class="db-detail-type">' + escapeHtml(o.fullType) + '</div>' : '')
             + (o.raceAttr ? '<div class="db-detail-rows"><span>' + escapeHtml(o.raceAttr) + '</span></div>' : '')
             + (o.atkDef ? '<div class="db-detail-rows"><span>' + escapeHtml(o.atkDef) + '</span></div>' : '')
+            + '</div>'
+            + '<div class="db-detail-scroll">'
             + '<div class="db-detail-desc">' + escapeHtml(o.desc || '暂无效果文本') + '</div>'
+            + '</div>'
             + '<div class="db-detail-actions">'
             + '<button class="db-detail-add" data-zone="main">加入主卡组</button>'
             + '<button class="db-detail-add" data-zone="extra">加入额外</button>'
@@ -574,26 +582,25 @@
         layout.style.display = on ? 'flex' : 'none';
         if (on) {
             document.body.style.overflow = 'hidden';
-            syncOfficialMode();
-            // 开启时预加载分数 + DIY 数据
+            // 组卡模式固定搜 DIY 总卡池：清空搜索词与筛选，重置为全部卡
+            officialMode = false;
+            searchQuery = '';
+            searchInputEl.value = '';
+            searchInputEl.placeholder = '搜索卡名 / ID / 效果...';
+            // 重置类型筛选 chips 到「全部」
+            var chips = document.querySelectorAll('#dbSearchFilterRow .db-filter-chip');
+            chips.forEach(function (c) {
+                c.classList.toggle('active', c.getAttribute('data-ft') === 'all');
+            });
+            // 开启时预加载分数 + DIY 全量数据
             loadScores().then(function () {
                 renderAll();
-                if (!officialMode) {
-                    loadDiyData().then(function () { doSearch(); });
-                }
+                loadDiyData().then(function () { doSearch(); });
             });
-            // 搜索框聚焦监听回车
-            searchInputEl.value = '';
-            searchInputEl.placeholder = officialMode
-                ? '搜索官方卡（回车查询，数据源 ygocdb）'
-                : '搜索卡名 / ID / 效果...';
-            // 同步官方模式数据：若官方模式已搜索过，直接展示
-            if (officialMode && officialResults.length) renderOfficialResults();
-            // 首次展示 DIY
-            if (!officialMode) {
-                gridTipEl.textContent = '加载 DIY 卡池中...';
-                gridEl.innerHTML = '<div class="db-grid-empty">加载中...</div>';
-            }
+            gridTipEl.textContent = '加载 DIY 卡池中...';
+            gridEl.innerHTML = '<div class="db-grid-empty">加载中...</div>';
+            $('dbDetailBody').innerHTML = '<div class="db-detail-empty">点击右侧卡片查看详情<br><br>点击下方按钮加入卡组</div>';
+            detailId = null;
         } else {
             document.body.style.overflow = '';
             disconnectGridLoad();
