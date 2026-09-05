@@ -7,7 +7,7 @@
     <link rel="icon" href="favicon.ico">
     <link rel="stylesheet" href="css/style.css?v=20260903a" id="css-style">
     <link rel="stylesheet" href="css/card-list.css" id="css-card-list" media="not all">
-    <link rel="stylesheet" href="css/card-pool-info.css?v=20260904e" id="css-card-pool" media="not all">
+    <link rel="stylesheet" href="css/card-pool-info.css?v=20260905a" id="css-card-pool" media="not all">
     <link rel="stylesheet" href="css/eight-decks.css?v=20260903a" id="css-eight-decks" media="not all">
     <link rel="stylesheet" href="css/xiaobairenshe.css" id="css-xiaobai" media="not all">
     <link rel="stylesheet" href="css/new-cards.css" id="css-new-cards" media="not all">
@@ -414,6 +414,43 @@
                         <input type="text" class="db-search-input" id="dbSearchInput"
                             placeholder="搜索卡名 / ID / 效果..." autocomplete="off">
                         <div class="db-search-filter-row" id="dbSearchFilterRow"></div>
+                        <div class="db-filter-toggle-row">
+                            <button class="db-filter-toggle" id="dbFilterToggle">⚙ 高级筛选 <span class="db-filter-count" id="dbFilterCount"></span></button>
+                        </div>
+                        <div class="db-adv-filters" id="dbAdvFilters">
+                            <div class="db-af-group">
+                                <div class="db-af-label">星级</div>
+                                <input type="number" class="db-af-input" id="dbFLevelMin" placeholder="最小" min="0" max="13">
+                                <span class="db-af-sep">~</span>
+                                <input type="number" class="db-af-input" id="dbFLevelMax" placeholder="最大" min="0" max="13">
+                            </div>
+                            <div class="db-af-group">
+                                <div class="db-af-label">攻击力</div>
+                                <input type="number" class="db-af-input" id="dbFAtkMin" placeholder="最小">
+                                <span class="db-af-sep">~</span>
+                                <input type="number" class="db-af-input" id="dbFAtkMax" placeholder="最大">
+                            </div>
+                            <div class="db-af-group">
+                                <div class="db-af-label">守备力</div>
+                                <input type="number" class="db-af-input" id="dbFDefMin" placeholder="最小">
+                                <span class="db-af-sep">~</span>
+                                <input type="number" class="db-af-input" id="dbFDefMax" placeholder="最大">
+                            </div>
+                            <div class="db-af-group">
+                                <div class="db-af-label">分值</div>
+                                <input type="number" class="db-af-input" id="dbFScoreMin" placeholder="最小">
+                                <span class="db-af-sep">~</span>
+                                <input type="number" class="db-af-input" id="dbFScoreMax" placeholder="最大">
+                            </div>
+                            <div class="db-af-group db-af-wide">
+                                <div class="db-af-label">属性</div>
+                                <div class="db-af-chips" id="dbFilterAttr"></div>
+                            </div>
+                            <div class="db-af-group db-af-wide">
+                                <div class="db-af-label">种族</div>
+                                <div class="db-af-chips" id="dbFilterRace"></div>
+                            </div>
+                        </div>
                     </div>
                     <div class="db-grid-wrap">
                         <div class="db-grid" id="dbGrid"></div>
@@ -730,7 +767,7 @@
     <script src="js/script.js?v=20260902b"></script>
     <script src="js/card-list.js?v=20260901a"></script>
     <script src="js/card-pool-info.js?v=20260903a"></script>
-    <script src="js/deck-builder.js?v=20260905a"></script>
+    <script src="js/deck-builder.js?v=20260905b"></script>
     <script src="js/eight-decks.js?v=20260903a"></script>
     <script src="js/player-ranking.js?v=20260903c"></script>
     <script src="js/live-duels.js?v=20260807b"></script>

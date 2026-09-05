@@ -964,3 +964,84 @@
   .db-detail-img { width: 120px; height: 174px; }
   #section-card-pool.builder-mode { padding: 8px !important; }
 }
+
+/* ═══ 组卡右侧 高级筛选 ═══ */
+.db-filter-toggle-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+.db-filter-toggle {
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.25);
+  color: #aaa;
+  font-size: 0.75rem;
+  border-radius: 10px;
+  padding: 3px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.db-filter-toggle:hover, .db-filter-toggle.active {
+  border-color: var(--gold);
+  color: #F0E68C;
+}
+.db-filter-count { color: var(--gold); }
+
+.db-adv-filters {
+  display: none;
+  margin-top: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px;
+}
+.db-af-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 7px;
+  flex-wrap: wrap;
+}
+.db-af-group.db-af-wide {
+  flex-direction: column;
+  align-items: flex-start;
+}
+.db-af-label {
+  color: #aaa;
+  font-size: 0.72rem;
+  min-width: 46px;
+  flex-shrink: 0;
+}
+.db-af-input {
+  width: 62px;
+  background: rgba(20, 20, 20, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #eee;
+  border-radius: 5px;
+  padding: 3px 6px;
+  font-size: 0.75rem;
+  outline: none;
+}
+.db-af-input:focus { border-color: var(--gold); }
+.db-af-sep { color: #666; font-size: 0.7rem; }
+.db-af-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.db-af-chip {
+  background: rgba(40, 40, 40, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ccc;
+  border-radius: 10px;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.db-af-chip.active {
+  background: rgba(216, 30, 68, 0.75);
+  color: #fff;
+  border-color: var(--red);
+}
+.db-af-chip:hover { border-color: var(--gold); }
