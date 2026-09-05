@@ -164,6 +164,140 @@
         return String(sc.score);
     }
 
+    // ── 卡组排序（降序：大怪在前）──
+    // 属性优先级：神 > 光 > 暗 > 地 > 水 > 风 > 炎
+    var ATTR_ORDER = ['神', '光', '暗', '地', '水', '风', '炎'];
+    var MONSTER_TYPE_ORDER = { '融合': 0, '同调': 1, '超量': 2, '连接': 3 };
+    var MAGIC_ORDER = { '通常': 0, '速攻': 1, '装备': 2, '仪式': 3, '永续': 4, '场地': 5 };
+    var TRAP_ORDER = { '通常': 0, '永续': 1, '反击': 2 };
+
+    function cardInfoForSort(id) {
+        if (diyIndex && diyIndex.get) return diyIndex.get(parseInt(id, 10)) || null;
+        return null;
+    }
+
+    // 主/副卡组排序比较（怪兽 > 魔法 > 陷阱）
+    function compareMainCard(a, b) {
+        var ca = cardInfoForSort(a), cb = cardInfoForSort(b);
+        var ta = ca && ca.typeInfo || {};
+        var tb = cb && cb.typeInfo || {};
+        var ga = groupOf(ta), gb = groupOf(tb);
+        if (ga !== gb) return ga - gb; // 怪兽0 魔法1 陷阱2
+        if (ga === 0) return compareMonster(ca, cb, ta, tb);
+        if (ga === 1) return compareMagic(ca, cb, ta, tb);
+        return compareTrap(ca, cb, ta, tb);
+    }
+
+    function groupOf(ti) {
+        if (ti.baseType === '怪兽') return 0;
+        if (ti.baseType === '魔法') return 1;
+        return 2; // 陷阱等
+    }
+
+    function hasTag(ti, tag) {
+        return (ti.subTypes || []).indexOf(tag) !== -1;
+    }
+
+    // 怪兽：类型序(仅限额外怪兽，普通怪-1) → 等级↓ → 攻↓ → 守↓ → 属性序
+    function compareMonster(ca, cb, ta, tb) {
+        var ma = extraTypeRank(ta), mb = extraTypeRank(tb);
+        if (ma !== mb) return mb - ma; // 融合/同调/超量/连接在前？主卡组通常无额外怪，此处兜底：普通怪兽统一排后
+        var la = ca.level || 0, lb = cb.level || 0;
+        if (la !== lb) return lb - la;
+        var aa = ca.atk < 0 ? -1 : (ca.atk || 0);
+        var ab = cb.atk < 0 ? -1 : (cb.atk || 0);
+        if (aa !== ab) return ab - aa;
+        var da = ca.def < 0 ? -1 : (ca.def || 0);
+        var db = cb.def < 0 ? -1 : (cb.def || 0);
+        if (da !== db) return db - da;
+        return attrRank(ca.attrName) - attrRank(cb.attrName);
+    }
+
+    // 额外怪兽在主卡组不应出现，这里给个极低优先级，让普通怪兽先排
+    function extraTypeRank(ti) {
+        var m = MONSTER_TYPE_ORDER[ti.monsterCategory || ''];
+        if (m !== undefined) return -10 - m; // 融合/同调等主卡组少见，排最后
+        return 0;
+    }
+
+    // 魔法：通常→速攻→装备→仪式→永续→场地（类型相同按 id 稳定即可）
+    function compareMagic(ca, cb, ta, tb) {
+        var ma = magicRank(ta), mb = magicRank(tb);
+        return ma - mb;
+    }
+
+    function magicRank(ti) {
+        for (var i = 0; i < (ti.subTypes || []).length; i++) {
+            var t = ti.subTypes[i];
+            if (t in MAGIC_ORDER) return MAGIC_ORDER[t];
+        }
+        return 99;
+    }
+
+    // 陷阱：通常→永续→反击
+    function compareTrap(ca, cb, ta, tb) {
+        return trapRank(ta) - trapRank(tb);
+    }
+
+    function trapRank(ti) {
+        for (var i = 0; i < (ti.subTypes || []).length; i++) {
+            var t = ti.subTypes[i];
+            if (t in TRAP_ORDER) return TRAP_ORDER[t];
+        }
+        return 99;
+    }
+
+    function attrRank(name) {
+        var idx = ATTR_ORDER.indexOf(name || '');
+        return idx === -1 ? 99 : idx;
+    }
+
+    // 额外卡组排序：融合→同调→超量→连接，组内 等级↓→攻↓→守↓
+    function compareExtraCard(a, b) {
+        var ca = cardInfoForSort(a), cb = cardInfoForSort(b);
+        var ta = ca && ca.typeInfo || {}, tb = cb && cb.typeInfo || {};
+        var ma = extraKind(ta), mb = extraKind(tb);
+        if (ma !== mb) return ma - mb;
+        return compareMonsterInner(ca, cb);
+    }
+
+    function extraKind(ti) {
+        var cat = ti.monsterCategory || '';
+        if (cat === '融合怪兽') return 0;
+        if (cat === '同调怪兽') return 1;
+        if (cat === '超量怪兽') return 2;
+        if (cat === '连接怪兽') return 3;
+        // 兜底按 subTypes
+        var subs = ti.subTypes || [];
+        if (subs.indexOf('融合') !== -1) return 0;
+        if (subs.indexOf('同调') !== -1) return 1;
+        if (subs.indexOf('超量') !== -1) return 2;
+        if (subs.indexOf('连接') !== -1) return 3;
+        return 4;
+    }
+
+    function compareMonsterInner(ca, cb) {
+        var la = ca.level || 0, lb = cb.level || 0;
+        if (la !== lb) return lb - la;
+        var aa = ca.atk < 0 ? -1 : (ca.atk || 0);
+        var ab = cb.atk < 0 ? -1 : (cb.atk || 0);
+        if (aa !== ab) return ab - aa;
+        var da = ca.def < 0 ? -1 : (ca.def || 0);
+        var db = cb.def < 0 ? -1 : (cb.def || 0);
+        if (da !== db) return db - da;
+        return attrRank(ca.attrName) - attrRank(cb.attrName);
+    }
+
+    function sortDeck() {
+        ['main', 'side'].forEach(function (k) {
+            zones[k].list.sort(compareMainCard);
+        });
+        zones.extra.list.sort(compareExtraCard);
+        renderAll();
+        refreshScore();
+        toast('卡组已排序（降序）');
+    }
+
     // ── 加减卡 ──
     function addCard(zoneKey, id) {
         var res = checkAdd(zoneKey, id);
@@ -743,6 +877,7 @@
         gridEl.addEventListener('click', onGridClick);
 
         // 中栏按钮
+        $('dbSort').addEventListener('click', sortDeck);
         $('dbImport').addEventListener('click', importDeck);
         $('dbCopy').addEventListener('click', copyDeckCode);
         $('dbDownload').addEventListener('click', downloadYdk);
