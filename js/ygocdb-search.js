@@ -58,6 +58,7 @@
                     var name = f ? f.name : transName(c);
                     var el = document.createElement('div');
                     el.className = 'card-item';
+                    el.setAttribute('data-card-id', c.id);
                     el.innerHTML =
                         '<div class="card-image-wrapper">'
                         + '<img class="card-image" src="' + OCG_PIC + c.id + '.jpg" alt="' + escapeHtml(name) + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + FALLBACK_PIC + '\';">'

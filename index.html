@@ -7,7 +7,7 @@
     <link rel="icon" href="favicon.ico">
     <link rel="stylesheet" href="css/style.css?v=20260903a" id="css-style">
     <link rel="stylesheet" href="css/card-list.css" id="css-card-list" media="not all">
-    <link rel="stylesheet" href="css/card-pool-info.css" id="css-card-pool" media="not all">
+    <link rel="stylesheet" href="css/card-pool-info.css?v=20260903a" id="css-card-pool" media="not all">
     <link rel="stylesheet" href="css/eight-decks.css?v=20260903a" id="css-eight-decks" media="not all">
     <link rel="stylesheet" href="css/xiaobairenshe.css" id="css-xiaobai" media="not all">
     <link rel="stylesheet" href="css/new-cards.css" id="css-new-cards" media="not all">
@@ -358,6 +358,33 @@
         <div class="pool-mode-switch">
             <button class="pool-mode-btn active" id="poolModeDiy">🎴 DIY 卡池</button>
             <button class="pool-mode-btn" id="poolModeYgo">🔍 官方卡查询</button>
+            <button class="pool-mode-btn deck-builder-toggle" id="deckBuilderToggle" title="点击卡片加入卡组，可导出 ydk">🛠 组卡模式</button>
+        </div>
+
+        <!-- 组卡模式：卡组编辑面板 -->
+        <div class="deck-builder-panel" id="deckBuilderPanel" style="display:none;">
+            <div class="db-header">
+                <div class="db-title">🛠 组卡模式</div>
+                <div class="db-sub">点击下方卡片加入卡组 · 智能按卡类型分入 主/额外/副</div>
+                <div class="db-actions">
+                    <span class="db-score" id="dbScore">总分：0/100</span>
+                    <button class="db-btn" id="dbCopy">📋 复制卡组码</button>
+                    <button class="db-btn" id="dbDownload">⬇ 下载 .ydk</button>
+                    <button class="db-btn db-danger" id="dbClear">🗑 清空</button>
+                </div>
+            </div>
+            <div class="db-section" id="dbMain">
+                <div class="db-section-title">主卡组 <span class="db-count" id="dbMainCount">0</span>/60</div>
+                <div class="db-cards" id="dbMainCards"></div>
+            </div>
+            <div class="db-section" id="dbExtra">
+                <div class="db-section-title">额外卡组 <span class="db-count" id="dbExtraCount">0</span>/15</div>
+                <div class="db-cards" id="dbExtraCards"></div>
+            </div>
+            <div class="db-section" id="dbSide">
+                <div class="db-section-title">副卡组 <span class="db-count" id="dbSideCount">0</span>/15</div>
+                <div class="db-cards" id="dbSideCards"></div>
+            </div>
         </div>
 
         <!-- 官方卡译名选择（仅官方模式显示） -->
@@ -666,7 +693,8 @@
          ═══════════════════════════════════════════════════════ -->
     <script src="js/script.js?v=20260902b"></script>
     <script src="js/card-list.js?v=20260901a"></script>
-    <script src="js/card-pool-info.js?v=20260807b"></script>
+    <script src="js/card-pool-info.js?v=20260903a"></script>
+    <script src="js/deck-builder.js?v=20260903a"></script>
     <script src="js/eight-decks.js?v=20260903a"></script>
     <script src="js/player-ranking.js?v=20260903c"></script>
     <script src="js/live-duels.js?v=20260807b"></script>

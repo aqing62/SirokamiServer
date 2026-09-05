@@ -524,3 +524,199 @@
     display: flex;
   }
 }
+
+/* ═══════════════════════════════════════════════
+   组卡模式 (deck-builder)
+   ═══════════════════════════════════════════════ */
+.deck-builder-toggle.active {
+  background: var(--red) !important;
+  color: #fff !important;
+  border-color: var(--gold) !important;
+  box-shadow: 0 0 10px rgba(216, 30, 68, 0.6);
+}
+
+/* 组卡模式下卡片可点击提示 */
+body.deck-builder-on .card-item {
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+body.deck-builder-on .card-item:hover {
+  border-color: var(--gold);
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.35);
+  transform: translateY(-2px);
+}
+
+/* 卡组编辑面板 */
+.deck-builder-panel {
+  background: linear-gradient(160deg, rgba(30, 30, 30, 0.92), rgba(18, 18, 18, 0.95));
+  border: 1px solid rgba(216, 30, 68, 0.45);
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+}
+.db-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.db-title {
+  color: var(--light-gold, #F0E68C);
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.db-sub {
+  color: #888;
+  font-size: 0.78rem;
+  flex: 1;
+  min-width: 150px;
+}
+.db-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.db-score {
+  color: #F0E68C;
+  font-size: 0.95rem;
+  padding: 4px 12px;
+  border: 1px solid rgba(212, 175, 55, 0.4);
+  border-radius: 6px;
+  background: rgba(212, 175, 55, 0.08);
+}
+.db-btn {
+  background: rgba(216, 30, 68, 0.75);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.db-btn:hover { background: rgba(216, 30, 68, 1); }
+.db-btn.db-danger {
+  background: rgba(60, 60, 60, 0.9);
+}
+.db-btn.db-danger:hover { background: rgba(180, 40, 40, 0.9); }
+
+.db-section {
+  margin-bottom: 10px;
+}
+.db-section-title {
+  color: var(--gold, #D4AF37);
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.db-count { color: #fff; }
+.db-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 44px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 6px;
+}
+.db-zone-empty {
+  color: #555;
+  font-size: 0.8rem;
+  align-self: center;
+  padding: 6px;
+}
+.db-card-slot {
+  position: relative;
+  width: 58px;
+  height: 82px;
+  cursor: pointer;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  transition: transform 0.15s, border-color 0.15s;
+}
+.db-card-slot:hover {
+  transform: scale(1.08);
+  border-color: var(--red);
+  z-index: 3;
+}
+.db-card-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.db-remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: rgba(216, 30, 68, 0.9);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 0 0 0 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.db-card-slot:hover .db-remove { opacity: 1; }
+
+/* 加入位置小菜单 */
+.db-zone-menu {
+  position: fixed;
+  z-index: 100010;
+  background: rgba(24, 24, 24, 0.98);
+  border: 1px solid rgba(216, 30, 68, 0.55);
+  border-radius: 10px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 120px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+  animation: dbMenuIn 0.12s ease;
+}
+@keyframes dbMenuIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.db-zone-menu-title {
+  color: #aaa;
+  font-size: 0.72rem;
+  padding: 2px 6px;
+}
+.db-zone-opt {
+  background: none;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #eee;
+  border-radius: 6px;
+  padding: 7px 10px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, border-color 0.15s;
+}
+.db-zone-opt:hover {
+  background: rgba(216, 30, 68, 0.2);
+  border-color: var(--red);
+}
+.db-zone-opt.db-zone-cancel {
+  color: #888;
+  border-color: transparent;
+}
+.db-zone-opt.db-zone-cancel:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: transparent;
+}
+
+/* 移动端适配 */
+@media (max-width: 768px) {
+  .deck-builder-panel { padding: 10px; }
+  .db-header { gap: 8px; }
+  .db-actions { width: 100%; justify-content: flex-start; }
+  .db-card-slot { width: 50px; height: 72px; }
+}
