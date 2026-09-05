@@ -198,10 +198,10 @@
         return (ti.subTypes || []).indexOf(tag) !== -1;
     }
 
-    // 怪兽：类型序(仅限额外怪兽，普通怪-1) → 等级↓ → 攻↓ → 守↓ → 属性序
+    // 怪兽：类型序(额外怪兽沉底) → 等级↓ → 攻↓ → 守↓ → 属性序
     function compareMonster(ca, cb, ta, tb) {
         var ma = extraTypeRank(ta), mb = extraTypeRank(tb);
-        if (ma !== mb) return mb - ma; // 融合/同调/超量/连接在前？主卡组通常无额外怪，此处兜底：普通怪兽统一排后
+        if (ma !== mb) return ma - mb; // 普通怪兽(0)在前，额外怪兽(>0)沉底
         var la = ca.level || 0, lb = cb.level || 0;
         if (la !== lb) return lb - la;
         var aa = ca.atk < 0 ? -1 : (ca.atk || 0);
@@ -213,11 +213,14 @@
         return attrRank(ca.attrName) - attrRank(cb.attrName);
     }
 
-    // 额外怪兽在主卡组不应出现，这里给个极低优先级，让普通怪兽先排
+    // 额外怪兽(融合/同调/超量/连接)排普通怪兽之后；普通怪兽返回 0
     function extraTypeRank(ti) {
-        var m = MONSTER_TYPE_ORDER[ti.monsterCategory || ''];
-        if (m !== undefined) return -10 - m; // 融合/同调等主卡组少见，排最后
-        return 0;
+        var cat = ti.monsterCategory || '';
+        var subs = ti.subTypes || [];
+        var isExtra = (cat === '融合怪兽' || cat === '同调怪兽' || cat === '超量怪兽' || cat === '连接怪兽')
+            || subs.indexOf('融合') !== -1 || subs.indexOf('同调') !== -1
+            || subs.indexOf('超量') !== -1 || subs.indexOf('连接') !== -1;
+        return isExtra ? 1 : 0;
     }
 
     // 魔法：通常→速攻→装备→仪式→永续→场地（类型相同按 id 稳定即可）
