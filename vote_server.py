@@ -345,13 +345,23 @@ _tournament_cache_time: float = 0
 
 
 def refresh_cards_cache():
-    """重新从 CDB 加载卡牌数据并更新缓存。"""
+    """重新从 CDB 加载卡牌数据并更新缓存（DIY + 官方 OCG 合并为总卡池）。"""
     global _cards_cache, _cards_json, _cards_json_gz, _cards_etag
-    _cards_cache = load_cards_from_cdb(CDB_FILE)
+    diy_cards = load_cards_from_cdb(CDB_FILE)
+    ocg_cards = load_cards_from_cdb(ROOT / "cards_ocg.cdb")
+    # 合并：以 id 去重，DIY 优先（两者 id 实际不重叠，兜底保护）
+    seen: set = set()
+    merged: list = []
+    for c in diy_cards + ocg_cards:
+        if c["id"] in seen:
+            continue
+        seen.add(c["id"])
+        merged.append(c)
+    _cards_cache = merged
     _cards_json = json.dumps(_cards_cache, ensure_ascii=False).encode("utf-8")
     _cards_json_gz = gzip.compress(_cards_json, compresslevel=6)
     _cards_etag = f'"{hashlib.md5(_cards_json).hexdigest()}"'
-    logger.info(f"卡牌缓存已刷新: {len(_cards_cache)} 张, {len(_cards_json) / 1024:.0f} KB JSON → {len(_cards_json_gz) / 1024:.0f} KB gzip")
+    logger.info(f"卡牌缓存已刷新: DIY {len(diy_cards)} + OCG {len(ocg_cards)} = {len(merged)} 张, {len(_cards_json) / 1024:.0f} KB JSON → {len(_cards_json_gz) / 1024:.0f} KB gzip")
 
 
 def refresh_scores_cache():
