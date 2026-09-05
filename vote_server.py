@@ -349,6 +349,11 @@ def refresh_cards_cache():
     global _cards_cache, _cards_json, _cards_json_gz, _cards_etag
     diy_cards = load_cards_from_cdb(CDB_FILE)
     ocg_cards = load_cards_from_cdb(ROOT / "cards_ocg.cdb")
+    # 来源标记：diy / ocg（前端统计可区分）
+    for c in diy_cards:
+        c["source"] = "diy"
+    for c in ocg_cards:
+        c["source"] = "ocg"
     # 合并：以 id 去重，DIY 优先（两者 id 实际不重叠，兜底保护）
     seen: set = set()
     merged: list = []

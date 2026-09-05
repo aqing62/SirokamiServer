@@ -331,8 +331,15 @@ function matchRange(cardVal, minInput, maxInput) {
 }
 
 // ── 筛选 & 分页 ─────────────────────────────────────────
+// 卡池信息页（DIY tab）基于 DIY 卡池（不含合并进来的 OCG 官方卡）
+function poolBaseCards() {
+    if (window._diyOnlyCards && window._diyOnlyCards.length) return window._diyOnlyCards;
+    // 兼容：无 source 标记时全部视为 DIY
+    return allCards.filter(c => c.source === 'diy' || c.source == null);
+}
+
 function getFilteredCards() {
-    let filtered = allCards;  // allCards 已经是预解析后的数组
+    let filtered = poolBaseCards();  // 仅 DIY
     const keyword = searchInput.value.toLowerCase().trim();
     const isTokenSelected = selectedTypeMasks.has(TOKEN_MASK);
 
@@ -367,8 +374,21 @@ function getFilteredCards() {
     const start = (currentPage - 1) * PAGE_SIZE;
     return {
         total: sortedCards.length,
+        full: sortedCards, // 筛选后全量（供统计）
         paginated: sortedCards.slice(start, start + PAGE_SIZE),
     };
+}
+
+// 更新顶部统计：显示当前搜索结果数（无筛选时即 DIY 总量）
+function updateStats(list) {
+    if (!list) return;
+    document.getElementById('total').textContent = list.length;
+    document.getElementById('monster').textContent =
+        list.filter(c => (c.typeInfo && c.typeInfo.baseType) === '怪兽').length;
+    document.getElementById('totalSpell').textContent =
+        list.filter(c => (c.typeInfo && c.typeInfo.baseType) === '魔法').length;
+    document.getElementById('totalTrap').textContent =
+        list.filter(c => (c.typeInfo && c.typeInfo.baseType) === '陷阱').length;
 }
 
 // ── 分页控件 ────────────────────────────────────────────
@@ -431,7 +451,9 @@ function renderCards() {
 
     container.style.opacity = 0;
 
-    const { total: filteredTotal, paginated: filteredCards } = getFilteredCards();
+    const { total: filteredTotal, full: filteredFull, paginated: filteredCards } = getFilteredCards();
+    // 统计实时反映当前筛选/搜索结果
+    updateStats(filteredFull || []);
     container.innerHTML = '';
 
     if (filteredTotal === 0) {
@@ -507,13 +529,10 @@ function initCardPoolModule() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         allCards = await res.json();
 
-        document.getElementById('total').textContent = allCards.length;
-        document.getElementById('monster').textContent =
-            allCards.filter(c => c.typeInfo.baseType === "怪兽").length;
-        document.getElementById('totalSpell').textContent =
-            allCards.filter(c => c.typeInfo.baseType === "魔法").length;
-        document.getElementById('totalTrap').textContent =
-            allCards.filter(c => c.typeInfo.baseType === "陷阱").length;
+        // 统计仅针对 DIY 卡（source === 'diy'；合并池含 OCG 官方卡）
+        const diyOnly = allCards.filter(c => c.source === 'diy' || c.source == null);
+        window._diyOnlyCards = diyOnly;
+        updateStats(diyOnly);
 
         document.getElementById('stats').style.display = 'flex';
         document.querySelector('.search-filter-container').style.display = 'flex';
