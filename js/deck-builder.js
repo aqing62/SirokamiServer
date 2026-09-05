@@ -595,26 +595,31 @@
     function matchFilter(card) {
         var ti = card.typeInfo || {};
         var subs = ti.subTypes || [];
-        // ── 大类型（单选）──
-        if (selBase && ti.baseType !== selBase) return false;
-        // ── 细分标签（多选 OR，仅对对应大类型生效）──
-        if (ti.baseType === '怪兽') {
-            var mKeys = Object.keys(selMSub);
-            if (mKeys.length) {
-                var hitM = false;
-                for (var mi = 0; mi < mKeys.length; mi++) {
-                    // 通常怪兽等按 subTypes 匹配
-                    if (subs.indexOf(mKeys[mi]) !== -1) { hitM = true; break; }
-                }
-                if (!hitM) return false;
+        var base = ti.baseType; // 怪兽/魔法/陷阱
+        var mKeys = Object.keys(selMSub);
+        var sKeys = Object.keys(selSSub);
+        var tKeys = Object.keys(selTSub);
+
+        // 大类型限定集合：显式 selBase + 细分隐式所属类型
+        var baseWanted = {};
+        if (selBase) baseWanted[selBase] = 1;
+        if (mKeys.length) baseWanted['怪兽'] = 1;
+        if (sKeys.length) baseWanted['魔法'] = 1;
+        if (tKeys.length) baseWanted['陷阱'] = 1;
+        var baseList = Object.keys(baseWanted);
+        // 卡不在任何限定大类型中 → 排除（无论显式或细分触发）
+        if (baseList.length && baseList.indexOf(base) === -1) return false;
+
+        // 细分标签匹配（只对同 base 生效；base 未命中已在上面排除）
+        function hitAny(tags) {
+            for (var i = 0; i < tags.length; i++) {
+                if (subs.indexOf(tags[i]) !== -1) return true;
             }
-        } else if (ti.baseType === '魔法') {
-            var sKeys = Object.keys(selSSub);
-            if (sKeys.length && !matchSubTags(card, selSSub)) return false;
-        } else if (ti.baseType === '陷阱') {
-            var tKeys = Object.keys(selTSub);
-            if (tKeys.length && !matchSubTags(card, selTSub)) return false;
+            return false;
         }
+        if (base === '怪兽' && mKeys.length && !hitAny(mKeys)) return false;
+        if (base === '魔法' && sKeys.length && !hitAny(sKeys)) return false;
+        if (base === '陷阱' && tKeys.length && !hitAny(tKeys)) return false;
         // 属性
         var attrKeys = Object.keys(selAttrs);
         if (attrKeys.length && (attrKeys.indexOf(card.attrName || '') === -1)) return false;
@@ -622,7 +627,7 @@
         var raceKeys = Object.keys(selRaces);
         if (raceKeys.length && (raceKeys.indexOf(card.raceName || '') === -1)) return false;
         // 等级/攻/守范围（仅怪兽）
-        if (ti.baseType === '怪兽') {
+        if (base === '怪兽') {
             var lv = card.level || 0;
             var loLv = numOf('dbFLevelMin'), hiLv = numOf('dbFLevelMax');
             if (loLv != null && lv < loLv) return false;
