@@ -1,4 +1,4 @@
-﻿:root {
+:root {
   --red: #D81E44;
   --gold: #D4AF37;
   --light-gold: #F0E68C;
@@ -603,8 +603,8 @@
   flex-direction: column;
 }
 .db-col-left { flex: 0 0 300px; }
-.db-col-mid { flex: 0 0 340px; }
-.db-col-right { flex: 1 1 auto; min-width: 0; }
+.db-col-mid { flex: 1.35 1 0; min-width: 380px; }
+.db-col-right { flex: 1 1 0; min-width: 320px; max-width: 470px; }
 
 .db-panel {
   background: linear-gradient(160deg, rgba(30,30,30,0.93), rgba(15,15,15,0.96));

@@ -43,7 +43,6 @@
     // 右栏搜索状态
     var searchQuery = '';
     var PAGE = 60;
-    var searchPage = 1;
 
     var gridEl = document.getElementById('dbGrid');
     var gridTipEl = document.getElementById('dbGridTip');
@@ -272,7 +271,6 @@
             b.addEventListener('click', function () {
                 row.querySelectorAll('.db-filter-chip').forEach(function (x) { x.classList.remove('active'); });
                 b.classList.add('active');
-                searchPage = 1;
                 doSearch();
             });
         });
@@ -316,36 +314,81 @@
         return list;
     }
 
-    function renderGridPage(list, page) {
-        var start = (page - 1) * PAGE;
-        var slice = list.slice(start, start + PAGE);
-        if (!slice.length && page === 1) {
+    // ── 右栏网格：滚动懒加载（一批 PAGE 张，滚近底部加载下一批）──
+    var gridList = [];       // 当前完整结果集
+    var gridLoaded = 0;      // 已渲染张数
+    var gridLoading = false; // 防重入
+    var gridScrollHandler = null;
+
+    function cellHtml(c) {
+        var sc = cardScoreOf(c.id);
+        var badge = sc
+            ? (sc.forbidden
+                ? '<span class="db-badge db-badge-fb">🚫</span>'
+                : '<span class="db-badge">' + sc.score + '</span>')
+            : '';
+        return '<div class="db-cell" data-id="' + c.id + '">'
+            + '<div class="db-cell-imgwrap">' + cardImgHtml(c.id, 'db-cell-img') + '</div>'
+            + badge + '</div>';
+    }
+
+    function renderNextBatch() {
+        if (gridLoading) return;
+        if (gridLoaded >= gridList.length) return;
+        gridLoading = true;
+        var slice = gridList.slice(gridLoaded, gridLoaded + PAGE);
+        gridLoaded += slice.length;
+        var frag = document.createDocumentFragment();
+        var tmp = document.createElement('div');
+        tmp.innerHTML = slice.map(cellHtml).join('');
+        while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+        gridEl.appendChild(frag);
+        gridLoading = false;
+    }
+
+    function resetGrid(list) {
+        disconnectGridLoad();
+        gridList = list || [];
+        gridLoaded = 0;
+        gridEl.innerHTML = '';
+        if (!gridList.length) {
             gridEl.innerHTML = '<div class="db-grid-empty">无匹配卡片</div>';
             return;
         }
-        var html = slice.map(function (c) {
-            var sc = cardScoreOf(c.id);
-            var badge = sc
-                ? (sc.forbidden
-                    ? '<span class="db-badge db-badge-fb">🚫</span>'
-                    : '<span class="db-badge">' + sc.score + '</span>')
-                : '';
-            return '<div class="db-cell" data-id="' + c.id + '">'
-                + '<div class="db-cell-imgwrap">' + cardImgHtml(c.id, 'db-cell-img') + '</div>'
-                + badge
-                + '</div>';
-        }).join('');
-        var loader = gridEl.querySelector('.db-more');
-        if (loader) loader.remove();
-        if (gridEl.querySelector('.db-scroll-sentinel')) {
-            // 保留 sentinel，避免重复创建
-        } else {
-            html += '<div class="db-scroll-sentinel"></div>';
+        renderNextBatch();
+        // 内容不足以填满视口时继续加载
+        fillGridIfNotFull();
+        attachGridLoad();
+    }
+
+    function fillGridIfNotFull() {
+        // 滚动容器高度有限时一次补足可滚动区域
+        var wrap = gridEl.closest('.db-grid-wrap');
+        if (!wrap) return;
+        var guard = 0;
+        while (guard++ < 60 && gridLoaded < gridList.length
+            && wrap.scrollHeight <= wrap.clientHeight + 20) {
+            renderNextBatch();
         }
-        if (page === 1) {
-            gridEl.innerHTML = html;
-        } else {
-            gridEl.innerHTML = gridEl.innerHTML.replace('<div class="db-scroll-sentinel"></div>', '') + html;
+    }
+
+    function attachGridLoad() {
+        var wrap = gridEl.closest('.db-grid-wrap');
+        if (!wrap) return;
+        gridScrollHandler = function () {
+            // 距底不足 400px 时加载下一批
+            if (wrap.scrollTop + wrap.clientHeight >= wrap.scrollHeight - 400) {
+                renderNextBatch();
+            }
+        };
+        wrap.addEventListener('scroll', gridScrollHandler, { passive: true });
+    }
+
+    function disconnectGridLoad() {
+        if (gridScrollHandler) {
+            var w = gridEl.closest('.db-grid-wrap');
+            if (w) w.removeEventListener('scroll', gridScrollHandler);
+            gridScrollHandler = null;
         }
     }
 
@@ -358,62 +401,13 @@
         loadDiyData().then(function () {
             var list = diySearchList();
             gridTipEl.textContent = '共 ' + list.length + ' 张 · 滚轮翻阅';
-            searchPage = 1;
-            renderGridPage(list, 1);
-            attachScrollLoad(list);
+            resetGrid(list);
         });
     }
 
     function renderOfficialResults() {
-        var list = officialResults;
-        gridTipEl.textContent = '官方卡 · 共 ' + list.length + ' 张（滚轮翻阅）';
-        searchPage = 1;
-        // 官方结果每项 { id, name, text }
-        var html = list.slice(0, PAGE).map(function (c) {
-            var sc = cardScoreOf(c.id);
-            var badge = sc
-                ? (sc.forbidden ? '<span class="db-badge db-badge-fb">🚫</span>' : '<span class="db-badge">' + sc.score + '</span>')
-                : '';
-            return '<div class="db-cell" data-id="' + c.id + '">'
-                + '<div class="db-cell-imgwrap">' + cardImgHtml(c.id, 'db-cell-img') + '</div>'
-                + badge + '</div>';
-        }).join('') + '<div class="db-scroll-sentinel"></div>';
-        gridEl.innerHTML = html;
-        attachScrollLoad(list);
-    }
-
-    function attachScrollLoad(list) {
-        var wrap = gridEl.closest('.db-grid-wrap');
-        var sentinel = gridEl.querySelector('.db-scroll-sentinel');
-        if (!wrap || !sentinel) return;
-        sentinel.onclick = function () { };
-        // 用 IntersectionObserver 或滚轮判断加载更多
-        var io = new IntersectionObserver(function (entries) {
-            if (!entries[0].isIntersecting) return;
-            var next = searchPage + 1;
-            var start = (next - 1) * PAGE;
-            if (start >= list.length) { io.disconnect(); return; }
-            searchPage = next;
-            var slice = list.slice(start, start + PAGE);
-            var html = slice.map(function (c) {
-                var sc = cardScoreOf(c.id);
-                var badge = sc
-                    ? (sc.forbidden ? '<span class="db-badge db-badge-fb">🚫</span>' : '<span class="db-badge">' + sc.score + '</span>')
-                    : '';
-                return '<div class="db-cell" data-id="' + c.id + '">'
-                    + '<div class="db-cell-imgwrap">' + cardImgHtml(c.id, 'db-cell-img') + '</div>'
-                    + badge + '</div>';
-            }).join('');
-            var s = gridEl.querySelector('.db-scroll-sentinel');
-            if (s) { s.insertAdjacentHTML('beforebegin', html); }
-            else { gridEl.innerHTML += html; }
-        }, { root: wrap, rootMargin: '300px' });
-        io.observe(sentinel);
-        gridEl._dbIO = io;
-    }
-
-    function disconnectObserver() {
-        if (gridEl._dbIO) { try { gridEl._dbIO.disconnect(); } catch (e) {} gridEl._dbIO = null; }
+        gridTipEl.textContent = '官方卡 · 共 ' + officialResults.length + ' 张（滚轮翻阅）';
+        resetGrid(officialResults);
     }
 
     // 官方模式搜索（复用 ygocdb 代理接口，同源）
@@ -602,7 +596,7 @@
             }
         } else {
             document.body.style.overflow = '';
-            disconnectObserver();
+            disconnectGridLoad();
             // 清空详情（避免残留）
             $('dbDetailBody').innerHTML = '<div class="db-detail-empty">点击右侧卡片查看详情<br><br>点击下方按钮加入卡组</div>';
             detailId = null;
