@@ -543,6 +543,86 @@
         toast('已下载 .ydk 文件 ⬇');
     }
 
+    // 解析 ydk 文本 → { main, extra, side }（优先复用 DeckViewer.parse）
+    function parseYdkText(text) {
+        if (!text || !text.trim()) return null;
+        if (window.DeckViewer && window.DeckViewer.parse) {
+            try {
+                var d = window.DeckViewer.parse(text);
+                if (d && (d.main.length || d.extra.length || d.side.length)) {
+                    return { main: d.main || [], extra: d.extra || [], side: d.side || [] };
+                }
+            } catch (e) { /* fallthrough */ }
+        }
+        // 兜底简单解析
+        var main = [], extra = [], side = [];
+        var section = 'main';
+        String(text).split(/\r?\n/).forEach(function (line) {
+            line = line.trim();
+            if (!line || line.charAt(0) === '#') return;
+            if (/^#extra/i.test(line)) { section = 'extra'; return; }
+            if (/^!side/i.test(line)) { section = 'side'; return; }
+            var id = parseInt(line, 10);
+            if (!isNaN(id) && id > 0) {
+                if (section === 'extra') extra.push(id);
+                else if (section === 'side') side.push(id);
+                else main.push(id);
+            }
+        });
+        if (!main.length && !extra.length && !side.length) return null;
+        return { main: main, extra: extra, side: side };
+    }
+
+    // 导入卡组（替换当前卡组）
+    function importDeck() {
+        var text = prompt(
+            '粘贴 YDK 卡组文本（#main/#extra/!side 格式，或纯卡号列表）：\n\n' +
+            '导入将替换当前卡组内容。'
+        );
+        if (text == null) return;
+        var deck = parseYdkText(text);
+        if (!deck) { toast('无法解析卡组内容'); return; }
+        // 数量检查
+        if (deck.main.length > zones.main.max) {
+            toast('主卡组超过 ' + zones.main.max + ' 张，无法导入');
+            return;
+        }
+        if (deck.extra.length > zones.extra.max) {
+            toast('额外卡组超过 ' + zones.extra.max + ' 张，无法导入');
+            return;
+        }
+        if (deck.side.length > zones.side.max) {
+            toast('副卡组超过 ' + zones.side.max + ' 张，无法导入');
+            return;
+        }
+        // 同名检查（跨区合计最多 3）
+        var countMap = {};
+        ['main', 'extra', 'side'].forEach(function (k) {
+            deck[k].forEach(function (id) { countMap[id] = (countMap[id] || 0) + 1; });
+        });
+        var over = null;
+        Object.keys(countMap).forEach(function (id) {
+            if (countMap[id] > 3) over = id;
+        });
+        if (over != null) {
+            toast('卡号 ' + over + ' 数量超过 3 张（同名最多 3 张）');
+            return;
+        }
+        // 禁卡检查（有分数表时）
+        if (scoreMap) {
+            for (var i = 0; i < deck.main.length; i++) {
+                var sc = cardScoreOf(deck.main[i]);
+                if (sc && sc.forbidden) { toast('🚫 卡号 ' + deck.main[i] + ' 为禁止卡'); return; }
+            }
+        }
+        zones.main.list = deck.main.slice();
+        zones.extra.list = deck.extra.slice();
+        zones.side.list = deck.side.slice();
+        renderAll();
+        refreshScore();
+        toast('卡组已导入：主 ' + zones.main.list.length + ' / 额 ' + zones.extra.list.length + ' / 副 ' + zones.side.list.length);
+    }
+
     function clearAll() {
         ['main', 'extra', 'side'].forEach(function (k) { zones[k].list = []; });
         renderAll();
@@ -663,6 +743,7 @@
         gridEl.addEventListener('click', onGridClick);
 
         // 中栏按钮
+        $('dbImport').addEventListener('click', importDeck);
         $('dbCopy').addEventListener('click', copyDeckCode);
         $('dbDownload').addEventListener('click', downloadYdk);
         $('dbClear').addEventListener('click', function () {

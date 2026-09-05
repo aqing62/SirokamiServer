@@ -793,9 +793,9 @@
 .db-section-title { color: var(--gold, #D4AF37); font-size: 0.8rem; font-weight: 600; margin-bottom: 4px; }
 .db-count { color: #fff; }
 .db-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
+  display: grid;
+  grid-template-columns: repeat(15, 1fr);
+  gap: 3px;
   align-content: flex-start;
   overflow-y: auto;
   background: rgba(0,0,0,0.4);
@@ -809,11 +809,11 @@
 .db-zone-empty { color: #555; font-size: 0.8rem; padding: 8px; }
 .db-card-slot {
   position: relative;
-  width: 56px;
-  height: 80px;
-  flex-shrink: 0;
+  aspect-ratio: 5 / 7;
+  width: 100%;
+  min-width: 0;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: 3px;
   overflow: hidden;
   border: 1px solid rgba(255,255,255,0.12);
   transition: transform 0.15s;
