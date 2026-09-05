@@ -668,13 +668,24 @@
         return text.toLowerCase().indexOf(q) !== -1;
     }
 
-    // DIY 搜索：返回过滤后的全量（分页由滚动加载控制）
+    // 卡对象排序（与卡组排序一致：怪兽→魔法→陷阱，怪兽内额外沉底后按等级↓攻↓守↓属性）
+    function compareCardObj(a, b) {
+        var ta = (a && a.typeInfo) || {};
+        var tb = (b && b.typeInfo) || {};
+        var ga = groupOf(ta), gb = groupOf(tb);
+        if (ga !== gb) return ga - gb;
+        if (ga === 0) return compareMonster(a, b, ta, tb);
+        if (ga === 1) return compareMagic(a, b, ta, tb);
+        return compareTrap(a, b, ta, tb);
+    }
+
+    // DIY 搜索：返回过滤后的全量（分页由滚动加载控制），按卡组排序规则排列
     function diySearchList() {
         var q = searchQuery;
         var list = diyCards.filter(function (c) {
             return matchFilter(c) && matchQuery(c, q);
         });
-        return list;
+        return list.sort(compareCardObj);
     }
 
     // ── 右栏网格：滚动懒加载（一批 PAGE 张，滚近底部加载下一批）──
