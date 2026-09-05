@@ -942,6 +942,7 @@
 .db-badge.db-badge-fb { color: #ff6b6b; font-size: 13px; }
 .db-scroll-sentinel { height: 1px; }
 .db-grid-tip {
+  display: none; /* 提示小字已弃用 */
   color: #888;
   font-size: 0.75rem;
   padding: 6px 2px;
