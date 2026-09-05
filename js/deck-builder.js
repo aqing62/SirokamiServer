@@ -117,11 +117,24 @@
         renderZone('main');
         renderZone('extra');
         renderZone('side');
-        var total = calcTotalScore();
+        // 分数未就绪时显示加载中占位
         var scoreEl = document.getElementById('dbScore');
+        if (!scoreMap) {
+            scoreEl.textContent = '总分：…/100';
+            scoreEl.style.color = '#888';
+            return;
+        }
+        var total = calcTotalScore();
         scoreEl.textContent = '总分：' + total + '/' + scoreLimit;
         scoreEl.style.color = total > scoreLimit ? '#ff6b6b' : '#F0E68C';
         scoreEl.style.fontWeight = 'bold';
+    }
+
+    // 分数就绪后重算总分（首次开启组卡时 loadScores 异步）
+    function refreshScore() {
+        loadScores().then(function () {
+            renderAll();
+        });
     }
 
     function cardThumbHtml(id) {
@@ -157,12 +170,14 @@
         }
         zones[zoneKey].list.push(id);
         renderAll();
+        refreshScore(); // 分数未就绪时异步补齐后重算
         return true;
     }
 
     function removeCard(zoneKey, index) {
         zones[zoneKey].list.splice(index, 1);
         renderAll();
+        refreshScore();
     }
 
     // ── 加入位置小菜单 ──
@@ -285,7 +300,9 @@
         panel.style.display = on ? 'block' : 'none';
         document.body.classList.toggle('deck-builder-on', on);
         if (on) {
-            loadScores();
+            loadScores().then(function () {
+                if (builderActive) renderAll();
+            });
             renderAll();
         } else {
             hideZoneMenu();
