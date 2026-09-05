@@ -385,7 +385,6 @@
                 diyCards = cards || [];
                 diyIndex = new Map();
                 diyCards.forEach(function (c) { diyIndex.set(parseInt(c.id, 10), c); });
-                buildTypeFilter();
                 return diyCards;
             })
             .catch(function (e) {
@@ -395,28 +394,83 @@
     }
 
     // 类型筛选（简版：怪兽/魔法/陷阱/额外怪兽）
-    function buildTypeFilter() {
-        var row = $('dbSearchFilterRow');
-        if (!row) return;
-        row.innerHTML =
-            '<button class="db-filter-chip active" data-ft="all">全部</button>'
-            + '<button class="db-filter-chip" data-ft="monster">怪兽</button>'
-            + '<button class="db-filter-chip" data-ft="spell">魔法</button>'
-            + '<button class="db-filter-chip" data-ft="trap">陷阱</button>'
-            + '<button class="db-filter-chip" data-ft="extra">额外(融合/同调/超量/连接)</button>'
-            + '<button class="db-filter-chip" data-ft="forbidden">🚫禁卡</button>';
-        row.querySelectorAll('.db-filter-chip').forEach(function (b) {
+    // ── 类型筛选（大类型 + 细分）──
+    var selBase = '';       // '' | '怪兽' | '魔法' | '陷阱'
+    var selMSub = {};       // 怪兽细分标签多选
+    var selSSub = {};       // 魔法细分标签多选
+    var selTSub = {};       // 陷阱细分标签多选
+
+    var BASE_TYPES = ['怪兽', '魔法', '陷阱'];
+    var MONSTER_SUB_TAGS = ['效果', '通常', '调整', '反转', '灵魂', '二重', '同盟', '卡通',
+        '衍生物', '仪式', '融合', '同调', '超量', '灵摆', '连接', '特殊召唤'];
+    var SPELL_SUB_TAGS = ['通常', '速攻', '装备', '仪式', '永续', '场地'];
+    var TRAP_SUB_TAGS = ['通常', '永续', '反击'];
+
+    function chipHtml(tag, selected) {
+        return '<button class="db-af-chip' + (selected ? ' active' : '') + '" data-v="'
+            + escapeHtml(tag) + '">' + escapeHtml(tag) + '</button>';
+    }
+
+    // 填充 4 组类型 chips（大类型单选互斥；细分多选）
+    function buildTypeGroups() {
+        var baseBox = $('dbFilterTypes');
+        var mBox = $('dbFilterMonsterSub');
+        var sBox = $('dbFilterSpellSub');
+        var tBox = $('dbFilterTrapSub');
+        if (!baseBox) return;
+
+        baseBox.innerHTML = BASE_TYPES.map(function (b) {
+            return chipHtml(b, selBase === b);
+        }).join('');
+        baseBox.querySelectorAll('.db-af-chip').forEach(function (b) {
             b.addEventListener('click', function () {
-                row.querySelectorAll('.db-filter-chip').forEach(function (x) { x.classList.remove('active'); });
-                b.classList.add('active');
+                var v = b.getAttribute('data-v');
+                selBase = (selBase === v) ? '' : v; // 再次点击取消
+                baseBox.querySelectorAll('.db-af-chip').forEach(function (x) {
+                    x.classList.toggle('active', x.getAttribute('data-v') === selBase);
+                });
+                refreshAdvFilterCount();
                 doSearch();
             });
         });
+
+        function bindSubBox(box, store) {
+            if (!box) return;
+            box.querySelectorAll('.db-af-chip').forEach(function (b) {
+                b.addEventListener('click', function () {
+                    var v = b.getAttribute('data-v');
+                    if (store[v]) delete store[v]; else store[v] = 1;
+                    b.classList.toggle('active');
+                    refreshAdvFilterCount();
+                    doSearch();
+                });
+            });
+        }
+
+        if (mBox) {
+            mBox.innerHTML = MONSTER_SUB_TAGS.map(function (t) { return chipHtml(t, !!selMSub[t]); }).join('');
+            bindSubBox(mBox, selMSub);
+        }
+        if (sBox) {
+            sBox.innerHTML = SPELL_SUB_TAGS.map(function (t) { return chipHtml(t, !!selSSub[t]); }).join('');
+            bindSubBox(sBox, selSSub);
+        }
+        if (tBox) {
+            tBox.innerHTML = TRAP_SUB_TAGS.map(function (t) { return chipHtml(t, !!selTSub[t]); }).join('');
+            bindSubBox(tBox, selTSub);
+        }
+        refreshAdvFilterCount();
     }
 
-    function activeFilterType() {
-        var act = document.querySelector('#dbSearchFilterRow .db-filter-chip.active');
-        return act ? act.getAttribute('data-ft') : 'all';
+    // 细分标签命中：卡 subTypes 含任一选中 tag（对魔法/陷阱，"通常"指其自身细分；"仪式"魔法指仪式魔法）
+    function matchSubTags(card, store) {
+        var keys = Object.keys(store);
+        if (!keys.length) return true;
+        var subs = (card.typeInfo && card.typeInfo.subTypes) || [];
+        for (var i = 0; i < keys.length; i++) {
+            if (subs.indexOf(keys[i]) !== -1) return true;
+        }
+        return false;
     }
 
     // 高级筛选：chips 填充 + 折叠 + 变更即刷新
@@ -425,10 +479,8 @@
         var raceBox = $('dbFilterRace');
         if (!attrBox || !raceBox) return;
 
-        function chipHtml(tag, selected) {
-            return '<button class="db-af-chip' + (selected ? ' active' : '') + '" data-v="'
-                + escapeHtml(tag) + '">' + escapeHtml(tag) + '</button>';
-        }
+        // 类型组（大类型 + 细分）先构建
+        buildTypeGroups();
 
         attrBox.innerHTML = ADV_FILTERS_ATTRS.map(function (a) {
             return chipHtml(a, !!selAttrs[a]);
@@ -481,6 +533,8 @@
 
     function refreshAdvFilterCount() {
         var n = Object.keys(selAttrs).length + Object.keys(selRaces).length;
+        if (selBase) n++;
+        n += Object.keys(selMSub).length + Object.keys(selSSub).length + Object.keys(selTSub).length;
         ['dbFLevelMin', 'dbFLevelMax', 'dbFAtkMin', 'dbFAtkMax', 'dbFDefMin', 'dbFDefMax', 'dbFScoreMin', 'dbFScoreMax']
             .forEach(function (id) {
                 var el = $(id);
@@ -493,11 +547,21 @@
     function resetAdvFilters() {
         selAttrs = {};
         selRaces = {};
+        selBase = '';
+        selMSub = {};
+        selSSub = {};
+        selTSub = {};
         ['dbFLevelMin', 'dbFLevelMax', 'dbFAtkMin', 'dbFAtkMax', 'dbFDefMin', 'dbFDefMax', 'dbFScoreMin', 'dbFScoreMax']
             .forEach(function (id) { var el = $(id); if (el) el.value = ''; });
         var attrBox = $('dbFilterAttr'), raceBox = $('dbFilterRace');
         if (attrBox) attrBox.querySelectorAll('.db-af-chip').forEach(function (b) { b.classList.remove('active'); });
         if (raceBox) raceBox.querySelectorAll('.db-af-chip').forEach(function (b) { b.classList.remove('active'); });
+        // 类型组（若 DOM 存在则重绘，保持与状态一致）
+        ['dbFilterTypes', 'dbFilterMonsterSub', 'dbFilterSpellSub', 'dbFilterTrapSub'].forEach(function (id) {
+            var box = $(id);
+            if (box) box.innerHTML = '';
+        });
+        buildTypeGroups();
         refreshAdvFilterCount();
     }
 
@@ -529,18 +593,27 @@
     }
 
     function matchFilter(card) {
-        var ft = activeFilterType();
         var ti = card.typeInfo || {};
-        // 类型 chips
-        if (ft !== 'all') {
-            if (ft === 'monster') { if (ti.baseType !== '怪兽') return false; }
-            else if (ft === 'spell') { if (ti.baseType !== '魔法') return false; }
-            else if (ft === 'trap') { if (ti.baseType !== '陷阱') return false; }
-            else if (ft === 'extra') { if (!isExtraMonster(card)) return false; }
-            else if (ft === 'forbidden') {
-                var sc0 = cardScoreOf(card.id);
-                if (!(sc0 && sc0.forbidden)) return false;
+        var subs = ti.subTypes || [];
+        // ── 大类型（单选）──
+        if (selBase && ti.baseType !== selBase) return false;
+        // ── 细分标签（多选 OR，仅对对应大类型生效）──
+        if (ti.baseType === '怪兽') {
+            var mKeys = Object.keys(selMSub);
+            if (mKeys.length) {
+                var hitM = false;
+                for (var mi = 0; mi < mKeys.length; mi++) {
+                    // 通常怪兽等按 subTypes 匹配
+                    if (subs.indexOf(mKeys[mi]) !== -1) { hitM = true; break; }
+                }
+                if (!hitM) return false;
             }
+        } else if (ti.baseType === '魔法') {
+            var sKeys = Object.keys(selSSub);
+            if (sKeys.length && !matchSubTags(card, selSSub)) return false;
+        } else if (ti.baseType === '陷阱') {
+            var tKeys = Object.keys(selTSub);
+            if (tKeys.length && !matchSubTags(card, selTSub)) return false;
         }
         // 属性
         var attrKeys = Object.keys(selAttrs);
@@ -548,7 +621,7 @@
         // 种族
         var raceKeys = Object.keys(selRaces);
         if (raceKeys.length && (raceKeys.indexOf(card.raceName || '') === -1)) return false;
-        // 等级/攻/守/分值范围（仅对相应卡种生效）
+        // 等级/攻/守范围（仅怪兽）
         if (ti.baseType === '怪兽') {
             var lv = card.level || 0;
             var loLv = numOf('dbFLevelMin'), hiLv = numOf('dbFLevelMax');
@@ -557,11 +630,15 @@
             if (!rangeMatch(card.atk, 'dbFAtkMin', 'dbFAtkMax')) return false;
             if (!rangeMatch(card.def, 'dbFDefMin', 'dbFDefMax')) return false;
         }
-        // 分值
+        // 分值（-1 表示筛禁卡）
         var sc = cardScoreOf(card.id);
-        var scVal = sc && !sc.forbidden ? (sc.score || 0) : null;
         var loS = numOf('dbFScoreMin'), hiS = numOf('dbFScoreMax');
+        if (loS === -1 || hiS === -1) {
+            // 任一填 -1 → 只看禁卡
+            return !!(sc && sc.forbidden);
+        }
         if (loS != null || hiS != null) {
+            var scVal = sc && !sc.forbidden ? (sc.score || 0) : null;
             if (scVal == null) return false; // 无分卡在有分值筛选时排除
             if (loS != null && scVal < loS) return false;
             if (hiS != null && scVal > hiS) return false;
@@ -936,12 +1013,7 @@
             searchQuery = '';
             searchInputEl.value = '';
             searchInputEl.placeholder = '搜索卡名 / ID / 效果...';
-            // 重置类型筛选 chips 到「全部」
-            var chips = document.querySelectorAll('#dbSearchFilterRow .db-filter-chip');
-            chips.forEach(function (c) {
-                c.classList.toggle('active', c.getAttribute('data-ft') === 'all');
-            });
-            // 重置高级筛选（属性/种族/范围）并收起折叠面板
+            // 重置高级筛选（类型/属性/种族/范围）并收起折叠面板
             resetAdvFilters();
             var advPanel = $('dbAdvFilters');
             if (advPanel) advPanel.style.display = 'none';
