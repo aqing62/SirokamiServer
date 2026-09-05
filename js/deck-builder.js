@@ -611,15 +611,23 @@
         if (baseList.length && baseList.indexOf(base) === -1) return false;
 
         // 细分标签匹配（只对同 base 生效；base 未命中已在上面排除）
-        function hitAny(tags) {
+        // 特殊：通常魔法/通常陷阱的 subTypes 为空数组（不标注"通常"），
+        // 需按"无其它细分标签"判定；通常怪兽则 subTypes 含"通常"。
+        function hitSubTags(tags) {
+            var isUsualOnly = tags.length === 1 && tags[0] === '通常';
             for (var i = 0; i < tags.length; i++) {
+                if (tags[i] === '通常') {
+                    if (subs.indexOf('通常') !== -1) return true;
+                    if (subs.length === 0) return true; // 通常魔法/陷阱（无标签）
+                    continue;
+                }
                 if (subs.indexOf(tags[i]) !== -1) return true;
             }
             return false;
         }
-        if (base === '怪兽' && mKeys.length && !hitAny(mKeys)) return false;
-        if (base === '魔法' && sKeys.length && !hitAny(sKeys)) return false;
-        if (base === '陷阱' && tKeys.length && !hitAny(tKeys)) return false;
+        if (base === '怪兽' && mKeys.length && !hitSubTags(mKeys)) return false;
+        if (base === '魔法' && sKeys.length && !hitSubTags(sKeys)) return false;
+        if (base === '陷阱' && tKeys.length && !hitSubTags(tKeys)) return false;
         // 属性
         var attrKeys = Object.keys(selAttrs);
         if (attrKeys.length && (attrKeys.indexOf(card.attrName || '') === -1)) return false;
