@@ -1074,6 +1074,11 @@
         if (!toggleBtn || !layout) return;
 
         toggleBtn.addEventListener('click', function () {
+            // 移动端不使用组卡模式
+            if (window.innerWidth <= 768) {
+                toast('组卡模式请在电脑端使用');
+                return;
+            }
             setBuilderActive(!builderActive);
         });
 

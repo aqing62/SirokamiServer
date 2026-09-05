@@ -963,6 +963,24 @@
   .db-grid { grid-template-columns: repeat(5, 1fr); gap: 3px; }
   .db-detail-img { width: 120px; height: 174px; }
   #section-card-pool.builder-mode { padding: 8px !important; }
+  /* 手机端：隐藏组卡模式入口与布局（手机用不上） */
+  .deck-builder-top,
+  #dbLayout {
+    display: none !important;
+  }
+  #section-card-pool.builder-mode {
+    height: auto !important;
+    overflow: auto !important;
+    display: block !important;
+  }
+  #section-card-pool.builder-mode .stats,
+  #section-card-pool.builder-mode .search-filter-container,
+  #section-card-pool.builder-mode #cardContainer,
+  #section-card-pool.builder-mode #pagination,
+  #section-card-pool.builder-mode .pool-mode-switch {
+    display: flex !important;
+  }
+  #section-card-pool.builder-mode #cardContainer { display: grid !important; }
 }
 
 /* ═══ 组卡右侧 高级筛选 ═══ */
