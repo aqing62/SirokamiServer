@@ -96,95 +96,152 @@ function initReplayViewer() {
         logBody.scrollTop = logBody.scrollHeight;
     }
 
-    // ── 场地渲染 ──
-    function renderField() {
-        // 上下两玩家区
-        var html = '<div class="rp-player-zone">' + playerHtml(1) + '</div>'
-            + '<div class="rp-middle">' + middleHtml() + '</div>'
-            + '<div class="rp-player-zone">' + playerHtml(0) + '</div>';
+    // ── 场地渲染：持久 DOM + 分区局部更新（避免整场重建导致卡图闪烁）──
+    var zoneEls = {}; // "c:loc" → 卡槽容器 Element
+    var deckEl0 = null, deckEl1 = null, extraEl0 = null, extraEl1 = null;
+    var phaseEl = null;
+    var lpEls = {};
+    var playerNameEls = {};
+    var cardDomCache = {}; // code → 已创建的 img src（内存缓存避免闪）
+
+    function createFieldDOM() {
+        var html = '<div class="rp-player-zone">' + playerSkeleton(1) + '</div>'
+            + '<div class="rp-middle"><div class="rp-middle-info">'
+            + '<span class="rp-deck-info" data-deck="0"></span>'
+            + '<span class="rp-phase"></span>'
+            + '<span class="rp-deck-info" data-deck="1"></span>'
+            + '</div></div>'
+            + '<div class="rp-player-zone">' + playerSkeleton(0) + '</div>';
         fieldEl.innerHTML = html;
+        // 收集各容器引用
+        zoneEls = {};
+        fieldEl.querySelectorAll('[data-zone]').forEach(function (el) {
+            zoneEls[el.getAttribute('data-zone')] = el;
+        });
+        lpEls[0] = fieldEl.querySelector('[data-lp="0"]');
+        lpEls[1] = fieldEl.querySelector('[data-lp="1"]');
+        playerNameEls[0] = fieldEl.querySelector('[data-pname="0"]');
+        playerNameEls[1] = fieldEl.querySelector('[data-pname="1"]');
+        phaseEl = fieldEl.querySelector('.rp-middle .rp-phase');
+        deckEl0 = fieldEl.querySelector('[data-deck="0"]');
+        deckEl1 = fieldEl.querySelector('[data-deck="1"]');
+        renderPlayerHead(0);
+        renderPlayerHead(1);
+        updateAllZones();
+    }
+
+    function playerSkeleton(controller) {
+        var zones = [LOC.HAND, LOC.MZONE, LOC.SZONE, LOC.GRAVE, LOC.REMOVED];
+        var body = '';
+        zones.forEach(function (loc) {
+            var label = LOC_NAME[loc] || loc;
+            body += '<div class="rp-row">'
+                + '<span class="rp-loc-label">' + label + '</span>'
+                + '<div class="rp-row-cards" data-zone="' + controller + ':' + loc + '"></div>'
+                + '</div>';
+        });
+        return '<div class="rp-player" data-player="' + controller + '">'
+            + '<div class="rp-player-head">'
+            + '<span class="rp-player-name" data-pname="' + controller + '"></span>'
+            + '<span class="rp-lp" data-lp="' + controller + '"></span>'
+            + '</div>'
+            + '<div class="rp-sec-grave-row">' + body + '</div>'
+            + '</div>';
+    }
+
+    function renderPlayerHead(controller) {
+        var name = meta && meta.players
+            ? (meta.players.find(function (p) { return p.pos === controller; }) || {}).realName || ''
+            : ('玩家' + controller);
+        var pEl = playerNameEls[controller];
+        if (pEl) {
+            pEl.textContent = name || ('玩家' + (controller + 1));
+            var playerZoneEl = fieldEl.querySelector('[data-player="' + controller + '"]');
+            if (playerZoneEl) playerZoneEl.classList.toggle('turn', turnPlayer === controller);
+        }
+        if (lpEls[controller]) lpEls[controller].textContent = 'LP ' + lp[controller];
+    }
+
+    function updateAllZones() {
+        [0, 1].forEach(function (c) {
+            [LOC.HAND, LOC.MZONE, LOC.SZONE, LOC.GRAVE, LOC.REMOVED].forEach(function (loc) {
+                updateZone(c, loc);
+            });
+        });
+        // 卡组/额外计数与阶段
+        if (deckEl0) deckEl0.textContent = 'P0 卡组 ' + countLoc(0, LOC.DECK) + ' 额外 ' + countLoc(0, LOC.EXTRA);
+        if (deckEl1) deckEl1.textContent = '额外 ' + countLoc(1, LOC.EXTRA) + ' 卡组 ' + countLoc(1, LOC.DECK) + ' P1';
+        if (phaseEl) phaseEl.textContent = phaseText || '准备阶段';
+    }
+
+    function updateZone(controller, loc) {
+        var key = controller + ':' + loc;
+        var container = zoneEls[key];
+        if (!container) return;
+        var cards = locCards(controller, loc);
+        if (!cards.length) {
+            container.innerHTML = '<span class="rp-row-empty">空</span>';
+            return;
+        }
+        // 逐槽更新，尽量复用已存在的 img（避免重建闪烁）
+        // 简化：整行 innerHTML 但用已缓存 src 的 img；配合浏览器缓存不再闪烁
+        var html = cards.map(cardImgHtml).join('');
+        container.innerHTML = html;
+    }
+
+    function cardImgHtml(card) {
+        if (!card) return '<div class="rp-card rp-card-empty"></div>';
+        if (card.faceDown) {
+            return '<div class="rp-card rp-card-down" title="盖牌"></div>';
+        }
+        var name = cardName(card.code);
+        return '<div class="rp-card" title="' + escapeHtml(name || card.code) + '">'
+            + '<img src="' + cardImgSrc(card.code) + '" alt="' + escapeHtml(name || card.code) + '"'
+            + ' onerror="this.onerror=null;this.src=\'' + OCG_PIC + card.code
+            + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'cover.jpg\';}">'
+            + '</div>';
     }
 
     function locCards(controller, loc) {
-        // 收集该 controller 对应 loc 的所有卡（按 sequence 排序）
         var out = [];
-        // 简化：从 field[controller] 取 loc:seq
         var pfx = loc + ':';
-        Object.keys(field[controller]).forEach(function (k) {
+        Object.keys(field[controller] || {}).forEach(function (k) {
             if (k.indexOf(pfx) === 0) out.push(field[controller][k]);
         });
         out.sort(function (a, b) { return a.seq - b.seq; });
         return out;
     }
 
-    function cardImgHtml(card, small) {
-        if (!card) return '<div class="rp-card rp-card-empty"></div>';
-        var name = cardName(card.code);
-        var img = cardImgSrc(card.code);
-        var inner = '<img src="' + img + '" alt="' + (name || card.code) + '"'
-            + ' onerror="this.onerror=null;this.src=\'' + OCG_PIC + card.code
-            + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'cover.jpg\';}">';
-        if (card.faceDown) {
-            // 里侧：盖牌
-            return '<div class="rp-card rp-card-down" title="盖牌"></div>';
-        }
-        return '<div class="rp-card" title="' + (name || card.code) + '">' + inner + '</div>';
-    }
-
-    function rowHtml(cards, loc) {
-        if (!cards || !cards.length) {
-            return '<div class="rp-row">'
-                + '<span class="rp-loc-label">' + (LOC_NAME[loc] || loc) + '</span>'
-                + '<span class="rp-row-empty">空</span></div>';
-        }
-        var cells = cards.map(cardImgHtml).join('');
-        return '<div class="rp-row"><span class="rp-loc-label">' + (LOC_NAME[loc] || loc)
-            + '</span><div class="rp-row-cards">' + cells + '</div></div>';
-    }
-
-    function playerHtml(controller) {
-        var name = meta && meta.players
-            ? (meta.players.find(function (p) { return p.pos === controller; }) || {}).realName || ''
-            : ('玩家' + controller);
-        var isTurn = turnPlayer === controller;
-        return '<div class="rp-player' + (isTurn ? ' turn' : '') + '">'
-            + '<div class="rp-player-head">'
-            + '<span class="rp-player-name">' + escapeHtml(name || ('玩家' + (controller + 1)))
-            + (isTurn ? ' ●' : '') + '</span>'
-            + '<span class="rp-lp">LP ' + lp[controller] + '</span>'
-            + '</div>'
-            + '<div class="rp-sec-hand">' + rowHtml(locCards(controller, LOC.HAND), LOC.HAND) + '</div>'
-            + '<div class="rp-sec-field">'
-            + rowHtml(locCards(controller, LOC.MZONE), LOC.MZONE)
-            + rowHtml(locCards(controller, LOC.SZONE), LOC.SZONE)
-            + '</div>'
-            + '<div class="rp-sec-grave">'
-            + rowHtml(locCards(controller, LOC.GRAVE), LOC.GRAVE)
-            + rowHtml(locCards(controller, LOC.REMOVED), LOC.REMOVED)
-            + '</div>'
-            + '</div>';
-    }
-
-    function middleHtml() {
-        var p0deck = (field[0][LOC.DECK + ':0'] ? 1 : 0) + countLoc(0, LOC.DECK);
-        var p1deck = countLoc(1, LOC.DECK);
-        var p0extra = countLoc(0, LOC.EXTRA);
-        var p1extra = countLoc(1, LOC.EXTRA);
-        var phase = phaseText || '准备阶段';
-        return '<div class="rp-middle-info">'
-            + '<span class="rp-deck-info">P0 卡组' + countLoc(0, LOC.DECK) + ' 额外' + countLoc(0, LOC.EXTRA) + '</span>'
-            + '<span class="rp-phase">' + escapeHtml(phase) + '</span>'
-            + '<span class="rp-deck-info">额外' + countLoc(1, LOC.EXTRA) + ' 卡组' + countLoc(1, LOC.DECK) + ' P1</span>'
-            + '</div>';
-    }
-
     function countLoc(controller, loc) {
         var pfx = loc + ':';
         var n = 0;
-        Object.keys(field[controller]).forEach(function (k) {
+        Object.keys(field[controller] || {}).forEach(function (k) {
             if (k.indexOf(pfx) === 0) n++;
         });
         return n;
+    }
+
+    // 闪烁根治：预加载 + 缓存图片（防止每条消息重建触发加载闪烁）
+    var imgLoading = {};
+    function warmCardImg(code) {
+        if (imgLoading[code] || cardDomCache[code]) return;
+        imgLoading[code] = true;
+        var im = new Image();
+        im.onload = function () { cardDomCache[code] = cardImgSrc(code); };
+        im.onerror = function () {
+            var im2 = new Image();
+            im2.onload = function () { cardDomCache[code] = OCG_PIC + code + '.jpg'; };
+            im2.src = OCG_PIC + code + '.jpg';
+        };
+        im.src = cardImgSrc(code);
+    }
+    function warmAllVisible() {
+        [0, 1].forEach(function (c) {
+            Object.keys(field[c] || {}).forEach(function (k) {
+                var card = field[c][k];
+                if (card && card.code && !card.faceDown) warmCardImg(card.code);
+            });
+        });
     }
 
     // ── 消息处理（驱动场地状态 + 日志）──
@@ -205,32 +262,36 @@ function initReplayViewer() {
                 lp = [8000, 8000];
                 turnPlayer = 0;
                 phaseText = '';
+                createFieldDOM();
                 log('🃏 对局开始（房间 ' + (meta.roomName || '') + '）');
                 logHtml('VS <b>' + escapeHtml(playerName(0)) + '</b> 对战 <b>' + escapeHtml(playerName(1)) + '</b>');
                 break;
             }
             case 'UpdateData': {
-                // 建立手牌/额外/卡组初始状态：f.code 可能是一组，但简化按单条处理不足 → 需要靠 hex 或 query 重建
-                // 雏形：UpdateData 难以精确重建，跳过渲染细节，只当推进标记
+                // UpdateData 语义复杂（query 流），雏形跳过精确重建。
+                // 但对局开始时双方卡组在 UpdateData 里建立——这里用简化：
+                // 不展示卡组内部，保持场地空，靠 Draw 逐渐填充手牌。
                 break;
             }
             case 'Draw': {
                 var pl = f.player;
                 var cards = f.cards || [];
-                log(playerName(pl) + ' 抽卡 ' + cards.length + ' 张' + (cards.length ? '：' + cards.map(cardName).join('、') : ''));
+                log(playerName(pl) + ' 抽卡 ' + cards.length + ' 张');
                 cards.forEach(function (code) {
                     addToHand(pl, code);
                 });
+                updateZone(pl, LOC.HAND);
                 break;
             }
             case 'NewTurn': {
                 turnPlayer = f.player;
                 phaseText = '回合开始';
+                renderPlayerHead(0);
+                renderPlayerHead(1);
                 log('🔄 ' + playerName(turnPlayer) + ' 的回合');
                 break;
             }
             case 'NewPhase': {
-                // phase 值语义：0抽卡/1准备/2主要1/3战斗/4主要2/5结束
                 var ph = f.phase;
                 var names = ['抽卡阶段', '准备阶段', '主要阶段1', '战斗阶段', '主要阶段2', '结束阶段'];
                 phaseText = names[ph] || ('阶段' + ph);
@@ -243,19 +304,20 @@ function initReplayViewer() {
                 var cur = f.current || {};
                 var reason = f.reason || 0;
                 var name = cardName(code);
-                // 简化：cur.location 为卡当前所处位置
+                // 精确按位置移动（prev→cur）
                 if (cur.location !== undefined) {
-                    // 从旧位置移除
-                    removeFromAll(code);
-                    // 放新位置
-                    var ploc = cur.location & 0xff; // 去掉高位标记
-                    if (cur.location & 0x80000000) {
-                        // 位置带 controller 位？YGOPro location 高字节是 controller
-                        // 简化：cur.controller 如果给了就用，否则默认 0
-                    }
-                    addToLoc(cur.controller !== undefined ? cur.controller : 0, ploc, code, cur.sequence || 0, isFaceDown(cur.position));
+                    moveCard(prev, cur, code);
+                    // 刷新涉及的两个区
+                    var pCon = prev.controller !== undefined ? prev.controller : 0;
+                    var pLoc = prev.location !== undefined ? (prev.location & 0xff) : null;
+                    var cCon = cur.controller !== undefined ? cur.controller : pCon;
+                    var cLoc = cur.location & 0xff;
+                    if (pLoc !== null && (pCon !== cCon || pLoc !== cLoc)) updateZone(pCon, pLoc);
+                    updateZone(cCon, cLoc);
+                    // 若移动到卡组/额外/素材等未展示区，刷新计数
+                    updateAllZones();
                 }
-                // 日志（reason 简化）
+                // 日志
                 var why = reasonText(reason);
                 var from = prev.location !== undefined ? (LOC_NAME[prev.location & 0xff] || '') : '';
                 var to = cur.location !== undefined ? (LOC_NAME[cur.location & 0xff] || '') : '';
@@ -264,8 +326,8 @@ function initReplayViewer() {
             }
             case 'Summoning': {
                 var sc = f.code;
-                var sname = cardName(sc);
-                log('⚡ ' + playerName(f.controller !== undefined ? f.controller : 0) + ' 召唤 ' + sname);
+                log('⚡ ' + playerName(f.controller !== undefined ? f.controller : 0) + ' 召唤 ' + cardName(sc));
+                // 召唤通常先有 Move 到手牌→场上，这里仅日志
                 break;
             }
             case 'Summoned': {
@@ -285,12 +347,14 @@ function initReplayViewer() {
             case 'Damage': {
                 var dpl = f.player;
                 lp[dpl] = Math.max(0, (lp[dpl] || 8000) - (f.value || 0));
+                renderPlayerHead(dpl);
                 log('💥 ' + playerName(dpl) + ' 受到 ' + f.value + ' 点伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
                 break;
             }
             case 'Recover': {
                 var rpl = f.player;
                 lp[rpl] = Math.min(8000, (lp[rpl] || 8000) + (f.value || 0));
+                renderPlayerHead(rpl);
                 log('💚 ' + playerName(rpl) + ' 恢复 ' + f.value + ' LP');
                 break;
             }
@@ -300,7 +364,6 @@ function initReplayViewer() {
                 break;
             }
             case 'Hint': {
-                // hint: 游戏提示，简要显示
                 if (f.hint) log('💡 ' + f.hint, 'rp-log-hint');
                 break;
             }
@@ -330,26 +393,56 @@ function initReplayViewer() {
         }
     }
 
-    // 场地操作辅助
-    function addToHand(controller, code) {
-        // 找手牌空位
-        var seq = 0;
-        while (field[controller][LOC.HAND + ':' + seq]) seq++;
-        field[controller][LOC.HAND + ':' + seq] = { code: code, controller: controller, loc: LOC.HAND, seq: seq, faceDown: false };
-    }
+    // 场地操作辅助：field[c][loc:seq] = {code, faceDown, pos(原表示位), zone:(loc)…}
+    // 卡从一处移到另一处时，用 prev 定位删除、插到 cur。
+    var _uid = 1;
 
-    function addToLoc(controller, ploc, code, seq, down) {
+    function addCardAt(controller, loc, seq, code, down, posRaw) {
         if (!field[controller]) field[controller] = {};
-        field[controller][ploc + ':' + seq] = { code: code, controller: controller, loc: ploc, seq: seq, faceDown: down };
+        var key = loc + ':' + seq;
+        // 若该位已有卡（同名序列可能复用），直接覆盖并记住旧引用移除
+        field[controller][key] = {
+            code: code,
+            uid: _uid++,
+            faceDown: !!down,
+            pos: posRaw,
+        };
     }
 
-    function removeFromAll(code) {
-        [0, 1].forEach(function (c) {
-            var keys = Object.keys(field[c]);
-            keys.forEach(function (k) {
-                if (field[c][k].code === code) delete field[c][k];
-            });
-        });
+    function removeAt(controller, loc, seq) {
+        if (field[controller]) {
+            delete field[controller][loc + ':' + seq];
+        }
+    }
+
+    function moveCard(prev, cur, code) {
+        var pCon = prev.controller !== undefined ? prev.controller : 0;
+        var pLoc = prev.location !== undefined ? (prev.location & 0xff) : undefined;
+        var pSeq = prev.sequence !== undefined ? prev.sequence : 0;
+        var cCon = cur.controller !== undefined ? cur.controller : pCon;
+        var cLoc = cur.location !== undefined ? (cur.location & 0xff) : undefined;
+        var cSeq = cur.sequence !== undefined ? cur.sequence : 0;
+        var down = isFaceDown(cur.position);
+        var posRaw = cur.position;
+
+        // 找旧位置卡对象（若存在）
+        var oldCard = null;
+        if (pLoc !== undefined && field[pCon]) {
+            oldCard = field[pCon][pLoc + ':' + pSeq] || null;
+        }
+        if (pLoc !== undefined) removeAt(pCon, pLoc, pSeq);
+
+        if (cLoc !== undefined) {
+            // 新位置插入：若原位有卡且 code 匹配，携带其 uid/原信息；否则新卡
+            var useCode = code !== undefined ? code : (oldCard ? oldCard.code : 0);
+            addCardAt(cCon, cLoc, cSeq, useCode, down, posRaw);
+        }
+    }
+
+    function addToHand(controller, code) {
+        var seq = 0;
+        while (field[controller] && field[controller][LOC.HAND + ':' + seq]) seq++;
+        addCardAt(controller, LOC.HAND, seq, code, false, 0);
     }
 
     function isFaceDown(pos) {
@@ -359,8 +452,24 @@ function initReplayViewer() {
 
     function reasonText(r) {
         if (!r) return '';
-        // 常见 reason 简化（完整掩码复杂，先常用）
-        if (r === 0x1) return '规则';       // 实际上 reason=1 是 SPSUMMON? 简化占位
+        // reason 掩码常用位（简化中文）
+        if ((r & 0x1) !== 0) return '召唤';
+        if ((r & 0x2) !== 0) return '通常魔法/陷阱';
+        if ((r & 0x4) !== 0) return '战斗';
+        if ((r & 0x8) !== 0) return '效果';
+        if ((r & 0x10) !== 0) return '效果发动';
+        if ((r & 0x20) !== 0) return '解放';
+        if ((r & 0x40) !== 0) return '同调';
+        if ((r & 0x80) !== 0) return '融合';
+        if ((r & 0x100) !== 0) return '特殊召唤';
+        if ((r & 0x200) !== 0) return '破坏';
+        if ((r & 0x400) !== 0) return '返回手牌';
+        if ((r & 0x800) !== 0) return '送入墓地';
+        if ((r & 0x1000) !== 0) return '除外';
+        if ((r & 0x2000) !== 0) return '抽卡';
+        if ((r & 0x4000) !== 0) return '翻面';
+        if ((r & 0x8000) !== 0) return '里侧除外';
+        if ((r & 0x10000) !== 0) return '装备';
         return '';
     }
 
@@ -375,7 +484,9 @@ function initReplayViewer() {
         if (idx < messages.length - 1) {
             idx++;
             handleMessage(messages[idx]);
-            renderField();
+            // 消息处理器内部已做分区 updateZone；此处仅兜底更新计数/头
+            renderPlayerHead(0);
+            renderPlayerHead(1);
             updateProgress();
             return true;
         }
@@ -481,7 +592,8 @@ function initReplayViewer() {
             idx = i;
             handleMessage(messages[i]);
         }
-        renderField();
+        // Start 消息已 createFieldDOM；若消息流没有 Start 则兜底建一次
+        if (!fieldEl.querySelector('.rp-player')) createFieldDOM();
         updateProgress();
     });
     document.querySelectorAll('.rp-speed').forEach(function (btn) {

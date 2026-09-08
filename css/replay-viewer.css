@@ -81,8 +81,8 @@
 }
 .replay-field {
     flex: 0 0 70%;
-    background: linear-gradient(180deg, #16233b 0%, #0b1626 50%, #122033 100%);
-    border: 1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, #231216 0%, #14090b 50%, #1d1013 100%);
+    border: 1px solid rgba(216, 30, 68, 0.35);
     border-radius: 12px;
     padding: 10px;
     overflow-y: auto;
@@ -94,9 +94,11 @@
 
 /* 场地玩家区 */
 .rp-player-zone {
-    background: rgba(0,0,0,0.28);
+    background: rgba(0,0,0,0.35);
+    border: 1px solid rgba(216, 30, 68, 0.12);
     border-radius: 8px;
     padding: 6px;
+    flex-shrink: 0;
 }
 .rp-player-head {
     display: flex;
@@ -108,12 +110,12 @@
 .rp-player.turn .rp-player-name { color: #fff; }
 .rp-player.turn .rp-player-name::after { content: ' ◀'; color: var(--red); }
 .rp-lp { color: #ff6b6b; font-weight: 700; }
-.rp-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.rp-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; min-height: 40px; }
 .rp-loc-label {
     color: #888; font-size: 0.68rem; width: 34px; flex-shrink: 0; text-align: right;
 }
 .rp-row-cards { display: flex; gap: 3px; flex-wrap: wrap; flex: 1; min-height: 40px; }
-.rp-row-empty { color: #444; font-size: 0.7rem; }
+.rp-row-empty { color: #444; font-size: 0.7rem; align-self: center; }
 
 /* 卡 */
 .rp-card {
@@ -124,8 +126,8 @@
 }
 .rp-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .rp-card-down {
-    background: repeating-linear-gradient(45deg, #2a4a7a, #2a4a7a 6px, #1e3860 6px, #1e3860 12px);
-    border: 1px solid #4a6a9a;
+    background: repeating-linear-gradient(45deg, #5a1a28, #5a1a28 6px, #42121e 6px, #42121e 12px);
+    border: 1px solid #a51834;
 }
 .rp-card-empty { background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.06); }
 
@@ -133,7 +135,8 @@
 .rp-middle { display: flex; align-items: center; justify-content: center; }
 .rp-middle-info {
     display: flex; align-items: center; gap: 16px;
-    background: rgba(0,0,0,0.35);
+    background: rgba(216, 30, 68, 0.12);
+    border: 1px solid rgba(216, 30, 68, 0.3);
     border-radius: 20px; padding: 4px 16px;
 }
 .rp-phase { color: var(--gold); font-weight: 700; font-size: 0.85rem; }
