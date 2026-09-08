@@ -1564,4 +1564,29 @@ function initReplayViewer() {
         clearTimeout(_fitTimer);
         _fitTimer = setTimeout(fitBoard, 80);
     });
+
+    // ── 弹窗 API：回放码旁“▶ 回放”按钮调用 openReplay ──
+    var modalEl = $('replayModal');
+    if (modalEl) {
+        window.openReplay = function (code) {
+            modalEl.style.display = 'flex';
+            loadReplay(code || '');
+            setTimeout(fitBoard, 80);
+        };
+        var closeBtnEl = $('replayClose');
+        function closeModal() {
+            modalEl.style.display = 'none';
+            stopAuto();
+        }
+        if (closeBtnEl) closeBtnEl.addEventListener('click', closeModal);
+        modalEl.addEventListener('click', function (e) {
+            if (e.target === modalEl) closeModal();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && modalEl.style.display !== 'none') closeModal();
+        });
+    }
 }
+
+// 弹窗常驻 DOM，直接初始化（不再依赖分区懒加载）
+initReplayViewer();

@@ -299,6 +299,7 @@
           + '<span class="duel-right">'
           + (d.ladder ? '<span class="duel-tag">天梯</span>' : '')
           + '<span class="duel-replay" data-code="' + escapeHtml(d.replayCode) + '" title="点击复制回放码">' + escapeHtml(d.replayCode) + '</span>'
+          + '<button class="duel-watch" data-code="' + escapeHtml(d.replayCode) + '" title="弹窗播放回放">▶ 回放</button>'
           + '</span>'
           + '</div>';
       }).join('');
@@ -320,6 +321,13 @@
           } else {
             done();
           }
+        });
+      });
+      // 弹窗播放回放
+      deckModalBody.querySelectorAll('.duel-watch').forEach(function (btn) {
+        btn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (window.openReplay) window.openReplay(btn.getAttribute('data-code') || '');
         });
       });
     } catch (e) {

@@ -16,7 +16,7 @@
     <link rel="stylesheet" href="css/deck-viewer.css?v=20260903a" id="css-deck-viewer">
     <link rel="stylesheet" href="css/deck-community.css?v=20260903a" id="css-deck-community" media="not all">
     <link rel="stylesheet" href="css/chronicle-decks.css" id="css-chronicle-decks">
-    <link rel="stylesheet" href="css/replay-viewer.css?v=20260907af" id="css-replay-viewer" media="not all">
+    <link rel="stylesheet" href="css/replay-viewer.css?v=20260907ah" id="css-replay-viewer">
     <link rel="stylesheet" href="css/ygocdb-search.css" id="css-ygocdb" media="not all">
     <style>
         body.loading {
@@ -756,44 +756,48 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════
-         SECTION: 回放播放器
+         回放播放器 — 弹窗（不占页面分区，哪里出现回放码就在旁边弹窗播放）
          ═══════════════════════════════════════════════════════ -->
-    <section id="section-replay" class="content-section">
-        <button class="back-btn" onclick="showSection('section-main')">← 返回主页</button>
-        <div class="replay-title">🎬 回放播放器</div>
-
-        <!-- 输入区 -->
-        <div class="replay-input-bar">
-            <input type="text" id="replayInput" placeholder="输入回放码，如 R#3333" autocomplete="off">
-            <button id="replayLoadBtn">▶ 加载回放</button>
-            <span class="replay-meta" id="replayMeta"></span>
-        </div>
-
-        <!-- 播放控制条 -->
-        <div class="replay-controls" id="replayControls" style="display:none;">
-            <button id="rpPlayPause" title="播放/暂停">⏸ 暂停</button>
-            <button id="rpStepBack" title="上一步">⏮</button>
-            <button id="rpStep" title="下一步">⏭</button>
-            <span class="rp-speed-label">速度</span>
-            <button class="rp-speed" data-s="0.5">0.5x</button>
-            <button class="rp-speed active" data-s="1">1x</button>
-            <button class="rp-speed" data-s="2">2x</button>
-            <button class="rp-speed" data-s="4">4x</button>
-            <input type="range" id="rpProgress" min="0" max="100" value="0" style="flex:1;">
-            <span class="rp-progress-text" id="rpProgressText">0 / 0</span>
-        </div>
-
-        <!-- 主体：左场地 70% / 右日志 30% -->
-        <div class="replay-main" id="replayMain" style="display:none;">
-            <div class="replay-field" id="replayField">
-                <div class="rp-loading-tip" id="rpFieldTip">回放加载中...</div>
+    <div class="rp-modal" id="replayModal" style="display:none;">
+        <div class="rp-modal-box">
+            <div class="rp-modal-head">
+                <div class="replay-title">🎬 回放播放器</div>
+                <button class="rp-modal-close" id="replayClose" title="关闭 (Esc)">✕</button>
             </div>
-            <div class="replay-log" id="replayLog">
-                <div class="replay-log-title">📜 对局日志</div>
-                <div class="replay-log-body" id="replayLogBody"></div>
+
+            <!-- 输入区 -->
+            <div class="replay-input-bar">
+                <input type="text" id="replayInput" placeholder="输入回放码，如 R#3333" autocomplete="off">
+                <button id="replayLoadBtn">▶ 加载回放</button>
+                <span class="replay-meta" id="replayMeta"></span>
+            </div>
+
+            <!-- 播放控制条 -->
+            <div class="replay-controls" id="replayControls" style="display:none;">
+                <button id="rpPlayPause" title="播放/暂停">⏸ 暂停</button>
+                <button id="rpStepBack" title="上一步">⏮</button>
+                <button id="rpStep" title="下一步">⏭</button>
+                <span class="rp-speed-label">速度</span>
+                <button class="rp-speed" data-s="0.5">0.5x</button>
+                <button class="rp-speed active" data-s="1">1x</button>
+                <button class="rp-speed" data-s="2">2x</button>
+                <button class="rp-speed" data-s="4">4x</button>
+                <input type="range" id="rpProgress" min="0" max="100" value="0" style="flex:1;">
+                <span class="rp-progress-text" id="rpProgressText">0 / 0</span>
+            </div>
+
+            <!-- 主体：左场地 70% / 右日志 30% -->
+            <div class="replay-main" id="replayMain" style="display:none;">
+                <div class="replay-field" id="replayField">
+                    <div class="rp-loading-tip" id="rpFieldTip">回放加载中...</div>
+                </div>
+                <div class="replay-log" id="replayLog">
+                    <div class="replay-log-title">📜 对局日志</div>
+                    <div class="replay-log-body" id="replayLogBody"></div>
+                </div>
             </div>
         </div>
-    </section>
+    </div>
 
     <!-- ═══════════════════════════════════════════════════════
          SECTION: 玩家论坛
@@ -810,7 +814,6 @@
          ═══════════════════════════════════════════════════════ -->
     <div class="sidebar" id="sidebar">
         <div class="sidebar-btn" id="eightDecksBtn">比赛<span class="sb-break"></span>相关</div>
-        <div class="sidebar-btn" id="replayBtn">回放<span class="sb-break"></span>播放</div>
         <div class="sidebar-btn" id="xiaobaiBtn">晓白<span class="sb-break"></span>相关</div>
         <div class="sidebar-btn" id="cardListBtn">禁限<span class="sb-break"></span>分值</div>
         <div class="sidebar-btn" id="cardPoolInfoBtn">卡池<span class="sb-break"></span>信息</div>
@@ -822,17 +825,17 @@
     <!-- ═══════════════════════════════════════════════════════
          SCRIPTS — 全部JS
          ═══════════════════════════════════════════════════════ -->
-    <script src="js/script.js?v=20260902b"></script>
+    <script src="js/script.js?v=20260908a"></script>
     <script src="js/card-list.js?v=20260901a"></script>
     <script src="js/card-pool-info.js?v=20260905a"></script>
     <script src="js/deck-builder.js?v=20260906b"></script>
     <script src="js/eight-decks.js?v=20260903a"></script>
-    <script src="js/player-ranking.js?v=20260903c"></script>
+    <script src="js/player-ranking.js?v=20260908a"></script>
     <script src="js/live-duels.js?v=20260807b"></script>
     <script src="js/deck-viewer.js?v=20260903b"></script>
-    <script src="js/deck-community.js?v=20260903c"></script>
+    <script src="js/deck-community.js?v=20260908a"></script>
     <script src="js/chronicle-decks.js?v=20260901a"></script>
-    <script src="js/replay-viewer.js?v=20260907ag"></script>
+    <script src="js/replay-viewer.js?v=20260907ah"></script>
     <script src="js/ygocdb-search.js?v=20260901h"></script>
     <script>
         // 玩法规则 Tab 切换
