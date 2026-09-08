@@ -64,6 +64,7 @@ function initReplayViewer() {
     var lp = [8000, 8000];
     var turnPlayer = 0;
     var phaseText = '';
+    var deckCount = [0, 0];  // 剩余卡组张数：开局=mainc，抽卡/移出卡组递减，回卡组递增
 
     // 卡池索引（卡名查询，可选加载 /api/cards）
     var cardNameMap = {};
@@ -167,15 +168,15 @@ function initReplayViewer() {
         var mzone = zoneRow(LOC.MZONE, 5);
         var szone = zoneRow(LOC.SZONE, 5);
         var hand = '<div class="rp-hand" data-zone="' + controller + ':' + LOC.HAND + '"></div>';
-        var fieldZone = '<div class="rp-fieldrow rp-mzone">' + mzone + '</div>'
-            + '<div class="rp-fieldrow rp-szone">' + szone + '</div>';
+        var mzoneRow = '<div class="rp-fieldrow rp-mzone">' + mzone + '</div>';
+        var szoneRow = '<div class="rp-fieldrow rp-szone">' + szone + '</div>';
 
         if (isOpp) {
-            // 对手：名签(右上角,绝对定位) + 手牌(顶) + 场上
-            return nameTag + hand + fieldZone;
+            // 对手(坐对面镜像)：手牌(最顶) → 魔陷 → 怪兽(靠中线)
+            return nameTag + hand + szoneRow + mzoneRow;
         }
-        // 自己：场上 + 手牌(底) + 名签(左下角,绝对定位)
-        return fieldZone + hand + nameTag;
+        // 自己：怪兽(靠中线) → 魔陷 → 手牌(最底)
+        return mzoneRow + szoneRow + hand + nameTag;
     }
 
     function renderPlayerHead(controller) {
@@ -205,7 +206,7 @@ function initReplayViewer() {
             }
             var dk = midEls['deck:' + c];
             if (dk) {
-                var dcount = countLoc(c, LOC.DECK);
+                var dcount = deckCount[c] || 0;
                 dk.innerHTML = '<span class="rp-mid-count">' + dcount + '</span>'
                     + (dcount ? '<div class="rp-card rp-card-down"></div>' : '');
             }
@@ -326,6 +327,11 @@ function initReplayViewer() {
                 lp = [8000, 8000];
                 turnPlayer = 0;
                 phaseText = '';
+                // 卡组张数 = 开局主卡组数(mainc)，此后由 Draw/Move 增减
+                deckCount = [0, 0];
+                (meta && meta.players || []).forEach(function (p) {
+                    if ((p.pos === 0 || p.pos === 1) && p.mainc) deckCount[p.pos] = p.mainc;
+                });
                 createFieldDOM();
                 log('🃏 对局开始（房间 ' + (meta.roomName || '') + '）');
                 logHtml('VS <b>' + escapeHtml(playerName(0)) + '</b> 对战 <b>' + escapeHtml(playerName(1)) + '</b>');
@@ -340,11 +346,22 @@ function initReplayViewer() {
             case 'Draw': {
                 var pl = f.player;
                 var cards = f.cards || [];
-                log(playerName(pl) + ' 抽卡 ' + cards.length + ' 张');
+                var drawN = cards.length || (f.count || 0);
+                if (drawN && deckCount[pl] !== undefined) {
+                    deckCount[pl] = Math.max(0, deckCount[pl] - drawN);
+                }
+                log(playerName(pl) + ' 抽卡 ' + drawN + ' 张');
                 cards.forEach(function (code) {
                     addToHand(pl, code);
                 });
                 updateZone(pl, LOC.HAND);
+                // 卡组计数即时刷新（Draw 无 Move，不会触发 updateAllZones）
+                var dkEl = midEls['deck:' + pl];
+                if (dkEl) {
+                    var dNow = deckCount[pl] || 0;
+                    dkEl.innerHTML = '<span class="rp-mid-count">' + dNow + '</span>'
+                        + (dNow ? '<div class="rp-card rp-card-down"></div>' : '');
+                }
                 break;
             }
             case 'NewTurn': {
@@ -374,6 +391,14 @@ function initReplayViewer() {
                 var cur = f.current || {};
                 var reason = f.reason || 0;
                 var name = cardName(code);
+                // 卡组进出计数：移出卡组 -1，回卡组 +1（Draw 已在上面单独扣）
+                var pLocD = prev.location !== undefined ? (prev.location & 0xff) : null;
+                var cLocD = cur.location !== undefined ? (cur.location & 0xff) : null;
+                if (pLocD === LOC.DECK || cLocD === LOC.DECK) {
+                    var dCon = prev.controller !== undefined ? prev.controller : 0;
+                    var dDelta = (cLocD === LOC.DECK ? 1 : 0) - (pLocD === LOC.DECK ? 1 : 0);
+                    deckCount[dCon] = Math.max(0, (deckCount[dCon] || 0) + dDelta);
+                }
                 // 精确按位置移动（prev→cur）
                 if (cur.location !== undefined) {
                     moveCard(prev, cur, code);
