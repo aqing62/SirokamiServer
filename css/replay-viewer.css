@@ -198,16 +198,20 @@
 .rp-row .rp-fieldrow { margin: 0; }
 .rp-rail-void { width: 86px; flex: 0 0 86px; }
 
-/* 中线行：除外(左外轨) | 额外怪兽区 回合/阶段 额外怪兽区 | 除外(右外轨) */
+/* 中线行：除外(外轨) | [空|额外区|回合/阶段|额外区|空]（额外区对齐怪兽第2、4格）| 除外(外轨) */
 .rp-mid-zone {
     width: 454px;
     flex: 0 0 454px;
     display: flex;
     align-items: center;
-    justify-content: center;
     gap: 6px;
 }
-.rp-mid-zone .rp-mid-info { min-width: 0; }
+.rp-mid-zone .rp-mid-info {
+    flex: 0 0 86px;
+    width: 86px;
+    min-width: 0;
+    text-align: center;
+}
 
 /* 墓地/卡组/除外格子：与同行格等大、紧贴排头/排尾 */
 .rp-pile::after {
