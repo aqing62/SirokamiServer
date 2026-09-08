@@ -67,6 +67,7 @@ function initReplayViewer() {
     var deckCount = [0, 0];  // 剩余卡组张数：开局=mainc，抽卡/移出卡组递减，回卡组递增
     var inBattle = false;        // 是否处于伤害步骤（战斗消息上下文）
     var animSuppress = false;    // 进度条大跳等批量处理时关闭动画
+    var preloading = false;      // 卡图预加载中
 
     // 卡池索引（卡名查询，可选加载 /api/cards）
     var cardNameMap = {};
@@ -327,18 +328,30 @@ function initReplayViewer() {
 
     // 卡图节点池：同一卡号复用已解码的 <img>，离场回收、再上场直接取用（不再重新加载）
     var cardImgs = {};
+    // 卡图回退链：DIY → 先行(SuperPre) → OCG → moecube 镜像1/2/3 → cover.jpg
+    function picChain(code) {
+        return [
+            cardImgSrc(code),
+            SUPER_PRE_PIC + code + '.jpg',
+            OCG_PIC + code + '.jpg',
+            'https://cdn01.moecube.com:444/ygopro/pics/' + code + '.jpg',
+            'https://cdn02.moecube.com:444/ygopro/pics/' + code + '.jpg',
+            'https://cdn03.moecube.com:444/ygopro/pics/' + code + '.jpg',
+            'cover.jpg'
+        ];
+    }
+    function wireImgChain(im, code) {
+        var chain = picChain(code);
+        var i = 0;
+        im.onerror = function () {
+            i++;
+            if (i < chain.length) im.src = chain[i];
+        };
+    }
     function buildCardImg(code) {
         var im = document.createElement('img');
         im._code = code;
-        im.onerror = function () {
-            this.onerror = null;
-            this.src = SUPER_PRE_PIC + code + '.jpg';
-            this.onerror = function () {
-                this.onerror = null;
-                this.src = OCG_PIC + code + '.jpg';
-                this.onerror = function () { this.onerror = null; this.src = 'cover.jpg'; };
-            };
-        };
+        wireImgChain(im, code);
         im.src = cardImgSrc(code);
         return im;
     }
@@ -423,7 +436,7 @@ function initReplayViewer() {
     function warmCardImg(code) {
         if (imgLoading[code] || cardDomCache[code]) return;
         imgLoading[code] = true;
-        var trySrcs = [cardImgSrc(code), SUPER_PRE_PIC + code + '.jpg', OCG_PIC + code + '.jpg'];
+        var trySrcs = picChain(code).slice(0, 6);   // 依次尝试各图源（不含最终 cover）
         var attempt = 0;
         var tryNext = function () {
             if (attempt >= trySrcs.length) { cardDomCache[code] = 'cover.jpg'; return; }
@@ -470,16 +483,8 @@ function initReplayViewer() {
         g.style.top = s.top + 'px';
         if (!down && cardCode) {
             var im = document.createElement('img');
+            wireImgChain(im, cardCode);
             im.src = cardImgSrc(cardCode);
-            im.onerror = function () {
-                this.onerror = null;
-                this.src = SUPER_PRE_PIC + cardCode + '.jpg';
-                this.onerror = function () {
-                    this.onerror = null;
-                    this.src = OCG_PIC + cardCode + '.jpg';
-                    this.onerror = function () { this.onerror = null; this.src = 'cover.jpg'; };
-                };
-            };
             g.appendChild(im);
         }
         document.body.appendChild(g);
@@ -553,9 +558,14 @@ function initReplayViewer() {
                 break;
             }
             case 'UpdateData': {
-                // UpdateData 语义复杂（query 流），雏形跳过精确重建。
-                // 但对局开始时双方卡组在 UpdateData 里建立——这里用简化：
-                // 不展示卡组内部，保持场地空，靠 Draw 逐渐填充手牌。
+                // UpdateData 语义复杂，雏形不重建场上区；
+                // 但 手牌(2) 的全量列表是权威的：按序重建手牌，避免 seq 压缩/洗牌导致残留
+                var udLoc = f.location !== undefined ? (f.location & 0xff) : null;
+                if (udLoc === LOC.HAND && f.player !== undefined && f.cards
+                    && (f.cards.length === 0 || typeof f.cards[0] === 'number')) {
+                    syncHand(f.player, f.cards);
+                    updateZone(f.player, LOC.HAND);
+                }
                 break;
             }
             case 'Draw': {
@@ -674,6 +684,14 @@ function initReplayViewer() {
                 if (f.hint) log('💡 ' + f.hint, 'rp-log-hint');
                 break;
             }
+            case 'ShuffleHand': {
+                // 手牌洗牌：cards 为新顺序，整体重建手牌
+                if (f.player !== undefined && f.cards && f.cards.length && typeof f.cards[0] === 'number') {
+                    syncHand(f.player, f.cards);
+                    updateZone(f.player, LOC.HAND);
+                }
+                break;
+            }
             case 'SelectIdleCmd':
             case 'SelectBattleCmd':
             case 'SelectChain':
@@ -700,15 +718,12 @@ function initReplayViewer() {
         }
     }
 
-    // 场地操作辅助：field[c][loc:seq] = {code, faceDown, pos(原表示位), zone:(loc)…}
-    // 卡从一处移到另一处时，用 prev 定位删除、插到 cur。
+    // 场地操作辅助：field[c][loc:seq] = {code, faceDown, pos(原表示位)}
     var _uid = 1;
 
     function addCardAt(controller, loc, seq, code, down, posRaw) {
         if (!field[controller]) field[controller] = {};
-        var key = loc + ':' + seq;
-        // 若该位已有卡（同名序列可能复用），直接覆盖并记住旧引用移除
-        field[controller][key] = {
+        field[controller][loc + ':' + seq] = {
             code: code,
             uid: _uid++,
             faceDown: !!down,
@@ -717,39 +732,78 @@ function initReplayViewer() {
     }
 
     function removeAt(controller, loc, seq) {
-        if (field[controller]) {
-            delete field[controller][loc + ':' + seq];
+        if (field[controller]) delete field[controller][loc + ':' + seq];
+    }
+
+    // 手牌是“压缩列表”：出牌/洗牌后核心的序号会前移。
+    // 因此删除手牌按【卡号】匹配，删除后把剩余手牌重排为 0..n-1（不依赖 seq 键）。
+    function handKeys(ctl) {
+        var t = field[ctl] || {};
+        return Object.keys(t)
+            .filter(function (k) { return k.indexOf(LOC.HAND + ':') === 0; })
+            .sort(function (a, b) { return parseInt(a.split(':')[1], 10) - parseInt(b.split(':')[1], 10); });
+    }
+    function removeFromHandByCode(ctl, code) {
+        if (!field[ctl] || !code) return false;
+        var keys = handKeys(ctl);
+        var idx = -1;
+        for (var i = 0; i < keys.length; i++) {
+            if (field[ctl][keys[i]].code === code) { idx = i; break; }
         }
+        if (idx < 0) return false;
+        delete field[ctl][keys[idx]];
+        var rest = keys.filter(function (k, j) { return j !== idx; })
+            .map(function (k) { return field[ctl][k]; });
+        var next = {};
+        Object.keys(field[ctl]).forEach(function (k) {
+            if (k.indexOf(LOC.HAND + ':') !== 0) next[k] = field[ctl][k];
+        });
+        rest.forEach(function (c, j) { next[LOC.HAND + ':' + j] = c; });
+        field[ctl] = next;
+        return true;
+    }
+
+    // 用权威的手牌列表（顺序）整体重建手牌（UpdateData/ShuffleHand 同步用）
+    function syncHand(ctl, codes) {
+        if (!field[ctl]) field[ctl] = {};
+        var next = {};
+        Object.keys(field[ctl]).forEach(function (k) {
+            if (k.indexOf(LOC.HAND + ':') !== 0) next[k] = field[ctl][k];
+        });
+        codes.forEach(function (c, i) {
+            next[LOC.HAND + ':' + i] = { code: c, uid: _uid++, faceDown: false, pos: 0 };
+        });
+        field[ctl] = next;
     }
 
     function moveCard(prev, cur, code) {
         var pCon = prev.controller !== undefined ? prev.controller : 0;
         var pLoc = prev.location !== undefined ? (prev.location & 0xff) : undefined;
-        var pSeq = prev.sequence !== undefined ? prev.sequence : 0;
         var cCon = cur.controller !== undefined ? cur.controller : pCon;
         var cLoc = cur.location !== undefined ? (cur.location & 0xff) : undefined;
-        var cSeq = cur.sequence !== undefined ? cur.sequence : 0;
         var down = isFaceDown(cur.position);
         var posRaw = cur.position;
 
-        // 找旧位置卡对象（若存在）
-        var oldCard = null;
-        if (pLoc !== undefined && field[pCon]) {
-            oldCard = field[pCon][pLoc + ':' + pSeq] || null;
+        if (pLoc === LOC.HAND) {
+            // 出牌（含换控制权给对面，如坏兽）：按卡号删，找不到再退回按 seq 删
+            var removed = removeFromHandByCode(pCon, code);
+            if (!removed) removeAt(pCon, pLoc, prev.sequence !== undefined ? prev.sequence : 0);
+        } else if (pLoc !== undefined) {
+            removeAt(pCon, pLoc, prev.sequence !== undefined ? prev.sequence : 0);
         }
-        if (pLoc !== undefined) removeAt(pCon, pLoc, pSeq);
 
-        if (cLoc !== undefined) {
-            // 新位置插入：若原位有卡且 code 匹配，携带其 uid/原信息；否则新卡
-            var useCode = code !== undefined ? code : (oldCard ? oldCard.code : 0);
-            addCardAt(cCon, cLoc, cSeq, useCode, down, posRaw);
+        if (cLoc === LOC.HAND) {
+            // 回手/检索：追加末尾，序号=当前手牌数（随后 UpdateData 会再校准）
+            addToHand(cCon, code !== undefined ? code : 0);
+        } else if (cLoc !== undefined) {
+            addCardAt(cCon, cLoc, cur.sequence !== undefined ? cur.sequence : 0, code, down, posRaw);
         }
     }
 
     function addToHand(controller, code) {
         var seq = 0;
         while (field[controller] && field[controller][LOC.HAND + ':' + seq]) seq++;
-        addCardAt(controller, LOC.HAND, seq, code, false, 0);
+        if (code) addCardAt(controller, LOC.HAND, seq, code, false, 0);
     }
 
     function isFaceDown(pos) {
@@ -833,6 +887,55 @@ function initReplayViewer() {
         progressText.textContent = (idx + 1) + ' / ' + messages.length;
     }
 
+    // ── 卡图预加载：开播前把所有会用到的卡图下载好，播放中不等待、不闪烁 ──
+    function collectCodes(msgs) {
+        var set = {};
+        msgs.forEach(function (m) {
+            var f = m.f || {};
+            if (typeof f.code === 'number') set[f.code] = 1;
+            if (Array.isArray(f.cards)) {
+                f.cards.forEach(function (c) { if (typeof c === 'number') set[c] = 1; });
+            }
+        });
+        return Object.keys(set).map(function (k) { return parseInt(k, 10); });
+    }
+    function loadOneImg(code) {
+        return new Promise(function (resolve) {
+            var chain = picChain(code);
+            var i = 0;
+            function tryNext() {
+                if (i >= chain.length) { cardDomCache[code] = 'cover.jpg'; return resolve(); }
+                var im = new Image();
+                var src = chain[i];
+                im.onload = function () { cardDomCache[code] = src; resolve(); };
+                im.onerror = function () { i++; tryNext(); };
+                im.src = src;
+            }
+            tryNext();
+        });
+    }
+    function preloadAll(codes, onProg) {
+        return new Promise(function (resolveAll) {
+            var total = codes.length;
+            if (!total) { resolveAll(); return; }
+            var idx = 0, done = 0;
+            function nextBatch() {
+                var batch = [];
+                while (idx < total && batch.length < 8) batch.push(codes[idx++]);
+                if (!batch.length) { resolveAll(); return; }
+                var pending = batch.length;
+                batch.forEach(function (code) {
+                    loadOneImg(code).then(function () {
+                        done++;
+                        if (onProg) onProg(done, total);
+                        if (--pending === 0) nextBatch();
+                    });
+                });
+            }
+            nextBatch();
+        });
+    }
+
     // ── 加载回放 ──
     function loadReplay(text) {
         var m = /R#?(\d+)/i.exec(text || '');
@@ -865,9 +968,20 @@ function initReplayViewer() {
                 mainEl.style.display = 'flex';
                 controlsEl.style.display = 'flex';
                 loaded = true;
-                // 播放到 Start
-                playNext();
-                startAuto();
+                // 先预加载全部会用到的卡图，再开始播放
+                var codes = collectCodes(messages);
+                preloading = true;
+                fieldEl.innerHTML = '<div class="rp-loading-tip">预加载卡图 0/' + codes.length + ' …</div>';
+                var tip = fieldEl.firstChild;
+                preloadAll(codes, function (done, total) {
+                    if (tip) tip.textContent = '预加载卡图 ' + done + '/' + total + ' …';
+                }).then(function () {
+                    preloading = false;
+                    if (tip) tip.textContent = '预加载完成，开始播放';
+                    // 播放到 Start
+                    playNext();
+                    startAuto();
+                });
             })
             .catch(function (e) {
                 logBody.innerHTML = '';
@@ -880,9 +994,11 @@ function initReplayViewer() {
     loadBtn.addEventListener('click', function () { loadReplay(inputEl.value); });
     inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') loadReplay(inputEl.value); });
     playPauseBtn.addEventListener('click', function () {
+        if (preloading) return;   // 预加载中不响应
         if (playing) stopAuto(); else startAuto();
     });
     stepBtn.addEventListener('click', function () {
+        if (preloading) return;
         stopAuto();
         playNextVisible();
     });
