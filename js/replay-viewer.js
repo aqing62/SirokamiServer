@@ -1078,8 +1078,13 @@ function initReplayViewer() {
                             .find(function (k) { return df[k].code === tg.code; });
                         if (dk) tRect = rectAt(1 - aCtl, LOC.MZONE, parseInt(dk.split(':')[1], 10));
                     } else if (isDirect) {
-                        var lpEl = lpEls[1 - aCtl];
-                        if (lpEl) tRect = lpEl.getBoundingClientRect();
+                        // 直击：箭头指向对方手卡区中心（与客户端一致）
+                        var hEl = zoneEls[(1 - aCtl) + ':' + LOC.HAND];
+                        tRect = hEl ? hEl.getBoundingClientRect() : null;
+                        if (!tRect) {
+                            var lpEl2 = lpEls[1 - aCtl];
+                            if (lpEl2) tRect = lpEl2.getBoundingClientRect();
+                        }
                     }
                     attackMarkFx(aRect, tRect, isDirect);
                 }
