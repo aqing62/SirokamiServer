@@ -65,6 +65,7 @@ function initReplayViewer() {
     var turnPlayer = 0;
     var phaseText = '';
     var deckCount = [0, 0];  // 剩余卡组张数：开局=mainc，抽卡/移出卡组递减，回卡组递增
+    var extraCount = [0, 0]; // 额外卡组张数（开局按 UpdateData(64) 列表，出场/回收增减）
     var inBattle = false;        // 是否处于伤害步骤（战斗消息上下文）
     var animSuppress = false;    // 进度条大跳等批量处理时关闭动画
     var preloading = false;      // 卡图预加载中
@@ -196,22 +197,24 @@ function initReplayViewer() {
         var hand = '<div class="rp-hand" data-zone="' + controller + ':' + LOC.HAND + '"></div>';
         var mzoneRow = '<div class="rp-fieldrow rp-mzone">' + mzone + '</div>';
         var szoneRow = '<div class="rp-fieldrow rp-szone">' + szone + '</div>';
-        // 墓地/卡组：与同行格子同尺寸，作为外轨“多出来”的一格；对面外轨留空保证5格列对称
+        // 牌堆/场地区：与同行格子同尺寸贴在外轨
+        //   自己：怪兽行 [场地|怪兽×5|墓地]，魔陷行 [额外|魔陷×5|卡组]；对手左右镜像
         var graveCell = '<div class="rp-cell rp-pile rp-pile-grave" data-pile="grave:' + controller + '"></div>';
         var deckCell = '<div class="rp-cell rp-pile rp-pile-deck" data-pile="deck:' + controller + '"></div>';
-        var voidEl = '<div class="rp-rail-void"></div>';
+        var extraCell = '<div class="rp-cell rp-pile rp-pile-extra" data-pile="extra:' + controller + '"></div>';
+        var fieldCell = '<div class="rp-cell rp-field-cell" data-zone="' + controller + ':' + LOC.SZONE + ':5"></div>';
 
         if (isOpp) {
-            // 对手：手牌(顶) → [卡组|魔陷×5|空] → [墓地|怪兽×5|空]
+            // 对手(镜像)：手牌(顶) → [卡组|魔陷×5|额外] → [墓地|怪兽×5|场地]
             return nameTag
                 + hand
-                + '<div class="rp-row">' + deckCell + szoneRow + voidEl + '</div>'
-                + '<div class="rp-row">' + graveCell + mzoneRow + voidEl + '</div>';
+                + '<div class="rp-row">' + deckCell + szoneRow + extraCell + '</div>'
+                + '<div class="rp-row">' + graveCell + mzoneRow + fieldCell + '</div>';
         }
-        // 自己：[空|怪兽×5|墓地] → [空|魔陷×5|卡组] → 手牌(底)
+        // 自己：[场地|怪兽×5|墓地] → [额外|魔陷×5|卡组] → 手牌(底)
         return nameTag
-            + '<div class="rp-row">' + voidEl + mzoneRow + graveCell + '</div>'
-            + '<div class="rp-row">' + voidEl + szoneRow + deckCell + '</div>'
+            + '<div class="rp-row">' + fieldCell + mzoneRow + graveCell + '</div>'
+            + '<div class="rp-row">' + extraCell + szoneRow + deckCell + '</div>'
             + hand;
     }
 
@@ -292,6 +295,12 @@ function initReplayViewer() {
                 String(dcount),
                 dcount ? { code: 0, faceDown: true } : null,
                 false);
+            var xcount = extraCount[c] || 0;
+            fillPile(midEls['extra:' + c],
+                'x' + xcount,
+                String(xcount),
+                xcount ? { code: 0, faceDown: true } : null,
+                false);
             var bc = locCards(c, LOC.REMOVED);
             var btop = bc[bc.length - 1];
             fillPile(midEls['removed:' + c],
@@ -323,6 +332,13 @@ function initReplayViewer() {
             var cell = zoneEls[cellKey];
             var card = cell ? (field[controller] ? field[controller][loc + ':' + seq] : null) : null;
             setCellCard(cell, card, controller === 1 && !!card && !card.faceDown);
+        }
+        // 场地区：魔陷区的 seq=5 格（场地魔法）单独显示在怪兽行外轨
+        if (loc === LOC.SZONE) {
+            var fKey = controller + ':' + LOC.SZONE + ':5';
+            var fCell = zoneEls[fKey];
+            var fCard = field[controller] ? field[controller][LOC.SZONE + ':5'] : null;
+            setCellCard(fCell, fCard, controller === 1 && !!fCard && !fCard.faceDown);
         }
     }
 
@@ -549,6 +565,7 @@ function initReplayViewer() {
                 phaseText = '';
                 // 卡组张数 = 开局主卡组数(mainc)，此后由 Draw/Move 增减
                 deckCount = [0, 0];
+                extraCount = [0, 0];
                 (meta && meta.players || []).forEach(function (p) {
                     if ((p.pos === 0 || p.pos === 1) && p.mainc) deckCount[p.pos] = p.mainc;
                 });
@@ -559,12 +576,17 @@ function initReplayViewer() {
             }
             case 'UpdateData': {
                 // UpdateData 语义复杂，雏形不重建场上区；
-                // 但 手牌(2) 的全量列表是权威的：按序重建手牌，避免 seq 压缩/洗牌导致残留
+                // 但 手牌(2) 全量列表与 额外卡组(64) 是权威的
                 var udLoc = f.location !== undefined ? (f.location & 0xff) : null;
                 if (udLoc === LOC.HAND && f.player !== undefined && f.cards
                     && (f.cards.length === 0 || typeof f.cards[0] === 'number')) {
                     syncHand(f.player, f.cards);
                     updateZone(f.player, LOC.HAND);
+                } else if (udLoc === LOC.EXTRA && f.player !== undefined && Array.isArray(f.cards)) {
+                    // 额外卡组列表（数字=卡号）→ 张数
+                    var ec = f.cards.filter(function (c) { return typeof c === 'number'; }).length;
+                    extraCount[f.player] = ec;
+                    updatePiles();
                 }
                 break;
             }
@@ -617,6 +639,12 @@ function initReplayViewer() {
                     var dCon = prev.controller !== undefined ? prev.controller : 0;
                     var dDelta = (cLocD === LOC.DECK ? 1 : 0) - (pLocD === LOC.DECK ? 1 : 0);
                     deckCount[dCon] = Math.max(0, (deckCount[dCon] || 0) + dDelta);
+                }
+                // 额外卡组计数：出场 -1，回收 +1
+                if (pLocD === LOC.EXTRA || cLocD === LOC.EXTRA) {
+                    var eCon = prev.controller !== undefined ? prev.controller : 0;
+                    var eDelta = (cLocD === LOC.EXTRA ? 1 : 0) - (pLocD === LOC.EXTRA ? 1 : 0);
+                    extraCount[eCon] = Math.max(0, (extraCount[eCon] || 0) + eDelta);
                 }
                 // 精确按位置移动（prev→cur）
                 if (cur.location !== undefined) {

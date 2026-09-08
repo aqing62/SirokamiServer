@@ -230,6 +230,13 @@
 .rp-pile-grave::after { content: '墓地'; }
 .rp-pile-deck::after  { content: '卡组'; }
 .rp-pile-removed::after { content: '除外'; }
+.rp-pile-extra::after { content: '额外'; }
+/* 场地区：魔陷行 seq5 格（场地魔法），展示在怪兽行外轨 */
+.rp-field-cell::after {
+    content: '场地'; position: absolute; left: 0; right: 0; bottom: 2px;
+    text-align: center; font-size: 9px; color: rgba(255,255,255,0.3);
+    pointer-events: none;
+}
 .rp-pile-removed {
     border-style: dashed;
     border-color: rgba(160,130,230,0.55);
