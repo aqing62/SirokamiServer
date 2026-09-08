@@ -65,6 +65,8 @@ function initReplayViewer() {
     var turnPlayer = 0;
     var phaseText = '';
     var deckCount = [0, 0];  // 剩余卡组张数：开局=mainc，抽卡/移出卡组递减，回卡组递增
+    var inBattle = false;        // 是否处于伤害步骤（战斗消息上下文）
+    var animSuppress = false;    // 进度条大跳等批量处理时关闭动画
 
     // 卡池索引（卡名查询，可选加载 /api/cards）
     var cardNameMap = {};
@@ -139,9 +141,9 @@ function initReplayViewer() {
             + '<div class="rp-cell rp-pile rp-pile-removed" data-pile="removed:1"></div>'
             + '<div class="rp-mid-zone">'
             + '<div class="rp-rail-void"></div>'
-            + '<div class="rp-cell rp-emz-cell" data-zone="1:4:5"></div>'
+            + '<div class="rp-cell rp-emz-cell" data-zone="emz:L" title="额外怪兽区(共用)"></div>'
             + '<div class="rp-mid-info"><span class="rp-turn-label"></span><span class="rp-phase"></span></div>'
-            + '<div class="rp-cell rp-emz-cell" data-zone="0:4:5"></div>'
+            + '<div class="rp-cell rp-emz-cell" data-zone="emz:R" title="额外怪兽区(共用)"></div>'
             + '<div class="rp-rail-void"></div>'
             + '</div>'
             + '<div class="rp-cell rp-pile rp-pile-removed" data-pile="removed:0"></div>'
@@ -228,6 +230,7 @@ function initReplayViewer() {
             });
         });
         updatePiles();
+        refreshEmz();
         // 阶段/回合
         if (phaseEl) phaseEl.textContent = phaseText || '对局开始';
         if (turnLabelEl) turnLabelEl.textContent = turnPlayer === 0 ? '我方回合' : '对手回合';
@@ -238,9 +241,28 @@ function initReplayViewer() {
         });
     }
 
+    // 额外怪兽区：两格共用。核心按“各玩家自己视角”编号：
+    //   P0：左=seq5 右=seq6；P1：左=seq6 右=seq5（左格=emz:L，右格=emz:R）
+    function refreshEmz() {
+        function content(candidates) {
+            for (var i = 0; i < candidates.length; i++) {
+                var ctl = candidates[i][0];
+                var seq = candidates[i][1];
+                var t = field[ctl];
+                var cd = t ? t[LOC.MZONE + ':' + seq] : null;
+                if (cd) return { card: cd, flip: ctl === 1 };
+            }
+            return null;
+        }
+        var L = content([[0, 5], [1, 6]]);
+        var R = content([[0, 6], [1, 5]]);
+        setCellCard(zoneEls['emz:L'], L ? L.card : null, L ? L.flip : false);
+        setCellCard(zoneEls['emz:R'], R ? R.card : null, R ? R.flip : false);
+    }
+
     // 侧边牌堆格子：墓地/除外 = 计数徽标 + 最顶卡（里侧则盖牌）；卡组 = 计数 + 卡背
     // 内容未变（_sig 相同）时跳过重绘，避免每步闪烁
-    function fillPile(el, sig, badge, card) {
+    function fillPile(el, sig, badge, card, flip) {
         if (!el) return;
         if (el._sig === sig) return;
         giveImgsIn(el);
@@ -251,7 +273,7 @@ function initReplayViewer() {
             b.textContent = badge;
             el.appendChild(b);
         }
-        if (card) el.appendChild(cardNode(card));
+        if (card) el.appendChild(cardNode(card, flip));
         el._sig = sig;
     }
     function updatePiles() {
@@ -261,22 +283,26 @@ function initReplayViewer() {
             fillPile(midEls['grave:' + c],
                 'g' + gc.length + '|' + (gtop ? (gtop.code + (gtop.faceDown ? 'd' : 'u')) : ''),
                 gc.length ? String(gc.length) : null,
-                gc.length ? gtop : null);
+                gc.length ? gtop : null,
+                !!(c === 1 && gtop && !gtop.faceDown));
             var dcount = deckCount[c] || 0;
             fillPile(midEls['deck:' + c],
                 'd' + dcount,
                 String(dcount),
-                dcount ? { code: 0, faceDown: true } : null);
+                dcount ? { code: 0, faceDown: true } : null,
+                false);
             var bc = locCards(c, LOC.REMOVED);
             var btop = bc[bc.length - 1];
             fillPile(midEls['removed:' + c],
                 'r' + bc.length + '|' + (btop ? (btop.code + (btop.faceDown ? 'd' : 'u')) : ''),
                 bc.length ? String(bc.length) : null,
-                bc.length ? btop : null);
+                bc.length ? btop : null,
+                !!(c === 1 && btop && !btop.faceDown));
         });
     }
 
     // 更新某玩家某区：手牌签名比对（未变不重绘，防每步闪）；场上逐格精确填
+    // 对手(controller=1)的正面场上卡上下倒置，方便区分归属；手牌不倒
     function updateZone(controller, loc) {
         if (loc === LOC.HAND) {
             var container = zoneEls[controller + ':' + LOC.HAND];
@@ -286,7 +312,7 @@ function initReplayViewer() {
             if (container._sig === sig) return;
             giveImgsIn(container);
             container.innerHTML = '';
-            cards.forEach(function (card) { container.appendChild(cardNode(card)); });
+            cards.forEach(function (card) { container.appendChild(cardNode(card, false)); });
             container._sig = sig;
             return;
         }
@@ -295,14 +321,7 @@ function initReplayViewer() {
             var cellKey = controller + ':' + loc + ':' + seq;
             var cell = zoneEls[cellKey];
             var card = cell ? (field[controller] ? field[controller][loc + ':' + seq] : null) : null;
-            setCellCard(cell, card);
-        }
-        // 额外怪兽区：本方 seq=5 的中线格（对手的在中线左侧、自己的在右侧）
-        if (loc === LOC.MZONE) {
-            var emzKey = controller + ':' + LOC.MZONE + ':5';
-            var emzCell = zoneEls[emzKey];
-            var emzCard = field[controller] ? field[controller][LOC.MZONE + ':5'] : null;
-            setCellCard(emzCell, emzCard);
+            setCellCard(cell, card, controller === 1 && !!card && !card.faceDown);
         }
     }
 
@@ -343,27 +362,31 @@ function initReplayViewer() {
     }
 
     // 生成卡牌外层节点（正面图从池中取；盖牌/卡背无 img 节点）
-    function cardNode(card) {
+    // flip=true：正面卡上下倒置（用于区分对手的卡；手牌不做）
+    function cardNode(card, flip) {
         var w = document.createElement('div');
         w.className = 'rp-card';
         if (!card) { w.className += ' rp-card-empty'; return w; }
         if (card.faceDown) { w.className += ' rp-card-down'; w.title = '盖牌'; return w; }
+        if (flip) w.className += ' rp-flip';
         var nm = cardName(card.code);
         w.title = escapeHtml(nm || card.code);
         w.appendChild(takeImg(card.code));
         return w;
     }
 
-    // 单元格精确更新：同卡同状态不动 DOM；换卡/翻面才重建并回收旧图
-    function setCellCard(cell, card) {
+    // 单元格精确更新：同卡同状态不动 DOM；换卡/翻面/翻转才重建并回收旧图
+    function setCellCard(cell, card, flip) {
         if (!cell) return;
         if (card) {
-            if (cell._code === card.code && cell._down === !!card.faceDown && cell.querySelector('.rp-card')) return;
+            var f = !!flip;
+            if (cell._code === card.code && cell._down === !!card.faceDown && cell._flip === f && cell.querySelector('.rp-card')) return;
             giveImgsIn(cell);
             cell.innerHTML = '';
-            cell.appendChild(cardNode(card));
+            cell.appendChild(cardNode(card, f));
             cell._code = card.code;
             cell._down = !!card.faceDown;
+            cell._flip = f;
             if (!card.faceDown) warmCardImg(card.code);
         } else {
             if (cell._code !== undefined || cell.innerHTML !== '') {
@@ -371,6 +394,7 @@ function initReplayViewer() {
                 cell.innerHTML = '';
                 cell._code = null;
                 cell._down = false;
+                cell._flip = false;
             }
         }
     }
@@ -418,6 +442,86 @@ function initReplayViewer() {
                 if (card && card.code && !card.faceDown) warmCardImg(card.code);
             });
         });
+    }
+
+    // ── 移动动画：幽灵卡从原格滑到目标格（视口坐标，随棋盘缩放自动正确）──
+    function isVisibleLoc(l) { return l === LOC.HAND || l === LOC.MZONE || l === LOC.SZONE; }
+    function rectAt(ctl, loc, seq) {
+        var l2 = loc & 0xff;
+        if (l2 === LOC.HAND) {
+            var cont = zoneEls[ctl + ':' + LOC.HAND];
+            if (!cont || !cont.children.length) return null;
+            var cards = locCards(ctl, LOC.HAND);
+            var i = 0;
+            for (; i < cards.length; i++) { if (cards[i].seq === seq) break; }
+            if (i >= cards.length || i >= cont.children.length) return null;
+            return cont.children[i].getBoundingClientRect();
+        }
+        var cell = zoneEls[ctl + ':' + l2 + ':' + seq];
+        return cell ? cell.getBoundingClientRect() : null;
+    }
+    function flyGhost(cardCode, down, s, d) {
+        if (!s || !d || !s.width || !d.width) return;
+        var g = document.createElement('div');
+        g.className = 'rp-fly' + (down || !cardCode ? ' rp-fly-down' : '');
+        g.style.width = s.width + 'px';
+        g.style.height = s.height + 'px';
+        g.style.left = s.left + 'px';
+        g.style.top = s.top + 'px';
+        if (!down && cardCode) {
+            var im = document.createElement('img');
+            im.src = cardImgSrc(cardCode);
+            im.onerror = function () {
+                this.onerror = null;
+                this.src = SUPER_PRE_PIC + cardCode + '.jpg';
+                this.onerror = function () {
+                    this.onerror = null;
+                    this.src = OCG_PIC + cardCode + '.jpg';
+                    this.onerror = function () { this.onerror = null; this.src = 'cover.jpg'; };
+                };
+            };
+            g.appendChild(im);
+        }
+        document.body.appendChild(g);
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                g.style.transform = 'translate(' + (d.left - s.left) + 'px,' + (d.top - s.top) + 'px)'
+                    + ' scale(' + (d.width / s.width) + ',' + (d.height / s.height) + ')';
+            });
+        });
+        setTimeout(function () {
+            g.style.opacity = '0';
+            setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 200);
+        }, 210);
+    }
+    function animateMove(cardCode, down, s, d) {
+        if (animSuppress || !s || !d) return;
+        flyGhost(cardCode, down, s, d);
+    }
+
+    // ── 攻击日志辅助：尽量确定“攻击了谁” ──
+    function attackTargetCode(atkCtl) {
+        // 攻击宣言前最近的 SelectCard（目标候选，通常只有1个=唯一目标）
+        for (var i = idx - 1; i >= 0 && i > idx - 14; i--) {
+            var m = messages[i];
+            if (!m || !m.f) continue;
+            if (m.name === 'SelectCard' && m.f.player === atkCtl && m.f.cards && m.f.cards.length) {
+                return m.f.cards.length === 1 ? m.f.cards[0] : 0; // 0=多名候选不确定
+            }
+            if (m.name === 'Move' || m.name === 'Summoning' || m.name === 'SpSummoning') return -1;
+        }
+        return -1;
+    }
+    function attackResolve(atkCtl) {
+        var defCtl = 1 - atkCtl;
+        var defCards = Object.keys(field[defCtl] || {})
+            .filter(function (k) { return k.indexOf('4:') === 0; })
+            .map(function (k) { return field[defCtl][k]; });
+        var c = attackTargetCode(atkCtl);
+        if (c > 0) return { code: c, direct: false };
+        if (!defCards.length) return { code: 0, direct: true };   // 场上无怪兽 → 直接攻击
+        if (c === -1 && defCards.length === 1) return { code: defCards[0].code, direct: false };
+        return { code: 0, direct: false };                        // 多个可攻击对象，无法确定
     }
 
     // ── 消息处理（驱动场地状态 + 日志）──

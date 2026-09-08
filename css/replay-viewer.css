@@ -257,6 +257,8 @@
     background: #1a1a1a;
 }
 .rp-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+/* 对手(上方)的正面卡上下倒置以区分归属（共用额外区里也能分清）；手牌不倒 */
+.rp-card.rp-flip { transform: rotate(180deg); }
 .rp-card-down {
     /* 卡背用 cover2.jpg（加载失败时退回红条纹渐变） */
     background-image: url('../cover2.jpg'),
