@@ -85,13 +85,19 @@
     background: #000;
     border: 1px solid rgba(216, 30, 68, 0.6);
     border-radius: 12px;
-    padding: 10px;
-    overflow: auto;
+    padding: 6px;
+    overflow: hidden;         /* 棋盘由 fitBoard 整体缩放，不出现滚动条 */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+.rp-board {
     display: flex;
     flex-direction: column;
-    justify-content: safe center;   /* 内容超高时自动改为顶部对齐以便滚动 */
     gap: 6px;
-    position: relative;
+    transform-origin: center center;
+    flex-shrink: 0;
 }
 
 /* ═══ 标准 5 格对战场地 ═══ */

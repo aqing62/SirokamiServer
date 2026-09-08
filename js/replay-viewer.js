@@ -113,7 +113,19 @@ function initReplayViewer() {
     var turnLabelEl = null;
     var lpEls = {};
     var playerNameEls = {};
+    var boardEl = null;     // 整个场地棋盘容器（用于整体缩放防滚动条）
     var cardDomCache = {}; // code → 已创建的 img src（内存缓存避免闪）
+
+    // 场地棋盘按播放器窗口自动缩放：整体缩小到刚好放下，不出现滚动条
+    function fitBoard() {
+        if (!boardEl || !fieldEl.clientWidth) return;
+        var availW = fieldEl.clientWidth - 12;
+        var availH = fieldEl.clientHeight - 12;
+        var bw = boardEl.scrollWidth || boardEl.offsetWidth;
+        var bh = boardEl.scrollHeight || boardEl.offsetHeight;
+        var k = Math.min(1, availW / bw, availH / bh);
+        boardEl.style.transform = k < 1 ? 'scale(' + k + ')' : '';
+    }
 
     function createFieldDOM() {
         // 上=对手(P1)，下=自己(P0)
@@ -121,7 +133,8 @@ function initReplayViewer() {
         //     因此双方 5 格怪兽/魔陷列上下对齐（对称）。
         // 中线行：除外P1(左外轨) | 额外区P1 | 回合/阶段 | 额外区P0 | 除外P0(右外轨)
         var html =
-            '<div class="rp-side rp-opp">' + sideSkeleton(1, true) + '</div>'
+            '<div class="rp-board">'
+            + '<div class="rp-side rp-opp">' + sideSkeleton(1, true) + '</div>'
             + '<div class="rp-row rp-centerband">'
             + '<div class="rp-cell rp-pile rp-pile-removed" data-pile="removed:1"></div>'
             + '<div class="rp-mid-zone">'
@@ -133,8 +146,10 @@ function initReplayViewer() {
             + '</div>'
             + '<div class="rp-cell rp-pile rp-pile-removed" data-pile="removed:0"></div>'
             + '</div>'
-            + '<div class="rp-side rp-self">' + sideSkeleton(0, false) + '</div>';
+            + '<div class="rp-side rp-self">' + sideSkeleton(0, false) + '</div>'
+            + '</div>';
         fieldEl.innerHTML = html;
+        boardEl = fieldEl.querySelector('.rp-board');
 
         // 收集引用
         zoneEls = {};
@@ -155,6 +170,7 @@ function initReplayViewer() {
         renderPlayerHead(0);
         renderPlayerHead(1);
         updateAllZones();
+        fitBoard();
     }
 
     // 一侧场地骨架：名签 + 手牌 + 行(怪兽/魔陷 与 墓地/卡组 同格并排)
@@ -748,5 +764,12 @@ function initReplayViewer() {
             btn.classList.add('active');
             if (playing) { stopAuto(); startAuto(); }
         });
+    });
+
+    // 窗口尺寸变化时重新缩放棋盘，保证不出现滚动条
+    var _fitTimer = 0;
+    window.addEventListener('resize', function () {
+        clearTimeout(_fitTimer);
+        _fitTimer = setTimeout(fitBoard, 80);
     });
 }
