@@ -63,6 +63,7 @@ function initReplayViewer() {
     };
     var lp = [8000, 8000];
     var turnPlayer = 0;
+    var turnCount = 0;        // 当前回合数（每次 NewTurn +1）
     var phaseText = '';
     var deckCount = [0, 0];  // 剩余卡组张数：开局=mainc，抽卡/移出卡组递减，回卡组递增
     var extraCount = [0, 0]; // 额外卡组张数（开局按 UpdateData(64) 列表，出场/回收增减）
@@ -218,6 +219,13 @@ function initReplayViewer() {
             + hand;
     }
 
+    // 中间回合标签：回合方 + 回合数（如 我方回合3）
+    function renderTurnLabel() {
+        if (!turnLabelEl) return;
+        var who = turnPlayer === 0 ? '我方' : '对方';
+        turnLabelEl.textContent = turnCount ? who + '回合' + turnCount : who + '回合';
+    }
+
     function renderPlayerHead(controller) {
         var name = meta && meta.players
             ? (meta.players.find(function (p) { return p.pos === controller; }) || {}).realName || ''
@@ -237,7 +245,7 @@ function initReplayViewer() {
         refreshEmz();
         // 阶段/回合
         if (phaseEl) phaseEl.textContent = phaseText || '对局开始';
-        if (turnLabelEl) turnLabelEl.textContent = turnPlayer === 0 ? '我方回合' : '对手回合';
+        renderTurnLabel();
         // 高亮当前回合玩家
         [0, 1].forEach(function (c) {
             var side = fieldEl.querySelector(c === 1 ? '.rp-opp' : '.rp-self');
@@ -926,6 +934,7 @@ function initReplayViewer() {
                 field = { 0: {}, 1: {} };
                 lp = [8000, 8000];
                 turnPlayer = 0;
+                turnCount = 0;
                 phaseText = '';
                 // 卡组张数 = 开局主卡组数(mainc)，此后由 Draw/Move 增减
                 deckCount = [0, 0];
@@ -988,11 +997,12 @@ function initReplayViewer() {
             }
             case 'NewTurn': {
                 turnPlayer = f.player;
+                turnCount++;              // 回合计数
                 phaseText = '回合开始';
                 renderPlayerHead(0);
                 renderPlayerHead(1);
                 if (phaseEl) phaseEl.textContent = phaseText;
-                if (turnLabelEl) turnLabelEl.textContent = turnPlayer === 0 ? '我方回合' : '对手回合';
+                renderTurnLabel();
                 // 高亮当前回合方
                 [0, 1].forEach(function (c) {
                     var side = fieldEl.querySelector(c === 1 ? '.rp-opp' : '.rp-self');
