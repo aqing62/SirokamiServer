@@ -1,0 +1,202 @@
+/* 白神服Sirokami — 回放播放器 */
+#section-replay.active {
+    padding: 24px 18px;
+    min-height: 100vh;
+}
+
+.replay-title {
+    text-align: center;
+    font-size: 1.6rem;
+    color: var(--light-gold, #F0E68C);
+    margin: 10px 0 16px;
+    text-shadow: 0 0 10px var(--gold);
+}
+
+/* 输入条 */
+.replay-input-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.replay-input-bar input {
+    width: 260px;
+    max-width: 80vw;
+    background: rgba(0,0,0,0.5);
+    border: 1px solid rgba(216,30,68,0.4);
+    color: #eee;
+    border-radius: 8px;
+    padding: 8px 14px;
+    font-size: 0.95rem;
+    outline: none;
+}
+.replay-input-bar input:focus { border-color: var(--gold); }
+.replay-input-bar button {
+    background: linear-gradient(135deg, var(--red), var(--dark-red));
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 20px;
+    font-weight: 700;
+    cursor: pointer;
+}
+.replay-meta { color: #aaa; font-size: 0.85rem; }
+
+/* 控制条 */
+.replay-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(20,20,20,0.8);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 10px;
+    padding: 8px 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+.replay-controls button {
+    background: rgba(60,60,60,0.9);
+    border: none;
+    color: #eee;
+    border-radius: 6px;
+    padding: 5px 12px;
+    cursor: pointer;
+    font-size: 0.8rem;
+}
+.replay-controls button:hover { background: var(--red); }
+.replay-controls .rp-speed { background: rgba(40,40,40,0.9); }
+.replay-controls .rp-speed.active { background: var(--red); color: #fff; }
+.rp-speed-label { color: #888; font-size: 0.75rem; }
+.rp-progress-text { color: #aaa; font-size: 0.75rem; white-space: nowrap; }
+#rpProgress { accent-color: var(--red); }
+
+/* 主体双栏 */
+.replay-main {
+    display: flex;
+    gap: 12px;
+    height: calc(100vh - 210px);
+    min-height: 460px;
+}
+.replay-field {
+    flex: 0 0 70%;
+    background: linear-gradient(180deg, #16233b 0%, #0b1626 50%, #122033 100%);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 10px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    position: relative;
+}
+
+/* 场地玩家区 */
+.rp-player-zone {
+    background: rgba(0,0,0,0.28);
+    border-radius: 8px;
+    padding: 6px;
+}
+.rp-player-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+}
+.rp-player-name { color: var(--light-gold); font-weight: 700; font-size: 0.85rem; }
+.rp-player.turn .rp-player-name { color: #fff; }
+.rp-player.turn .rp-player-name::after { content: ' ◀'; color: var(--red); }
+.rp-lp { color: #ff6b6b; font-weight: 700; }
+.rp-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; }
+.rp-loc-label {
+    color: #888; font-size: 0.68rem; width: 34px; flex-shrink: 0; text-align: right;
+}
+.rp-row-cards { display: flex; gap: 3px; flex-wrap: wrap; flex: 1; min-height: 40px; }
+.rp-row-empty { color: #444; font-size: 0.7rem; }
+
+/* 卡 */
+.rp-card {
+    width: 58px; height: 81px;
+    border-radius: 3px; overflow: hidden;
+    border: 1px solid rgba(255,255,255,0.15);
+    flex-shrink: 0;
+}
+.rp-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rp-card-down {
+    background: repeating-linear-gradient(45deg, #2a4a7a, #2a4a7a 6px, #1e3860 6px, #1e3860 12px);
+    border: 1px solid #4a6a9a;
+}
+.rp-card-empty { background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.06); }
+
+/* 中间信息 */
+.rp-middle { display: flex; align-items: center; justify-content: center; }
+.rp-middle-info {
+    display: flex; align-items: center; gap: 16px;
+    background: rgba(0,0,0,0.35);
+    border-radius: 20px; padding: 4px 16px;
+}
+.rp-phase { color: var(--gold); font-weight: 700; font-size: 0.85rem; }
+.rp-deck-info { color: #778; font-size: 0.7rem; }
+
+.rp-loading-tip {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: #888; font-size: 1rem;
+}
+
+/* 日志 */
+.replay-log {
+    flex: 1 1 30%;
+    background: rgba(15,15,15,0.9);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+.replay-log-title {
+    color: var(--light-gold);
+    font-weight: 700;
+    padding: 10px 12px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+}
+.replay-log-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    line-height: 1.7;
+    color: #ccc;
+    scrollbar-width: thin;
+    scrollbar-color: var(--red) transparent;
+    display: flex;
+    flex-direction: column;
+}
+.rp-log-line {
+    padding: 1px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    animation: rpLineIn 0.2s ease;
+}
+@keyframes rpLineIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.rp-log-phase { color: var(--gold); font-weight: 600; }
+.rp-log-damage { color: #ff8a8a; }
+.rp-log-chain { color: #a9d3ff; }
+.rp-log-hint { color: #777; font-size: 0.72rem; }
+.rp-log-win { color: #ffd700; font-weight: 700; font-size: 0.9rem; }
+.rp-log-err { color: #ff6b6b; }
+
+/* 移动端 */
+@media (max-width: 900px) {
+    .replay-main { flex-direction: column; height: auto; }
+    .replay-field { flex: none; min-height: 420px; }
+    .replay-log { flex: none; height: 40vh; }
+}
+@media (max-width: 768px) {
+    .rp-card { width: 44px; height: 62px; }
+    .replay-field { min-height: 380px; }
+}
