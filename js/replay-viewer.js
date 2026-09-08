@@ -19,6 +19,14 @@ function initReplayViewer() {
     LOC_NAME[LOC.EXTRA] = '额外'; LOC_NAME[LOC.OVERLAY] = '素材';
     LOC_NAME[LOC.FZONE] = '场地'; LOC_NAME[LOC.PZONE] = '灵摆';
 
+    // 阶段（ocgcore phase 位标记值 → 中文）
+    var PHASE_NAMES = {
+        1: '抽卡阶段', 2: '准备阶段', 4: '主要阶段1',
+        8: '战斗阶段', 16: '战斗步骤', 32: '伤害步骤',
+        64: '伤害计算', 128: '战斗阶段',
+        256: '主要阶段2', 512: '结束阶段',
+    };
+
     // 卡图源（与站内一致：DIY 图 → 官方 CDN）
     var OCG_PIC = 'https://cdn.233.momobako.com/ygopro/pics/';
     var SUPER_PRE_PIC = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
@@ -203,7 +211,7 @@ function initReplayViewer() {
             }
         });
         // 阶段/回合
-        if (phaseEl) phaseEl.textContent = phaseText || '准备阶段';
+        if (phaseEl) phaseEl.textContent = phaseText || '对局开始';
         if (turnLabelEl) turnLabelEl.textContent = turnPlayer === 0 ? '我方回合' : '对手回合';
         // 高亮当前回合玩家
         [0, 1].forEach(function (c) {
@@ -344,13 +352,19 @@ function initReplayViewer() {
                 phaseText = '回合开始';
                 renderPlayerHead(0);
                 renderPlayerHead(1);
+                if (phaseEl) phaseEl.textContent = phaseText;
+                if (turnLabelEl) turnLabelEl.textContent = turnPlayer === 0 ? '我方回合' : '对手回合';
+                // 高亮当前回合方
+                [0, 1].forEach(function (c) {
+                    var side = fieldEl.querySelector(c === 1 ? '.rp-opp' : '.rp-self');
+                    if (side) side.classList.toggle('rp-active-side', turnPlayer === c);
+                });
                 log('🔄 ' + playerName(turnPlayer) + ' 的回合');
                 break;
             }
             case 'NewPhase': {
-                var ph = f.phase;
-                var names = ['抽卡阶段', '准备阶段', '主要阶段1', '战斗阶段', '主要阶段2', '结束阶段'];
-                phaseText = names[ph] || ('阶段' + ph);
+                phaseText = PHASE_NAMES[f.phase] || ('阶段' + f.phase);
+                if (phaseEl) phaseEl.textContent = phaseText;
                 log('— ' + phaseText + ' —', 'rp-log-phase');
                 break;
             }
