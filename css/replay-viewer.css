@@ -72,15 +72,16 @@
 .rp-progress-text { color: #aaa; font-size: 0.75rem; white-space: nowrap; }
 #rpProgress { accent-color: var(--red); }
 
-/* 主体双栏 */
+/* 主体双栏：总窗口 4:3（宽度≤可用宽，高=宽×3/4）；场地:日志=7:3 */
 .replay-main {
     display: flex;
     gap: 12px;
-    height: calc(100vh - 210px);
-    min-height: 460px;
+    width: min(100%, calc((100vh - 210px) * 4 / 3));
+    aspect-ratio: 4 / 3;
+    margin: 0 auto;
 }
 .replay-field {
-    flex: 4 0 0;            /* 场地 : 日志 = 4 : 3 */
+    flex: 0 0 70%;            /* 场地 : 日志 = 7 : 3 */
     background: #000;
     border: 1px solid rgba(216, 30, 68, 0.6);
     border-radius: 12px;
@@ -265,7 +266,7 @@
 
 /* 日志 */
 .replay-log {
-    flex: 3 0 0;            /* 场地 : 日志 = 4 : 3 */
+    flex: 1 1 30%;            /* 场地 : 日志 = 7 : 3 */
     background: rgba(15,15,15,0.9);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 12px;
@@ -310,7 +311,7 @@
 
 /* 移动端 */
 @media (max-width: 900px) {
-    .replay-main { flex-direction: column; height: auto; }
+    .replay-main { flex-direction: column; height: auto; width: 100%; aspect-ratio: auto; }
     .replay-field { flex: none; min-height: 420px; }
     .replay-log { flex: none; height: 40vh; }
 }
