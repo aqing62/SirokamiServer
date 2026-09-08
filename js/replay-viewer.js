@@ -489,8 +489,7 @@ function initReplayViewer() {
             for (; i < cards.length; i++) { if (cards[i].seq === seq) break; }
             if (i >= cards.length || i >= cont.children.length) return null;
             return cont.children[i].getBoundingClientRect();
-        }
-        if (l2 === LOC.MZONE && seq >= 5) {
+        }        if (l2 === LOC.MZONE && seq >= 5) {
             var cellE = zoneEls[emzKey(ctl, seq)];
             return cellE ? cellE.getBoundingClientRect() : null;
         }
@@ -505,6 +504,36 @@ function initReplayViewer() {
         }
         var cell = zoneEls[ctl + ':' + l2 + ':' + seq];
         return cell ? cell.getBoundingClientRect() : null;
+    }
+    // 手牌来源格：按卡号定位（不依赖 seq，防止压缩/洗牌后错位导致没动画）
+    function rectAtHandByCode(ctl, code) {
+        var cont = zoneEls[ctl + ':' + LOC.HAND];
+        if (!cont || !cont.children.length || !code) return null;
+        var cards = locCards(ctl, LOC.HAND);
+        for (var i = 0; i < cards.length; i++) {
+            if (cards[i].code === code && cont.children[i]) return cont.children[i].getBoundingClientRect();
+        }
+        return null;
+    }
+    // 阶段横幅：画面中央从左滑入 → 停留 → 向右滑出消失
+    function phaseBanner(text) {
+        if (animSuppress || !text) return;
+        var pane = fieldEl.getBoundingClientRect();
+        var b = fxEl('rp-phase-banner');
+        b.textContent = text;
+        b.style.left = (pane.left + pane.width / 2) + 'px';
+        b.style.top = (pane.top + pane.height / 2) + 'px';
+        b.style.transform = 'translate(-50%,-50%) translateX(-130%)';
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                b.style.transform = 'translate(-50%,-50%) translateX(0)';
+            });
+        });
+        setTimeout(function () {
+            b.style.transform = 'translate(-50%,-50%) translateX(130%)';
+            b.style.opacity = '0';
+            setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 340);
+        }, 640);
     }
 
     // 通用特效节点（fixed 定位，视口坐标）
@@ -791,6 +820,7 @@ function initReplayViewer() {
                 phaseText = PHASE_NAMES[f.phase] || ('阶段' + f.phase);
                 if (phaseEl) phaseEl.textContent = phaseText;
                 log('— ' + phaseText + ' —', 'rp-log-phase');
+                if (!animSuppress) phaseBanner(phaseText);
                 break;
             }
             case 'Move': {
@@ -798,16 +828,18 @@ function initReplayViewer() {
                 var prev = f.previous || {};
                 var cur = f.current || {};
                 var name = cardName(code);
-                // 动画：移动前先记下来源矩形（场地/手牌/牌堆）
+                // 动画：移动前先记下来源矩形（手牌按卡号定位；场上/牌堆按位置）
                 var animPreSrc = null;
                 if (!animSuppress && cur.location !== undefined) {
                     var pRaw = prev.location;
                     if (pRaw !== undefined) {
                         var pM = pRaw & 0xff;
-                        if (pM === LOC.HAND || pM === LOC.MZONE || pM === LOC.SZONE
+                        var pCtl0 = prev.controller !== undefined ? prev.controller : 0;
+                        if (pM === LOC.HAND) {
+                            animPreSrc = rectAtHandByCode(pCtl0, code);
+                        } else if (pM === LOC.MZONE || pM === LOC.SZONE
                             || pM === LOC.GRAVE || pM === LOC.REMOVED || pM === LOC.DECK || pM === LOC.EXTRA) {
-                            animPreSrc = rectAt(prev.controller !== undefined ? prev.controller : 0, pRaw,
-                                prev.sequence !== undefined ? prev.sequence : 0);
+                            animPreSrc = rectAt(pCtl0, pRaw, prev.sequence !== undefined ? prev.sequence : 0);
                         }
                     }
                 }
