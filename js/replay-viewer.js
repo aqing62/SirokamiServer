@@ -845,6 +845,17 @@ function initReplayViewer() {
         return { code: 0, direct: false };                        // 仍无法确定
     }
 
+    // 受伤闪红：受伤方那一半场地闪一层红色渐变
+    function hurtFlash(ctl) {
+        if (animSuppress) return;
+        var side = fieldEl.querySelector(ctl === 1 ? '.rp-opp' : '.rp-self');
+        if (!side) return;
+        side.classList.remove('rp-hurt');
+        void side.offsetWidth;   // 重置以重新触发动画
+        side.classList.add('rp-hurt');
+        setTimeout(function () { side.classList.remove('rp-hurt'); }, 620);
+    }
+
     // ── 消息处理（驱动场地状态 + 日志）──
     function playerName(pos) {
         if (!meta || !meta.players) return 'P' + pos;
@@ -1099,6 +1110,7 @@ function initReplayViewer() {
                 var dpl = f.player;
                 lp[dpl] = Math.max(0, (lp[dpl] || 8000) - (f.value || 0));
                 renderPlayerHead(dpl);
+                hurtFlash(dpl);   // 受伤方瞬间闪红
                 if (inBattle) {
                     log('💥 ' + playerName(dpl) + ' 受到 ' + f.value + ' 战斗伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
                 } else {

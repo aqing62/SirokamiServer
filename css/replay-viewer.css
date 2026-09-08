@@ -104,6 +104,21 @@
 .rp-side { padding: 2px 6px; position: relative; display: flex; flex-direction: column; gap: 2px; }
 .rp-side.rp-active-side { background: rgba(216,30,68,0.06); border-radius: 8px; box-shadow: inset 0 0 30px rgba(216,30,68,0.05); }
 
+/* 受伤方瞬间闪红（红色渐变，边缘重、中间轻，一次淡出） */
+.rp-side.rp-hurt::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 0; right: 0; bottom: 0;
+    z-index: 30;
+    pointer-events: none;
+    background: radial-gradient(ellipse at 50% 45%, rgba(255, 20, 40, 0) 30%, rgba(255, 25, 45, 0.6) 100%);
+    animation: rpHurtFade 0.55s ease-out forwards;
+}
+@keyframes rpHurtFade {
+    0% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
 /* 名签：纵向，名字上 LP 下；对手右上角、自己左下角 */
 .rp-nametag {
     display: flex;
