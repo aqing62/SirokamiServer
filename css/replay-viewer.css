@@ -88,7 +88,7 @@
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: safe center;   /* 内容超高时自动改为顶部对齐以便滚动 */
     gap: 6px;
     position: relative;
 }
@@ -166,6 +166,14 @@
 .rp-fieldrow.rp-szone .rp-cell { height: 96px; }
 .rp-cell:has(.rp-card) { border-color: rgba(212,175,55,0.35); }
 .rp-cell .rp-card { width: 100%; height: 100%; border: none; border-radius: 3px; }
+
+/* 额外怪兽区：中线两格（左=对手额外区，右=自己额外区） */
+.rp-emz-cell {
+    border-style: dashed;
+    border-color: rgba(212, 175, 55, 0.5);
+    background: rgba(212, 175, 55, 0.05);
+}
+.rp-emz-cell:has(.rp-card) { border-color: rgba(212,175,55,0.8); border-style: solid; }
 .rp-mzone .rp-cell::after {
     content: '怪兽'; position: absolute; bottom: 2px; font-size: 9px; color: rgba(255,255,255,0.16);
     pointer-events: none;

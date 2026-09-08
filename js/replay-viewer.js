@@ -116,15 +116,15 @@ function initReplayViewer() {
     var cardDomCache = {}; // code → 已创建的 img src（内存缓存避免闪）
 
     function createFieldDOM() {
-        // 上=对手(P1)，下=自己(P0)；左右镜像使双方 1~5 号位视觉对称
+        // 上=对手(P1)，下=自己(P0)
+        // 牌堆随各自身侧：对手 卡组[魔陷左]→墓地[怪兽左]→除外(墓地下面)；
+        //             自己 除外(墓地上面)→墓地[怪兽右]→卡组[魔陷右]
         var html =
             '<div class="rp-side rp-opp">' + sideSkeleton(1, true) + '</div>'
             + '<div class="rp-midbar">'
-            + '<div class="rp-mid-group rp-grav-opp"><span class="rp-mid-label">墓地</span><div class="rp-mid-cards" data-mid="grave:1"></div></div>'
-            + '<div class="rp-mid-group rp-deck-opp"><span class="rp-mid-label">卡组</span><div class="rp-mid-cards" data-mid="deck:1"></div></div>'
+            + '<div class="rp-cell rp-emz-cell" data-zone="1:4:5" title="对手额外怪兽区"></div>'
             + '<div class="rp-mid-info"><span class="rp-turn-label"></span><span class="rp-phase"></span></div>'
-            + '<div class="rp-mid-group rp-deck-self"><span class="rp-mid-label">卡组</span><div class="rp-mid-cards" data-mid="deck:0"></div></div>'
-            + '<div class="rp-mid-group rp-grav-self"><span class="rp-mid-label">墓地</span><div class="rp-mid-cards" data-mid="grave:0"></div></div>'
+            + '<div class="rp-cell rp-emz-cell" data-zone="0:4:5" title="额外怪兽区"></div>'
             + '</div>'
             + '<div class="rp-side rp-self">' + sideSkeleton(0, false) + '</div>';
         fieldEl.innerHTML = html;
@@ -140,17 +140,17 @@ function initReplayViewer() {
         lpEls[1] = fieldEl.querySelector('[data-lp="1"]');
         playerNameEls[0] = fieldEl.querySelector('[data-pname="0"]');
         playerNameEls[1] = fieldEl.querySelector('[data-pname="1"]');
-        // 中间墓地/卡组 4 个容器
+        // 侧边牌堆容器：卡组/墓地/除外（各 2 个）
         midEls = {};
-        fieldEl.querySelectorAll('[data-mid]').forEach(function (el) {
-            midEls[el.getAttribute('data-mid')] = el;
+        fieldEl.querySelectorAll('[data-pile]').forEach(function (el) {
+            midEls[el.getAttribute('data-pile')] = el;
         });
         renderPlayerHead(0);
         renderPlayerHead(1);
         updateAllZones();
     }
 
-    // 一侧场地骨架：手牌 / 场上(魔陷+怪兽) / 角落名签
+    // 一侧场地骨架：名签 + 手牌/场上行(各带对应牌堆) + 除外行
     function sideSkeleton(controller, isOpp) {
         // 名签：纵向排列，名字在上 LP 在下；对手挂右上角，自己挂左下角
         var nameTag = '<div class="rp-nametag ' + (isOpp ? 'rp-nametag-opp' : 'rp-nametag-self') + '">'
@@ -170,13 +170,30 @@ function initReplayViewer() {
         var hand = '<div class="rp-hand" data-zone="' + controller + ':' + LOC.HAND + '"></div>';
         var mzoneRow = '<div class="rp-fieldrow rp-mzone">' + mzone + '</div>';
         var szoneRow = '<div class="rp-fieldrow rp-szone">' + szone + '</div>';
+        // 牌堆：小竖堆（卡组/墓地/除外）
+        function pile(type, label) {
+            return '<div class="rp-pile rp-mid-group"><span class="rp-mid-label">' + label + '</span>'
+                + '<div class="rp-mid-cards" data-pile="' + type + ':' + controller + '"></div></div>';
+        }
+        var deck = pile('deck', '卡组');
+        var grave = pile('grave', '墓地');
+        var banish = pile('removed', '除外');
+        var voidEl = '<div class="rp-band-void"></div>';
 
         if (isOpp) {
-            // 对手(坐对面镜像)：手牌(最顶) → 魔陷 → 怪兽(靠中线)
-            return nameTag + hand + szoneRow + mzoneRow;
+            // 对手：手牌(顶) → 卡组|魔陷 → 墓地|怪兽(靠中线) → 除外(墓地下面)
+            return nameTag
+                + hand
+                + '<div class="rp-row">' + deck + szoneRow + '</div>'
+                + '<div class="rp-row">' + grave + mzoneRow + '</div>'
+                + '<div class="rp-row">' + banish + voidEl + '</div>';
         }
-        // 自己：怪兽(靠中线) → 魔陷 → 手牌(最底)
-        return mzoneRow + szoneRow + hand + nameTag;
+        // 自己：除外(墓地上面) → 怪兽|墓地(靠中线) → 魔陷|卡组 → 手牌(底)
+        return nameTag
+            + '<div class="rp-row">' + voidEl + banish + '</div>'
+            + '<div class="rp-row">' + mzoneRow + grave + '</div>'
+            + '<div class="rp-row">' + szoneRow + deck + '</div>'
+            + hand;
     }
 
     function renderPlayerHead(controller) {
@@ -194,23 +211,7 @@ function initReplayViewer() {
                 updateZone(c, loc);
             });
         });
-        // 中间：墓地/卡组容器
-        [0, 1].forEach(function (c) {
-            var g = midEls['grave:' + c];
-            if (g) {
-                var gcards = locCards(c, LOC.GRAVE);
-                g.innerHTML = gcards.length
-                    ? '<span class="rp-mid-count">' + gcards.length + '</span>'
-                        + (gcards.length ? cardImgHtml(gcards[gcards.length - 1]) : '')
-                    : '';
-            }
-            var dk = midEls['deck:' + c];
-            if (dk) {
-                var dcount = deckCount[c] || 0;
-                dk.innerHTML = '<span class="rp-mid-count">' + dcount + '</span>'
-                    + (dcount ? '<div class="rp-card rp-card-down"></div>' : '');
-            }
-        });
+        updatePiles();
         // 阶段/回合
         if (phaseEl) phaseEl.textContent = phaseText || '对局开始';
         if (turnLabelEl) turnLabelEl.textContent = turnPlayer === 0 ? '我方回合' : '对手回合';
@@ -218,6 +219,37 @@ function initReplayViewer() {
         [0, 1].forEach(function (c) {
             var side = fieldEl.querySelector(c === 1 ? '.rp-opp' : '.rp-self');
             if (side) side.classList.toggle('rp-active-side', turnPlayer === c);
+        });
+    }
+
+    // 侧边牌堆内容：墓地(计数+最顶卡)、卡组(计数+盖牌)、除外(计数+最顶卡，里侧则盖)
+    function updatePiles() {
+        [0, 1].forEach(function (c) {
+            var gEl = midEls['grave:' + c];
+            if (gEl) {
+                var gc = locCards(c, LOC.GRAVE);
+                gEl.innerHTML = gc.length
+                    ? '<span class="rp-mid-count">' + gc.length + '</span>'
+                        + cardImgHtml(gc[gc.length - 1])
+                    : '';
+            }
+            var dkEl = midEls['deck:' + c];
+            if (dkEl) {
+                var dcount = deckCount[c] || 0;
+                dkEl.innerHTML = '<span class="rp-mid-count">' + dcount + '</span>'
+                    + (dcount ? '<div class="rp-card rp-card-down"></div>' : '');
+            }
+            var bEl = midEls['removed:' + c];
+            if (bEl) {
+                var bc = locCards(c, LOC.REMOVED);
+                var btop = bc[bc.length - 1];
+                bEl.innerHTML = bc.length
+                    ? '<span class="rp-mid-count">' + bc.length + '</span>'
+                        + (btop && btop.faceDown
+                            ? '<div class="rp-card rp-card-down" title="里侧除外"></div>'
+                            : cardImgHtml(btop))
+                    : '';
+            }
         });
     }
 
@@ -246,6 +278,23 @@ function initReplayViewer() {
                 }
             } else {
                 if (cell.innerHTML !== '') { cell.innerHTML = ''; cell._code = null; }
+            }
+        }
+        // 额外怪兽区：本方 seq=5 的中线格（对手的在中线左侧、自己的在右侧）
+        if (loc === LOC.MZONE) {
+            var emzKey = controller + ':' + LOC.MZONE + ':5';
+            var emzCell = zoneEls[emzKey];
+            if (emzCell) {
+                var emzCard = field[controller] ? field[controller][LOC.MZONE + ':5'] : null;
+                if (emzCard) {
+                    if (!emzCell.querySelector('.rp-card') || emzCell._code !== emzCard.code || emzCell._down !== !!emzCard.faceDown) {
+                        emzCell.innerHTML = cardImgHtml(emzCard);
+                        emzCell._code = emzCard.code;
+                        emzCell._down = !!emzCard.faceDown;
+                    }
+                } else {
+                    if (emzCell.innerHTML !== '') { emzCell.innerHTML = ''; emzCell._code = null; }
+                }
             }
         }
     }
@@ -356,12 +405,7 @@ function initReplayViewer() {
                 });
                 updateZone(pl, LOC.HAND);
                 // 卡组计数即时刷新（Draw 无 Move，不会触发 updateAllZones）
-                var dkEl = midEls['deck:' + pl];
-                if (dkEl) {
-                    var dNow = deckCount[pl] || 0;
-                    dkEl.innerHTML = '<span class="rp-mid-count">' + dNow + '</span>'
-                        + (dNow ? '<div class="rp-card rp-card-down"></div>' : '');
-                }
+                updatePiles();
                 break;
             }
             case 'NewTurn': {
