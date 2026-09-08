@@ -536,6 +536,32 @@ function initReplayViewer() {
         }, 640);
     }
 
+    // 翻开盖卡：卡片 3D 翻转（盖牌→正面）
+    function flipRevealFx(rect, cardCode) {
+        if (animSuppress || !rect || !rect.width || !cardCode) return;
+        var wrap = fxEl('rp-flip3d', rect.width, rect.height, rect.left, rect.top);
+        var inner = document.createElement('div');
+        inner.className = 'rp-flip3d-inner';
+        var back = document.createElement('div');
+        back.className = 'rp-flip3d-face rp-flip3d-back';
+        var front = document.createElement('div');
+        front.className = 'rp-flip3d-face rp-flip3d-front';
+        var im = document.createElement('img');
+        wireImgChain(im, cardCode);
+        im.src = cardImgSrc(cardCode);
+        front.appendChild(im);
+        inner.appendChild(back);
+        inner.appendChild(front);
+        wrap.appendChild(inner);
+        document.body.appendChild(wrap);
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                inner.style.transform = 'rotateY(180deg)';
+            });
+        });
+        setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 460);
+    }
+
     // 通用特效节点（fixed 定位，视口坐标）
     function fxEl(cls, w, h, left, top) {
         var el = document.createElement('div');
@@ -1037,7 +1063,14 @@ function initReplayViewer() {
                         if (cLoc === LOC.GRAVE && (pLoc === LOC.MZONE || pLoc === LOC.SZONE)) {
                             var gPileEl = midEls['grave:' + mvCtl];
                             shatterFx(animPreSrc, gPileEl ? gPileEl.getBoundingClientRect() : null);
-                        } else if (!sameCell) {
+                        } else if (sameCell) {
+                            // 同格翻面：里侧 → 正面 = 翻开盖卡（3D 翻牌）
+                            if (prev.position !== undefined && cur.position !== undefined
+                                && isFaceDown(prev.position) && !isFaceDown(cur.position) && code) {
+                                var flipRect = animPreSrc;
+                                setTimeout(function () { flipRevealFx(flipRect, code); }, 40);
+                            }
+                        } else {
                             var dRect = rectAt(mvCtl, cur.location, mvSeq);
                             if (dRect) {
                                 flyGhost(code || 0, isFaceDown(cur.position) || cLoc === LOC.DECK || cLoc === LOC.EXTRA, animPreSrc, dRect);
