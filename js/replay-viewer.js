@@ -856,6 +856,33 @@ function initReplayViewer() {
         setTimeout(function () { side.classList.remove('rp-hurt'); }, 620);
     }
 
+    // 伤害/恢复数字提示：-3000 红字上飘 / +N 绿字上飘
+    function dmgFloat(ctl, value, sign) {
+        if (animSuppress) return;
+        var side = fieldEl.querySelector(ctl === 1 ? '.rp-opp' : '.rp-self');
+        if (!side) return;
+        var sr = side.getBoundingClientRect();
+        var x = sr.left + sr.width / 2;
+        var y = sr.top + sr.height * (ctl === 1 ? 0.45 : 0.55);
+        var el = fxEl('rp-dmg-num', 0, 0, 0, 0);
+        el.textContent = (sign === '+' ? '+' : '-') + value;
+        el.style.color = sign === '+' ? '#8dff9e' : '#ff5b6e';
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+        el.style.transform = 'translate(-50%,-50%)';
+        var anim = null;
+        try {
+            anim = el.animate([
+                { opacity: 0, transform: 'translate(-50%,-50%) translateY(6px)', offset: 0 },
+                { opacity: 1, transform: 'translate(-50%,-50%) translateY(0)', offset: 0.12 },
+                { opacity: 1, transform: 'translate(-50%,-50%) translateY(-22px)', offset: 0.75 },
+                { opacity: 0, transform: 'translate(-50%,-50%) translateY(-46px)', offset: 1 }
+            ], { duration: 950, easing: 'ease-out' });
+        } catch (e) { /* ignore */ }
+        if (anim) anim.onfinish = function () { if (el.parentNode) el.parentNode.removeChild(el); };
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 1100);
+    }
+
     // ── 消息处理（驱动场地状态 + 日志）──
     function playerName(pos) {
         if (!meta || !meta.players) return 'P' + pos;
@@ -1111,6 +1138,7 @@ function initReplayViewer() {
                 lp[dpl] = Math.max(0, (lp[dpl] || 8000) - (f.value || 0));
                 renderPlayerHead(dpl);
                 hurtFlash(dpl);   // 受伤方瞬间闪红
+                dmgFloat(dpl, f.value, '-');   // -3000 提示
                 if (inBattle) {
                     log('💥 ' + playerName(dpl) + ' 受到 ' + f.value + ' 战斗伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
                 } else {
@@ -1122,6 +1150,7 @@ function initReplayViewer() {
                 var rpl = f.player;
                 lp[rpl] = Math.min(8000, (lp[rpl] || 8000) + (f.value || 0));
                 renderPlayerHead(rpl);
+                dmgFloat(rpl, f.value, '+');   // +N 提示
                 log('💚 ' + playerName(rpl) + ' 恢复 ' + f.value + ' LP');
                 break;
             }

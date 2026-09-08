@@ -374,6 +374,16 @@
 .rp-fx-cellmark.gold { border: 3px solid #ffd700; box-shadow: 0 0 18px rgba(255, 215, 90, 0.55); }
 /* 攻击金箭 */
 .rp-fx-arrow { position: fixed; z-index: 9991; pointer-events: none; }
+/* 伤害/恢复数字提示（-3000 红 / +N 绿，上飘淡出） */
+.rp-dmg-num {
+    position: fixed; z-index: 9996; pointer-events: none;
+    font-size: 2.1rem;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.85), 0 0 22px currentColor;
+    will-change: transform, opacity;
+}
 /* 阶段横幅：中央从左滑入、带边框，停留后向右滑出 */
 .rp-phase-banner {
     position: fixed; z-index: 9998; pointer-events: none;
