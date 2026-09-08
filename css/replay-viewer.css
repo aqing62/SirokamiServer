@@ -85,7 +85,7 @@
     border: 1px solid rgba(216, 30, 68, 0.6);
     border-radius: 12px;
     padding: 10px;
-    overflow-y: auto;
+    overflow: auto;
     display: flex;
     flex-direction: column;
     justify-content: safe center;   /* 内容超高时自动改为顶部对齐以便滚动 */
@@ -187,7 +187,8 @@
     pointer-events: none;
 }
 
-/* 中间条 → 中线行：除外|额外怪兽区|回合/阶段|额外怪兽区|除外 */
+/* 行 = [外轨86][5格454][外轨86]（总宽638，居中）——双方5格列上下对齐；
+   对手牌堆占左外轨、自己占右外轨，对面外轨留空 */
 .rp-row {
     display: flex;
     align-items: center;
@@ -195,11 +196,18 @@
     gap: 6px;
 }
 .rp-row .rp-fieldrow { margin: 0; }
-.rp-centerband {
-    width: 546px;   /* 与 5格+墓地/卡组 行同宽：6×86 + 5×6 */
-    margin: 0 auto;
+.rp-rail-void { width: 86px; flex: 0 0 86px; }
+
+/* 中线行：除外(左外轨) | 额外怪兽区 回合/阶段 额外怪兽区 | 除外(右外轨) */
+.rp-mid-zone {
+    width: 454px;
+    flex: 0 0 454px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
 }
-.rp-centerband .rp-mid-info { flex: 1; min-width: 0; }
+.rp-mid-zone .rp-mid-info { min-width: 0; }
 
 /* 墓地/卡组/除外格子：与同行格等大、紧贴排头/排尾 */
 .rp-pile::after {

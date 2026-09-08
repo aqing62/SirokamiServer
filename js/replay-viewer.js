@@ -117,16 +117,18 @@ function initReplayViewer() {
 
     function createFieldDOM() {
         // 上=对手(P1)，下=自己(P0)
-        // 行结构（每行格子大小一致、紧贴）：
-        //   对手：手牌 → [卡组|魔陷×5] → [墓地|怪兽×5] → 中线行(除外P1|额外P1|回合/阶段|额外P0|除外P0)
-        //   自己：中线行下方 [怪兽×5|墓地] → [魔陷×5|卡组] → 手牌
+        // 行 = [外轨][5格][外轨]：对手的牌堆凸在左外轨、自己凸在右外轨，对侧外轨留空，
+        //     因此双方 5 格怪兽/魔陷列上下对齐（对称）。
+        // 中线行：除外P1(左外轨) | 额外区P1 | 回合/阶段 | 额外区P0 | 除外P0(右外轨)
         var html =
             '<div class="rp-side rp-opp">' + sideSkeleton(1, true) + '</div>'
             + '<div class="rp-row rp-centerband">'
             + '<div class="rp-cell rp-pile rp-pile-removed" data-pile="removed:1"></div>'
+            + '<div class="rp-mid-zone">'
             + '<div class="rp-cell rp-emz-cell" data-zone="1:4:5"></div>'
             + '<div class="rp-mid-info"><span class="rp-turn-label"></span><span class="rp-phase"></span></div>'
             + '<div class="rp-cell rp-emz-cell" data-zone="0:4:5"></div>'
+            + '</div>'
             + '<div class="rp-cell rp-pile rp-pile-removed" data-pile="removed:0"></div>'
             + '</div>'
             + '<div class="rp-side rp-self">' + sideSkeleton(0, false) + '</div>';
@@ -173,21 +175,22 @@ function initReplayViewer() {
         var hand = '<div class="rp-hand" data-zone="' + controller + ':' + LOC.HAND + '"></div>';
         var mzoneRow = '<div class="rp-fieldrow rp-mzone">' + mzone + '</div>';
         var szoneRow = '<div class="rp-fieldrow rp-szone">' + szone + '</div>';
-        // 墓地/卡组：与同行格子同尺寸、紧贴排头/排尾
+        // 墓地/卡组：与同行格子同尺寸，作为外轨“多出来”的一格；对面外轨留空保证5格列对称
         var graveCell = '<div class="rp-cell rp-pile rp-pile-grave" data-pile="grave:' + controller + '"></div>';
         var deckCell = '<div class="rp-cell rp-pile rp-pile-deck" data-pile="deck:' + controller + '"></div>';
+        var voidEl = '<div class="rp-rail-void"></div>';
 
         if (isOpp) {
-            // 对手：手牌(顶) → [卡组|魔陷] → [墓地|怪兽(靠中线)]
+            // 对手：手牌(顶) → [卡组|魔陷×5|空] → [墓地|怪兽×5|空]
             return nameTag
                 + hand
-                + '<div class="rp-row">' + deckCell + szoneRow + '</div>'
-                + '<div class="rp-row">' + graveCell + mzoneRow + '</div>';
+                + '<div class="rp-row">' + deckCell + szoneRow + voidEl + '</div>'
+                + '<div class="rp-row">' + graveCell + mzoneRow + voidEl + '</div>';
         }
-        // 自己：[怪兽(靠中线)|墓地] → [魔陷|卡组] → 手牌(底)
+        // 自己：[空|怪兽×5|墓地] → [空|魔陷×5|卡组] → 手牌(底)
         return nameTag
-            + '<div class="rp-row">' + mzoneRow + graveCell + '</div>'
-            + '<div class="rp-row">' + szoneRow + deckCell + '</div>'
+            + '<div class="rp-row">' + voidEl + mzoneRow + graveCell + '</div>'
+            + '<div class="rp-row">' + voidEl + szoneRow + deckCell + '</div>'
             + hand;
     }
 
