@@ -277,6 +277,56 @@
 }
 .rp-card-empty { background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.06); }
 
+/* ── 动画特效层（fixed 覆盖，视口坐标）── */
+.rp-fly {
+    position: fixed; z-index: 9997; pointer-events: none;
+    border-radius: 4px; overflow: hidden;
+    background: #101010;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.55);
+    opacity: 0.96;
+    transition: transform 0.2s cubic-bezier(0.25, 0.6, 0.3, 1), opacity 0.18s ease;
+    will-change: transform, opacity;
+}
+.rp-fly img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rp-fly-down {
+    background-image: url('../cover2.jpg'),
+        repeating-linear-gradient(45deg, #5a1a28, #5a1a28 6px, #42121e 6px, #42121e 12px);
+    background-size: cover, auto;
+    background-position: center, 0 0;
+    background-repeat: no-repeat, repeat;
+}
+.rp-fx-card {
+    position: fixed; z-index: 9996; pointer-events: none;
+    border-radius: 5px; overflow: hidden;
+    box-shadow: 0 14px 40px rgba(0,0,0,0.65), 0 0 26px rgba(255, 200, 80, 0.35);
+    transition: transform 0.16s cubic-bezier(0.2, 0.8, 0.3, 1), opacity 0.14s ease;
+    will-change: transform, opacity;
+}
+.rp-fx-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rp-fx-card.rp-flip { transform: rotate(180deg); }
+.rp-fx-flash {
+    position: fixed; z-index: 9995; pointer-events: none;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 222, 120, 0.85);
+    box-shadow: 0 0 46px 14px rgba(255, 190, 70, 0.55);
+    background: radial-gradient(circle, rgba(255, 235, 160, 0.3) 0%, transparent 70%);
+    opacity: 0.9;
+    transition: opacity 0.22s ease;
+}
+.rp-fx-hit {
+    position: fixed; z-index: 9995; pointer-events: none;
+    border-radius: 50%;
+    border: 5px solid rgba(255, 245, 215, 0.95);
+    box-shadow: 0 0 60px 20px rgba(255, 220, 140, 0.7);
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.55) 0%, transparent 65%);
+    opacity: 0.95;
+    transition: opacity 0.25s ease;
+}
+.rp-fx-shard {
+    position: fixed; z-index: 9993; pointer-events: none;
+    opacity: 1; border-radius: 2px;
+}
+
 .rp-loading-tip {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
@@ -324,6 +374,7 @@
 .rp-log-phase { color: var(--gold); font-weight: 600; }
 .rp-log-damage { color: #ff8a8a; }
 .rp-log-chain { color: #a9d3ff; }
+.rp-log-battle { color: #ffb37a; font-weight: 600; }
 .rp-log-hint { color: #777; font-size: 0.72rem; }
 .rp-log-win { color: #ffd700; font-weight: 700; font-size: 0.9rem; }
 .rp-log-err { color: #ff6b6b; }

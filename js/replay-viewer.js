@@ -473,10 +473,14 @@ function initReplayViewer() {
         });
     }
 
-    // ── 移动动画：幽灵卡从原格滑到目标格（视口坐标，随棋盘缩放自动正确）──
+    // ── 动画系统：全部用视口坐标（棋盘被 fitBoard 缩放时 getBoundingClientRect 自动换算）──
     function isVisibleLoc(l) { return l === LOC.HAND || l === LOC.MZONE || l === LOC.SZONE; }
-    function rectAt(ctl, loc, seq) {
-        var l2 = loc & 0xff;
+    function emzKey(ctl, seq) {
+        // P0：左=5 右=6；P1：左=6 右=5
+        return ctl === 0 ? (seq === 5 ? 'emz:L' : 'emz:R') : (seq === 5 ? 'emz:R' : 'emz:L');
+    }
+    function rectAt(ctl, locRaw, seq) {
+        var l2 = locRaw & 0xff;
         if (l2 === LOC.HAND) {
             var cont = zoneEls[ctl + ':' + LOC.HAND];
             if (!cont || !cont.children.length) return null;
@@ -486,24 +490,45 @@ function initReplayViewer() {
             if (i >= cards.length || i >= cont.children.length) return null;
             return cont.children[i].getBoundingClientRect();
         }
+        if (l2 === LOC.MZONE && seq >= 5) {
+            var cellE = zoneEls[emzKey(ctl, seq)];
+            return cellE ? cellE.getBoundingClientRect() : null;
+        }
+        if (l2 === LOC.SZONE && seq === 5) {
+            var fcell = zoneEls[ctl + ':' + LOC.SZONE + ':5'];
+            return fcell ? fcell.getBoundingClientRect() : null;
+        }
+        if (l2 === LOC.GRAVE || l2 === LOC.REMOVED || l2 === LOC.DECK || l2 === LOC.EXTRA) {
+            var pileName = l2 === LOC.GRAVE ? 'grave' : (l2 === LOC.REMOVED ? 'removed' : (l2 === LOC.DECK ? 'deck' : 'extra'));
+            var pel = midEls[pileName + ':' + ctl];
+            return pel ? pel.getBoundingClientRect() : null;
+        }
         var cell = zoneEls[ctl + ':' + l2 + ':' + seq];
         return cell ? cell.getBoundingClientRect() : null;
     }
+
+    // 通用特效节点（fixed 定位，视口坐标）
+    function fxEl(cls, w, h, left, top) {
+        var el = document.createElement('div');
+        el.className = cls;
+        if (w) el.style.width = w + 'px';
+        if (h) el.style.height = h + 'px';
+        el.style.left = left + 'px';
+        el.style.top = top + 'px';
+        document.body.appendChild(el);
+        return el;
+    }
+
+    // 移动动画：幽灵卡从原格滑到目标格
     function flyGhost(cardCode, down, s, d) {
-        if (!s || !d || !s.width || !d.width) return;
-        var g = document.createElement('div');
-        g.className = 'rp-fly' + (down || !cardCode ? ' rp-fly-down' : '');
-        g.style.width = s.width + 'px';
-        g.style.height = s.height + 'px';
-        g.style.left = s.left + 'px';
-        g.style.top = s.top + 'px';
+        if (animSuppress || !s || !d || !s.width || !d.width) return;
+        var g = fxEl('rp-fly' + (down || !cardCode ? ' rp-fly-down' : ''), s.width, s.height, s.left, s.top);
         if (!down && cardCode) {
             var im = document.createElement('img');
             wireImgChain(im, cardCode);
             im.src = cardImgSrc(cardCode);
             g.appendChild(im);
         }
-        document.body.appendChild(g);
         requestAnimationFrame(function () {
             requestAnimationFrame(function () {
                 g.style.transform = 'translate(' + (d.left - s.left) + 'px,' + (d.top - s.top) + 'px)'
@@ -513,10 +538,118 @@ function initReplayViewer() {
         setTimeout(function () {
             g.style.opacity = '0';
             setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 200);
-        }, 210);
+        }, 200);
     }
+
+    // 发效果：把卡片“放到镜头前”闪一下（若卡在场上有位置，先从其位置飞向中央）
+    function effectFlash(cardCode, fromRect, flip) {
+        if (animSuppress || !cardCode) return;
+        var pane = fieldEl.getBoundingClientRect();
+        var cx = pane.left + pane.width / 2;
+        var cy = pane.top + pane.height / 2;
+        var BW = 150, BH = 210;
+        var el = fxEl('rp-fx-card' + (flip ? ' rp-flip' : ''), BW, BH, cx - BW / 2, cy - BH / 2);
+        var im = document.createElement('img');
+        wireImgChain(im, cardCode);
+        im.src = cardImgSrc(cardCode);
+        el.appendChild(im);
+        var sx = cx, sy = cy, sc = 0.5;
+        if (fromRect && fromRect.width) {
+            sx = fromRect.left + fromRect.width / 2;
+            sy = fromRect.top + fromRect.height / 2;
+            sc = Math.min(1, fromRect.width / 120);
+        }
+        el.style.opacity = '0';
+        el.style.transform = 'translate(' + (sx - cx) + 'px,' + (sy - cy) + 'px) scale(' + (0.35 * sc) + ')';
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                el.style.opacity = '1';
+                el.style.transform = 'translate(0px,0px) scale(1)';
+            });
+        });
+        var ring = fxEl('rp-fx-flash', BW + 80, BW + 80, cx - (BW + 80) / 2, cy - (BW + 80) / 2);
+        setTimeout(function () { ring.style.opacity = '0'; }, 300);
+        setTimeout(function () {
+            el.style.opacity = '0';
+            el.style.transform = 'translate(0px,0px) scale(1.15)';
+            setTimeout(function () {
+                if (el.parentNode) el.parentNode.removeChild(el);
+                if (ring.parentNode) ring.parentNode.removeChild(ring);
+            }, 180);
+        }, 420);
+    }
+
+    // 攻击动画：攻击者撞向目标（或对手中线），撞击处闪光
+    function attackFx(cardCode, fromRect, targetRect) {
+        if (animSuppress || !fromRect || !fromRect.width) return;
+        var tx, ty, tw, th;
+        if (targetRect && targetRect.width) {
+            tx = targetRect.left + targetRect.width / 2;
+            ty = targetRect.top + targetRect.height / 2;
+            tw = targetRect.width; th = targetRect.height;
+        } else {
+            var pane = fieldEl.getBoundingClientRect();
+            tx = pane.left + pane.width / 2;
+            ty = pane.top + pane.height * 0.42;
+            tw = fromRect.width; th = fromRect.height;
+        }
+        var g = fxEl('rp-fly rp-fly-atk', fromRect.width, fromRect.height, fromRect.left, fromRect.top);
+        if (cardCode) {
+            var im = document.createElement('img');
+            wireImgChain(im, cardCode);
+            im.src = cardImgSrc(cardCode);
+            g.appendChild(im);
+        }
+        var sx = fromRect.left + fromRect.width / 2, sy = fromRect.top + fromRect.height / 2;
+        var dx = tx - sx, dy = ty - sy;
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                g.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + (tw / fromRect.width) + ',' + (th / fromRect.height) + ')';
+            });
+        });
+        setTimeout(function () {
+            var ring = fxEl('rp-fx-hit', 120, 120, tx - 60, ty - 60);
+            setTimeout(function () {
+                ring.style.opacity = '0';
+                setTimeout(function () { if (ring.parentNode) ring.parentNode.removeChild(ring); }, 300);
+            }, 90);
+        }, 230);
+        setTimeout(function () {
+            g.style.opacity = '0';
+            setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 220);
+        }, 330);
+    }
+
+    // 破坏动画：卡片碎成粒子飞向墓地
+    function shatterFx(srcRect, graveRect) {
+        if (animSuppress || !srcRect || !srcRect.width) return;
+        var gx = graveRect && graveRect.width ? graveRect.left + graveRect.width / 2 : srcRect.left + srcRect.width / 2;
+        var gy = graveRect && graveRect.width ? graveRect.top + graveRect.height / 2 : srcRect.bottom;
+        var cx0 = srcRect.left + srcRect.width / 2, cy0 = srcRect.top + srcRect.height / 2;
+        var colors = ['#d81e44', '#ffd700', '#ffffff', '#a51834', '#ff8a8a', '#5a1a28'];
+        for (var i = 0; i < 18; i++) {
+            var sz = 4 + Math.random() * 6;
+            var el = fxEl('rp-fx-shard', sz, sz,
+                cx0 + (Math.random() - 0.5) * srcRect.width * 0.7,
+                cy0 + (Math.random() - 0.5) * srcRect.height * 0.7);
+            el.style.background = colors[i % colors.length];
+            var bx = (Math.random() - 0.5) * 130;
+            var by = (Math.random() - 0.5) * 90 - 30;
+            try {
+                el.animate([
+                    { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                    { transform: 'translate(' + bx + 'px,' + by + 'px) scale(1.15)', opacity: 1, offset: 0.25 },
+                    { transform: 'translate(' + (gx - cx0) + 'px,' + (gy - cy0) + 'px) scale(0.15)', opacity: 0, offset: 1 }
+                ], { duration: 620, easing: 'cubic-bezier(.3,.6,.5,1)' }).onfinish = function () {
+                    if (el.parentNode) el.parentNode.removeChild(el);
+                };
+            } catch (e) {
+                setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 700);
+            }
+        }
+    }
+
     function animateMove(cardCode, down, s, d) {
-        if (animSuppress || !s || !d) return;
         flyGhost(cardCode, down, s, d);
     }
 
@@ -604,6 +737,22 @@ function initReplayViewer() {
                 updateZone(pl, LOC.HAND);
                 // 卡组计数即时刷新（Draw 无 Move，不会触发 updateAllZones）
                 updatePiles();
+                // 抽卡动画：卡从卡组堆滑向手牌
+                if (!animSuppress && cards.length) {
+                    var dkPileEl = midEls['deck:' + pl];
+                    var handCont = zoneEls[pl + ':' + LOC.HAND];
+                    if (dkPileEl && handCont) {
+                        var dkR = dkPileEl.getBoundingClientRect();
+                        cards.forEach(function (c, ci) {
+                            var slotEl = handCont.children[handCont.children.length - cards.length + ci];
+                            if (slotEl) {
+                                setTimeout(function () {
+                                    flyGhost(c, false, dkR, slotEl.getBoundingClientRect());
+                                }, ci * 50);
+                            }
+                        });
+                    }
+                }
                 break;
             }
             case 'NewTurn': {
@@ -632,6 +781,19 @@ function initReplayViewer() {
                 var prev = f.previous || {};
                 var cur = f.current || {};
                 var name = cardName(code);
+                // 动画：移动前先记下来源矩形（场地/手牌/牌堆）
+                var animPreSrc = null;
+                if (!animSuppress && cur.location !== undefined) {
+                    var pRaw = prev.location;
+                    if (pRaw !== undefined) {
+                        var pM = pRaw & 0xff;
+                        if (pM === LOC.HAND || pM === LOC.MZONE || pM === LOC.SZONE
+                            || pM === LOC.GRAVE || pM === LOC.REMOVED || pM === LOC.DECK || pM === LOC.EXTRA) {
+                            animPreSrc = rectAt(prev.controller !== undefined ? prev.controller : 0, pRaw,
+                                prev.sequence !== undefined ? prev.sequence : 0);
+                        }
+                    }
+                }
                 // 卡组进出计数：移出卡组 -1，回卡组 +1（Draw 已在上面单独扣）
                 var pLocD = prev.location !== undefined ? (prev.location & 0xff) : null;
                 var cLocD = cur.location !== undefined ? (cur.location & 0xff) : null;
@@ -658,6 +820,20 @@ function initReplayViewer() {
                     updateZone(cCon, cLoc);
                     // 若移动到卡组/额外/素材等未展示区，刷新计数
                     updateAllZones();
+                    // 动画：送墓=破碎粒子；其余=幽灵滑行（同格翻面不播）
+                    if (animPreSrc) {
+                        var mvCtl = cCon;
+                        var mvSeq = cur.sequence !== undefined ? cur.sequence : 0;
+                        var sameCell = pLoc === cLoc && pCon === cCon
+                            && (prev.sequence === undefined || cur.sequence === undefined || prev.sequence === cur.sequence);
+                        if (cLoc === LOC.GRAVE && (pLoc === LOC.MZONE || pLoc === LOC.SZONE)) {
+                            var gPileEl = midEls['grave:' + mvCtl];
+                            shatterFx(animPreSrc, gPileEl ? gPileEl.getBoundingClientRect() : null);
+                        } else if (!sameCell) {
+                            var dRect = rectAt(mvCtl, cur.location, mvSeq);
+                            if (dRect) flyGhost(code || 0, isFaceDown(cur.position) || cLoc === LOC.DECK || cLoc === LOC.EXTRA, animPreSrc, dRect);
+                        }
+                    }
                 }
                 // 日志：谁、哪张卡、从哪个区到哪个区
                 // （不带 reason 附注：本服核心的 reason 位与常见表不一致，按位猜测会误导）
@@ -684,8 +860,52 @@ function initReplayViewer() {
             }
             case 'Chaining': {
                 log('🔗 连锁发动：' + cardName(f.code), 'rp-log-chain');
+                // 发效果动画：把卡“放到镜头前”闪一下
+                if (!animSuppress && f.code) {
+                    var cl = f.location;
+                    var cc = f.controller;
+                    if ((cl === undefined || cc === undefined) && f.chainCardLocation) {
+                        cl = f.chainCardLocation.location;
+                        cc = f.chainCardLocation.controller;
+                    }
+                    if (cl !== undefined && cc !== undefined) {
+                        var fr = rectAt(cc, cl, f.sequence !== undefined ? f.sequence : 0);
+                        effectFlash(f.code, fr, false);
+                    } else {
+                        effectFlash(f.code, null, false);
+                    }
+                }
                 break;
             }
+            case 'Attack': {
+                var atk = f.attacker || {};
+                var aCtl = atk.controller !== undefined ? atk.controller : 0;
+                var aSeq = atk.sequence !== undefined ? atk.sequence : 0;
+                var aLocRaw = atk.location !== undefined ? atk.location : LOC.MZONE;
+                var aCard = field[aCtl] ? field[aCtl][(aLocRaw & 0xff) + ':' + aSeq] : null;
+                var aCode = aCard ? aCard.code : 0;
+                var tg = attackResolve(aCtl);
+                var line = '⚔ ' + playerName(aCtl) + ' 的 ' + (cardName(aCode) || '怪兽');
+                if (tg && tg.code) line += ' 攻击 ' + (cardName(tg.code) || '怪兽');
+                else if (tg && tg.direct) line += ' 直接攻击';
+                else line += ' 发起攻击';
+                log(line, 'rp-log-battle');
+                // 攻击动画：撞向目标
+                if (!animSuppress) {
+                    var aRect = rectAt(aCtl, aLocRaw, aSeq);
+                    var tRect = null;
+                    if (tg && tg.code) {
+                        var df = field[1 - aCtl] || {};
+                        var dk = Object.keys(df).filter(function (k) { return k.indexOf('4:') === 0; })
+                            .find(function (k) { return df[k].code === tg.code; });
+                        if (dk) tRect = rectAt(1 - aCtl, LOC.MZONE, parseInt(dk.split(':')[1], 10));
+                    }
+                    attackFx(aCode, aRect, tRect);
+                }
+                break;
+            }
+            case 'DamageStepStart': inBattle = true; break;
+            case 'DamageStepEnd': inBattle = false; break;
             case 'ChainSolving': log('… 连锁处理中 …', 'rp-log-chain'); break;
             case 'ChainSolved': log('✓ 连锁处理完毕', 'rp-log-chain'); break;
             case 'ChainEnd': log('— 连锁结束 —', 'rp-log-chain'); break;
@@ -693,7 +913,11 @@ function initReplayViewer() {
                 var dpl = f.player;
                 lp[dpl] = Math.max(0, (lp[dpl] || 8000) - (f.value || 0));
                 renderPlayerHead(dpl);
-                log('💥 ' + playerName(dpl) + ' 受到 ' + f.value + ' 点伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
+                if (inBattle) {
+                    log('💥 ' + playerName(dpl) + ' 受到 ' + f.value + ' 战斗伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
+                } else {
+                    log('💥 ' + playerName(dpl) + ' 受到 ' + f.value + ' 点效果伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
+                }
                 break;
             }
             case 'Recover': {
@@ -849,7 +1073,7 @@ function initReplayViewer() {
     // 哪些消息算“可见步”：会写日志或改变场地。
     // UpdateData / UpdateCard / Select* / CardHint 等只是查询回声/等待输入，算填充消息。
     var VISIBLE_MSG = {
-        Start: 1, Draw: 1, NewTurn: 1, NewPhase: 1, Move: 1,
+        Start: 1, Draw: 1, NewTurn: 1, NewPhase: 1, Move: 1, Attack: 1,
         Summoning: 1, SpSummoning: 1, Chaining: 1, ChainSolving: 1,
         ChainSolved: 1, ChainEnd: 1, Damage: 1, Recover: 1, Win: 1, Hint: 1,
     };
@@ -1043,10 +1267,12 @@ function initReplayViewer() {
         phaseText = '';
         logBody.innerHTML = '';
         idx = -1;
+        animSuppress = true;   // 大跳不放动画
         for (var i = 0; i <= target; i++) {
             idx = i;
             handleMessage(messages[i]);
         }
+        animSuppress = false;
         // Start 消息已 createFieldDOM；若消息流没有 Start 则兜底建一次
         if (!fieldEl.querySelector('.rp-side')) createFieldDOM();
         updateProgress();
