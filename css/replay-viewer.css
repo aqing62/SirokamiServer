@@ -163,9 +163,9 @@
     position: relative;
     transition: border-color 0.2s;
 }
-.rp-fieldrow.rp-szone .rp-cell { height: 96px; }
 .rp-cell:has(.rp-card) { border-color: rgba(212,175,55,0.35); }
 .rp-cell .rp-card { width: 100%; height: 100%; border: none; border-radius: 3px; }
+/* 魔陷格与怪兽格同高（124px） */
 
 /* 额外怪兽区：中线两格（左=对手额外区，右=自己额外区） */
 .rp-emz-cell {
@@ -224,7 +224,6 @@
 .rp-pile-grave::after { content: '墓地'; }
 .rp-pile-deck::after  { content: '卡组'; }
 .rp-pile-removed::after { content: '除外'; }
-.rp-pile-deck { height: 96px; }              /* 与魔陷格同高 */
 .rp-pile-removed {
     border-style: dashed;
     border-color: rgba(160,130,230,0.55);
