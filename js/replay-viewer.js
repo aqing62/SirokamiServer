@@ -554,6 +554,14 @@ function initReplayViewer() {
     }
 
     // ── 播放推进 ──
+    // 哪些消息算“可见步”：会写日志或改变场地。
+    // UpdateData / UpdateCard / Select* / CardHint 等只是查询回声/等待输入，算填充消息。
+    var VISIBLE_MSG = {
+        Start: 1, Draw: 1, NewTurn: 1, NewPhase: 1, Move: 1,
+        Summoning: 1, SpSummoning: 1, Chaining: 1, ChainSolving: 1,
+        ChainSolved: 1, ChainEnd: 1, Damage: 1, Recover: 1, Win: 1, Hint: 1,
+    };
+
     function playNext() {
         if (idx < messages.length - 1) {
             idx++;
@@ -567,6 +575,20 @@ function initReplayViewer() {
         return false;
     }
 
+    // 推进到下一个“可见步”：中间夹的填充消息在同一 tick 内直接快进跳过（不计时）
+    function playNextVisible() {
+        var guard = 0;
+        while (idx < messages.length - 1 && guard++ < 50000) {
+            idx++;
+            handleMessage(messages[idx]);
+            if (VISIBLE_MSG[messages[idx].name]) break;
+        }
+        renderPlayerHead(0);
+        renderPlayerHead(1);
+        updateProgress();
+        return idx < messages.length - 1;
+    }
+
     function playStepBack() {
         // 雏形不支持回退（状态难回滚），提示
         log('⚠️ 雏形暂不支持回退，请用进度条重播', 'rp-log-hint');
@@ -576,19 +598,23 @@ function initReplayViewer() {
         stopAuto();
         playing = true;
         playPauseBtn.textContent = '⏸ 暂停';
-        // 基准速度：1x = 333ms（一秒约3步）
+        // 基准：1x ≈ 333ms/可见步 → 右侧日志约每秒 3 行（填充消息不计时）
         var interval = Math.max(80, Math.floor(1000 / 3 / speed));
-        timer = setInterval(function () {
-            if (!playNext()) {
+        function tick() {
+            if (!playing) return;
+            if (!playNextVisible()) {
                 stopAuto();
                 log('✅ 回放结束', 'rp-log-win');
+                return;
             }
-        }, interval);
+            timer = setTimeout(tick, interval);
+        }
+        timer = setTimeout(tick, 0);
     }
 
     function stopAuto() {
         playing = false;
-        if (timer) { clearInterval(timer); timer = 0; }
+        if (timer) { clearTimeout(timer); timer = 0; }
         playPauseBtn.textContent = '▶ 播放';
     }
 
@@ -648,7 +674,7 @@ function initReplayViewer() {
     });
     stepBtn.addEventListener('click', function () {
         stopAuto();
-        playNext();
+        playNextVisible();
     });
     stepBackBtn.addEventListener('click', playStepBack);
     progressEl.addEventListener('input', function () {
@@ -668,7 +694,7 @@ function initReplayViewer() {
             handleMessage(messages[i]);
         }
         // Start 消息已 createFieldDOM；若消息流没有 Start 则兜底建一次
-        if (!fieldEl.querySelector('.rp-player')) createFieldDOM();
+        if (!fieldEl.querySelector('.rp-side')) createFieldDOM();
         updateProgress();
     });
     document.querySelectorAll('.rp-speed').forEach(function (btn) {
