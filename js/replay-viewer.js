@@ -699,6 +699,104 @@ function initReplayViewer() {
         flyGhost(cardCode, down, s, d);
     }
 
+    // 召唤落地：怪兽入场后在脚下展开召唤圆环
+    function summonRingFx(rect) {
+        if (animSuppress || !rect || !rect.width) return;
+        var cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+        var r = fxEl('rp-summon-ring', rect.width * 0.5, rect.width * 0.5, cx - rect.width * 0.25, cy - rect.width * 0.25);
+        r.style.left = (cx - rect.width * 0.25) + 'px';
+        r.style.top = (cy - rect.width * 0.25) + 'px';
+        var anim = null;
+        try {
+            anim = r.animate([
+                { transform: 'scale(0.15)', opacity: 0, offset: 0 },
+                { transform: 'scale(1)', opacity: 0.95, offset: 0.35 },
+                { transform: 'scale(1.25)', opacity: 0, offset: 1 }
+            ], { duration: 480, easing: 'ease-out' });
+        } catch (e) { /* ignore */ }
+        if (anim) anim.onfinish = function () { if (r.parentNode) r.parentNode.removeChild(r); };
+        setTimeout(function () { if (r.parentNode) r.parentNode.removeChild(r); }, 620);
+    }
+
+    // 单元格标记环：攻击方红圈 / 目标金圈（脉冲）
+    function cellMarkFx(rect, color) {
+        if (animSuppress || !rect || !rect.width) return;
+        var m = fxEl('rp-fx-cellmark ' + (color === 'gold' ? 'gold' : 'red'),
+            rect.width + 8, rect.height + 8, rect.left - 4, rect.top - 4);
+        var anim = null;
+        try {
+            anim = m.animate([
+                { opacity: 0, transform: 'scale(0.92)', offset: 0 },
+                { opacity: 0.95, transform: 'scale(1.03)', offset: 0.3 },
+                { opacity: 0.9, transform: 'scale(1.05)', offset: 0.65 },
+                { opacity: 0, transform: 'scale(1.1)', offset: 1 }
+            ], { duration: 900, easing: 'ease-in-out' });
+        } catch (e) { /* ignore */ }
+        if (anim) anim.onfinish = function () { if (m.parentNode) m.parentNode.removeChild(m); };
+        setTimeout(function () { if (m.parentNode) m.parentNode.removeChild(m); }, 1050);
+    }
+
+    // 攻击箭头：攻击方 → 目标 的金色虚线箭头
+    function arrowFx(ax, ay, tx, ty) {
+        if (animSuppress) return;
+        var NS = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'rp-fx-arrow');
+        svg.style.left = '0px';
+        svg.style.top = '0px';
+        svg.style.width = '100vw';
+        svg.style.height = '100vh';
+        var defs = document.createElementNS(NS, 'defs');
+        var mark = document.createElementNS(NS, 'marker');
+        mark.setAttribute('id', 'rpArrowH' + Date.now() + Math.floor(Math.random() * 9999));
+        mark.setAttribute('viewBox', '0 0 10 10');
+        mark.setAttribute('refX', '8');
+        mark.setAttribute('refY', '5');
+        mark.setAttribute('markerWidth', '8');
+        mark.setAttribute('markerHeight', '8');
+        mark.setAttribute('orient', 'auto-start-reverse');
+        var path = document.createElementNS(NS, 'path');
+        path.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+        path.setAttribute('fill', '#ffd700');
+        mark.appendChild(path);
+        defs.appendChild(mark);
+        svg.appendChild(defs);
+        var line = document.createElementNS(NS, 'line');
+        line.setAttribute('x1', ax);
+        line.setAttribute('y1', ay);
+        line.setAttribute('x2', tx);
+        line.setAttribute('y2', ty);
+        line.setAttribute('stroke', '#ffd700');
+        line.setAttribute('stroke-width', '4');
+        line.setAttribute('stroke-dasharray', '10 7');
+        line.setAttribute('marker-end', 'url(#' + mark.getAttribute('id') + ')');
+        svg.appendChild(line);
+        document.body.appendChild(svg);
+        var anim = null;
+        try {
+            anim = svg.animate([
+                { opacity: 0, offset: 0 },
+                { opacity: 1, offset: 0.15 },
+                { opacity: 0.85, offset: 0.7 },
+                { opacity: 0, offset: 1 }
+            ], { duration: 950, easing: 'linear' });
+        } catch (e) { /* ignore */ }
+        if (anim) anim.onfinish = function () { if (svg.parentNode) svg.parentNode.removeChild(svg); };
+        setTimeout(function () { if (svg.parentNode) svg.parentNode.removeChild(svg); }, 1100);
+    }
+
+    // 攻击标记：攻击怪兽红圈脉冲 + 目标金圈 + 金色箭头（替代原先撞击动画）
+    function attackMarkFx(aRect, tRect) {
+        if (animSuppress || !aRect || !aRect.width) return;
+        cellMarkFx(aRect, 'red');
+        if (tRect && tRect.width) {
+            cellMarkFx(tRect, 'gold');
+            var ax = aRect.left + aRect.width / 2, ay = aRect.top + aRect.height / 2;
+            var tx = tRect.left + tRect.width / 2, ty = tRect.top + tRect.height / 2;
+            arrowFx(ax, ay, tx, ty);
+        }
+    }
+
     // ── 攻击日志辅助：尽量确定“攻击了谁” ──
     function attackTargetCode(atkCtl) {
         // 攻击宣言前最近的 SelectCard（目标候选，通常只有1个=唯一目标）
@@ -880,7 +978,14 @@ function initReplayViewer() {
                             shatterFx(animPreSrc, gPileEl ? gPileEl.getBoundingClientRect() : null);
                         } else if (!sameCell) {
                             var dRect = rectAt(mvCtl, cur.location, mvSeq);
-                            if (dRect) flyGhost(code || 0, isFaceDown(cur.position) || cLoc === LOC.DECK || cLoc === LOC.EXTRA, animPreSrc, dRect);
+                            if (dRect) {
+                                flyGhost(code || 0, isFaceDown(cur.position) || cLoc === LOC.DECK || cLoc === LOC.EXTRA, animPreSrc, dRect);
+                                // 召唤落地：进入怪兽区后脚下展开圆环
+                                if (cLoc === LOC.MZONE) {
+                                    var ringRect = dRect;
+                                    setTimeout(function () { summonRingFx(ringRect); }, 200);
+                                }
+                            }
                         }
                     }
                 }
@@ -939,7 +1044,7 @@ function initReplayViewer() {
                 else if (tg && tg.direct) line += ' 直接攻击';
                 else line += ' 发起攻击';
                 log(line, 'rp-log-battle');
-                // 攻击动画：撞向目标
+                // 攻击动画：攻击怪兽红圈标记 + 目标金圈 + 金色箭头
                 if (!animSuppress) {
                     var aRect = rectAt(aCtl, aLocRaw, aSeq);
                     var tRect = null;
@@ -949,7 +1054,7 @@ function initReplayViewer() {
                             .find(function (k) { return df[k].code === tg.code; });
                         if (dk) tRect = rectAt(1 - aCtl, LOC.MZONE, parseInt(dk.split(':')[1], 10));
                     }
-                    attackFx(aCode, aRect, tRect);
+                    attackMarkFx(aRect, tRect);
                 }
                 break;
             }

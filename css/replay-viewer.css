@@ -339,6 +339,26 @@
     position: fixed; z-index: 9993; pointer-events: none;
     opacity: 1; border-radius: 2px;
 }
+/* 召唤落地：脚下扩散的青白光环 */
+.rp-summon-ring {
+    position: fixed; z-index: 9994; pointer-events: none;
+    border-radius: 50%;
+    border: 3px solid rgba(150, 225, 255, 0.95);
+    box-shadow: 0 0 20px 6px rgba(120, 210, 255, 0.5), inset 0 0 18px rgba(200, 245, 255, 0.35);
+    opacity: 0;
+    will-change: transform, opacity;
+}
+/* 攻击标记：攻击方红圈脉冲 */
+.rp-fx-cellmark {
+    position: fixed; z-index: 9992; pointer-events: none;
+    border-radius: 8px;
+    opacity: 0;
+    will-change: transform, opacity;
+}
+.rp-fx-cellmark.red { border: 3px solid #ff6b6b; box-shadow: 0 0 18px rgba(255, 90, 90, 0.55); }
+.rp-fx-cellmark.gold { border: 3px solid #ffd700; box-shadow: 0 0 18px rgba(255, 215, 90, 0.55); }
+/* 攻击金箭 */
+.rp-fx-arrow { position: fixed; z-index: 9991; pointer-events: none; }
 /* 阶段横幅：中央从左滑入、带边框，停留后向右滑出 */
 .rp-phase-banner {
     position: fixed; z-index: 9998; pointer-events: none;
