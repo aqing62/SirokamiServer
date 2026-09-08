@@ -1108,17 +1108,29 @@ function initReplayViewer() {
             }
             case 'Chaining': {
                 log('🔗 连锁发动：' + cardName(f.code), 'rp-log-chain');
-                // 发效果动画：把卡“放到镜头前”闪一下
+                // 发效果动画：把卡“放到镜头前”闪一下；若该卡是盖着的(陷阱/魔法)先原地翻面
                 if (!animSuppress && f.code) {
-                    var cl = f.location;
-                    var cc = f.controller;
-                    if ((cl === undefined || cc === undefined) && f.chainCardLocation) {
-                        cl = f.chainCardLocation.location;
-                        cc = f.chainCardLocation.controller;
+                    var cl0 = f.location;
+                    var cc0 = f.controller;
+                    if ((cl0 === undefined || cc0 === undefined) && f.chainCardLocation) {
+                        cl0 = f.chainCardLocation.location;
+                        cc0 = f.chainCardLocation.controller;
                     }
-                    if (cl !== undefined && cc !== undefined) {
-                        var fr = rectAt(cc, cl, f.sequence !== undefined ? f.sequence : 0);
-                        effectFlash(f.code, fr, false);
+                    var seq0 = f.sequence !== undefined ? f.sequence : 0;
+                    if (cl0 !== undefined && cc0 !== undefined) {
+                        var l2 = cl0 & 0xff;
+                        var cObj = field[cc0] ? field[cc0][l2 + ':' + seq0] : null;
+                        if (cObj && cObj.faceDown) {
+                            // 盖卡发动：翻成正面 + 翻牌动画，随后镜头闪光
+                            cObj.faceDown = false;
+                            if (l2 === LOC.SZONE || l2 === LOC.MZONE) updateZone(cc0, l2);
+                            var cRect = rectAt(cc0, cl0, seq0);
+                            if (cRect) flipRevealFx(cRect, f.code);
+                            setTimeout(function () { effectFlash(f.code, cRect, false); }, 170);
+                        } else {
+                            var fr2 = rectAt(cc0, cl0, seq0);
+                            effectFlash(f.code, fr2, false);
+                        }
                     } else {
                         effectFlash(f.code, null, false);
                     }
