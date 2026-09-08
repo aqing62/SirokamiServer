@@ -541,7 +541,7 @@ function initReplayViewer() {
         }, 200);
     }
 
-    // 发效果：把卡片“放到镜头前”闪一下（若卡在场上有位置，先从其位置飞向中央）
+    // 发效果：把卡片“放到镜头前”闪一下，并从中央向外扩散金色圆环
     function effectFlash(cardCode, fromRect, flip) {
         if (animSuppress || !cardCode) return;
         var pane = fieldEl.getBoundingClientRect();
@@ -567,16 +567,30 @@ function initReplayViewer() {
                 el.style.transform = 'translate(0px,0px) scale(1)';
             });
         });
-        var ring = fxEl('rp-fx-flash', BW + 80, BW + 80, cx - (BW + 80) / 2, cy - (BW + 80) / 2);
-        setTimeout(function () { ring.style.opacity = '0'; }, 300);
+        // 由中央发出的扩散圆环（两道，交错）
+        function ringPulse(delay, size, dur, thick) {
+            setTimeout(function () {
+                var r = fxEl('rp-fx-ring', 46, 46, cx - 23, cy - 23);
+                r.style.borderWidth = thick + 'px';
+                try {
+                    r.animate([
+                        { transform: 'scale(0.5)', opacity: 0.95, offset: 0 },
+                        { transform: 'scale(' + size + ')', opacity: 0, offset: 1 }
+                    ], { duration: dur, easing: 'cubic-bezier(.1,.7,.35,1)' }).onfinish = function () {
+                        if (r.parentNode) r.parentNode.removeChild(r);
+                    };
+                } catch (e) { /* ignore */ }
+                setTimeout(function () { if (r.parentNode) r.parentNode.removeChild(r); }, dur + 120);
+            }, delay);
+        }
+        ringPulse(80, 8.5, 640, 3);
+        ringPulse(200, 5.5, 480, 2);
+        // 收尾淡出
         setTimeout(function () {
             el.style.opacity = '0';
             el.style.transform = 'translate(0px,0px) scale(1.15)';
-            setTimeout(function () {
-                if (el.parentNode) el.parentNode.removeChild(el);
-                if (ring.parentNode) ring.parentNode.removeChild(ring);
-            }, 180);
-        }, 420);
+            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 180);
+        }, 430);
     }
 
     // 攻击动画：攻击者撞向目标（或对手中线），撞击处闪光
@@ -620,32 +634,35 @@ function initReplayViewer() {
         }, 330);
     }
 
-    // 破坏动画：卡片碎成粒子飞向墓地
+    // 破坏动画：卡片碎成金色发光粒子，先炸开再飞向墓地（定时双保险清理）
     function shatterFx(srcRect, graveRect) {
         if (animSuppress || !srcRect || !srcRect.width) return;
         var gx = graveRect && graveRect.width ? graveRect.left + graveRect.width / 2 : srcRect.left + srcRect.width / 2;
         var gy = graveRect && graveRect.width ? graveRect.top + graveRect.height / 2 : srcRect.bottom;
         var cx0 = srcRect.left + srcRect.width / 2, cy0 = srcRect.top + srcRect.height / 2;
-        var colors = ['#d81e44', '#ffd700', '#ffffff', '#a51834', '#ff8a8a', '#5a1a28'];
-        for (var i = 0; i < 18; i++) {
-            var sz = 4 + Math.random() * 6;
-            var el = fxEl('rp-fx-shard', sz, sz,
+        var golds = ['#ffd700', '#ffe27a', '#fff3c4', '#ffc94d', '#ffec9e'];
+        for (var i = 0; i < 20; i++) {
+            var sz = 3 + Math.random() * 5;
+            var el = fxEl('rp-fx-shard rp-fx-gold', sz, sz,
                 cx0 + (Math.random() - 0.5) * srcRect.width * 0.7,
                 cy0 + (Math.random() - 0.5) * srcRect.height * 0.7);
-            el.style.background = colors[i % colors.length];
-            var bx = (Math.random() - 0.5) * 130;
-            var by = (Math.random() - 0.5) * 90 - 30;
-            try {
-                el.animate([
-                    { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
-                    { transform: 'translate(' + bx + 'px,' + by + 'px) scale(1.15)', opacity: 1, offset: 0.25 },
-                    { transform: 'translate(' + (gx - cx0) + 'px,' + (gy - cy0) + 'px) scale(0.15)', opacity: 0, offset: 1 }
-                ], { duration: 620, easing: 'cubic-bezier(.3,.6,.5,1)' }).onfinish = function () {
-                    if (el.parentNode) el.parentNode.removeChild(el);
-                };
-            } catch (e) {
-                setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 700);
-            }
+            el.style.background = golds[i % golds.length];
+            var bx = (Math.random() - 0.5) * 140;
+            var by = (Math.random() - 0.5) * 100 - 30;
+            (function (node) {
+                var anim = null;
+                try {
+                    anim = node.animate([
+                        { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                        { transform: 'translate(' + bx + 'px,' + by + 'px) scale(1.2)', opacity: 1, offset: 0.25 },
+                        { transform: 'translate(' + (gx - cx0) + 'px,' + (gy - cy0) + 'px) scale(0.15)', opacity: 0, offset: 1 }
+                    ], { duration: 620, easing: 'cubic-bezier(.3,.6,.5,1)' });
+                } catch (e) { /* WAAPI 不可用时仅靠定时器清理 */ }
+                if (anim) {
+                    anim.onfinish = function () { if (node.parentNode) node.parentNode.removeChild(node); };
+                }
+                setTimeout(function () { if (node.parentNode) node.parentNode.removeChild(node); }, 760);
+            })(el);
         }
     }
 

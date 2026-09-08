@@ -322,6 +322,19 @@
     opacity: 0.95;
     transition: opacity 0.25s ease;
 }
+/* 发效果：从中央扩散的金色圆环 */
+.rp-fx-ring {
+    position: fixed; z-index: 9995; pointer-events: none;
+    border-radius: 50%;
+    border: 3px solid rgba(255, 222, 120, 0.95);
+    box-shadow: 0 0 18px 6px rgba(255, 205, 95, 0.5), inset 0 0 16px rgba(255, 235, 160, 0.4);
+    opacity: 0.9;
+    will-change: transform, opacity;
+}
+/* 金色发光粒子 */
+.rp-fx-gold {
+    box-shadow: 0 0 10px 2px rgba(255, 220, 110, 0.95);
+}
 .rp-fx-shard {
     position: fixed; z-index: 9993; pointer-events: none;
     opacity: 1; border-radius: 2px;
