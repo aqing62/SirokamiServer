@@ -810,6 +810,26 @@ function initReplayViewer() {
         }
         return -1;
     }
+    // 前瞻本次战阶：若防守方(1-atkCtl)的怪兽从怪兽区离场 → 那正是被攻击的目标
+    function lookAheadDefender(atkCtl) {
+        var defCtl = 1 - atkCtl;
+        var end = Math.min(idx + 200, messages.length - 1);
+        for (var i = idx + 1; i <= end; i++) {
+            var m = messages[i];
+            if (!m || !m.f) continue;
+            if (m.name === 'Move') {
+                var pr = m.f.previous;
+                var cr = m.f.current;
+                if (pr && pr.location !== undefined && (pr.location & 0xff) === LOC.MZONE) {
+                    if (pr.controller === defCtl) return m.f.code || 0;   // 防守方怪兽离场=被破坏
+                    if (pr.controller === atkCtl && (cr.location & 0xff) === LOC.GRAVE) return 0; // 攻击方反死，难定目标
+                }
+            } else if (m.name === 'DamageStepEnd' || m.name === 'NewPhase' || m.name === 'Win' || m.name === 'Attack') {
+                break;
+            }
+        }
+        return -1;
+    }
     function attackResolve(atkCtl) {
         var defCtl = 1 - atkCtl;
         var defCards = Object.keys(field[defCtl] || {})
@@ -819,7 +839,10 @@ function initReplayViewer() {
         if (c > 0) return { code: c, direct: false };
         if (!defCards.length) return { code: 0, direct: true };   // 场上无怪兽 → 直接攻击
         if (c === -1 && defCards.length === 1) return { code: defCards[0].code, direct: false };
-        return { code: 0, direct: false };                        // 多个可攻击对象，无法确定
+        // 多名候选：看战斗结果定目标（防守方被破坏离场=目标）
+        var la = lookAheadDefender(atkCtl);
+        if (la > 0) return { code: la, direct: false };
+        return { code: 0, direct: false };                        // 仍无法确定
     }
 
     // ── 消息处理（驱动场地状态 + 日志）──
