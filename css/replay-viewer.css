@@ -81,10 +81,8 @@
 }
 .replay-field {
     flex: 0 0 70%;
-    background:
-        radial-gradient(ellipse at 50% 50%, rgba(216,30,68,0.06) 0%, transparent 65%),
-        linear-gradient(180deg, #1c0e12 0%, #10080a 50%, #180c10 100%);
-    border: 1px solid rgba(216, 30, 68, 0.35);
+    background: #000;
+    border: 1px solid rgba(216, 30, 68, 0.6);
     border-radius: 12px;
     padding: 10px;
     overflow-y: auto;
@@ -96,14 +94,44 @@
 }
 
 /* ═══ 标准 5 格对战场地 ═══ */
-.rp-side { padding: 2px 6px; }
-.rp-side.rp-active-side { background: rgba(216,30,68,0.05); border-radius: 8px; }
+.rp-side { padding: 2px 6px; position: relative; }
+.rp-side.rp-active-side { background: rgba(216,30,68,0.06); border-radius: 8px; box-shadow: inset 0 0 30px rgba(216,30,68,0.05); }
 
-.rp-player-head { display: flex; align-items: center; gap: 10px; padding: 1px 4px; }
-.rp-head-opp { justify-content: flex-start; }
-.rp-head-self { justify-content: flex-end; }
-.rp-player-name { color: var(--light-gold); font-weight: 700; font-size: 0.8rem; }
-.rp-lp { color: #ff6b6b; font-weight: 700; font-size: 0.85rem; }
+/* 名签：纵向，名字上 LP 下；对手右上角、自己左下角 */
+.rp-nametag {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1.3;
+    z-index: 5;
+    pointer-events: none;
+}
+.rp-nametag-opp {
+    position: absolute;
+    top: -2px;
+    right: 2px;
+    align-items: flex-end;
+}
+.rp-nametag-self {
+    position: absolute;
+    bottom: -2px;
+    left: 2px;
+    align-items: flex-start;
+}
+.rp-player-name {
+    color: var(--light-gold);
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-shadow: 0 0 6px rgba(0,0,0,0.9);
+}
+.rp-lp {
+    color: #ff6b6b;
+    font-weight: 800;
+    font-size: 1.7rem;
+    line-height: 1.1;
+    text-shadow: 0 0 10px rgba(255, 60, 60, 0.55), 0 0 3px #000;
+    letter-spacing: 1px;
+}
 
 /* 手牌行 */
 .rp-hand {
@@ -126,8 +154,8 @@
 .rp-cell {
     width: 86px;
     height: 124px;
-    background: rgba(0,0,0,0.3);
-    border: 1px solid rgba(216,30,68,0.15);
+    background: rgba(216,30,68,0.045);
+    border: 1px solid rgba(216,30,68,0.35);
     border-radius: 4px;
     display: flex;
     align-items: center;
@@ -154,7 +182,9 @@
     justify-content: center;
     gap: 10px;
     padding: 4px 6px;
-    background: rgba(0,0,0,0.25);
+    background: rgba(0,0,0,0.35);
+    border-top: 1px solid rgba(216,30,68,0.28);
+    border-bottom: 1px solid rgba(216,30,68,0.28);
     border-radius: 8px;
 }
 .rp-mid-group {

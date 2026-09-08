@@ -141,45 +141,33 @@ function initReplayViewer() {
         updateAllZones();
     }
 
-    // 一侧场地骨架：手牌 / 场上(魔陷+怪兽) / 底部名字LP
-    // isOpp=true 时镜像（手牌在上、场上序号反向）
+    // 一侧场地骨架：手牌 / 场上(魔陷+怪兽) / 角落名签
     function sideSkeleton(controller, isOpp) {
-        var headTop = isOpp
-            ? '<div class="rp-player-head rp-head-opp">'
-                + '<span class="rp-lp" data-lp="' + controller + '"></span>'
-                + '<span class="rp-player-name" data-pname="' + controller + '"></span>'
-                + '</div>'
-            : '';
-        var headBottom = isOpp ? '' :
-            '<div class="rp-player-head rp-head-self">'
-                + '<span class="rp-player-name" data-pname="' + controller + '"></span>'
-                + '<span class="rp-lp" data-lp="' + controller + '"></span>'
-                + '</div>';
+        // 名签：纵向排列，名字在上 LP 在下；对手挂右上角，自己挂左下角
+        var nameTag = '<div class="rp-nametag ' + (isOpp ? 'rp-nametag-opp' : 'rp-nametag-self') + '">'
+            + '<span class="rp-player-name" data-pname="' + controller + '"></span>'
+            + '<span class="rp-lp" data-lp="' + controller + '"></span>'
+            + '</div>';
 
-        // 场上格：我方 左→右 sequence 0-4；对手镜像（视觉上对手从左往右=sequence 4-0）
-        function zoneRow(loc, count, label) {
+        function zoneRow(loc, count) {
             var cells = '';
             for (var i = 0; i < count; i++) {
                 cells += '<div class="rp-cell" data-zone="' + controller + ':' + loc + ':' + i + '"></div>';
             }
             return cells;
         }
-        var mzone = zoneRow(LOC.MZONE, 5, '怪兽');
-        var szone = zoneRow(LOC.SZONE, 5, '魔陷');
-
+        var mzone = zoneRow(LOC.MZONE, 5);
+        var szone = zoneRow(LOC.SZONE, 5);
         var hand = '<div class="rp-hand" data-zone="' + controller + ':' + LOC.HAND + '"></div>';
-
-        // 对手：手牌在顶（贴近场上）；自己：手牌在底
         var fieldZone = '<div class="rp-fieldrow rp-mzone">' + mzone + '</div>'
             + '<div class="rp-fieldrow rp-szone">' + szone + '</div>';
 
-        var body;
         if (isOpp) {
-            body = headTop + hand + fieldZone;
-        } else {
-            body = fieldZone + hand + headBottom;
+            // 对手：名签(右上角,绝对定位) + 手牌(顶) + 场上
+            return nameTag + hand + fieldZone;
         }
-        return body;
+        // 自己：场上 + 手牌(底) + 名签(左下角,绝对定位)
+        return fieldZone + hand + nameTag;
     }
 
     function renderPlayerHead(controller) {
@@ -570,7 +558,8 @@ function initReplayViewer() {
         stopAuto();
         playing = true;
         playPauseBtn.textContent = '⏸ 暂停';
-        var interval = Math.max(100, Math.floor(600 / speed));
+        // 基准速度：1x = 1000ms（一秒一步）
+        var interval = Math.max(80, Math.floor(1000 / speed));
         timer = setInterval(function () {
             if (!playNext()) {
                 stopAuto();
