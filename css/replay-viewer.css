@@ -81,48 +81,109 @@
 }
 .replay-field {
     flex: 0 0 70%;
-    background: linear-gradient(180deg, #231216 0%, #14090b 50%, #1d1013 100%);
+    background:
+        radial-gradient(ellipse at 50% 50%, rgba(216,30,68,0.06) 0%, transparent 65%),
+        linear-gradient(180deg, #1c0e12 0%, #10080a 50%, #180c10 100%);
     border: 1px solid rgba(216, 30, 68, 0.35);
     border-radius: 12px;
     padding: 10px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    justify-content: center;
     gap: 6px;
     position: relative;
 }
 
-/* 场地玩家区 */
-.rp-player-zone {
-    background: rgba(0,0,0,0.35);
-    border: 1px solid rgba(216, 30, 68, 0.12);
-    border-radius: 8px;
-    padding: 6px;
-    flex-shrink: 0;
-}
-.rp-player-head {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
-}
-.rp-player-name { color: var(--light-gold); font-weight: 700; font-size: 0.85rem; }
-.rp-player.turn .rp-player-name { color: #fff; }
-.rp-player.turn .rp-player-name::after { content: ' ◀'; color: var(--red); }
-.rp-lp { color: #ff6b6b; font-weight: 700; }
-.rp-row { display: flex; align-items: center; gap: 6px; margin: 3px 0; min-height: 40px; }
-.rp-loc-label {
-    color: #888; font-size: 0.68rem; width: 34px; flex-shrink: 0; text-align: right;
-}
-.rp-row-cards { display: flex; gap: 3px; flex-wrap: wrap; flex: 1; min-height: 40px; }
-.rp-row-empty { color: #444; font-size: 0.7rem; align-self: center; }
+/* ═══ 标准 5 格对战场地 ═══ */
+.rp-side { padding: 2px 6px; }
+.rp-side.rp-active-side { background: rgba(216,30,68,0.05); border-radius: 8px; }
 
-/* 卡 */
+.rp-player-head { display: flex; align-items: center; gap: 10px; padding: 1px 4px; }
+.rp-head-opp { justify-content: flex-start; }
+.rp-head-self { justify-content: flex-end; }
+.rp-player-name { color: var(--light-gold); font-weight: 700; font-size: 0.8rem; }
+.rp-lp { color: #ff6b6b; font-weight: 700; font-size: 0.85rem; }
+
+/* 手牌行 */
+.rp-hand {
+    display: flex;
+    justify-content: center;
+    gap: 3px;
+    min-height: 66px;
+    padding: 3px;
+}
+.rp-side.rp-opp .rp-hand { order: -1; }
+.rp-hand .rp-card { width: 46px; height: 66px; box-shadow: 0 -2px 6px rgba(0,0,0,0.5); }
+
+/* 场上格 */
+.rp-fieldrow {
+    display: flex;
+    justify-content: center;
+    gap: 6px;
+    margin: 3px 0;
+}
+.rp-cell {
+    width: 86px;
+    height: 124px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(216,30,68,0.15);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: border-color 0.2s;
+}
+.rp-fieldrow.rp-szone .rp-cell { height: 96px; }
+.rp-cell:has(.rp-card) { border-color: rgba(212,175,55,0.35); }
+.rp-cell .rp-card { width: 100%; height: 100%; border: none; border-radius: 3px; }
+.rp-mzone .rp-cell::after {
+    content: '怪兽'; position: absolute; bottom: 2px; font-size: 9px; color: rgba(255,255,255,0.16);
+    pointer-events: none;
+}
+.rp-szone .rp-cell::after {
+    content: '魔陷'; position: absolute; bottom: 2px; font-size: 9px; color: rgba(255,255,255,0.14);
+    pointer-events: none;
+}
+
+/* 中间条：墓地/卡组/信息 */
+.rp-midbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 4px 6px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
+}
+.rp-mid-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 52px;
+    min-height: 40px;
+}
+.rp-mid-label { color: #777; font-size: 0.62rem; }
+.rp-mid-cards { display: flex; flex-wrap: wrap; justify-content: center; gap: 2px; max-width: 70px; }
+.rp-mid-count {
+    color: #F0E68C; font-size: 0.7rem; font-weight: 700;
+    position: absolute; right: 2px; top: 2px; z-index: 2;
+}
+.rp-mid-group .rp-card { width: 30px; height: 42px; }
+.rp-mid-group { position: relative; }
+.rp-mid-info { display: flex; flex-direction: column; align-items: center; min-width: 130px; }
+.rp-turn-label { color: #fff; font-size: 0.8rem; font-weight: 700; }
+.rp-phase { color: var(--gold); font-size: 0.72rem; }
+
+/* 卡牌通用 */
 .rp-card {
-    width: 58px; height: 81px;
-    border-radius: 3px; overflow: hidden;
+    border-radius: 3px;
+    overflow: hidden;
     border: 1px solid rgba(255,255,255,0.15);
     flex-shrink: 0;
+    position: relative;
+    background: #1a1a1a;
 }
 .rp-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .rp-card-down {
@@ -130,17 +191,6 @@
     border: 1px solid #a51834;
 }
 .rp-card-empty { background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.06); }
-
-/* 中间信息 */
-.rp-middle { display: flex; align-items: center; justify-content: center; }
-.rp-middle-info {
-    display: flex; align-items: center; gap: 16px;
-    background: rgba(216, 30, 68, 0.12);
-    border: 1px solid rgba(216, 30, 68, 0.3);
-    border-radius: 20px; padding: 4px 16px;
-}
-.rp-phase { color: var(--gold); font-weight: 700; font-size: 0.85rem; }
-.rp-deck-info { color: #778; font-size: 0.7rem; }
 
 .rp-loading-tip {
     position: absolute; inset: 0;

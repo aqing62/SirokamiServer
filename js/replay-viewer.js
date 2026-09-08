@@ -21,6 +21,7 @@ function initReplayViewer() {
 
     // 卡图源（与站内一致：DIY 图 → 官方 CDN）
     var OCG_PIC = 'https://cdn.233.momobako.com/ygopro/pics/';
+    var SUPER_PRE_PIC = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
     var DIY_PIC = 'https://api.ygopro3.cn/pics/siro/';
 
     // ── DOM ──
@@ -97,56 +98,88 @@ function initReplayViewer() {
     }
 
     // ── 场地渲染：持久 DOM + 分区局部更新（避免整场重建导致卡图闪烁）──
-    var zoneEls = {}; // "c:loc" → 卡槽容器 Element
-    var deckEl0 = null, deckEl1 = null, extraEl0 = null, extraEl1 = null;
+    var zoneEls = {};   // "c:loc:seq" → 格子容器（手牌/怪兽/魔陷）
+    var midEls = {};    // "grave:c"/"deck:c" → 中间墓地/卡组容器
     var phaseEl = null;
+    var turnLabelEl = null;
     var lpEls = {};
     var playerNameEls = {};
     var cardDomCache = {}; // code → 已创建的 img src（内存缓存避免闪）
 
     function createFieldDOM() {
-        var html = '<div class="rp-player-zone">' + playerSkeleton(1) + '</div>'
-            + '<div class="rp-middle"><div class="rp-middle-info">'
-            + '<span class="rp-deck-info" data-deck="0"></span>'
-            + '<span class="rp-phase"></span>'
-            + '<span class="rp-deck-info" data-deck="1"></span>'
-            + '</div></div>'
-            + '<div class="rp-player-zone">' + playerSkeleton(0) + '</div>';
+        // 上=对手(P1)，下=自己(P0)；左右镜像使双方 1~5 号位视觉对称
+        var html =
+            '<div class="rp-side rp-opp">' + sideSkeleton(1, true) + '</div>'
+            + '<div class="rp-midbar">'
+            + '<div class="rp-mid-group rp-grav-opp"><span class="rp-mid-label">墓地</span><div class="rp-mid-cards" data-mid="grave:1"></div></div>'
+            + '<div class="rp-mid-group rp-deck-opp"><span class="rp-mid-label">卡组</span><div class="rp-mid-cards" data-mid="deck:1"></div></div>'
+            + '<div class="rp-mid-info"><span class="rp-turn-label"></span><span class="rp-phase"></span></div>'
+            + '<div class="rp-mid-group rp-deck-self"><span class="rp-mid-label">卡组</span><div class="rp-mid-cards" data-mid="deck:0"></div></div>'
+            + '<div class="rp-mid-group rp-grav-self"><span class="rp-mid-label">墓地</span><div class="rp-mid-cards" data-mid="grave:0"></div></div>'
+            + '</div>'
+            + '<div class="rp-side rp-self">' + sideSkeleton(0, false) + '</div>';
         fieldEl.innerHTML = html;
-        // 收集各容器引用
+
+        // 收集引用
         zoneEls = {};
         fieldEl.querySelectorAll('[data-zone]').forEach(function (el) {
             zoneEls[el.getAttribute('data-zone')] = el;
         });
+        phaseEl = fieldEl.querySelector('.rp-phase');
+        turnLabelEl = fieldEl.querySelector('.rp-turn-label');
         lpEls[0] = fieldEl.querySelector('[data-lp="0"]');
         lpEls[1] = fieldEl.querySelector('[data-lp="1"]');
         playerNameEls[0] = fieldEl.querySelector('[data-pname="0"]');
         playerNameEls[1] = fieldEl.querySelector('[data-pname="1"]');
-        phaseEl = fieldEl.querySelector('.rp-middle .rp-phase');
-        deckEl0 = fieldEl.querySelector('[data-deck="0"]');
-        deckEl1 = fieldEl.querySelector('[data-deck="1"]');
+        // 中间墓地/卡组 4 个容器
+        midEls = {};
+        fieldEl.querySelectorAll('[data-mid]').forEach(function (el) {
+            midEls[el.getAttribute('data-mid')] = el;
+        });
         renderPlayerHead(0);
         renderPlayerHead(1);
         updateAllZones();
     }
 
-    function playerSkeleton(controller) {
-        var zones = [LOC.HAND, LOC.MZONE, LOC.SZONE, LOC.GRAVE, LOC.REMOVED];
-        var body = '';
-        zones.forEach(function (loc) {
-            var label = LOC_NAME[loc] || loc;
-            body += '<div class="rp-row">'
-                + '<span class="rp-loc-label">' + label + '</span>'
-                + '<div class="rp-row-cards" data-zone="' + controller + ':' + loc + '"></div>'
+    // 一侧场地骨架：手牌 / 场上(魔陷+怪兽) / 底部名字LP
+    // isOpp=true 时镜像（手牌在上、场上序号反向）
+    function sideSkeleton(controller, isOpp) {
+        var headTop = isOpp
+            ? '<div class="rp-player-head rp-head-opp">'
+                + '<span class="rp-lp" data-lp="' + controller + '"></span>'
+                + '<span class="rp-player-name" data-pname="' + controller + '"></span>'
+                + '</div>'
+            : '';
+        var headBottom = isOpp ? '' :
+            '<div class="rp-player-head rp-head-self">'
+                + '<span class="rp-player-name" data-pname="' + controller + '"></span>'
+                + '<span class="rp-lp" data-lp="' + controller + '"></span>'
                 + '</div>';
-        });
-        return '<div class="rp-player" data-player="' + controller + '">'
-            + '<div class="rp-player-head">'
-            + '<span class="rp-player-name" data-pname="' + controller + '"></span>'
-            + '<span class="rp-lp" data-lp="' + controller + '"></span>'
-            + '</div>'
-            + '<div class="rp-sec-grave-row">' + body + '</div>'
-            + '</div>';
+
+        // 场上格：我方 左→右 sequence 0-4；对手镜像（视觉上对手从左往右=sequence 4-0）
+        function zoneRow(loc, count, label) {
+            var cells = '';
+            for (var i = 0; i < count; i++) {
+                cells += '<div class="rp-cell" data-zone="' + controller + ':' + loc + ':' + i + '"></div>';
+            }
+            return cells;
+        }
+        var mzone = zoneRow(LOC.MZONE, 5, '怪兽');
+        var szone = zoneRow(LOC.SZONE, 5, '魔陷');
+
+        var hand = '<div class="rp-hand" data-zone="' + controller + ':' + LOC.HAND + '"></div>';
+
+        // 对手：手牌在顶（贴近场上）；自己：手牌在底
+        var fieldZone = '<div class="rp-fieldrow rp-mzone">' + mzone + '</div>'
+            + '<div class="rp-fieldrow rp-szone">' + szone + '</div>';
+
+        var body;
+        if (isOpp) {
+            body = headTop + hand + fieldZone;
+        } else {
+            body = fieldZone + hand + headBottom;
+        }
+        return body;
     }
 
     function renderPlayerHead(controller) {
@@ -154,39 +187,70 @@ function initReplayViewer() {
             ? (meta.players.find(function (p) { return p.pos === controller; }) || {}).realName || ''
             : ('玩家' + controller);
         var pEl = playerNameEls[controller];
-        if (pEl) {
-            pEl.textContent = name || ('玩家' + (controller + 1));
-            var playerZoneEl = fieldEl.querySelector('[data-player="' + controller + '"]');
-            if (playerZoneEl) playerZoneEl.classList.toggle('turn', turnPlayer === controller);
-        }
+        if (pEl) pEl.textContent = name || ('玩家' + (controller + 1));
         if (lpEls[controller]) lpEls[controller].textContent = 'LP ' + lp[controller];
     }
 
     function updateAllZones() {
         [0, 1].forEach(function (c) {
-            [LOC.HAND, LOC.MZONE, LOC.SZONE, LOC.GRAVE, LOC.REMOVED].forEach(function (loc) {
+            [LOC.HAND, LOC.MZONE, LOC.SZONE].forEach(function (loc) {
                 updateZone(c, loc);
             });
         });
-        // 卡组/额外计数与阶段
-        if (deckEl0) deckEl0.textContent = 'P0 卡组 ' + countLoc(0, LOC.DECK) + ' 额外 ' + countLoc(0, LOC.EXTRA);
-        if (deckEl1) deckEl1.textContent = '额外 ' + countLoc(1, LOC.EXTRA) + ' 卡组 ' + countLoc(1, LOC.DECK) + ' P1';
+        // 中间：墓地/卡组容器
+        [0, 1].forEach(function (c) {
+            var g = midEls['grave:' + c];
+            if (g) {
+                var gcards = locCards(c, LOC.GRAVE);
+                g.innerHTML = gcards.length
+                    ? '<span class="rp-mid-count">' + gcards.length + '</span>'
+                        + (gcards.length ? cardImgHtml(gcards[gcards.length - 1]) : '')
+                    : '';
+            }
+            var dk = midEls['deck:' + c];
+            if (dk) {
+                var dcount = countLoc(c, LOC.DECK);
+                dk.innerHTML = '<span class="rp-mid-count">' + dcount + '</span>'
+                    + (dcount ? '<div class="rp-card rp-card-down"></div>' : '');
+            }
+        });
+        // 阶段/回合
         if (phaseEl) phaseEl.textContent = phaseText || '准备阶段';
+        if (turnLabelEl) turnLabelEl.textContent = turnPlayer === 0 ? '我方回合' : '对手回合';
+        // 高亮当前回合玩家
+        [0, 1].forEach(function (c) {
+            var side = fieldEl.querySelector(c === 1 ? '.rp-opp' : '.rp-self');
+            if (side) side.classList.toggle('rp-active-side', turnPlayer === c);
+        });
     }
 
+    // 更新某玩家某区：手牌整行重绘；场上逐格精确填
     function updateZone(controller, loc) {
-        var key = controller + ':' + loc;
-        var container = zoneEls[key];
-        if (!container) return;
-        var cards = locCards(controller, loc);
-        if (!cards.length) {
-            container.innerHTML = '<span class="rp-row-empty">空</span>';
+        if (loc === LOC.HAND) {
+            var container = zoneEls[controller + ':' + LOC.HAND];
+            if (!container) return;
+            var cards = locCards(controller, LOC.HAND);
+            container.innerHTML = cards.length
+                ? cards.map(cardImgHtml).join('')
+                : '';
             return;
         }
-        // 逐槽更新，尽量复用已存在的 img（避免重建闪烁）
-        // 简化：整行 innerHTML 但用已缓存 src 的 img；配合浏览器缓存不再闪烁
-        var html = cards.map(cardImgHtml).join('');
-        container.innerHTML = html;
+        // MZONE / SZONE：按 sequence 逐格
+        for (var seq = 0; seq < 5; seq++) {
+            var cellKey = controller + ':' + loc + ':' + seq;
+            var cell = zoneEls[cellKey];
+            if (!cell) continue;
+            var card = field[controller] ? field[controller][loc + ':' + seq] : null;
+            if (card) {
+                if (!cell.querySelector('.rp-card') || cell._code !== card.code || cell._down !== !!card.faceDown) {
+                    cell.innerHTML = cardImgHtml(card);
+                    cell._code = card.code;
+                    cell._down = !!card.faceDown;
+                }
+            } else {
+                if (cell.innerHTML !== '') { cell.innerHTML = ''; cell._code = null; }
+            }
+        }
     }
 
     function cardImgHtml(card) {
@@ -197,8 +261,9 @@ function initReplayViewer() {
         var name = cardName(card.code);
         return '<div class="rp-card" title="' + escapeHtml(name || card.code) + '">'
             + '<img src="' + cardImgSrc(card.code) + '" alt="' + escapeHtml(name || card.code) + '"'
-            + ' onerror="this.onerror=null;this.src=\'' + OCG_PIC + card.code
-            + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'cover.jpg\';}">'
+            + ' onerror="this.onerror=null;this.src=\'' + SUPER_PRE_PIC + card.code
+            + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'' + OCG_PIC + card.code
+            + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'cover.jpg\';}}">'
             + '</div>';
     }
 
@@ -226,14 +291,17 @@ function initReplayViewer() {
     function warmCardImg(code) {
         if (imgLoading[code] || cardDomCache[code]) return;
         imgLoading[code] = true;
-        var im = new Image();
-        im.onload = function () { cardDomCache[code] = cardImgSrc(code); };
-        im.onerror = function () {
-            var im2 = new Image();
-            im2.onload = function () { cardDomCache[code] = OCG_PIC + code + '.jpg'; };
-            im2.src = OCG_PIC + code + '.jpg';
+        var trySrcs = [cardImgSrc(code), SUPER_PRE_PIC + code + '.jpg', OCG_PIC + code + '.jpg'];
+        var attempt = 0;
+        var tryNext = function () {
+            if (attempt >= trySrcs.length) { cardDomCache[code] = 'cover.jpg'; return; }
+            var im = new Image();
+            var src = trySrcs[attempt++];
+            im.onload = function () { cardDomCache[code] = src; };
+            im.onerror = tryNext;
+            im.src = src;
         };
-        im.src = cardImgSrc(code);
+        tryNext();
     }
     function warmAllVisible() {
         [0, 1].forEach(function (c) {
