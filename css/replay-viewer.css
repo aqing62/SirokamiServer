@@ -80,7 +80,7 @@
     min-height: 460px;
 }
 .replay-field {
-    flex: 0 0 70%;
+    flex: 4 0 0;            /* 场地 : 日志 = 4 : 3 */
     background: #000;
     border: 1px solid rgba(216, 30, 68, 0.6);
     border-radius: 12px;
@@ -265,7 +265,7 @@
 
 /* 日志 */
 .replay-log {
-    flex: 1 1 30%;
+    flex: 3 0 0;            /* 场地 : 日志 = 4 : 3 */
     background: rgba(15,15,15,0.9);
     border: 1px solid rgba(255,255,255,0.08);
     border-radius: 12px;
