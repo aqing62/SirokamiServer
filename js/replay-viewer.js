@@ -558,8 +558,8 @@ function initReplayViewer() {
         stopAuto();
         playing = true;
         playPauseBtn.textContent = '⏸ 暂停';
-        // 基准速度：1x = 1000ms（一秒一步）
-        var interval = Math.max(80, Math.floor(1000 / speed));
+        // 基准速度：1x = 333ms（一秒约3步）
+        var interval = Math.max(80, Math.floor(1000 / 3 / speed));
         timer = setInterval(function () {
             if (!playNext()) {
                 stopAuto();
