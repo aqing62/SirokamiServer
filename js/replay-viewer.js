@@ -389,7 +389,6 @@ function initReplayViewer() {
                 var code = f.code;
                 var prev = f.previous || {};
                 var cur = f.current || {};
-                var reason = f.reason || 0;
                 var name = cardName(code);
                 // 卡组进出计数：移出卡组 -1，回卡组 +1（Draw 已在上面单独扣）
                 var pLocD = prev.location !== undefined ? (prev.location & 0xff) : null;
@@ -412,11 +411,14 @@ function initReplayViewer() {
                     // 若移动到卡组/额外/素材等未展示区，刷新计数
                     updateAllZones();
                 }
-                // 日志
-                var why = reasonText(reason);
+                // 日志：谁、哪张卡、从哪个区到哪个区
+                // （不带 reason 附注：本服核心的 reason 位与常见表不一致，按位猜测会误导）
                 var from = prev.location !== undefined ? (LOC_NAME[prev.location & 0xff] || '') : '';
                 var to = cur.location !== undefined ? (LOC_NAME[cur.location & 0xff] || '') : '';
-                if (to) log(name + '：' + (from ? from + ' → ' : '') + to + (why ? '（' + why + '）' : ''));
+                if (to) {
+                    var mover = cur.controller !== undefined ? playerName(cur.controller) : '';
+                    log((mover ? mover + '：' : '') + (name || '卡片') + '：' + (from ? from + ' → ' : '') + to);
+                }
                 break;
             }
             case 'Summoning': {
@@ -543,29 +545,6 @@ function initReplayViewer() {
     function isFaceDown(pos) {
         if (pos === undefined) return false;
         return (pos & 0x8) !== 0 || (pos & 0x2) !== 0; // FACEDOWN_DEFENSE=8 FACEDOWN_ATTACK=2
-    }
-
-    function reasonText(r) {
-        if (!r) return '';
-        // reason 掩码常用位（简化中文）
-        if ((r & 0x1) !== 0) return '召唤';
-        if ((r & 0x2) !== 0) return '通常魔法/陷阱';
-        if ((r & 0x4) !== 0) return '战斗';
-        if ((r & 0x8) !== 0) return '效果';
-        if ((r & 0x10) !== 0) return '效果发动';
-        if ((r & 0x20) !== 0) return '解放';
-        if ((r & 0x40) !== 0) return '同调';
-        if ((r & 0x80) !== 0) return '融合';
-        if ((r & 0x100) !== 0) return '特殊召唤';
-        if ((r & 0x200) !== 0) return '破坏';
-        if ((r & 0x400) !== 0) return '返回手牌';
-        if ((r & 0x800) !== 0) return '送入墓地';
-        if ((r & 0x1000) !== 0) return '除外';
-        if ((r & 0x2000) !== 0) return '抽卡';
-        if ((r & 0x4000) !== 0) return '翻面';
-        if ((r & 0x8000) !== 0) return '里侧除外';
-        if ((r & 0x10000) !== 0) return '装备';
-        return '';
     }
 
     function escapeHtml(text) {
