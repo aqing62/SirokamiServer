@@ -239,94 +239,140 @@ function initReplayViewer() {
     }
 
     // 侧边牌堆格子：墓地/除外 = 计数徽标 + 最顶卡（里侧则盖牌）；卡组 = 计数 + 卡背
+    // 内容未变（_sig 相同）时跳过重绘，避免每步闪烁
+    function fillPile(el, sig, badge, card) {
+        if (!el) return;
+        if (el._sig === sig) return;
+        giveImgsIn(el);
+        el.innerHTML = '';
+        if (badge) {
+            var b = document.createElement('span');
+            b.className = 'rp-pile-count';
+            b.textContent = badge;
+            el.appendChild(b);
+        }
+        if (card) el.appendChild(cardNode(card));
+        el._sig = sig;
+    }
     function updatePiles() {
         [0, 1].forEach(function (c) {
-            var gEl = midEls['grave:' + c];
-            if (gEl) {
-                var gc = locCards(c, LOC.GRAVE);
-                var gtop = gc[gc.length - 1];
-                gEl.innerHTML = gc.length
-                    ? '<span class="rp-pile-count">' + gc.length + '</span>' + cardImgHtml(gtop)
-                    : '';
-            }
-            var dEl = midEls['deck:' + c];
-            if (dEl) {
-                var dcount = deckCount[c] || 0;
-                dEl.innerHTML = '<span class="rp-pile-count">' + dcount + '</span>'
-                    + (dcount ? '<div class="rp-card rp-card-down"></div>' : '');
-            }
-            var bEl = midEls['removed:' + c];
-            if (bEl) {
-                var bc = locCards(c, LOC.REMOVED);
-                var btop = bc[bc.length - 1];
-                bEl.innerHTML = bc.length
-                    ? '<span class="rp-pile-count">' + bc.length + '</span>'
-                        + (btop && btop.faceDown
-                            ? '<div class="rp-card rp-card-down"></div>'
-                            : cardImgHtml(btop))
-                    : '';
-            }
+            var gc = locCards(c, LOC.GRAVE);
+            var gtop = gc[gc.length - 1];
+            fillPile(midEls['grave:' + c],
+                'g' + gc.length + '|' + (gtop ? (gtop.code + (gtop.faceDown ? 'd' : 'u')) : ''),
+                gc.length ? String(gc.length) : null,
+                gc.length ? gtop : null);
+            var dcount = deckCount[c] || 0;
+            fillPile(midEls['deck:' + c],
+                'd' + dcount,
+                String(dcount),
+                dcount ? { code: 0, faceDown: true } : null);
+            var bc = locCards(c, LOC.REMOVED);
+            var btop = bc[bc.length - 1];
+            fillPile(midEls['removed:' + c],
+                'r' + bc.length + '|' + (btop ? (btop.code + (btop.faceDown ? 'd' : 'u')) : ''),
+                bc.length ? String(bc.length) : null,
+                bc.length ? btop : null);
         });
     }
 
-    // 更新某玩家某区：手牌整行重绘；场上逐格精确填
+    // 更新某玩家某区：手牌签名比对（未变不重绘，防每步闪）；场上逐格精确填
     function updateZone(controller, loc) {
         if (loc === LOC.HAND) {
             var container = zoneEls[controller + ':' + LOC.HAND];
             if (!container) return;
             var cards = locCards(controller, LOC.HAND);
-            container.innerHTML = cards.length
-                ? cards.map(cardImgHtml).join('')
-                : '';
+            var sig = cards.map(function (c) { return c.code + (c.faceDown ? 'd' : 'u'); }).join(',');
+            if (container._sig === sig) return;
+            giveImgsIn(container);
+            container.innerHTML = '';
+            cards.forEach(function (card) { container.appendChild(cardNode(card)); });
+            container._sig = sig;
             return;
         }
         // MZONE / SZONE：按 sequence 逐格
         for (var seq = 0; seq < 5; seq++) {
             var cellKey = controller + ':' + loc + ':' + seq;
             var cell = zoneEls[cellKey];
-            if (!cell) continue;
-            var card = field[controller] ? field[controller][loc + ':' + seq] : null;
-            if (card) {
-                if (!cell.querySelector('.rp-card') || cell._code !== card.code || cell._down !== !!card.faceDown) {
-                    cell.innerHTML = cardImgHtml(card);
-                    cell._code = card.code;
-                    cell._down = !!card.faceDown;
-                }
-            } else {
-                if (cell.innerHTML !== '') { cell.innerHTML = ''; cell._code = null; }
-            }
+            var card = cell ? (field[controller] ? field[controller][loc + ':' + seq] : null) : null;
+            setCellCard(cell, card);
         }
         // 额外怪兽区：本方 seq=5 的中线格（对手的在中线左侧、自己的在右侧）
         if (loc === LOC.MZONE) {
             var emzKey = controller + ':' + LOC.MZONE + ':5';
             var emzCell = zoneEls[emzKey];
-            if (emzCell) {
-                var emzCard = field[controller] ? field[controller][LOC.MZONE + ':5'] : null;
-                if (emzCard) {
-                    if (!emzCell.querySelector('.rp-card') || emzCell._code !== emzCard.code || emzCell._down !== !!emzCard.faceDown) {
-                        emzCell.innerHTML = cardImgHtml(emzCard);
-                        emzCell._code = emzCard.code;
-                        emzCell._down = !!emzCard.faceDown;
-                    }
-                } else {
-                    if (emzCell.innerHTML !== '') { emzCell.innerHTML = ''; emzCell._code = null; }
-                }
-            }
+            var emzCard = field[controller] ? field[controller][LOC.MZONE + ':5'] : null;
+            setCellCard(emzCell, emzCard);
         }
     }
 
-    function cardImgHtml(card) {
-        if (!card) return '<div class="rp-card rp-card-empty"></div>';
-        if (card.faceDown) {
-            return '<div class="rp-card rp-card-down" title="盖牌"></div>';
+    // 卡图节点池：同一卡号复用已解码的 <img>，离场回收、再上场直接取用（不再重新加载）
+    var cardImgs = {};
+    function buildCardImg(code) {
+        var im = document.createElement('img');
+        im._code = code;
+        im.onerror = function () {
+            this.onerror = null;
+            this.src = SUPER_PRE_PIC + code + '.jpg';
+            this.onerror = function () {
+                this.onerror = null;
+                this.src = OCG_PIC + code + '.jpg';
+                this.onerror = function () { this.onerror = null; this.src = 'cover.jpg'; };
+            };
+        };
+        im.src = cardImgSrc(code);
+        return im;
+    }
+    function takeImg(code) {
+        var arr = cardImgs[code];
+        if (arr && arr.length) return arr.pop();
+        return buildCardImg(code);
+    }
+    function giveImg(code, im) {
+        if (!im) return;
+        if (im.parentNode) im.parentNode.removeChild(im);
+        (cardImgs[code] || (cardImgs[code] = [])).push(im);
+    }
+    function giveImgsIn(el) {
+        if (!el) return;
+        var imgs = el.querySelectorAll('img');
+        for (var i = 0; i < imgs.length; i++) {
+            var im = imgs[i];
+            giveImg(im._code !== undefined ? im._code : 0, im);
         }
-        var name = cardName(card.code);
-        return '<div class="rp-card" title="' + escapeHtml(name || card.code) + '">'
-            + '<img src="' + cardImgSrc(card.code) + '" alt="' + escapeHtml(name || card.code) + '"'
-            + ' onerror="this.onerror=null;this.src=\'' + SUPER_PRE_PIC + card.code
-            + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'' + OCG_PIC + card.code
-            + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'cover.jpg\';}}">'
-            + '</div>';
+    }
+
+    // 生成卡牌外层节点（正面图从池中取；盖牌/卡背无 img 节点）
+    function cardNode(card) {
+        var w = document.createElement('div');
+        w.className = 'rp-card';
+        if (!card) { w.className += ' rp-card-empty'; return w; }
+        if (card.faceDown) { w.className += ' rp-card-down'; w.title = '盖牌'; return w; }
+        var nm = cardName(card.code);
+        w.title = escapeHtml(nm || card.code);
+        w.appendChild(takeImg(card.code));
+        return w;
+    }
+
+    // 单元格精确更新：同卡同状态不动 DOM；换卡/翻面才重建并回收旧图
+    function setCellCard(cell, card) {
+        if (!cell) return;
+        if (card) {
+            if (cell._code === card.code && cell._down === !!card.faceDown && cell.querySelector('.rp-card')) return;
+            giveImgsIn(cell);
+            cell.innerHTML = '';
+            cell.appendChild(cardNode(card));
+            cell._code = card.code;
+            cell._down = !!card.faceDown;
+            if (!card.faceDown) warmCardImg(card.code);
+        } else {
+            if (cell._code !== undefined || cell.innerHTML !== '') {
+                giveImgsIn(cell);
+                cell.innerHTML = '';
+                cell._code = null;
+                cell._down = false;
+            }
+        }
     }
 
     function locCards(controller, loc) {
