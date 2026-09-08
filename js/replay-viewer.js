@@ -786,11 +786,11 @@ function initReplayViewer() {
     }
 
     // 攻击标记：攻击怪兽红圈脉冲 + 目标金圈 + 金色箭头（替代原先撞击动画）
-    function attackMarkFx(aRect, tRect) {
+    function attackMarkFx(aRect, tRect, direct) {
         if (animSuppress || !aRect || !aRect.width) return;
         cellMarkFx(aRect, 'red');
         if (tRect && tRect.width) {
-            cellMarkFx(tRect, 'gold');
+            if (!direct) cellMarkFx(tRect, 'gold');
             var ax = aRect.left + aRect.width / 2, ay = aRect.top + aRect.height / 2;
             var tx = tRect.left + tRect.width / 2, ty = tRect.top + tRect.height / 2;
             arrowFx(ax, ay, tx, ty);
@@ -1067,17 +1067,21 @@ function initReplayViewer() {
                 else if (tg && tg.direct) line += ' 直接攻击';
                 else line += ' 发起攻击';
                 log(line, 'rp-log-battle');
-                // 攻击动画：攻击怪兽红圈标记 + 目标金圈 + 金色箭头
+                // 攻击动画：攻击怪兽红圈标记 + 目标金圈 + 金色箭头（直击则箭头指向对方LP）
                 if (!animSuppress) {
                     var aRect = rectAt(aCtl, aLocRaw, aSeq);
                     var tRect = null;
+                    var isDirect = !!(tg && tg.direct);
                     if (tg && tg.code) {
                         var df = field[1 - aCtl] || {};
                         var dk = Object.keys(df).filter(function (k) { return k.indexOf('4:') === 0; })
                             .find(function (k) { return df[k].code === tg.code; });
                         if (dk) tRect = rectAt(1 - aCtl, LOC.MZONE, parseInt(dk.split(':')[1], 10));
+                    } else if (isDirect) {
+                        var lpEl = lpEls[1 - aCtl];
+                        if (lpEl) tRect = lpEl.getBoundingClientRect();
                     }
-                    attackMarkFx(aRect, tRect);
+                    attackMarkFx(aRect, tRect, isDirect);
                 }
                 break;
             }
