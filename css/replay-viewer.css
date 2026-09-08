@@ -253,7 +253,12 @@
 }
 .rp-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .rp-card-down {
-    background: repeating-linear-gradient(45deg, #5a1a28, #5a1a28 6px, #42121e 6px, #42121e 12px);
+    /* 卡背用 cover2.jpg（加载失败时退回红条纹渐变） */
+    background-image: url('../cover2.jpg'),
+        repeating-linear-gradient(45deg, #5a1a28, #5a1a28 6px, #42121e 6px, #42121e 12px);
+    background-size: cover, auto;
+    background-position: center, 0 0;
+    background-repeat: no-repeat, repeat;
     border: 1px solid #a51834;
 }
 .rp-card-empty { background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.06); }
