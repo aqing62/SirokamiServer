@@ -227,9 +227,8 @@ function initReplayViewer() {
     }
 
     function renderPlayerHead(controller) {
-        var name = meta && meta.players
-            ? (meta.players.find(function (p) { return p.pos === controller; }) || {}).realName || ''
-            : ('玩家' + controller);
+        var p = playerByDuelPos(controller);
+        var name = p ? (p.realName || p.name || '') : '';
         var pEl = playerNameEls[controller];
         if (pEl) pEl.textContent = name || ('玩家' + (controller + 1));
         if (lpEls[controller]) lpEls[controller].textContent = 'LP ' + lp[controller];
@@ -918,10 +917,19 @@ function initReplayViewer() {
     }
 
     // ── 消息处理（驱动场地状态 + 日志）──
+    // 座位(pos, 建房顺序) ↔ 决斗位(消息流里的 player 索引) 可能互换：
+    // 用 Win 消息的 player(真实决斗位) 与 DB 里 winner 的座位比对判定
+    var metaSwap = false;
+    function duelSeat(d) { return metaSwap ? (1 - d) : d; }
+    function playerByDuelPos(d) {
+        if (!meta || !meta.players) return null;
+        var seat = duelSeat(d);
+        return meta.players.find(function (p) { return p.pos === seat; }) || null;
+    }
     function playerName(pos) {
-        if (!meta || !meta.players) return 'P' + pos;
-        var p = meta.players.find(function (x) { return x.pos === pos; });
-        return p ? (p.realName || p.name || ('P' + pos)) : ('P' + pos);
+        var p = playerByDuelPos(pos);
+        if (p) return p.realName || p.name || ('P' + pos);
+        return 'P' + pos;
     }
 
     function handleMessage(m) {
@@ -940,7 +948,8 @@ function initReplayViewer() {
                 deckCount = [0, 0];
                 extraCount = [0, 0];
                 (meta && meta.players || []).forEach(function (p) {
-                    if ((p.pos === 0 || p.pos === 1) && p.mainc) deckCount[p.pos] = p.mainc;
+                    var dp = duelSeat(p.pos);
+                    if ((dp === 0 || dp === 1) && p.mainc) deckCount[dp] = p.mainc;
                 });
                 createFieldDOM();
                 log('🃏 对局开始（房间 ' + (meta.roomName || '') + '）');
@@ -1495,7 +1504,21 @@ function initReplayViewer() {
                 if (data.error) throw new Error(data.error);
                 meta = data;
                 messages = data.messages || [];
-                metaEl.textContent = data.roomName + ' · ' + (data.players || []).map(function (p) {
+                // 判定 座位(pos) ↔ 决斗位(消息player) 是否互换：用 Win 消息的真实决斗位对照 DB winner 座位
+                metaSwap = false;
+                var winMsg = null;
+                for (var wi = 0; wi < messages.length; wi++) {
+                    if (messages[wi].name === 'Win') { winMsg = messages[wi]; break; }
+                }
+                if (winMsg && winMsg.f && (winMsg.f.player === 0 || winMsg.f.player === 1)) {
+                    var seatWinner = (data.players || []).find(function (p) { return p.winner; });
+                    if (seatWinner) metaSwap = (winMsg.f.player !== seatWinner.pos);
+                }
+                // 显示顺序按决斗位（0 在前 = 我方）
+                var orderedPlayers = (data.players || []).slice().sort(function (a, b) {
+                    return duelSeat(a.pos) - duelSeat(b.pos);
+                });
+                metaEl.textContent = data.roomName + ' · ' + orderedPlayers.map(function (p) {
                     return (p.realName || p.name) + (p.winner ? '🏆' : '');
                 }).join(' VS ');
                 idx = -1;
