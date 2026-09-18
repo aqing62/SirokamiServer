@@ -581,14 +581,15 @@ function initReplayViewer() {
         return el;
     }
 
-    // 移动动画：幽灵卡从原格滑到目标格
-    function flyGhost(cardCode, down, s, d) {
+    // 移动动画：幽灵卡从原格滑到目标格（flip = 对手的卡需倒置显示）
+    function flyGhost(cardCode, down, s, d, flip) {
         if (animSuppress || !s || !d || !s.width || !d.width) return;
         var g = fxEl('rp-fly' + (down || !cardCode ? ' rp-fly-down' : ''), s.width, s.height, s.left, s.top);
         if (!down && cardCode) {
             var im = document.createElement('img');
             wireImgChain(im, cardCode);
             im.src = cardImgSrc(cardCode);
+            if (flip) im.style.transform = 'rotate(180deg)';   // 内层旋转，不影响外层定位
             g.appendChild(im);
         }
         requestAnimationFrame(function () {
@@ -676,8 +677,9 @@ function initReplayViewer() {
             im.src = cardImgSrc(cardCode);
             g.appendChild(im);
         }
-        var sx = fromRect.left + fromRect.width / 2, sy = fromRect.top + fromRect.height / 2;
-        var dx = tx - sx, dy = ty - sy;
+        // 变换原点在左上角：位移按左上角差值算，终点与目标格完全重合
+        var dx = (tx - tw / 2) - fromRect.left;
+        var dy = (ty - th / 2) - fromRect.top;
         requestAnimationFrame(function () {
             requestAnimationFrame(function () {
                 g.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + (tw / fromRect.width) + ',' + (th / fromRect.height) + ')';
@@ -1092,7 +1094,8 @@ function initReplayViewer() {
                         } else {
                             var dRect = rectAt(mvCtl, cur.location, mvSeq);
                             if (dRect) {
-                                flyGhost(code || 0, isFaceDown(cur.position) || cLoc === LOC.DECK || cLoc === LOC.EXTRA, animPreSrc, dRect);
+                                flyGhost(code || 0, isFaceDown(cur.position) || cLoc === LOC.DECK || cLoc === LOC.EXTRA, animPreSrc, dRect,
+                                    mvCtl === 1 && (cLoc === LOC.MZONE || cLoc === LOC.SZONE) && !isFaceDown(cur.position));
                                 // 召唤落地：进入怪兽区后脚下展开圆环
                                 if (cLoc === LOC.MZONE) {
                                     var ringRect = dRect;
