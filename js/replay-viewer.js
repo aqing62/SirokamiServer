@@ -925,13 +925,14 @@ function initReplayViewer() {
         }, 1020);
     }
 
-    // 灵摆：在召唤之前先摆一次（左→右→回左），动画结束怪兽才现身；整批只触发一次
-    var pendFx = { active: false, ctl: -1, el: null, timer: 0, revealAt: 0, held: [] };
+    // 灵摆：召唤前先摆一次（左→右→回左）→ 动画结束钟摆消失 → 怪兽才被召唤出来
+    // batchOpen：本次灵摆召唤批次（整批只触发一次）；active：钟摆元素当前是否在画面上
+    var pendFx = { batchOpen: false, active: false, ctl: -1, el: null, timer: 0, revealAt: 0, held: [] };
     var PEND_SWING_MS = 1250;
     function pendBegin(ctl) {
-        if (animSuppress) return;
+        if (animSuppress || pendFx.batchOpen) return;   // 同一批连续召唤只触发一次
         if (ctl === undefined) ctl = 0;
-        pendClose();
+        pendFx.batchOpen = true;
         var pane = fieldEl.getBoundingClientRect();
         var x = pane.left + pane.width / 2;
         var H = 96;
@@ -956,52 +957,57 @@ function initReplayViewer() {
         pendFx.held = [];
         pendFx.revealAt = Date.now() + PEND_SWING_MS;
         pendExtend();
-        // 摆动结束后：被隐藏的怪兽一起现身（灵摆召唤正式开始）
+        // 动画结束：先让怪兽被召唤出来，随即让钟摆消失
         setTimeout(function () {
-            if (!pendFx.active) return;
+            if (!pendFx.batchOpen) return;
             var list = pendFx.held;
             pendFx.held = [];
             list.forEach(function (item, i) {
                 setTimeout(function () { fxRevealPop(item.cell, item.flip, item.def); }, i * 90);
             });
+            setTimeout(pendHide, 140);   // 怪兽一现身，钟摆就撤掉
         }, PEND_SWING_MS + 10);
     }
-    // 灵摆怪落地时调用：先藏起来，等钟摆摆完再出现（摆动结束后到的怪直接显示）
+    // 灵摆怪落地时调用：动画期间先藏起来，等动画结束再被召唤出来
     function pendHoldCell(cell, flip, def) {
-        if (!cell || !pendFx.active) return;
-        if (Date.now() >= pendFx.revealAt) return;   // 摆动已结束，后续召唤立即显示
+        if (!cell || !pendFx.batchOpen) return;
+        if (Date.now() >= pendFx.revealAt) return;   // 动画已结束，直接显示
         cell._fxHold = true;
         cell.style.opacity = '0';
         pendFx.held.push({ cell: cell, flip: !!flip, def: !!def });
         pendExtend();
     }
-    // 兼容旧入口（若在 SpSummoning 才拿到种类）：直接开一段钟摆
+    // 兼容旧入口（若在 SpSummoning 才拿到种类）
     function fxPendulum(ctl) {
-        if (pendFx.active) { pendExtend(); return; }
+        if (pendFx.batchOpen) { pendExtend(); return; }
         pendBegin(ctl);
     }
-    // 延续本次连续特殊召唤（重置兜底计时）
     function pendExtend() {
-        if (!pendFx.active) return;
+        if (!pendFx.batchOpen) return;
         clearTimeout(pendFx.timer);
-        pendFx.timer = setTimeout(function () { pendClose(); }, 3200);
+        pendFx.timer = setTimeout(function () { pendBatchEnd(); }, 3200);
     }
-    function pendClose() {
+    // 只把钟摆元素淡出（不影响批次）
+    function pendHide() {
         if (!pendFx.active) return;
-        clearTimeout(pendFx.timer);
-        var el = pendFx.el;
-        var list = pendFx.held;
         pendFx.active = false;
-        pendFx.ctl = -1;
+        var el = pendFx.el;
         pendFx.el = null;
-        pendFx.held = [];
-        // 兜底：万一还藏着没现身，收尾时一并显示
-        list.forEach(function (item) { fxRevealPop(item.cell, item.flip, item.def); });
         if (el) {
-            el.style.transition = 'opacity 0.3s ease';
+            el.style.transition = 'opacity 0.28s ease';
             el.style.opacity = '0';
-            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 360);
+            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 340);
         }
+    }
+    // 本批连续特殊召唤结束：撤掉钟摆、允许下次灵摆召唤重新触发
+    function pendBatchEnd() {
+        clearTimeout(pendFx.timer);
+        var list = pendFx.held;
+        pendFx.held = [];
+        list.forEach(function (item) { fxRevealPop(item.cell, item.flip, item.def); });
+        pendHide();
+        pendFx.batchOpen = false;
+        pendFx.ctl = -1;
     }
 
     // 召唤演出：临时隐藏卡片，等特效到位后再现身
@@ -1603,12 +1609,12 @@ function initReplayViewer() {
     function handleMessage(m) {
         var n = m.name;
         var f = m.f || {};
-        // 灵摆特效：连续特殊召唤结束后收尾（召唤/Move/提示 都视为延续，整批只触发一次）
-        if (pendFx.active) {
+        // 灵摆：本次连续灵摆召唤期间不重复触发；批次结束后才允许下次灵摆召唤再触发
+        if (pendFx.batchOpen) {
             if (n === 'SpSummoning' || n === 'Summoning' || n === 'Move' || n === 'Hint') {
                 pendExtend();
             } else if (VISIBLE_MSG[n]) {
-                pendClose();
+                pendBatchEnd();
             }
         }
         switch (n) {
