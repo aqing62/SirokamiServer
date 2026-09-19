@@ -53,7 +53,18 @@
     padding: 24px;
     position: relative;
     box-shadow: 0 16px 64px rgba(0, 0, 0, 0.6);
+    /* 滚动条：与站内其他弹窗（玩家排名/卡组查看器等）保持一致 */
+    scrollbar-width: thin;
+    scrollbar-color: var(--red, #D81E44) transparent;
 }
+.chronicle-modal::-webkit-scrollbar { width: 5px; height: 5px; }
+.chronicle-modal::-webkit-scrollbar-track { background: transparent; }
+.chronicle-modal::-webkit-scrollbar-thumb {
+    background: var(--red, #D81E44);
+    border-radius: 3px;
+}
+.chronicle-modal::-webkit-scrollbar-thumb:hover { background: var(--light-gold, #F0D98C); }
+.chronicle-modal::-webkit-scrollbar-corner { background: transparent; }
 .chronicle-modal h2 {
     color: var(--gold);
     text-align: center;
