@@ -925,9 +925,9 @@ function initReplayViewer() {
         }, 1020);
     }
 
-    // 灵摆：召唤前先摆一次（左→右→回左）→ 动画结束钟摆消失 → 怪兽才被召唤出来
+    // 灵摆：召唤前先摆一次（左→右→回左）→ 动画结束钟摆消失；怪兽照常立即上场（不隐藏）
     // batchOpen：本次灵摆召唤批次（整批只触发一次）；active：钟摆元素当前是否在画面上
-    var pendFx = { batchOpen: false, active: false, ctl: -1, el: null, timer: 0, revealAt: 0, held: [] };
+    var pendFx = { batchOpen: false, active: false, ctl: -1, el: null, timer: 0 };
     var PEND_SWING_MS = 1250;
     function pendBegin(ctl) {
         if (animSuppress || pendFx.batchOpen) return;   // 同一批连续召唤只触发一次
@@ -954,28 +954,12 @@ function initReplayViewer() {
         pendFx.active = true;
         pendFx.ctl = ctl;
         pendFx.el = wrap;
-        pendFx.held = [];
-        pendFx.revealAt = Date.now() + PEND_SWING_MS;
         pendExtend();
-        // 动画结束：先让怪兽被召唤出来，随即让钟摆消失
+        // 动画结束：钟摆随即消失
         setTimeout(function () {
             if (!pendFx.batchOpen) return;
-            var list = pendFx.held;
-            pendFx.held = [];
-            list.forEach(function (item, i) {
-                setTimeout(function () { fxRevealPop(item.cell, item.flip, item.def); }, i * 90);
-            });
-            setTimeout(pendHide, 140);   // 怪兽一现身，钟摆就撤掉
+            pendHide();
         }, PEND_SWING_MS + 10);
-    }
-    // 灵摆怪落地时调用：动画期间先藏起来，等动画结束再被召唤出来
-    function pendHoldCell(cell, flip, def) {
-        if (!cell || !pendFx.batchOpen) return;
-        if (Date.now() >= pendFx.revealAt) return;   // 动画已结束，直接显示
-        cell._fxHold = true;
-        cell.style.opacity = '0';
-        pendFx.held.push({ cell: cell, flip: !!flip, def: !!def });
-        pendExtend();
     }
     // 兼容旧入口（若在 SpSummoning 才拿到种类）
     function fxPendulum(ctl) {
@@ -999,12 +983,9 @@ function initReplayViewer() {
             setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 340);
         }
     }
-    // 本批连续特殊召唤结束：撤掉钟摆、允许下次灵摆召唤重新触发
+    // 本批连续特殊召唤结束：撤掉钟摆（若有），允许下次灵摆召唤重新触发
     function pendBatchEnd() {
         clearTimeout(pendFx.timer);
-        var list = pendFx.held;
-        pendFx.held = [];
-        list.forEach(function (item) { fxRevealPop(item.cell, item.flip, item.def); });
         pendHide();
         pendFx.batchOpen = false;
         pendFx.ctl = -1;
@@ -1798,19 +1779,14 @@ function initReplayViewer() {
                         if (cPlain === LOC.MZONE) {
                             lastLand = { code: code, fromExtra: (pPlain === LOC.EXTRA), idx: idx, ctl: mConC, seq: mSeqC, rawLoc: cRawM };
                             var landType = summonTypeOf(code);
-                            var landCard = field[mConC] ? field[mConC][LOC.MZONE + ':' + mSeqC] : null;
-                            var landFlip = mConC === 1 && !!landCard && !landCard.faceDown;
-                            var landDef = !!landCard && isDefense(landCard.pos);
                             // 连接怪：落地瞬间就先隐藏（避免特效前闪一下），等素材红球飞到位再由小变大现身
                             if (!animSuppress && pPlain === LOC.EXTRA && landType === 'link') {
                                 var linkCell = cellElFor(mConC, cRawM, mSeqC);
                                 if (linkCell) fxHoldCell(linkCell, 1800);
                             }
-                            // 灵摆怪：先起钟摆，并把这格藏起来 —— 摆动动画结束后才现身（召唤在动画之后）
+                            // 灵摆怪：召唤前先起钟摆（怪兽照常立即上场，不做隐藏）
                             if (!animSuppress && landType === 'pendulum') {
-                                if (!pendFx.active) pendBegin(mConC);
-                                var pCell = cellElFor(mConC, cRawM, mSeqC);
-                                if (pCell) pendHoldCell(pCell, landFlip, landDef);
+                                if (!pendFx.batchOpen) pendBegin(mConC);
                             }
                         }
                         // 素材进缓冲：场上/手牌/卡组 → 墓地（非战斗破坏）
