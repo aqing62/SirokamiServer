@@ -639,13 +639,16 @@
     box-shadow: 0 0 22px 9px rgba(255, 150, 60, 0.9), 0 0 6px 2px rgba(255, 245, 210, 0.9);
 }
 
-/* 融合：橙蓝螺旋 */
+/* 融合：橙蓝扭曲螺旋（柔化流体感） */
 .rp-spiral {
-    position: fixed; z-index: 9996; border-radius: 50%;
+    position: fixed; z-index: 9996;
     pointer-events: none;
-    filter: blur(1.5px) saturate(1.2);
+    filter: blur(2.5px) saturate(1.15) drop-shadow(0 0 10px rgba(255, 170, 60, 0.45));
     mix-blend-mode: screen;
 }
+.rp-spiral svg { width: 100%; height: 100%; display: block; }
+/* 攻击命中前的蓄能球 */
+.rp-ball-charge { animation: none; }
 /* 连接：六边形数码 */
 .rp-hex { position: fixed; z-index: 9996; pointer-events: none; }
 .rp-hex-flash {

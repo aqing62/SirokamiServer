@@ -72,7 +72,7 @@ function initReplayViewer() {
     var preloading = false;      // 卡图预加载中
     var pendingMats = {};        // 额外卡组超量：召唤前先叠放的素材 "ctl:extraSeq" → {count, rects}
     var lastLand = null;         // 最近一次怪兽落地 {code, fromExtra, idx, ctl, seq, rawLoc}
-    var suppressShatter = null;  // 攻击特效已提前碎卡时，抑制随后 Move 的重复破碎
+    var pendingImpact = null;    // 攻击命中后等待"真正破坏"以同步爆炸+破碎 {code, rect, defCtl, done}
 
     // 卡池索引（卡名/卡片种类查询，可选加载 /api/cards）
     var cardNameMap = {};
@@ -750,35 +750,62 @@ function initReplayViewer() {
         }
     }
 
-    // 融合：橙色 + 蓝色双螺旋汇聚 → 中心爆闪
+    // 融合：橙色 + 蓝色「扭曲螺旋」汇聚（柔化、非几何）→ 中心爆闪
     function fxFusion(target) {
-        var S = 190;
-        function swirl(color, delay, dir) {
+        var S = 210;
+        function spiralLayer(color, delay, dir, turns, width) {
             setTimeout(function () {
                 if (animSuppress) return;
-                var el = fxEl('rp-spiral', S, S, target.x - S / 2, target.y - S / 2);
-                el.style.background = 'conic-gradient(from 0deg, ' + color + ' 0deg 72deg,'
-                    + ' rgba(0,0,0,0) 72deg 180deg, ' + color + ' 180deg 252deg, rgba(0,0,0,0) 252deg 360deg)';
+                var wrap = fxEl('rp-spiral', S, S, target.x - S / 2, target.y - S / 2);
+                wrap.appendChild(makeSpiralSvg(color, turns, width));
                 var an = null;
                 try {
-                    an = el.animate([
-                        { transform: 'rotate(0deg) scale(1.35)', opacity: 0, offset: 0 },
-                        { transform: 'rotate(' + (dir * 150) + 'deg) scale(1.12)', opacity: 0.95, offset: 0.3 },
-                        { transform: 'rotate(' + (dir * 380) + 'deg) scale(0.78)', opacity: 0.95, offset: 0.72 },
-                        { transform: 'rotate(' + (dir * 640) + 'deg) scale(0.12)', opacity: 0, offset: 1 }
-                    ], { duration: 980, easing: 'cubic-bezier(.4,.15,.3,1)' });
+                    an = wrap.animate([
+                        { transform: 'rotate(0deg) scale(1.4)', opacity: 0, offset: 0 },
+                        { transform: 'rotate(' + (dir * 130) + 'deg) scale(1.18)', opacity: 0.95, offset: 0.3 },
+                        { transform: 'rotate(' + (dir * 330) + 'deg) scale(0.8)', opacity: 0.95, offset: 0.7 },
+                        { transform: 'rotate(' + (dir * 560) + 'deg) scale(0.12)', opacity: 0, offset: 1 }
+                    ], { duration: 1000, easing: 'cubic-bezier(.45,.15,.3,1)' });
                 } catch (e) { /* ignore */ }
-                if (an) { an.onfinish = function () { if (el.parentNode) el.parentNode.removeChild(el); }; }
-                setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 1120);
+                if (an) { an.onfinish = function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }; }
+                setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 1160);
             }, delay);
         }
-        swirl('rgba(255,150,40,0.95)', 0, 1);
-        swirl('rgba(70,170,255,0.95)', 130, -1);
+        spiralLayer('rgba(255,150,40,0.95)', 0, 1, 2.4, 7);
+        spiralLayer('rgba(70,170,255,0.95)', 140, -1, 2.0, 6);
         setTimeout(function () {
             if (animSuppress) return;
             var fl = fxEl('rp-fx-hit', 130, 130, target.x - 65, target.y - 65);
             setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 90);
-        }, 840);
+        }, 850);
+    }
+
+    // 生成一条柔化扭曲螺旋（SVG 旋臂，模糊后呈流体质感）
+    function makeSpiralSvg(color, turns, width) {
+        var NS = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('viewBox', '-50 -50 100 100');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        var d = '';
+        var steps = 140;
+        for (var i = 0; i <= steps; i++) {
+            var t = i / steps;
+            var ang = t * Math.PI * 2 * (turns || 2);
+            var r = 6 + t * 38;
+            var x = Math.cos(ang) * r;
+            var y = Math.sin(ang) * r;
+            d += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2);
+        }
+        var path = document.createElementNS(NS, 'path');
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', color);
+        path.setAttribute('stroke-width', String(width || 6));
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('opacity', '0.95');
+        svg.appendChild(path);
+        return svg;
     }
 
     // 超量：素材光球 → 星系黑洞 → 爆炸
@@ -1225,8 +1252,8 @@ function initReplayViewer() {
         }, dur);
     }
 
-    // 攻击编排：①红圈+箭头标记 ②能量球飞出 ③爆炸（若目标会被破坏则同时碎卡）
-    function attackMarkFx(aRect, tRect, direct, killedCode, killedCell, defCtl) {
+    // 攻击编排：①红圈+箭头标记 ②能量球飞出 ③命中爆炸；若目标随后真的被破坏，则爆炸+破碎同时发生
+    function attackMarkFx(aRect, tRect, direct, killedCode, defCtl) {
         if (animSuppress || !aRect || !aRect.width) return;
         cellMarkFx(aRect, 'red');
         // ① 箭头标记（保留）
@@ -1234,26 +1261,64 @@ function initReplayViewer() {
             arrowFx(aRect.left + aRect.width / 2, aRect.top + aRect.height / 2,
                 tRect.left + tRect.width / 2, tRect.top + tRect.height / 2);
         }
-        // ② 能量球：目标会破坏时飞久一点，让爆炸与破碎对上
-        var flight = (killedCode && tRect && tRect.width) ? 560 : 340;
         var tr = tRect;
+        pendingImpact = null;
         setTimeout(function () {
-            attackBallFx(aRect, tr, flight, function () {
-                // ③ 爆炸瞬间：目标金圈 + 碎卡（同步）
-                if (tr && tr.width && !direct) cellMarkFx(tr, 'gold');
+            attackBallFx(aRect, tr, 340, function () {
                 if (killedCode && tr && tr.width) {
-                    var gPileEl = midEls['grave:' + (defCtl === undefined ? 0 : defCtl)];
-                    shatterFx(tr, gPileEl ? gPileEl.getBoundingClientRect() : null);
-                    suppressShatter = { code: killedCode, until: idx + 12 };
-                    if (killedCell) {
-                        killedCell.style.opacity = '0';
-                        setTimeout(function () {
-                            if (killedCell) killedCell.style.opacity = '';
-                        }, 1100);
-                    }
+                    // 预计会被破坏：先在目标处蓄能，等真正的送墓消息再爆炸+破碎（保证同步）
+                    chargeOrbFx(tr, defCtl);
+                    pendingImpact = { code: killedCode, rect: tr, defCtl: defCtl, done: false };
+                    setTimeout(function () {
+                        if (pendingImpact && pendingImpact.code === killedCode && !pendingImpact.done) {
+                            pendingImpact = null;
+                            if (tr && tr.width) boomFx(tr);
+                            if (tr && tr.width && !direct) cellMarkFx(tr, 'gold');
+                        }
+                    }, 1500);
+                } else {
+                    if (tr && tr.width && !direct) cellMarkFx(tr, 'gold');
                 }
             });
         }, 170);
+    }
+
+    // 命中处的蓄能光球（等待破坏结算）
+    function chargeOrbFx(rect, defCtl) {
+        if (animSuppress || !rect || !rect.width) return;
+        var cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+        var o = fxEl('rp-ball rp-ball-core rp-ball-charge', 26, 26, cx - 13, cy - 13);
+        var an = null;
+        try {
+            an = o.animate([
+                { transform: 'scale(0.5)', opacity: 0.5, offset: 0 },
+                { transform: 'scale(1.15)', opacity: 1, offset: 0.5 },
+                { transform: 'scale(0.7)', opacity: 0.55, offset: 1 }
+            ], { duration: 420, iterations: 3, easing: 'ease-in-out' });
+        } catch (e) { /* ignore */ }
+        setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 1400);
+    }
+
+    // 爆炸：冲击环 + 火花（不含碎卡，碎卡由调用方同时触发）
+    function boomFx(rect) {
+        if (animSuppress || !rect || !rect.width) return;
+        var tx = rect.left + rect.width / 2, ty = rect.top + rect.height / 2;
+        var hit = fxEl('rp-fx-hit', 130, 130, tx - 65, ty - 65);
+        setTimeout(function () { hit.style.opacity = '0'; setTimeout(function () { if (hit.parentNode) hit.parentNode.removeChild(hit); }, 320); }, 90);
+        for (var i = 0; i < 12; i++) {
+            var sp = fxEl('rp-ball', 10, 10, tx - 5, ty - 5);
+            var ang = (Math.PI * 2 * i) / 12 + Math.random() * 0.4;
+            var dist = 50 + Math.random() * 42;
+            var an = null;
+            try {
+                an = sp.animate([
+                    { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                    { transform: 'translate(' + Math.cos(ang) * dist + 'px,' + Math.sin(ang) * dist + 'px) scale(0.3)', opacity: 0, offset: 1 }
+                ], { duration: 420, easing: 'ease-out' });
+            } catch (e) { /* ignore */ }
+            if (an) { an.onfinish = function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }; }
+            setTimeout(function (el) { if (el.parentNode) el.parentNode.removeChild(el); }, 560, sp);
+        }
     }
 
     // ── 攻击日志辅助：尽量确定“攻击了谁” ──
@@ -1571,9 +1636,15 @@ function initReplayViewer() {
                         var sameCell = pPlain === cPlain && mCon === mConC
                             && (prev.sequence === undefined || cur.sequence === undefined || prev.sequence === cur.sequence);
                         if (cPlain === LOC.GRAVE && (pPlain === LOC.MZONE || pPlain === LOC.SZONE)) {
-                            // 若攻击特效已经在爆炸时碎过这张卡，则不再重复破碎
-                            if (suppressShatter && suppressShatter.code === code && idx <= suppressShatter.until) {
-                                suppressShatter = null;
+                            // 若这次破坏正是攻击命中的目标：爆炸与破碎同时发生
+                            if (pendingImpact && !pendingImpact.done && pendingImpact.code === code) {
+                                var impRect = pendingImpact.rect;
+                                var impCtl = pendingImpact.defCtl;
+                                pendingImpact.done = true;
+                                pendingImpact = null;
+                                boomFx(impRect);
+                                var gPileEl2 = midEls['grave:' + (impCtl === undefined ? mConC : impCtl)];
+                                shatterFx(impRect, gPileEl2 ? gPileEl2.getBoundingClientRect() : null);
                             } else {
                                 var gPileEl = midEls['grave:' + mConC];
                                 shatterFx(animPreSrc, gPileEl ? gPileEl.getBoundingClientRect() : null);
@@ -1696,7 +1767,7 @@ function initReplayViewer() {
                             if (lpEl2) tRect = lpEl2.getBoundingClientRect();
                         }
                     }
-                    attackMarkFx(aRect, tRect, isDirect, (tg && tg.killedCode) || 0, tCell, 1 - aCtl);
+                    attackMarkFx(aRect, tRect, isDirect, (tg && tg.killedCode) || 0, 1 - aCtl);
                 }
                 break;
             }
