@@ -83,8 +83,9 @@
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
-    justify-content: center;
+    justify-content: flex-start;
     align-content: flex-start;
+    padding-bottom: 8px;
 }
 /* ── 工具条：搜索 + 统计 ── */
 .cd-toolbar {
