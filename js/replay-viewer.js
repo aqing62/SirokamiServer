@@ -2481,7 +2481,19 @@ function initReplayViewer() {
             out.def = undefined;   // 连接怪不显示守备力
             return out;
         }
-        if (s) return s;
+        if (s) {
+            // 实时数据可能有残缺（只查了攻击力等）→ 用卡池基础值补齐，避免只有一半数字
+            var out2 = {
+                atk: s.atk, def: s.def, batk: s.batk, bdef: s.bdef,
+                level: s.level, rank: s.rank, type: s.type,
+            };
+            if (out2.atk === undefined && m) out2.atk = m.atk;
+            if (out2.def === undefined && m) out2.def = m.def;
+            if (out2.batk === undefined) out2.batk = (m && m.atk !== undefined) ? m.atk : out2.atk;
+            if (out2.bdef === undefined) out2.bdef = (m && m.def !== undefined) ? m.def : out2.def;
+            if (out2.atk === undefined && out2.def === undefined) return null;
+            return out2;
+        }
         if (m && (m.atk !== undefined || m.def !== undefined)) {
             return { atk: m.atk, def: m.def, batk: m.atk, bdef: m.def, level: m.level };
         }
