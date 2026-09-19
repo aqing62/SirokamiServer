@@ -466,7 +466,7 @@ function initReplayViewer() {
                 mb.title = '超量素材 ' + mats;
                 cell.appendChild(mb);
             }
-            cell.style.opacity = '';   // 攻击特效若临时隐藏过该格，重建时恢复
+            cell.style.opacity = cell._fxHold ? '0' : '';   // 召唤演出期间可临时隐藏该格
             cell._code = card.code;
             cell._down = !!card.faceDown;
             cell._flip = f;
@@ -871,23 +871,36 @@ function initReplayViewer() {
         }, 900);
     }
 
-    // 连接：红色光球汇聚 → 六边形数码特效（不再依赖连接箭头数据）
-    function fxLink(target, srcRects) {
+    // 召唤演出：临时隐藏卡片，等特效到位后再现身
+    function fxHoldCell(cell, ms) {
+        if (!cell) return;
+        cell._fxHold = true;
+        cell.style.opacity = '0';
+        if (ms) setTimeout(function () { fxReleaseCell(cell); }, ms);
+    }
+    function fxReleaseCell(cell) {
+        if (!cell) return;
+        cell._fxHold = false;
+        cell.style.opacity = '';
+    }
+
+    // 连接：素材红色特效飞向召唤位置 → 到位后连接怪现身 + 六边形数码特效
+    function fxLink(target, srcRects, cellEl) {
         fxOrbs(srcRects, target, '#ff3b3b', true);
         setTimeout(function () {
-            if (animSuppress) return;
-            // 三层六边形扫描环
+            if (animSuppress) { fxReleaseCell(cellEl); return; }
+            // 素材到位：卡片现身 + 数码特效
+            fxReleaseCell(cellEl);
             hexRingFx(target, 130, 0, 760, 2.6, '#8ef0ff');
             hexRingFx(target, 100, 60, 820, 2.2, '#d8fbff');
             hexRingFx(target, 70, 120, 880, 1.8, '#7fe9ff');
-            // 四散的小六边形（数码粒子）
             for (var i = 0; i < 6; i++) {
                 (function (k) {
                     setTimeout(function () {
                         if (animSuppress) return;
                         var ang = (Math.PI * 2 * k) / 6 + Math.random() * 0.3;
                         var dist = 44 + Math.random() * 26;
-                        var hx = hexRingFx(target, 26, Math.random() * 90, 420, 1.6, '#aef4ff', null);
+                        var hx = hexRingFx(target, 26, Math.random() * 90, 420, 1.6, '#aef4ff');
                         var el = hx.el;
                         var an = null;
                         try {
@@ -902,10 +915,9 @@ function initReplayViewer() {
                     }, 60 + k * 45);
                 })(i);
             }
-            // 中心数码爆闪
-            var fl = fxEl('rp-hex-flash', 120, 120, target.x - 60, target.y - 60);
-            setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 120);
-        }, 470);
+            var fl = fxEl('rp-hex-flash', 140, 140, target.x - 70, target.y - 70);
+            setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 130);
+        }, 600);
     }
 
     // 单个六边形环（返回元素，便于外部再动画）
@@ -937,8 +949,8 @@ function initReplayViewer() {
         return { el: wrap, anim: an };
     }
 
-    // 召唤演出总入口：按召唤种类播放
-    function summonShowFx(code, rect) {
+    // 召唤演出总入口：按召唤种类播放（cellEl 用于"素材到位后卡片才现身"）
+    function summonShowFx(code, rect, cellEl) {
         if (animSuppress || !rect || !rect.width) return;
         var type = summonTypeOf(code);
         if (!type) return;
@@ -946,10 +958,14 @@ function initReplayViewer() {
         var mats = takeMats();
         var srcRects = mats.map(function (m) { return m.rect; }).filter(Boolean);
         if (!srcRects.length) srcRects = [rect];
+        if (type === 'link') {
+            fxHoldCell(cellEl, 1200);        // 先隐藏连接怪
+            fxLink(target, srcRects, cellEl);  // 红色素材特效飞到位后再现身
+            return;
+        }
         if (type === 'xyz') fxFusionXyz(target, srcRects);
         else if (type === 'synchro') fxSynchro(target, cardLevel(code));
-        else if (type === 'fusion') fxFusion(target, mats);
-        else if (type === 'link') fxLink(target, srcRects);
+        else if (type === 'fusion') fxFusion(target);
         else if (type === 'pendulum') fxPendulum(target);
     }
 
@@ -1695,7 +1711,8 @@ function initReplayViewer() {
                     var extraType = st === 'fusion' || st === 'synchro' || st === 'xyz' || st === 'link';
                     if ((extraType && lastLand.fromExtra) || st === 'pendulum') {
                         var sRect = rectAt(lastLand.ctl, lastLand.rawLoc, lastLand.seq);
-                        if (sRect) summonShowFx(f.code, sRect);
+                        var sCell = cellElFor(lastLand.ctl, lastLand.rawLoc, lastLand.seq);
+                        if (sRect) summonShowFx(f.code, sRect, sCell);
                     }
                 }
                 break;
