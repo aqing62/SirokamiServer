@@ -925,12 +925,12 @@ function initReplayViewer() {
         }, 1020);
     }
 
-    // 灵摆：在该玩家场地上方摆一次（左→右→回左），持续到连续特殊召唤结束
-    var pendFx = { active: false, ctl: -1, el: null, timer: 0 };
-    function fxPendulum(ctl) {
+    // 灵摆：在召唤之前先摆一次（左→右→回左），动画结束怪兽才现身；整批只触发一次
+    var pendFx = { active: false, ctl: -1, el: null, timer: 0, revealAt: 0, held: [] };
+    var PEND_SWING_MS = 1250;
+    function pendBegin(ctl) {
         if (animSuppress) return;
         if (ctl === undefined) ctl = 0;
-        if (pendFx.active && pendFx.ctl === ctl) { pendExtend(); return; }   // 同一次连续召唤只触发一次
         pendClose();
         var pane = fieldEl.getBoundingClientRect();
         var x = pane.left + pane.width / 2;
@@ -938,44 +938,64 @@ function initReplayViewer() {
         var wrap = fxEl('rp-pend-wrap', 0, 0, x, ctl === 0 ? (pane.top + pane.height * 0.53) : (pane.top + pane.height * 0.47));
         var line = document.createElement('div');
         line.className = 'rp-pend' + (ctl === 0 ? '' : ' rp-pend-up');
-        if (ctl === 0) {
-            line.style.left = '-4px';
-            line.style.top = '0px';
-            line.style.height = H + 'px';
-            line.style.transformOrigin = '50% 0%';
-        } else {
-            line.style.left = '-4px';
-            line.style.top = (-H) + 'px';
-            line.style.height = H + 'px';
-            line.style.transformOrigin = '50% 100%';
-        }
+        line.style.left = '-4px';
+        line.style.top = (ctl === 0 ? 0 : -H) + 'px';
+        line.style.height = H + 'px';
+        line.style.transformOrigin = ctl === 0 ? '50% 0%' : '50% 100%';
         wrap.appendChild(line);
-        // 只摆一次：左 → 右 → 回左
         try {
             line.animate([
                 { transform: 'rotate(-28deg)', offset: 0 },
                 { transform: 'rotate(28deg)', offset: 0.5 },
                 { transform: 'rotate(-28deg)', offset: 1 }
-            ], { duration: 1250, easing: 'ease-in-out' });
+            ], { duration: PEND_SWING_MS, easing: 'ease-in-out' });
         } catch (e) { /* ignore */ }
         pendFx.active = true;
         pendFx.ctl = ctl;
         pendFx.el = wrap;
+        pendFx.held = [];
+        pendFx.revealAt = Date.now() + PEND_SWING_MS;
         pendExtend();
+        // 摆动结束后：被隐藏的怪兽一起现身（灵摆召唤正式开始）
+        setTimeout(function () {
+            if (!pendFx.active) return;
+            var list = pendFx.held;
+            pendFx.held = [];
+            list.forEach(function (item, i) {
+                setTimeout(function () { fxRevealPop(item.cell, item.flip, item.def); }, i * 90);
+            });
+        }, PEND_SWING_MS + 10);
+    }
+    // 灵摆怪落地时调用：先藏起来，等钟摆摆完再出现
+    function pendHoldCell(cell, flip, def) {
+        if (!cell || !pendFx.active) return;
+        cell._fxHold = true;
+        cell.style.opacity = '0';
+        pendFx.held.push({ cell: cell, flip: !!flip, def: !!def });
+        pendExtend();
+    }
+    // 兼容旧入口（若在 SpSummoning 才拿到种类）：直接开一段钟摆
+    function fxPendulum(ctl) {
+        if (pendFx.active) { pendExtend(); return; }
+        pendBegin(ctl);
     }
     // 延续本次连续特殊召唤（重置兜底计时）
     function pendExtend() {
         if (!pendFx.active) return;
         clearTimeout(pendFx.timer);
-        pendFx.timer = setTimeout(function () { pendClose(); }, 2600);
+        pendFx.timer = setTimeout(function () { pendClose(); }, 3200);
     }
     function pendClose() {
         if (!pendFx.active) return;
         clearTimeout(pendFx.timer);
         var el = pendFx.el;
+        var list = pendFx.held;
         pendFx.active = false;
         pendFx.ctl = -1;
         pendFx.el = null;
+        pendFx.held = [];
+        // 兜底：万一还藏着没现身，收尾时一并显示
+        list.forEach(function (item) { fxRevealPop(item.cell, item.flip, item.def); });
         if (el) {
             el.style.transition = 'opacity 0.3s ease';
             el.style.opacity = '0';
@@ -1770,10 +1790,20 @@ function initReplayViewer() {
                         // 记录最近一次怪兽落地（供 SpSummoning 判断召唤种类/是否来自额外卡组）
                         if (cPlain === LOC.MZONE) {
                             lastLand = { code: code, fromExtra: (pPlain === LOC.EXTRA), idx: idx, ctl: mConC, seq: mSeqC, rawLoc: cRawM };
+                            var landType = summonTypeOf(code);
+                            var landCard = field[mConC] ? field[mConC][LOC.MZONE + ':' + mSeqC] : null;
+                            var landFlip = mConC === 1 && !!landCard && !landCard.faceDown;
+                            var landDef = !!landCard && isDefense(landCard.pos);
                             // 连接怪：落地瞬间就先隐藏（避免特效前闪一下），等素材红球飞到位再由小变大现身
-                            if (!animSuppress && pPlain === LOC.EXTRA && summonTypeOf(code) === 'link') {
+                            if (!animSuppress && pPlain === LOC.EXTRA && landType === 'link') {
                                 var linkCell = cellElFor(mConC, cRawM, mSeqC);
                                 if (linkCell) fxHoldCell(linkCell, 1800);
+                            }
+                            // 灵摆怪：先起钟摆，并把这格藏起来 —— 摆动动画结束后才现身（召唤在动画之后）
+                            if (!animSuppress && landType === 'pendulum') {
+                                if (!pendFx.active) pendBegin(mConC);
+                                var pCell = cellElFor(mConC, cRawM, mSeqC);
+                                if (pCell) pendHoldCell(pCell, landFlip, landDef);
                             }
                         }
                         // 素材进缓冲：场上/手牌/卡组 → 墓地（非战斗破坏）
