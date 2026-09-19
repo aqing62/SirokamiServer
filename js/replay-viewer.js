@@ -1582,9 +1582,9 @@ function initReplayViewer() {
     function handleMessage(m) {
         var n = m.name;
         var f = m.f || {};
-        // 灵摆特效：连续特殊召唤结束后收尾（召唤/Move/填充消息视为延续）
+        // 灵摆特效：连续特殊召唤结束后收尾（召唤/Move/提示 都视为延续，整批只触发一次）
         if (pendFx.active) {
-            if (n === 'SpSummoning' || n === 'Summoning' || n === 'Move') {
+            if (n === 'SpSummoning' || n === 'Summoning' || n === 'Move' || n === 'Hint') {
                 pendExtend();
             } else if (VISIBLE_MSG[n]) {
                 pendClose();
