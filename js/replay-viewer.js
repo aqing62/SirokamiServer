@@ -72,6 +72,7 @@ function initReplayViewer() {
     var preloading = false;      // 卡图预加载中
     var pendingMats = {};        // 额外卡组超量：召唤前先叠放的素材 "ctl:extraSeq" → {count, rects}
     var lastLand = null;         // 最近一次怪兽落地 {code, fromExtra, idx, ctl, seq, rawLoc}
+    var suppressShatter = null;  // 攻击特效已提前碎卡时，抑制随后 Move 的重复破碎
 
     // 卡池索引（卡名/卡片种类查询，可选加载 /api/cards）
     var cardNameMap = {};
@@ -453,7 +454,7 @@ function initReplayViewer() {
             var f = !!flip, d = !!def;
             var mats = card.mats || 0;
             if (cell._code === card.code && cell._down === !!card.faceDown && cell._flip === f
-                && cell._def === d && cell._mats === mats && cell.querySelector('.rp-card')) return;
+                && cell._def === d && cell._mats === mats && cell.querySelector('.rp-card') && cell.style.opacity !== '0') return;
             giveImgsIn(cell);
             cell.innerHTML = '';
             cell.appendChild(cardNode(card, f, d));
@@ -464,6 +465,7 @@ function initReplayViewer() {
                 mb.title = '超量素材 ' + mats;
                 cell.appendChild(mb);
             }
+            cell.style.opacity = '';   // 攻击特效若临时隐藏过该格，重建时恢复
             cell._code = card.code;
             cell._down = !!card.faceDown;
             cell._flip = f;
@@ -544,7 +546,8 @@ function initReplayViewer() {
             for (; i < cards.length; i++) { if (cards[i].seq === seq) break; }
             if (i >= cards.length || i >= cont.children.length) return null;
             return cont.children[i].getBoundingClientRect();
-        }        if (l2 === LOC.MZONE && seq >= 5) {
+        }
+        if (l2 === LOC.MZONE && seq >= 5) {
             var cellE = zoneEls[emzKey(ctl, seq)];
             return cellE ? cellE.getBoundingClientRect() : null;
         }
@@ -559,6 +562,13 @@ function initReplayViewer() {
         }
         var cell = zoneEls[ctl + ':' + l2 + ':' + seq];
         return cell ? cell.getBoundingClientRect() : null;
+    }
+    // 取格子元素（与 rectAt 同样的定位规则，用于临时隐藏/高亮）
+    function cellElFor(ctl, locRaw, seq) {
+        var l2 = locRaw & 0xff;
+        if (l2 === LOC.MZONE && seq >= 5) return zoneEls[emzKey(ctl, seq)] || null;
+        if (l2 === LOC.SZONE && seq === 5) return zoneEls[ctl + ':' + LOC.SZONE + ':5'] || null;
+        return zoneEls[ctl + ':' + l2 + ':' + seq] || null;
     }
     // 手牌来源格：按卡号定位（不依赖 seq，防止压缩/洗牌后错位导致没动画）
     function rectAtHandByCode(ctl, code) {
@@ -1121,8 +1131,10 @@ function initReplayViewer() {
     }
 
     // 攻击特效：发射带拖尾的能量球
-    function attackBallFx(fromRect, targetRect) {
+    // 攻击能量球：可指定飞行时长，命中时回调（用于爆炸/破碎同步）
+    function attackBallFx(fromRect, targetRect, flightMs, onImpact) {
         if (animSuppress || !fromRect || !fromRect.width) return;
+        var dur = flightMs || 290;
         var sx = fromRect.left + fromRect.width / 2, sy = fromRect.top + fromRect.height / 2;
         var tx, ty;
         if (targetRect && targetRect.width) {
@@ -1149,11 +1161,11 @@ function initReplayViewer() {
                             { transform: 'translate(0px,0px) scale(1)', opacity: k === 0 ? 1 : (0.8 - k * 0.16), offset: 0 },
                             { transform: 'translate(' + midX + 'px,' + midY + 'px) scale(' + (k === 0 ? 1.15 : 0.85) + ')', opacity: k === 0 ? 1 : (0.62 - k * 0.16), offset: 0.5 },
                             { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(0.55)', opacity: 0, offset: 1 }
-                        ], { duration: 290, easing: 'cubic-bezier(.35,.5,.5,1)' });
+                        ], { duration: dur, easing: 'cubic-bezier(.35,.5,.5,1)' });
                     } catch (e) { /* ignore */ }
                     if (an) { an.onfinish = function () { if (o.parentNode) o.parentNode.removeChild(o); }; }
-                    setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 440);
-                }, k * 26);
+                    setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, dur + 160);
+                }, k * Math.max(14, dur * 0.09));
             })(t);
         }
         // 命中：冲击环 + 火花
@@ -1175,18 +1187,39 @@ function initReplayViewer() {
                 if (an2) { an2.onfinish = function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }; }
                 setTimeout(function (el) { if (el.parentNode) el.parentNode.removeChild(el); }, 520, sp);
             }
-        }, 290);
+            if (onImpact) onImpact();
+        }, dur);
     }
 
-    // 攻击标记：攻击怪兽红圈脉冲 + 能量球射向目标 + 命中处金圈
-    function attackMarkFx(aRect, tRect, direct) {
+    // 攻击编排：①红圈+箭头标记 ②能量球飞出 ③爆炸（若目标会被破坏则同时碎卡）
+    function attackMarkFx(aRect, tRect, direct, killedCode, killedCell, defCtl) {
         if (animSuppress || !aRect || !aRect.width) return;
         cellMarkFx(aRect, 'red');
-        attackBallFx(aRect, tRect);
-        if (tRect && tRect.width && !direct) {
-            var tr = tRect;
-            setTimeout(function () { cellMarkFx(tr, 'gold'); }, 300);
+        // ① 箭头标记（保留）
+        if (tRect && tRect.width) {
+            arrowFx(aRect.left + aRect.width / 2, aRect.top + aRect.height / 2,
+                tRect.left + tRect.width / 2, tRect.top + tRect.height / 2);
         }
+        // ② 能量球：目标会破坏时飞久一点，让爆炸与破碎对上
+        var flight = (killedCode && tRect && tRect.width) ? 560 : 340;
+        var tr = tRect;
+        setTimeout(function () {
+            attackBallFx(aRect, tr, flight, function () {
+                // ③ 爆炸瞬间：目标金圈 + 碎卡（同步）
+                if (tr && tr.width && !direct) cellMarkFx(tr, 'gold');
+                if (killedCode && tr && tr.width) {
+                    var gPileEl = midEls['grave:' + (defCtl === undefined ? 0 : defCtl)];
+                    shatterFx(tr, gPileEl ? gPileEl.getBoundingClientRect() : null);
+                    suppressShatter = { code: killedCode, until: idx + 12 };
+                    if (killedCell) {
+                        killedCell.style.opacity = '0';
+                        setTimeout(function () {
+                            if (killedCell) killedCell.style.opacity = '';
+                        }, 1100);
+                    }
+                }
+            });
+        }, 170);
     }
 
     // ── 攻击日志辅助：尽量确定“攻击了谁” ──
@@ -1228,13 +1261,20 @@ function initReplayViewer() {
             .filter(function (k) { return k.indexOf('4:') === 0; })
             .map(function (k) { return field[defCtl][k]; });
         var c = attackTargetCode(atkCtl);
-        if (c > 0) return { code: c, direct: false };
-        if (!defCards.length) return { code: 0, direct: true };   // 场上无怪兽 → 直接攻击
-        if (c === -1 && defCards.length === 1) return { code: defCards[0].code, direct: false };
+        if (c > 0) return { code: c, direct: false, killedCode: killedFromLookahead(atkCtl) };
+        if (!defCards.length) return { code: 0, direct: true, killedCode: 0 };   // 场上无怪兽 → 直接攻击
+        if (c === -1 && defCards.length === 1) {
+            return { code: defCards[0].code, direct: false, killedCode: killedFromLookahead(atkCtl) };
+        }
         // 多名候选：看战斗结果定目标（防守方被破坏离场=目标）
         var la = lookAheadDefender(atkCtl);
-        if (la > 0) return { code: la, direct: false };
-        return { code: 0, direct: false };                        // 仍无法确定
+        if (la > 0) return { code: la, direct: false, killedCode: la };
+        return { code: 0, direct: false, killedCode: 0 };                        // 仍无法确定
+    }
+    // 本次战斗防守方是否会被破坏（前瞻结果）
+    function killedFromLookahead(atkCtl) {
+        var la = lookAheadDefender(atkCtl);
+        return la > 0 ? la : 0;
     }
 
     // 受伤闪红：受伤方那一半场地闪一层红色渐变
@@ -1497,8 +1537,13 @@ function initReplayViewer() {
                         var sameCell = pPlain === cPlain && mCon === mConC
                             && (prev.sequence === undefined || cur.sequence === undefined || prev.sequence === cur.sequence);
                         if (cPlain === LOC.GRAVE && (pPlain === LOC.MZONE || pPlain === LOC.SZONE)) {
-                            var gPileEl = midEls['grave:' + mConC];
-                            shatterFx(animPreSrc, gPileEl ? gPileEl.getBoundingClientRect() : null);
+                            // 若攻击特效已经在爆炸时碎过这张卡，则不再重复破碎
+                            if (suppressShatter && suppressShatter.code === code && idx <= suppressShatter.until) {
+                                suppressShatter = null;
+                            } else {
+                                var gPileEl = midEls['grave:' + mConC];
+                                shatterFx(animPreSrc, gPileEl ? gPileEl.getBoundingClientRect() : null);
+                            }
                         } else if (sameCell) {
                             if (prev.position !== undefined && cur.position !== undefined
                                 && isFaceDown(prev.position) && !isFaceDown(cur.position) && code) {
@@ -1593,18 +1638,23 @@ function initReplayViewer() {
                 else if (tg && tg.direct) line += ' 直接攻击';
                 else line += ' 发起攻击';
                 log(line, 'rp-log-battle');
-                // 攻击动画：攻击怪兽红圈标记 + 目标金圈 + 金色箭头（直击则箭头指向对方LP）
+                // 攻击动画：红圈+箭头标记 → 能量球飞出 → 爆炸（若目标会破坏则同时碎卡）
                 if (!animSuppress) {
                     var aRect = rectAt(aCtl, aLocRaw, aSeq);
                     var tRect = null;
+                    var tCell = null;
                     var isDirect = !!(tg && tg.direct);
                     if (tg && tg.code) {
                         var df = field[1 - aCtl] || {};
                         var dk = Object.keys(df).filter(function (k) { return k.indexOf('4:') === 0; })
                             .find(function (k) { return df[k].code === tg.code; });
-                        if (dk) tRect = rectAt(1 - aCtl, LOC.MZONE, parseInt(dk.split(':')[1], 10));
+                        if (dk) {
+                            var dSeq = parseInt(dk.split(':')[1], 10);
+                            tRect = rectAt(1 - aCtl, LOC.MZONE, dSeq);
+                            tCell = cellElFor(1 - aCtl, LOC.MZONE, dSeq);
+                        }
                     } else if (isDirect) {
-                        // 直击：箭头指向对方手卡区中心（与客户端一致）
+                        // 直击：能量球射向对方手卡区中心（与客户端一致）
                         var hEl = zoneEls[(1 - aCtl) + ':' + LOC.HAND];
                         tRect = hEl ? hEl.getBoundingClientRect() : null;
                         if (!tRect) {
@@ -1612,7 +1662,7 @@ function initReplayViewer() {
                             if (lpEl2) tRect = lpEl2.getBoundingClientRect();
                         }
                     }
-                    attackMarkFx(aRect, tRect, isDirect);
+                    attackMarkFx(aRect, tRect, isDirect, (tg && tg.killedCode) || 0, tCell, 1 - aCtl);
                 }
                 break;
             }
