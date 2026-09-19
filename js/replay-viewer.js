@@ -1120,15 +1120,72 @@ function initReplayViewer() {
         setTimeout(function () { if (svg.parentNode) svg.parentNode.removeChild(svg); }, 1100);
     }
 
-    // 攻击标记：攻击怪兽红圈脉冲 + 目标金圈 + 金色箭头（替代原先撞击动画）
+    // 攻击特效：发射带拖尾的能量球
+    function attackBallFx(fromRect, targetRect) {
+        if (animSuppress || !fromRect || !fromRect.width) return;
+        var sx = fromRect.left + fromRect.width / 2, sy = fromRect.top + fromRect.height / 2;
+        var tx, ty;
+        if (targetRect && targetRect.width) {
+            tx = targetRect.left + targetRect.width / 2;
+            ty = targetRect.top + targetRect.height / 2;
+        } else {
+            var pane = fieldEl.getBoundingClientRect();
+            tx = pane.left + pane.width / 2;
+            ty = pane.top + pane.height * 0.42;
+        }
+        var dx = tx - sx, dy = ty - sy;
+        var size = Math.max(18, Math.min(30, fromRect.width * 0.34));
+        // 主球 + 3 个滞后小球（拖尾），略带弧线
+        for (var t = 0; t < 4; t++) {
+            (function (k) {
+                setTimeout(function () {
+                    var s = size * (1 - k * 0.17);
+                    var o = fxEl('rp-ball' + (k === 0 ? ' rp-ball-core' : ''), s, s, sx - s / 2, sy - s / 2);
+                    var midX = dx * 0.5;
+                    var midY = dy * 0.5 - Math.abs(dy) * 0.12 - 16;
+                    var an = null;
+                    try {
+                        an = o.animate([
+                            { transform: 'translate(0px,0px) scale(1)', opacity: k === 0 ? 1 : (0.8 - k * 0.16), offset: 0 },
+                            { transform: 'translate(' + midX + 'px,' + midY + 'px) scale(' + (k === 0 ? 1.15 : 0.85) + ')', opacity: k === 0 ? 1 : (0.62 - k * 0.16), offset: 0.5 },
+                            { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(0.55)', opacity: 0, offset: 1 }
+                        ], { duration: 290, easing: 'cubic-bezier(.35,.5,.5,1)' });
+                    } catch (e) { /* ignore */ }
+                    if (an) { an.onfinish = function () { if (o.parentNode) o.parentNode.removeChild(o); }; }
+                    setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 440);
+                }, k * 26);
+            })(t);
+        }
+        // 命中：冲击环 + 火花
+        setTimeout(function () {
+            if (animSuppress) return;
+            var hit = fxEl('rp-fx-hit', 96, 96, tx - 48, ty - 48);
+            setTimeout(function () { hit.style.opacity = '0'; setTimeout(function () { if (hit.parentNode) hit.parentNode.removeChild(hit); }, 300); }, 70);
+            for (var i = 0; i < 8; i++) {
+                var sp = fxEl('rp-ball', 9, 9, tx - 4.5, ty - 4.5);
+                var ang = (Math.PI * 2 * i) / 8 + Math.random() * 0.4;
+                var dist = 42 + Math.random() * 34;
+                var an2 = null;
+                try {
+                    an2 = sp.animate([
+                        { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                        { transform: 'translate(' + Math.cos(ang) * dist + 'px,' + Math.sin(ang) * dist + 'px) scale(0.3)', opacity: 0, offset: 1 }
+                    ], { duration: 380, easing: 'ease-out' });
+                } catch (e) { /* ignore */ }
+                if (an2) { an2.onfinish = function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }; }
+                setTimeout(function (el) { if (el.parentNode) el.parentNode.removeChild(el); }, 520, sp);
+            }
+        }, 290);
+    }
+
+    // 攻击标记：攻击怪兽红圈脉冲 + 能量球射向目标 + 命中处金圈
     function attackMarkFx(aRect, tRect, direct) {
         if (animSuppress || !aRect || !aRect.width) return;
         cellMarkFx(aRect, 'red');
-        if (tRect && tRect.width) {
-            if (!direct) cellMarkFx(tRect, 'gold');
-            var ax = aRect.left + aRect.width / 2, ay = aRect.top + aRect.height / 2;
-            var tx = tRect.left + tRect.width / 2, ty = tRect.top + tRect.height / 2;
-            arrowFx(ax, ay, tx, ty);
+        attackBallFx(aRect, tRect);
+        if (tRect && tRect.width && !direct) {
+            var tr = tRect;
+            setTimeout(function () { cellMarkFx(tr, 'gold'); }, 300);
         }
     }
 
