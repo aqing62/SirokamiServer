@@ -966,9 +966,10 @@ function initReplayViewer() {
             });
         }, PEND_SWING_MS + 10);
     }
-    // 灵摆怪落地时调用：先藏起来，等钟摆摆完再出现
+    // 灵摆怪落地时调用：先藏起来，等钟摆摆完再出现（摆动结束后到的怪直接显示）
     function pendHoldCell(cell, flip, def) {
         if (!cell || !pendFx.active) return;
+        if (Date.now() >= pendFx.revealAt) return;   // 摆动已结束，后续召唤立即显示
         cell._fxHold = true;
         cell.style.opacity = '0';
         pendFx.held.push({ cell: cell, flip: !!flip, def: !!def });
