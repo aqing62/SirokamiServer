@@ -925,10 +925,11 @@ function initReplayViewer() {
         }, 1020);
     }
 
-    // 灵摆：两条锁链分别吊着蓝水晶与红水晶，交错摇摆（反向、各摆一次，结束停在倾斜角度不回正）
-    // batchOpen：本次灵摆召唤批次（整批只触发一次）；active：钟摆元素当前是否在画面上
+    // 灵摆：同一悬点垂下两条锁链（蓝水晶 / 红水晶），起点一致、反向交错摆动
+    // batchOpen：本次灵摆召唤批次（整批只触发一次）；active：特效当前是否在画面上
     var pendFx = { batchOpen: false, active: false, ctl: -1, el: null, timer: 0 };
-    var PEND_SWING_MS = 1250;
+    var PEND_SWING_MS = 1500;
+    var PEND_AMP = 34;              // 摆动幅度（度）
     function pendBegin(ctl) {
         if (animSuppress || pendFx.batchOpen) return;   // 同一批连续召唤只触发一次
         if (ctl === undefined) ctl = 0;
@@ -936,42 +937,155 @@ function initReplayViewer() {
         var pane = fieldEl.getBoundingClientRect();
         var cx = pane.left + pane.width / 2;
         var pivotY = ctl === 0 ? (pane.top + pane.height * 0.53) : (pane.top + pane.height * 0.47);
-        var H = 104;
+        var H = 112;                          // 锁链长度
         var wrap = fxEl('rp-pend-wrap' + (ctl === 0 ? '' : ' is-up'), 0, 0, cx, pivotY);
-        // 蓝水晶在左、红水晶在右；反向摆动（交错）
-        function arm(kind, offsetX, fromDeg, toDeg) {
+        // 共用悬点装饰（吊环）
+        var ring = document.createElement('div');
+        ring.className = 'rp-pend-ring';
+        wrap.appendChild(ring);
+        // 一条锁链 + 一颗水晶；两条起点完全一致（都挂在悬点上），方向相反
+        function arm(kind, fromCss) {
             var el = document.createElement('div');
             el.className = 'rp-pend-arm ' + kind;
-            el.style.left = (offsetX - 3) + 'px';
-            el.style.top = (ctl === 0 ? 0 : -H) + 'px';
+            el.style.left = '-6px';
+            el.style.top = '0px';
             el.style.height = H + 'px';
-            el.style.transformOrigin = ctl === 0 ? '50% 0%' : '50% 100%';
-            var chain = document.createElement('div');
-            chain.className = 'rp-pend-chain';
-            var gem = document.createElement('div');
-            gem.className = 'rp-pend-crystal';
-            el.appendChild(chain);
-            el.appendChild(gem);
+            el.style.transformOrigin = '50% 0%';
+            var inner = document.createElement('div');
+            inner.className = 'rp-pend-inner';
+            if (ctl === 1) inner.style.transform = 'rotate(180deg)';
+            inner.appendChild(makeChainSvg(kind, H));
+            inner.appendChild(makeGemSvg(kind));
+            el.appendChild(inner);
             wrap.appendChild(el);
             try {
+                // 蓝：左→右→左；红：右→左→右（起始都在中位）
                 el.animate([
-                    { transform: 'rotate(' + fromDeg + 'deg)', offset: 0 },
-                    { transform: 'rotate(' + ((fromDeg + toDeg) / 2 + (toDeg - fromDeg) * 0.15) + 'deg)', offset: 0.55 },
-                    { transform: 'rotate(' + toDeg + 'deg)', offset: 1 }
-                ], { duration: PEND_SWING_MS, easing: 'ease-in-out', fill: 'forwards' });   // 不回正
+                    { transform: 'rotate(0deg)', offset: 0 },
+                    { transform: 'rotate(' + (PEND_AMP * fromCss) + 'deg)', offset: 0.3 },
+                    { transform: 'rotate(' + (-PEND_AMP * fromCss) + 'deg)', offset: 0.7 },
+                    { transform: 'rotate(' + (PEND_AMP * fromCss) + 'deg)', offset: 1 }
+                ], { duration: PEND_SWING_MS, easing: 'ease-in-out', fill: 'forwards' });
             } catch (e) { /* ignore */ }
         }
-        arm('is-blue', -78, -34, 30);
-        arm('is-red', 78, 32, -30);
+        arm('is-blue', 1);    // 正角=向左摆 → 左 右 左
+        arm('is-red', -1);    // 负角=向右摆 → 右 左 右
         pendFx.active = true;
         pendFx.ctl = ctl;
         pendFx.el = wrap;
         pendExtend();
-        // 动画结束：保持倾斜姿态片刻后，整个特效消失
+        // 动画结束：保持末态片刻，特效消失
         setTimeout(function () {
             if (!pendFx.batchOpen) return;
-            setTimeout(pendHide, 180);
-        }, PEND_SWING_MS);
+            setTimeout(pendHide, 200);
+        }, PEND_SWING_MS + 10);
+    }
+
+    // 锁链：交替朝向的链节（SVG，描边金属渐变）
+    function makeChainSvg(kind, H) {
+        var NS = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'rp-pend-chain-svg');
+        svg.setAttribute('width', '14');
+        svg.setAttribute('height', String(H));
+        svg.setAttribute('viewBox', '0 0 14 ' + H);
+        var defs = document.createElementNS(NS, 'defs');
+        var gid = 'rp-chain-' + kind + '-' + Math.floor(Math.random() * 1e6);
+        var grad = document.createElementNS(NS, 'linearGradient');
+        grad.setAttribute('id', gid);
+        grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+        grad.setAttribute('x2', '1'); grad.setAttribute('y2', '0');
+        [['0%', '#f4f7ff'], ['45%', '#9aa6bd'], ['55%', '#6d7891'], ['100%', '#e8edf8']].forEach(function (st) {
+            var s = document.createElementNS(NS, 'stop');
+            s.setAttribute('offset', st[0]);
+            s.setAttribute('stop-color', st[1]);
+            grad.appendChild(s);
+        });
+        defs.appendChild(grad);
+        svg.appendChild(defs);
+        var step = 9.6;
+        var n = Math.max(2, Math.floor(H / step));
+        for (var i = 0; i < n; i++) {
+            var cy = 5 + i * step;
+            var vertical = i % 2 === 0;
+            var link = document.createElementNS(NS, 'ellipse');
+            link.setAttribute('cx', '7');
+            link.setAttribute('cy', cy.toFixed(1));
+            link.setAttribute('rx', vertical ? '3.1' : '4.6');
+            link.setAttribute('ry', vertical ? '4.6' : '3.1');
+            link.setAttribute('fill', 'none');
+            link.setAttribute('stroke', 'url(#' + gid + ')');
+            link.setAttribute('stroke-width', '1.5');
+            svg.appendChild(link);
+        }
+        return svg;
+    }
+
+    // 水晶：五面宝石（顶面 + 冠部刻面 + 底部尖端），带高光与内发光
+    function makeGemSvg(kind) {
+        var NS = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'rp-pend-gem-svg');
+        svg.setAttribute('width', '32');
+        svg.setAttribute('height', '44');
+        svg.setAttribute('viewBox', '-16 -24 32 44');
+        var defs = document.createElementNS(NS, 'defs');
+        var uid = kind + '-' + Math.floor(Math.random() * 1e6);
+        var body = document.createElementNS(NS, 'linearGradient');
+        body.setAttribute('id', 'gem-body-' + uid);
+        body.setAttribute('x1', '0.15'); body.setAttribute('y1', '0');
+        body.setAttribute('x2', '0.85'); body.setAttribute('y2', '1');
+        var cols = kind === 'is-blue'
+            ? [['0%', '#f2fbff'], ['28%', '#8ad6ff'], ['62%', '#2f7fe6'], ['100%', '#0b3488']]
+            : [['0%', '#fff2f2'], ['28%', '#ff9c9c'], ['62%', '#e02a37'], ['100%', '#7d0a12']];
+        cols.forEach(function (st) {
+            var s = document.createElementNS(NS, 'stop');
+            s.setAttribute('offset', st[0]);
+            s.setAttribute('stop-color', st[1]);
+            body.appendChild(s);
+        });
+        defs.appendChild(body);
+        var shine = document.createElementNS(NS, 'linearGradient');
+        shine.setAttribute('id', 'gem-shine-' + uid);
+        shine.setAttribute('x1', '0'); shine.setAttribute('y1', '0');
+        shine.setAttribute('x2', '0'); shine.setAttribute('y2', '1');
+        [['0%', 'rgba(255,255,255,0.85)'], ['100%', 'rgba(255,255,255,0)']].forEach(function (st) {
+            var s = document.createElementNS(NS, 'stop');
+            s.setAttribute('offset', st[0]);
+            s.setAttribute('stop-color', st[1]);
+            shine.appendChild(s);
+        });
+        defs.appendChild(shine);
+        svg.appendChild(defs);
+        // 主体：顶面 -14,-8 / 冠部 -13,-13 … 底部尖端 0,18
+        var poly = document.createElementNS(NS, 'polygon');
+        poly.setAttribute('points', '0,-15 11,-7 7,7 0,18 -7,7 -11,-7');
+        poly.setAttribute('fill', 'url(#gem-body-' + uid + ')');
+        poly.setAttribute('stroke', kind === 'is-blue' ? 'rgba(200,240,255,0.9)' : 'rgba(255,220,220,0.9)');
+        poly.setAttribute('stroke-width', '1');
+        svg.appendChild(poly);
+        // 刻面：从顶面顶点连到各腰点
+        [[0, -15, 0, 18], [0, -15, 11, -7], [0, -15, -11, -7], [-7, 7, 7, 7]].forEach(function (seg) {
+            var ln = document.createElementNS(NS, 'line');
+            ln.setAttribute('x1', seg[0]); ln.setAttribute('y1', seg[1]);
+            ln.setAttribute('x2', seg[2]); ln.setAttribute('y2', seg[3]);
+            ln.setAttribute('stroke', 'rgba(255,255,255,0.45)');
+            ln.setAttribute('stroke-width', '0.8');
+            svg.appendChild(ln);
+        });
+        // 左上高光
+        var hl = document.createElementNS(NS, 'polygon');
+        hl.setAttribute('points', '0,-15 -5.5,-5 -2,2');
+        hl.setAttribute('fill', 'url(#gem-shine-' + uid + ')');
+        svg.appendChild(hl);
+        var spark = document.createElementNS(NS, 'ellipse');
+        spark.setAttribute('cx', '-3.4');
+        spark.setAttribute('cy', '-6.5');
+        spark.setAttribute('rx', '2.1');
+        spark.setAttribute('ry', '3.2');
+        spark.setAttribute('fill', 'rgba(255,255,255,0.75)');
+        svg.appendChild(spark);
+        return svg;
     }
     // 兼容旧入口（若在 SpSummoning 才拿到种类）
     function fxPendulum(ctl) {
