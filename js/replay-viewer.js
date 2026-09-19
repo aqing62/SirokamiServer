@@ -680,6 +680,7 @@ function initReplayViewer() {
     function centerOf(rect) { return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; }
 
     // 彩色光球（带拖尾）飞向中心 —— 超量金色 / 连接红色
+    // 素材本来就在目标位置（位移≈0）时，改为向左上角绕一圈再回到目标
     function fxOrbs(srcRects, target, color, swirl) {
         var n = Math.max(1, srcRects.length);
         for (var i = 0; i < n; i++) {
@@ -687,28 +688,42 @@ function initReplayViewer() {
             var sx = r ? r.left + r.width / 2 : target.x;
             var sy = r ? r.top + r.height / 2 : target.y;
             var dx = target.x - sx, dy = target.y - sy;
+            var near = Math.sqrt(dx * dx + dy * dy) < 45;
+            var dur = near ? 780 : 560;
             // 拖尾：同一路径上延迟出现的小球
             for (var t = 0; t < 3; t++) {
-                (function (sx0, sy0, dx0, dy0, delay, size, alpha) {
+                (function (sx0, sy0, dx0, dy0, delay, size, alpha, isNear, durMs) {
                     setTimeout(function () {
                         var o = fxEl('rp-orb', size, size, sx0 - size / 2, sy0 - size / 2);
                         o.style.background = color;
                         o.style.boxShadow = '0 0 12px 4px ' + color;
                         o.style.opacity = String(alpha);
-                        var midX = dx0 * 0.45 + (swirl ? dy0 * 0.22 : 0);
-                        var midY = dy0 * 0.45 - (swirl ? dx0 * 0.22 : 0);
-                        var anim = null;
-                        try {
-                            anim = o.animate([
+                        var frames;
+                        if (isNear) {
+                            frames = [
+                                { transform: 'translate(0px,0px) scale(1)', opacity: alpha, offset: 0 },
+                                { transform: 'translate(-86px,-60px) scale(1.12)', opacity: alpha, offset: 0.36 },
+                                { transform: 'translate(-48px,-104px) scale(1.05)', opacity: alpha, offset: 0.6 },
+                                { transform: 'translate(12px,-42px) scale(0.85)', opacity: alpha * 0.85, offset: 0.84 },
+                                { transform: 'translate(0px,0px) scale(0.2)', opacity: 0, offset: 1 }
+                            ];
+                        } else {
+                            var midX = dx0 * 0.45 + (swirl ? dy0 * 0.22 : 0);
+                            var midY = dy0 * 0.45 - (swirl ? dx0 * 0.22 : 0);
+                            frames = [
                                 { transform: 'translate(0px,0px) scale(1)', opacity: alpha, offset: 0 },
                                 { transform: 'translate(' + midX + 'px,' + midY + 'px) scale(1.15)', opacity: alpha, offset: 0.55 },
                                 { transform: 'translate(' + dx0 + 'px,' + dy0 + 'px) scale(0.2)', opacity: 0, offset: 1 }
-                            ], { duration: 560 + delay, easing: 'cubic-bezier(.35,.6,.35,1)' });
+                            ];
+                        }
+                        var anim = null;
+                        try {
+                            anim = o.animate(frames, { duration: durMs, easing: 'cubic-bezier(.35,.6,.35,1)' });
                         } catch (e) { /* ignore */ }
                         if (anim) { anim.onfinish = function () { if (o.parentNode) o.parentNode.removeChild(o); }; }
-                        setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 900 + delay);
+                        setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, durMs + delay + 240);
                     }, delay);
-                })(sx, sy, dx, dy, t * 45, 16 - t * 4, 1 - t * 0.3);
+                })(sx, sy, dx, dy, t * 45, 16 - t * 4, 1 - t * 0.3, near, dur);
             }
         }
     }
@@ -917,7 +932,7 @@ function initReplayViewer() {
             }
             var fl = fxEl('rp-hex-flash', 140, 140, target.x - 70, target.y - 70);
             setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 130);
-        }, 600);
+        }, 800);
     }
 
     // 单个六边形环（返回元素，便于外部再动画）
