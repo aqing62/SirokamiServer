@@ -739,6 +739,48 @@ function initReplayViewer() {
     }
     function centerOf(rect) { return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; }
 
+    // 单颗光球（含拖尾）从 (sx,sy) 飞向 target
+    function spawnOrbGroup(sx, sy, target, color, swirl, delay0) {
+        var dx = target.x - sx, dy = target.y - sy;
+        var near = Math.sqrt(dx * dx + dy * dy) < 45;
+        var dur = near ? 780 : 560;
+        for (var t = 0; t < 3; t++) {
+            (function (sx0, sy0, dx0, dy0, delay, size, alpha, isNear, durMs) {
+                setTimeout(function () {
+                    var o = fxEl('rp-orb', size, size, sx0 - size / 2, sy0 - size / 2);
+                    o.style.background = color;
+                    o.style.boxShadow = '0 0 12px 4px ' + color;
+                    o.style.opacity = String(alpha);
+                    var frames;
+                    if (isNear) {
+                        frames = [
+                            { transform: 'translate(0px,0px) scale(1)', opacity: alpha, offset: 0 },
+                            { transform: 'translate(-86px,-60px) scale(1.12)', opacity: alpha, offset: 0.36 },
+                            { transform: 'translate(-48px,-104px) scale(1.05)', opacity: alpha, offset: 0.6 },
+                            { transform: 'translate(12px,-42px) scale(0.85)', opacity: alpha * 0.85, offset: 0.84 },
+                            { transform: 'translate(0px,0px) scale(0.2)', opacity: 0, offset: 1 }
+                        ];
+                    } else {
+                        var midX = dx0 * 0.45 + (swirl ? dy0 * 0.22 : 0);
+                        var midY = dy0 * 0.45 - (swirl ? dx0 * 0.22 : 0);
+                        frames = [
+                            { transform: 'translate(0px,0px) scale(1)', opacity: alpha, offset: 0 },
+                            { transform: 'translate(' + midX + 'px,' + midY + 'px) scale(1.15)', opacity: alpha, offset: 0.55 },
+                            { transform: 'translate(' + dx0 + 'px,' + dy0 + 'px) scale(0.2)', opacity: 0, offset: 1 }
+                        ];
+                    }
+                    var anim = null;
+                    try {
+                        anim = o.animate(frames, { duration: durMs, easing: 'cubic-bezier(.35,.6,.35,1)' });
+                    } catch (e) { /* ignore */ }
+                    if (anim) { anim.onfinish = function () { if (o.parentNode) o.parentNode.removeChild(o); }; }
+                    setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, durMs + delay + 240);
+                }, delay);
+            })(sx, sy, dx, dy, (delay0 || 0) + t * 45, 16 - t * 4, 1 - t * 0.3, near, dur);
+        }
+        return dur + (delay0 || 0);
+    }
+
     // 彩色光球（带拖尾）飞向中心 —— 超量金色 / 连接红色
     // 素材本来就在目标位置（位移≈0）时，改为向左上角绕一圈再回到目标
     function fxOrbs(srcRects, target, color, swirl) {
@@ -747,44 +789,7 @@ function initReplayViewer() {
             var r = srcRects[i] || null;
             var sx = r ? r.left + r.width / 2 : target.x;
             var sy = r ? r.top + r.height / 2 : target.y;
-            var dx = target.x - sx, dy = target.y - sy;
-            var near = Math.sqrt(dx * dx + dy * dy) < 45;
-            var dur = near ? 780 : 560;
-            // 拖尾：同一路径上延迟出现的小球
-            for (var t = 0; t < 3; t++) {
-                (function (sx0, sy0, dx0, dy0, delay, size, alpha, isNear, durMs) {
-                    setTimeout(function () {
-                        var o = fxEl('rp-orb', size, size, sx0 - size / 2, sy0 - size / 2);
-                        o.style.background = color;
-                        o.style.boxShadow = '0 0 12px 4px ' + color;
-                        o.style.opacity = String(alpha);
-                        var frames;
-                        if (isNear) {
-                            frames = [
-                                { transform: 'translate(0px,0px) scale(1)', opacity: alpha, offset: 0 },
-                                { transform: 'translate(-86px,-60px) scale(1.12)', opacity: alpha, offset: 0.36 },
-                                { transform: 'translate(-48px,-104px) scale(1.05)', opacity: alpha, offset: 0.6 },
-                                { transform: 'translate(12px,-42px) scale(0.85)', opacity: alpha * 0.85, offset: 0.84 },
-                                { transform: 'translate(0px,0px) scale(0.2)', opacity: 0, offset: 1 }
-                            ];
-                        } else {
-                            var midX = dx0 * 0.45 + (swirl ? dy0 * 0.22 : 0);
-                            var midY = dy0 * 0.45 - (swirl ? dx0 * 0.22 : 0);
-                            frames = [
-                                { transform: 'translate(0px,0px) scale(1)', opacity: alpha, offset: 0 },
-                                { transform: 'translate(' + midX + 'px,' + midY + 'px) scale(1.15)', opacity: alpha, offset: 0.55 },
-                                { transform: 'translate(' + dx0 + 'px,' + dy0 + 'px) scale(0.2)', opacity: 0, offset: 1 }
-                            ];
-                        }
-                        var anim = null;
-                        try {
-                            anim = o.animate(frames, { duration: durMs, easing: 'cubic-bezier(.35,.6,.35,1)' });
-                        } catch (e) { /* ignore */ }
-                        if (anim) { anim.onfinish = function () { if (o.parentNode) o.parentNode.removeChild(o); }; }
-                        setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, durMs + delay + 240);
-                    }, delay);
-                })(sx, sy, dx, dy, t * 45, 16 - t * 4, 1 - t * 0.3, near, dur);
-            }
+            spawnOrbGroup(sx, sy, target, color, swirl, 0);
         }
     }
 
@@ -1150,9 +1155,35 @@ function initReplayViewer() {
         } catch (e) { /* ignore */ }
     }
 
-    // 连接：素材红色特效飞向召唤位置 → 到位后连接怪由小变大现身 + 六边形数码特效
-    function fxLink(target, srcRects, cellEl, flip, def) {
-        fxOrbs(srcRects, target, '#ff3b3b', true);
+    // 连接素材的连接值：连接怪按其连接值算（连接3 → 3 个球），非连接怪算 1 个
+    function linkValueOf(code) {
+        if (!code) return 1;
+        var st = cardStatByCode[String(code)];
+        if (st && st.link) return st.link;
+        var m = cardMetaMap[String(code)];
+        if (m && (m.cat || '').indexOf('连接') >= 0 && m.level) return m.level;   // 连接怪的等级字段即连接值
+        return 1;
+    }
+
+    // 连接：每个素材按自身连接值放出等量红色光球飞向召唤位 → 到位后连接怪由小变大现身 + 六边形数码特效
+    function fxLink(target, mats, cellEl, flip, def) {
+        var groups = (mats && mats.length) ? mats : [{ code: 0, rect: null }];
+        var delay = 0, spawned = 0;
+        groups.forEach(function (mt) {
+            var n = linkValueOf(mt.code);
+            var r = mt.rect;
+            var bx = r ? r.left + r.width / 2 : target.x;
+            var by = r ? r.top + r.height / 2 : target.y;
+            for (var k = 0; k < n && spawned < 12; k++) {
+                // 同一素材的多个球稍微散开，便于看出"几个球"
+                var ang = (Math.PI * 2 * k) / Math.max(1, n) - Math.PI / 2;
+                var rad = n > 1 ? 13 : 0;
+                spawnOrbGroup(bx + Math.cos(ang) * rad, by + Math.sin(ang) * rad, target, '#ff3b3b', true, delay);
+                delay += 90;
+                spawned++;
+            }
+        });
+        var landAt = Math.max(760, delay + 260);
         setTimeout(function () {
             if (animSuppress) { fxReleaseCell(cellEl); return; }
             // 素材到位：卡片由小变大现身 + 数码特效
@@ -1183,7 +1214,7 @@ function initReplayViewer() {
             }
             var fl = fxEl('rp-hex-flash', 140, 140, target.x - 70, target.y - 70);
             setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 130);
-        }, 800);
+        }, landAt);
     }
 
     // 单个六边形环（返回元素，便于外部再动画）
@@ -1225,8 +1256,9 @@ function initReplayViewer() {
         var srcRects = mats.map(function (m) { return m.rect; }).filter(Boolean);
         if (!srcRects.length) srcRects = [rect];
         if (type === 'link') {
-            fxHoldCell(cellEl, 1500);           // 兜底：确保仍处于隐藏
-            fxLink(target, srcRects, cellEl, flip, def);  // 红球飞到位 → 由小变大现身 + 六边形
+            fxHoldCell(cellEl, 2600);           // 兜底：确保仍处于隐藏
+            // 每个素材按其连接值放球：连接3的怪放 3 个球，普通怪放 1 个球
+            fxLink(target, mats.length ? mats : [{ code: 0, rect: rect }], cellEl, flip, def);
             return;
         }
         if (type === 'xyz') fxFusionXyz(target, srcRects);
