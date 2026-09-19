@@ -2447,9 +2447,11 @@ function initReplayViewer() {
                 || c.link !== undefined || c.level !== undefined)) {
                 var key = player + ':' + locPlain + ':' + (c.sequence !== undefined ? c.sequence : slot);
                 var mergedKey = mergeStat(cardStatByKey[key], c);
+                mergedKey.code = c.code;                 // 记住该格当前是哪张卡，换卡后旧记录作废
                 if (statSig(cardStatByKey[key]) !== statSig(mergedKey)) changed = true;
                 cardStatByKey[key] = mergedKey;
                 var mergedCode = mergeStat(cardStatByCode[c.code], c);
+                mergedCode.code = c.code;
                 if (statSig(cardStatByCode[c.code]) !== statSig(mergedCode)) changed = true;
                 cardStatByCode[c.code] = mergedCode;
             }
@@ -2461,6 +2463,7 @@ function initReplayViewer() {
     // 连接怪没有守备力：改用连接值显示（卡池里 level=连接值、def=箭头掩码）
     function statFor(cellKey, code) {
         var sKey = cardStatByKey[cellKey] || null;
+        if (sKey && sKey.code !== undefined && sKey.code !== code) sKey = null;   // 该格已换成别的卡 → 旧记录作废
         var sCode = cardStatByCode[code] || null;
         // 以"卡号记录"为底，用"本格记录"覆盖已知字段（两处互补，避免残缺记录丢字段）
         var s = (sKey || sCode) ? mergeStat(sCode, sKey || {}) : null;
