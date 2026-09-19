@@ -70,6 +70,7 @@ function initReplayViewer() {
     var inBattle = false;        // 是否处于伤害步骤（战斗消息上下文）
     var animSuppress = false;    // 进度条大跳等批量处理时关闭动画
     var preloading = false;      // 卡图预加载中
+    var pendingMats = {};        // 额外卡组超量：召唤前先叠放的素材 "ctl:extraSeq" → {count, rects}
 
     // 卡池索引（卡名查询，可选加载 /api/cards）
     var cardNameMap = {};
@@ -416,20 +417,29 @@ function initReplayViewer() {
         return w;
     }
 
-    // 单元格精确更新：同卡同状态/同朝向不动 DOM；换卡、翻面、转守备才重建并回收旧图
+    // 单元格精确更新：同卡同状态/同朝向/同素材数不动 DOM；否则重建并回收旧图
     function setCellCard(cell, card, flip, def) {
         if (!cell) return;
         if (card) {
             var f = !!flip, d = !!def;
+            var mats = card.mats || 0;
             if (cell._code === card.code && cell._down === !!card.faceDown && cell._flip === f
-                && cell._def === d && cell.querySelector('.rp-card')) return;
+                && cell._def === d && cell._mats === mats && cell.querySelector('.rp-card')) return;
             giveImgsIn(cell);
             cell.innerHTML = '';
             cell.appendChild(cardNode(card, f, d));
+            if (mats > 0) {
+                var mb = document.createElement('span');
+                mb.className = 'rp-mats';
+                mb.textContent = '◆' + mats;   // 超量素材数
+                mb.title = '超量素材 ' + mats;
+                cell.appendChild(mb);
+            }
             cell._code = card.code;
             cell._down = !!card.faceDown;
             cell._flip = f;
             cell._def = d;
+            cell._mats = mats;
             if (!card.faceDown) warmCardImg(card.code);
         } else {
             if (cell._code !== undefined || cell.innerHTML !== '') {
@@ -439,6 +449,7 @@ function initReplayViewer() {
                 cell._down = false;
                 cell._flip = false;
                 cell._def = false;
+                cell._mats = 0;
             }
         }
     }
@@ -587,6 +598,30 @@ function initReplayViewer() {
         el.style.top = top + 'px';
         document.body.appendChild(el);
         return el;
+    }
+
+    // 超量叠放：素材卡飞向宿主并缩小叠入
+    function overlayStackFx(srcRect, dstRect, cardCode) {
+        if (animSuppress || !srcRect || !dstRect || !srcRect.width || !dstRect.width) return;
+        var g = fxEl('rp-fly', srcRect.width, srcRect.height, srcRect.left, srcRect.top);
+        g.style.transition = 'none';   // 用 WAAPI 精确控制
+        if (cardCode) {
+            var im = document.createElement('img');
+            wireImgChain(im, cardCode);
+            im.src = cardImgSrc(cardCode);
+            g.appendChild(im);
+        }
+        var tx = (dstRect.left + dstRect.width / 2) - srcRect.width / 2 - srcRect.left;
+        var ty = (dstRect.top + dstRect.height / 2) - srcRect.height / 2 - srcRect.top;
+        function done() { if (g.parentNode) g.parentNode.removeChild(g); }
+        try {
+            g.animate([
+                { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                { transform: 'translate(' + tx + 'px,' + ty + 'px) scale(0.55)', opacity: 1, offset: 0.7 },
+                { transform: 'translate(' + tx + 'px,' + ty + 'px) scale(0.28)', opacity: 0, offset: 1 }
+            ], { duration: 330, easing: 'cubic-bezier(.3,.7,.4,1)' }).onfinish = done;
+        } catch (e) { /* 忽略 */ }
+        setTimeout(done, 430);
     }
 
     // 移动动画：幽灵卡从原格滑到目标格（flip = 对手的卡需倒置显示）
@@ -1042,70 +1077,117 @@ function initReplayViewer() {
                 var prev = f.previous || {};
                 var cur = f.current || {};
                 var name = cardName(code);
-                // 动画：移动前先记下来源矩形（手牌按卡号定位；场上/牌堆按位置）
+                var pRawM = prev.location;
+                var cRawM = cur.location;
+                var prevOv = pRawM !== undefined && (pRawM & 0x80) !== 0;   // 来源=叠放素材
+                var curOv = cRawM !== undefined && (cRawM & 0x80) !== 0;    // 去向=叠放素材
+                var pPlain = pRawM === undefined ? null : (pRawM & 0x7f);
+                var cPlain = cRawM === undefined ? null : (cRawM & 0x7f);
+                var mCon = prev.controller !== undefined ? prev.controller : 0;
+                var mConC = cur.controller !== undefined ? cur.controller : mCon;
+                var mSeqP = prev.sequence !== undefined ? prev.sequence : 0;
+                var mSeqC = cur.sequence !== undefined ? cur.sequence : 0;
+
+                // 动画：移动前记下来源矩形
                 var animPreSrc = null;
-                if (!animSuppress && cur.location !== undefined) {
-                    var pRaw = prev.location;
-                    if (pRaw !== undefined) {
-                        var pM = pRaw & 0xff;
-                        var pCtl0 = prev.controller !== undefined ? prev.controller : 0;
-                        if (pM === LOC.HAND) {
-                            animPreSrc = rectAtHandByCode(pCtl0, code);
-                        } else if (pM === LOC.MZONE || pM === LOC.SZONE
-                            || pM === LOC.GRAVE || pM === LOC.REMOVED || pM === LOC.DECK || pM === LOC.EXTRA) {
-                            animPreSrc = rectAt(pCtl0, pRaw, prev.sequence !== undefined ? prev.sequence : 0);
-                        }
+                if (!animSuppress && !prevOv && pRawM !== undefined) {
+                    if (pPlain === LOC.HAND) {
+                        animPreSrc = rectAtHandByCode(mCon, code);
+                    } else if (pPlain === LOC.MZONE || pPlain === LOC.SZONE || pPlain === LOC.GRAVE
+                        || pPlain === LOC.REMOVED || pPlain === LOC.DECK || pPlain === LOC.EXTRA) {
+                        animPreSrc = rectAt(mCon, pRawM, mSeqP);
                     }
                 }
-                // 卡组进出计数：移出卡组 -1，回卡组 +1（Draw 已在上面单独扣）
-                var pLocD = prev.location !== undefined ? (prev.location & 0xff) : null;
-                var cLocD = cur.location !== undefined ? (cur.location & 0xff) : null;
-                if (pLocD === LOC.DECK || cLocD === LOC.DECK) {
-                    var dCon = prev.controller !== undefined ? prev.controller : 0;
-                    var dDelta = (cLocD === LOC.DECK ? 1 : 0) - (pLocD === LOC.DECK ? 1 : 0);
-                    deckCount[dCon] = Math.max(0, (deckCount[dCon] || 0) + dDelta);
+                // 卡组/额外卡组计数（叠放素材不计）
+                if (!prevOv && !curOv) {
+                    if (pPlain === LOC.DECK || cPlain === LOC.DECK) {
+                        var dDelta = (cPlain === LOC.DECK ? 1 : 0) - (pPlain === LOC.DECK ? 1 : 0);
+                        deckCount[mCon] = Math.max(0, (deckCount[mCon] || 0) + dDelta);
+                    }
+                    if (pPlain === LOC.EXTRA || cPlain === LOC.EXTRA) {
+                        var eDelta = (cPlain === LOC.EXTRA ? 1 : 0) - (pPlain === LOC.EXTRA ? 1 : 0);
+                        extraCount[mCon] = Math.max(0, (extraCount[mCon] || 0) + eDelta);
+                    }
                 }
-                // 额外卡组计数：出场 -1，回收 +1
-                if (pLocD === LOC.EXTRA || cLocD === LOC.EXTRA) {
-                    var eCon = prev.controller !== undefined ? prev.controller : 0;
-                    var eDelta = (cLocD === LOC.EXTRA ? 1 : 0) - (pLocD === LOC.EXTRA ? 1 : 0);
-                    extraCount[eCon] = Math.max(0, (extraCount[eCon] || 0) + eDelta);
-                }
-                // 精确按位置移动（prev→cur）
                 if (cur.location !== undefined) {
-                    moveCard(prev, cur, code);
-                    // 刷新涉及的两个区
-                    var pCon = prev.controller !== undefined ? prev.controller : 0;
-                    var pLoc = prev.location !== undefined ? (prev.location & 0xff) : null;
-                    var cCon = cur.controller !== undefined ? cur.controller : pCon;
-                    var cLoc = cur.location & 0xff;
-                    if (pLoc !== null && (pCon !== cCon || pLoc !== cLoc)) updateZone(pCon, pLoc);
-                    updateZone(cCon, cLoc);
-                    // 若移动到卡组/额外/素材等未展示区，刷新计数
+                    var hostRectForFx = null;
+                    if (curOv) {
+                        // ── 素材叠放 ──
+                        if (cPlain === LOC.MZONE) {
+                            // 宿主已在场上：直接给宿主格 +1（sequence = 宿主格序号）
+                            var hostCard = field[mConC] ? field[mConC][LOC.MZONE + ':' + mSeqC] : null;
+                            if (hostCard) {
+                                hostCard.mats = (hostCard.mats || 0) + 1;
+                                hostRectForFx = rectAt(mConC, LOC.MZONE, mSeqC);
+                            }
+                        } else {
+                            // 宿主还在额外卡组（sequence = 额外卡组序号）：先记着，宿主落地时再叠
+                            var pkey = mConC + ':' + mSeqC;
+                            if (!pendingMats[pkey]) pendingMats[pkey] = { count: 0, rects: [] };
+                            pendingMats[pkey].count++;
+                            if (animPreSrc) pendingMats[pkey].rects.push(animPreSrc);
+                        }
+                        // 素材来源若是场上怪兽，从场上移除（素材卡本身不入场）
+                        if (!prevOv && pPlain !== null && pPlain !== LOC.HAND) {
+                            removeAt(mCon, pPlain, mSeqP);
+                        } else if (!prevOv && pPlain === LOC.HAND) {
+                            removeFromHandByCode(mCon, code);
+                        }
+                        if (hostRectForFx && animPreSrc) overlayStackFx(animPreSrc, hostRectForFx, code);
+                    } else {
+                        moveCard(prev, cur, code);
+                        // 宿主从额外卡组落地：把之前叠放的素材归到它头上，并播叠放动画
+                        if (!prevOv && pPlain === LOC.EXTRA) {
+                            var lk = mConC + ':' + mSeqP;
+                            var pend = pendingMats[lk];
+                            var landed = field[mConC] ? field[mConC][(cPlain || 0) + ':' + mSeqC] : null;
+                            if (pend && landed) {
+                                landed.mats = (landed.mats || 0) + pend.count;
+                                var hostR = rectAt(mConC, cRawM, mSeqC);
+                                if (hostR) {
+                                    pend.rects.forEach(function (r, i) {
+                                        setTimeout(function () { overlayStackFx(r, hostR, code); }, 60 + i * 70);
+                                    });
+                                }
+                            }
+                            delete pendingMats[lk];
+                        }
+                    }
+                    // 素材取除（素材 → 墓/手/除外等）：宿主计数 -1
+                    if (prevOv && !curOv) {
+                        if (pPlain === LOC.MZONE) {
+                            var hc = field[mCon] ? field[mCon][LOC.MZONE + ':' + mSeqP] : null;
+                            if (hc) hc.mats = Math.max(0, (hc.mats || 0) - 1);
+                            var hRect = hc ? rectAt(mCon, LOC.MZONE, mSeqP) : null;
+                            var dRectD = rectAt(mConC, cRawM, mSeqC);
+                            if (hRect && dRectD) flyGhost(code || 0, false, hRect, dRectD, false);
+                        }
+                    }
+                    // 刷新涉及区域
+                    if (!prevOv && pPlain !== null && (mCon !== mConC || pPlain !== cPlain)) {
+                        updateZone(mCon, pPlain);
+                    }
+                    if (!curOv) updateZone(mConC, cPlain);
                     updateAllZones();
-                    // 动画：送墓=破碎粒子；其余=幽灵滑行（同格翻面不播）
-                    if (animPreSrc) {
-                        var mvCtl = cCon;
-                        var mvSeq = cur.sequence !== undefined ? cur.sequence : 0;
-                        var sameCell = pLoc === cLoc && pCon === cCon
+                    // 常规移动动画
+                    if (animPreSrc && !curOv && !prevOv) {
+                        var sameCell = pPlain === cPlain && mCon === mConC
                             && (prev.sequence === undefined || cur.sequence === undefined || prev.sequence === cur.sequence);
-                        if (cLoc === LOC.GRAVE && (pLoc === LOC.MZONE || pLoc === LOC.SZONE)) {
-                            var gPileEl = midEls['grave:' + mvCtl];
+                        if (cPlain === LOC.GRAVE && (pPlain === LOC.MZONE || pPlain === LOC.SZONE)) {
+                            var gPileEl = midEls['grave:' + mConC];
                             shatterFx(animPreSrc, gPileEl ? gPileEl.getBoundingClientRect() : null);
                         } else if (sameCell) {
-                            // 同格翻面：里侧 → 正面 = 翻开盖卡（3D 翻牌）
                             if (prev.position !== undefined && cur.position !== undefined
                                 && isFaceDown(prev.position) && !isFaceDown(cur.position) && code) {
                                 var flipRect = animPreSrc;
                                 setTimeout(function () { flipRevealFx(flipRect, code); }, 40);
                             }
                         } else {
-                            var dRect = rectAt(mvCtl, cur.location, mvSeq);
+                            var dRect = rectAt(mConC, cRawM, mSeqC);
                             if (dRect) {
-                                flyGhost(code || 0, isFaceDown(cur.position) || cLoc === LOC.DECK || cLoc === LOC.EXTRA, animPreSrc, dRect,
-                                    mvCtl === 1 && (cLoc === LOC.MZONE || cLoc === LOC.SZONE) && !isFaceDown(cur.position));
-                                // 召唤落地：进入怪兽区后脚下展开圆环
-                                if (cLoc === LOC.MZONE) {
+                                flyGhost(code || 0, isFaceDown(cur.position) || cPlain === LOC.DECK || cPlain === LOC.EXTRA, animPreSrc, dRect,
+                                    mConC === 1 && (cPlain === LOC.MZONE || cPlain === LOC.SZONE) && !isFaceDown(cur.position));
+                                if (cPlain === LOC.MZONE) {
                                     var ringRect = dRect;
                                     setTimeout(function () { summonRingFx(ringRect); }, 200);
                                 }
@@ -1113,10 +1195,9 @@ function initReplayViewer() {
                         }
                     }
                 }
-                // 日志：谁、哪张卡、从哪个区到哪个区
-                // （不带 reason 附注：本服核心的 reason 位与常见表不一致，按位猜测会误导）
-                var from = prev.location !== undefined ? (LOC_NAME[prev.location & 0xff] || '') : '';
-                var to = cur.location !== undefined ? (LOC_NAME[cur.location & 0xff] || '') : '';
+                // 日志：素材进出不刷屏
+                var from = (!prevOv && pRawM !== undefined) ? (LOC_NAME[pPlain] || '') : '';
+                var to = (!curOv && cRawM !== undefined) ? (LOC_NAME[cPlain] || '') : '';
                 if (to) {
                     var mover = cur.controller !== undefined ? playerName(cur.controller) : '';
                     log((mover ? mover + '：' : '') + (name || '卡片') + '：' + (from ? from + ' → ' : '') + to);
@@ -1332,25 +1413,38 @@ function initReplayViewer() {
 
     function moveCard(prev, cur, code) {
         var pCon = prev.controller !== undefined ? prev.controller : 0;
-        var pLoc = prev.location !== undefined ? (prev.location & 0xff) : undefined;
+        var pRaw = prev.location;
+        var pLoc = pRaw !== undefined ? (pRaw & 0x7f) : undefined;
+        var prevOverlay = pRaw !== undefined && (pRaw & 0x80) !== 0;   // 来源是叠放素材（不在模型里）
         var cCon = cur.controller !== undefined ? cur.controller : pCon;
-        var cLoc = cur.location !== undefined ? (cur.location & 0xff) : undefined;
+        var cLoc = cur.location !== undefined ? (cur.location & 0x7f) : undefined;
+        var cOverlay = cur.location !== undefined && (cur.location & 0x80) !== 0;
         var down = isFaceDown(cur.position);
         var posRaw = cur.position;
+        var oldCard = null;
 
-        if (pLoc === LOC.HAND) {
+        if (prevOverlay) {
+            // 叠放素材移出：不操作场地模型（计数由调用方处理）
+        } else if (pLoc === LOC.HAND) {
             // 出牌（含换控制权给对面，如坏兽）：按卡号删，找不到再退回按 seq 删
             var removed = removeFromHandByCode(pCon, code);
             if (!removed) removeAt(pCon, pLoc, prev.sequence !== undefined ? prev.sequence : 0);
         } else if (pLoc !== undefined) {
+            // 记住旧卡对象（携带超量素材数，移动后要继承）
+            oldCard = (field[pCon] && field[pCon][pLoc + ':' + (prev.sequence !== undefined ? prev.sequence : 0)]) || null;
             removeAt(pCon, pLoc, prev.sequence !== undefined ? prev.sequence : 0);
         }
 
+        if (cOverlay) {
+            return;   // 素材本身不显示在场上（计数由调用方处理）
+        }
         if (cLoc === LOC.HAND) {
             // 回手/检索：追加末尾，序号=当前手牌数（随后 UpdateData 会再校准）
             addToHand(cCon, code !== undefined ? code : 0);
         } else if (cLoc !== undefined) {
             addCardAt(cCon, cLoc, cur.sequence !== undefined ? cur.sequence : 0, code, down, posRaw);
+            var newCard = field[cCon][cLoc + ':' + (cur.sequence !== undefined ? cur.sequence : 0)];
+            if (newCard && oldCard && oldCard.mats) newCard.mats = oldCard.mats;   // 素材随宿主移动
         }
     }
 
