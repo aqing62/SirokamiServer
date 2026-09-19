@@ -750,40 +750,35 @@ function initReplayViewer() {
         }
     }
 
-    // 融合：素材卡围绕中心旋转融合 → 紫色爆闪
-    function fxFusion(target, matCards) {
-        var wrap = fxEl('rp-fusion-wrap', 0, 0, target.x, target.y);
-        var list = (matCards && matCards.length) ? matCards.slice(0, 5) : [];
-        var n = Math.max(1, list.length);
-        for (var i = 0; i < n; i++) {
-            var ang = (Math.PI * 2 * i) / n - Math.PI / 2;
-            var m = document.createElement('div');
-            m.className = 'rp-fusion-mat';
-            if (list[i] && list[i].code) {
-                var im = document.createElement('img');
-                wireImgChain(im, list[i].code);
-                im.src = cardImgSrc(list[i].code);
-                m.appendChild(im);
-            }
-            m.style.left = (Math.cos(ang) * 70 - 24) + 'px';
-            m.style.top = (Math.sin(ang) * 70 - 33) + 'px';
-            wrap.appendChild(m);
+    // 融合：橙色 + 蓝色双螺旋汇聚 → 中心爆闪
+    function fxFusion(target) {
+        var S = 190;
+        function swirl(color, delay, dir) {
+            setTimeout(function () {
+                if (animSuppress) return;
+                var el = fxEl('rp-spiral', S, S, target.x - S / 2, target.y - S / 2);
+                el.style.background = 'conic-gradient(from 0deg, ' + color + ' 0deg 72deg,'
+                    + ' rgba(0,0,0,0) 72deg 180deg, ' + color + ' 180deg 252deg, rgba(0,0,0,0) 252deg 360deg)';
+                var an = null;
+                try {
+                    an = el.animate([
+                        { transform: 'rotate(0deg) scale(1.35)', opacity: 0, offset: 0 },
+                        { transform: 'rotate(' + (dir * 150) + 'deg) scale(1.12)', opacity: 0.95, offset: 0.3 },
+                        { transform: 'rotate(' + (dir * 380) + 'deg) scale(0.78)', opacity: 0.95, offset: 0.72 },
+                        { transform: 'rotate(' + (dir * 640) + 'deg) scale(0.12)', opacity: 0, offset: 1 }
+                    ], { duration: 980, easing: 'cubic-bezier(.4,.15,.3,1)' });
+                } catch (e) { /* ignore */ }
+                if (an) { an.onfinish = function () { if (el.parentNode) el.parentNode.removeChild(el); }; }
+                setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 1120);
+            }, delay);
         }
-        try {
-            var an = wrap.animate([
-                { transform: 'rotate(0deg) scale(1)', opacity: 0, offset: 0 },
-                { transform: 'rotate(180deg) scale(1)', opacity: 1, offset: 0.35 },
-                { transform: 'rotate(430deg) scale(0.85)', opacity: 1, offset: 0.7 },
-                { transform: 'rotate(560deg) scale(0.2)', opacity: 0, offset: 1 }
-            ], { duration: 900, easing: 'cubic-bezier(.4,.2,.3,1)' });
-            an.onfinish = function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); };
-        } catch (e) { }
-        setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 1050);
+        swirl('rgba(255,150,40,0.95)', 0, 1);
+        swirl('rgba(70,170,255,0.95)', 130, -1);
         setTimeout(function () {
             if (animSuppress) return;
             var fl = fxEl('rp-fx-hit', 130, 130, target.x - 65, target.y - 65);
             setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 90);
-        }, 820);
+        }, 840);
     }
 
     // 超量：素材光球 → 星系黑洞 → 爆炸
@@ -848,31 +843,70 @@ function initReplayViewer() {
         }, 900);
     }
 
-    // 连接：红色光球 → 连接标记箭头
+    // 连接：红色光球汇聚 → 六边形数码特效（不再依赖连接箭头数据）
     function fxLink(target, srcRects) {
         fxOrbs(srcRects, target, '#ff3b3b', true);
         setTimeout(function () {
             if (animSuppress) return;
-            var arrows = ['▲', '▶', '▼', '◀'];
-            for (var i = 0; i < 4; i++) {
-                var ang = (Math.PI * 2 * i) / 4 - Math.PI / 2;
-                var ax = target.x + Math.cos(ang) * 52, ay = target.y + Math.sin(ang) * 52;
-                var el = fxEl('rp-link-arrow', 22, 22, ax - 11, ay - 11);
-                el.textContent = arrows[i];
-                el.style.transform = 'rotate(' + (i * 90) + 'deg)';
-                var an = null;
-                try {
-                    an = el.animate([
-                        { opacity: 0, offset: 0 },
-                        { opacity: 1, offset: 0.3 },
-                        { opacity: 1, offset: 0.7 },
-                        { opacity: 0, offset: 1 }
-                    ], { duration: 700, easing: 'ease-out' });
-                } catch (e) { }
-                if (an) { an.onfinish = function () { if (el.parentNode) el.parentNode.removeChild(el); }; }
-                setTimeout(function (x) { if (x.parentNode) x.parentNode.removeChild(x); }, 850, el);
+            // 三层六边形扫描环
+            hexRingFx(target, 130, 0, 760, 2.6, '#8ef0ff');
+            hexRingFx(target, 100, 60, 820, 2.2, '#d8fbff');
+            hexRingFx(target, 70, 120, 880, 1.8, '#7fe9ff');
+            // 四散的小六边形（数码粒子）
+            for (var i = 0; i < 6; i++) {
+                (function (k) {
+                    setTimeout(function () {
+                        if (animSuppress) return;
+                        var ang = (Math.PI * 2 * k) / 6 + Math.random() * 0.3;
+                        var dist = 44 + Math.random() * 26;
+                        var hx = hexRingFx(target, 26, Math.random() * 90, 420, 1.6, '#aef4ff', null);
+                        var el = hx.el;
+                        var an = null;
+                        try {
+                            an = el.animate([
+                                { transform: 'translate(0px,0px) scale(0.4) rotate(0deg)', opacity: 0, offset: 0 },
+                                { transform: 'translate(' + Math.cos(ang) * dist + 'px,' + Math.sin(ang) * dist + 'px) scale(1) rotate(120deg)', opacity: 1, offset: 0.35 },
+                                { transform: 'translate(' + Math.cos(ang) * (dist + 34) + 'px,' + Math.sin(ang) * (dist + 34) + 'px) scale(0.6) rotate(240deg)', opacity: 0, offset: 1 }
+                            ], { duration: 520, easing: 'ease-out' });
+                        } catch (e) { /* ignore */ }
+                        if (an) { an.onfinish = function () { if (el.parentNode) el.parentNode.removeChild(el); }; }
+                        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 620);
+                    }, 60 + k * 45);
+                })(i);
             }
+            // 中心数码爆闪
+            var fl = fxEl('rp-hex-flash', 120, 120, target.x - 60, target.y - 60);
+            setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 120);
         }, 470);
+    }
+
+    // 单个六边形环（返回元素，便于外部再动画）
+    function hexRingFx(target, size, rotate0, dur, scaleTo, stroke, cb) {
+        var NS = 'http://www.w3.org/2000/svg';
+        var wrap = fxEl('rp-hex', size, size, target.x - size / 2, target.y - size / 2);
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('viewBox', '0 0 100 100');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        var poly = document.createElementNS(NS, 'polygon');
+        poly.setAttribute('points', '50,3 92,26 92,74 50,97 8,74 8,26');
+        poly.setAttribute('fill', 'none');
+        poly.setAttribute('stroke', stroke || '#8ef0ff');
+        poly.setAttribute('stroke-width', '2.5');
+        poly.setAttribute('stroke-linejoin', 'round');
+        svg.appendChild(poly);
+        wrap.appendChild(svg);
+        var an = null;
+        try {
+            an = wrap.animate([
+                { transform: 'rotate(' + rotate0 + 'deg) scale(0.35)', opacity: 0, offset: 0 },
+                { transform: 'rotate(' + (rotate0 + 60) + 'deg) scale(' + (scaleTo * 0.75) + ')', opacity: 1, offset: 0.5 },
+                { transform: 'rotate(' + (rotate0 + 140) + 'deg) scale(' + scaleTo + ')', opacity: 0, offset: 1 }
+            ], { duration: dur, easing: 'ease-out' });
+        } catch (e) { /* ignore */ }
+        if (an) { an.onfinish = function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }; }
+        setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, dur + 120);
+        return { el: wrap, anim: an };
     }
 
     // 召唤演出总入口：按召唤种类播放
