@@ -2069,13 +2069,13 @@ function initReplayViewer() {
     function removeFromHandByCode(ctl, code) {
         if (!field[ctl] || !code) return false;
         var keys = handKeys(ctl);
-        var idx = -1;
+        var found = -1;
         for (var i = 0; i < keys.length; i++) {
-            if (field[ctl][keys[i]].code === code) { idx = i; break; }
+            if (field[ctl][keys[i]].code === code) { found = i; break; }
         }
-        if (idx < 0) return false;
-        delete field[ctl][keys[idx]];
-        var rest = keys.filter(function (k, j) { return j !== idx; })
+        if (found < 0) return false;
+        delete field[ctl][keys[found]];
+        var rest = keys.filter(function (k, j) { return j !== found; })
             .map(function (k) { return field[ctl][k]; });
         var next = {};
         Object.keys(field[ctl]).forEach(function (k) {
@@ -2244,8 +2244,8 @@ function initReplayViewer() {
         if (player !== 0 && player !== 1) return false;
         var locPlain = location & 0x7f;
         var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        var off = 3, idx = 0, changed = false;
-        while (off < bytes.length && idx < 64) {
+        var off = 3, slot = 0, changed = false;
+        while (off < bytes.length && slot < 64) {
             var r;
             try { r = parseCardQueryChunk(dv, off, bytes.length); } catch (e) { break; }
             if (!r || !r.length) break;
@@ -2253,13 +2253,13 @@ function initReplayViewer() {
             off += r.length;
             if (c && c.code && (c.atk !== undefined || c.def !== undefined || c.batk !== undefined)) {
                 var rec = { atk: c.atk, def: c.def, batk: c.batk, bdef: c.bdef, level: c.level, rank: c.rank, link: c.link, marker: c.marker, type: c.type };
-                var key = player + ':' + locPlain + ':' + (c.sequence !== undefined ? c.sequence : idx);
+                var key = player + ':' + locPlain + ':' + (c.sequence !== undefined ? c.sequence : slot);
                 if (statSig(cardStatByKey[key]) !== statSig(rec)) changed = true;
                 cardStatByKey[key] = rec;
                 if (statSig(cardStatByCode[c.code]) !== statSig(rec)) changed = true;
                 cardStatByCode[c.code] = rec;
             }
-            idx++;
+            slot++;
         }
         return changed;
     }
@@ -2376,10 +2376,10 @@ function initReplayViewer() {
         return new Promise(function (resolveAll) {
             var total = codes.length;
             if (!total) { resolveAll(); return; }
-            var idx = 0, done = 0;
+            var cursor = 0, done = 0;
             function nextBatch() {
                 var batch = [];
-                while (idx < total && batch.length < 8) batch.push(codes[idx++]);
+                while (cursor < total && batch.length < 8) batch.push(codes[cursor++]);
                 if (!batch.length) { resolveAll(); return; }
                 var pending = batch.length;
                 batch.forEach(function (code) {
