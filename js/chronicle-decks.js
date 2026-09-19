@@ -113,11 +113,27 @@
                 decks = decks.slice().sort(compareDecks);   // 按首字母 A→Z 排序
                 var wrap = document.createElement('div');
                 wrap.className = 'chronicle-modal-list';
+                var lastKey = null;
                 decks.forEach(function (d) {
+                    var key = initialKey(d.name);
+                    // 首字母分组标识（便于玩家查找）
+                    if (key !== lastKey) {
+                        var row = document.createElement('div');
+                        row.className = 'chronicle-letter-row';
+                        var lb = document.createElement('span');
+                        lb.className = 'chronicle-letter';
+                        lb.textContent = key;
+                        var ln = document.createElement('span');
+                        ln.className = 'chronicle-letter-line';
+                        row.appendChild(lb);
+                        row.appendChild(ln);
+                        wrap.appendChild(row);
+                        lastKey = key;
+                    }
                     var btn = document.createElement('button');
                     btn.className = 'chronicle-deck-btn';
                     btn.textContent = d.name;
-                    btn.title = '点击查看卡组详情';
+                    btn.title = '首字母 ' + key + ' · 点击查看卡组详情';
                     btn.onclick = function () {
                         closeModal();
                         if (window.DeckViewer && window.DeckViewer.showDeck) {

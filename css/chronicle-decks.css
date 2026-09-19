@@ -106,3 +106,30 @@
         padding: 16px;
     }
 }
+
+/* 首字母分组标识（编年史卡组池） */
+.chronicle-letter-row {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 0 2px;
+}
+.chronicle-letter {
+    flex: 0 0 auto;
+    min-width: 22px;
+    text-align: center;
+    padding: 1px 7px;
+    background: #0a0a0c;
+    color: var(--light-gold);
+    border: 1px solid var(--red);
+    font-size: 12px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    line-height: 1.5;
+}
+.chronicle-letter-line {
+    flex: 1 1 auto;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(216, 30, 68, 0.75), rgba(216, 30, 68, 0));
+}
