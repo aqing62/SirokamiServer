@@ -87,17 +87,17 @@
 }
 .chronicle-deck-btn {
     padding: 8px 16px;
-    background: linear-gradient(135deg, var(--red), var(--dark-red));
-    color: var(--light-gold);
-    border: none;
-    border-radius: 16px;
+    background: #0a0a0c;                 /* 黑底 */
+    color: var(--light-gold);            /* 黄字 */
+    border: 1px solid var(--red);        /* 红线 */
+    border-radius: 0;                    /* 直角 */
     font-size: 13px;
     font-weight: bold;
     cursor: pointer;
     transition: 0.25s;
 }
 .chronicle-deck-btn:hover {
-    transform: scale(1.06);
+    background: rgba(216, 30, 68, 0.18);
     box-shadow: 0 0 8px rgba(216, 30, 68, 0.5);
 }
 @media (max-width: 768px) {
