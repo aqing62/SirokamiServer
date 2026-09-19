@@ -71,9 +71,11 @@ function initReplayViewer() {
     var animSuppress = false;    // 进度条大跳等批量处理时关闭动画
     var preloading = false;      // 卡图预加载中
     var pendingMats = {};        // 额外卡组超量：召唤前先叠放的素材 "ctl:extraSeq" → {count, rects}
+    var lastLand = null;         // 最近一次怪兽落地 {code, fromExtra, idx, ctl, seq, rawLoc}
 
-    // 卡池索引（卡名查询，可选加载 /api/cards）
+    // 卡池索引（卡名/卡片种类查询，可选加载 /api/cards）
     var cardNameMap = {};
+    var cardMetaMap = {};   // id → { cat, subs, level } 用于识别召唤种类
     var cardNameLoaded = false;
     function loadCardNames() {
         if (cardNameLoaded) return Promise.resolve();
@@ -81,12 +83,39 @@ function initReplayViewer() {
         return fetch('/api/cards?t=' + Date.now())
             .then(function (r) { return r.json(); })
             .then(function (cards) {
-                cards.forEach(function (c) { cardNameMap[String(c.id)] = c.name || ''; });
+                cards.forEach(function (c) {
+                    var id = String(c.id);
+                    cardNameMap[id] = c.name || '';
+                    var ti = c.typeInfo || {};
+                    cardMetaMap[id] = {
+                        cat: ti.monsterCategory || '',
+                        subs: ti.subTypes || [],
+                        level: c.level || 0,
+                    };
+                });
             })
             .catch(function () {});
     }
     function cardName(code) {
         return cardNameMap[String(code)] || '';
+    }
+    // 召唤种类：fusion / synchro / xyz / link / pendulum / ritual / null
+    function summonTypeOf(code) {
+        var m = cardMetaMap[String(code)];
+        if (!m) return null;
+        var cat = m.cat || '';
+        var subs = m.subs || [];
+        if (cat.indexOf('连接') >= 0 || subs.indexOf('连接') >= 0) return 'link';
+        if (cat.indexOf('超量') >= 0 || subs.indexOf('超量') >= 0) return 'xyz';
+        if (cat.indexOf('同调') >= 0 || subs.indexOf('同调') >= 0) return 'synchro';
+        if (cat.indexOf('融合') >= 0 || subs.indexOf('融合') >= 0) return 'fusion';
+        if (cat.indexOf('灵摆') >= 0 || subs.indexOf('灵摆') >= 0) return 'pendulum';
+        if (cat.indexOf('仪式') >= 0 || subs.indexOf('仪式') >= 0) return 'ritual';
+        return null;
+    }
+    function cardLevel(code) {
+        var m = cardMetaMap[String(code)];
+        return (m && m.level) || 0;
     }
     function cardImgSrc(code) {
         return DIY_PIC + code + '.jpg';
@@ -624,8 +653,235 @@ function initReplayViewer() {
         setTimeout(done, 430);
     }
 
-    // 移动动画：幽灵卡从原格滑到目标格（flip = 对手的卡需倒置显示）
-    function flyGhost(cardCode, down, s, d, flip) {
+    // ══════════ 召唤演出（融合/同调/超量/灵摆/连接）══════════
+    var matBuf = [];   // 最近用于召唤的素材：{code, rect, idx}
+
+    function pushMat(code, rect) {
+        if (!rect) return;
+        matBuf.push({ code: code, rect: rect, idx: idx });
+        if (matBuf.length > 12) matBuf.shift();
+    }
+    function takeMats() {
+        var out = matBuf.filter(function (m) { return idx - m.idx <= 14; });
+        matBuf = [];
+        return out;
+    }
+    function centerOf(rect) { return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; }
+
+    // 彩色光球（带拖尾）飞向中心 —— 超量金色 / 连接红色
+    function fxOrbs(srcRects, target, color, swirl) {
+        var n = Math.max(1, srcRects.length);
+        for (var i = 0; i < n; i++) {
+            var r = srcRects[i] || null;
+            var sx = r ? r.left + r.width / 2 : target.x;
+            var sy = r ? r.top + r.height / 2 : target.y;
+            var dx = target.x - sx, dy = target.y - sy;
+            // 拖尾：同一路径上延迟出现的小球
+            for (var t = 0; t < 3; t++) {
+                (function (sx0, sy0, dx0, dy0, delay, size, alpha) {
+                    setTimeout(function () {
+                        var o = fxEl('rp-orb', size, size, sx0 - size / 2, sy0 - size / 2);
+                        o.style.background = color;
+                        o.style.boxShadow = '0 0 12px 4px ' + color;
+                        o.style.opacity = String(alpha);
+                        var midX = dx0 * 0.45 + (swirl ? dy0 * 0.22 : 0);
+                        var midY = dy0 * 0.45 - (swirl ? dx0 * 0.22 : 0);
+                        var anim = null;
+                        try {
+                            anim = o.animate([
+                                { transform: 'translate(0px,0px) scale(1)', opacity: alpha, offset: 0 },
+                                { transform: 'translate(' + midX + 'px,' + midY + 'px) scale(1.15)', opacity: alpha, offset: 0.55 },
+                                { transform: 'translate(' + dx0 + 'px,' + dy0 + 'px) scale(0.2)', opacity: 0, offset: 1 }
+                            ], { duration: 560 + delay, easing: 'cubic-bezier(.35,.6,.35,1)' });
+                        } catch (e) { /* ignore */ }
+                        if (anim) { anim.onfinish = function () { if (o.parentNode) o.parentNode.removeChild(o); }; }
+                        setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 900 + delay);
+                    }, delay);
+                })(sx, sy, dx, dy, t * 45, 16 - t * 4, 1 - t * 0.3);
+            }
+        }
+    }
+
+    // 同调：绿色同调环 + 等级数量的星星汇聚
+    function fxSynchro(target, starCount) {
+        var R = 56;
+        var ring = fxEl('rp-syn-ring', R, R, target.x - R / 2, target.y - R / 2);
+        try {
+            var a1 = ring.animate([
+                { transform: 'scale(0.3) rotate(0deg)', opacity: 0, offset: 0 },
+                { transform: 'scale(1) rotate(160deg)', opacity: 1, offset: 0.45 },
+                { transform: 'scale(1.25) rotate(320deg)', opacity: 0.95, offset: 0.75 },
+                { transform: 'scale(1.7) rotate(420deg)', opacity: 0, offset: 1 }
+            ], { duration: 880, easing: 'ease-out' });
+            a1.onfinish = function () { if (ring.parentNode) ring.parentNode.removeChild(ring); };
+        } catch (e) { }
+        setTimeout(function () { if (ring.parentNode) ring.parentNode.removeChild(ring); }, 1000);
+        var n = Math.max(1, Math.min(12, starCount || 1));
+        for (var i = 0; i < n; i++) {
+            (function (k) {
+                setTimeout(function () {
+                    var ang = (Math.PI * 2 * k) / n - Math.PI / 2;
+                    var sx = target.x + Math.cos(ang) * 78;
+                    var sy = target.y + Math.sin(ang) * 78;
+                    var st = fxEl('rp-star', 20, 20, sx - 10, sy - 10);
+                    var dx = target.x - sx, dy = target.y - sy;
+                    var an = null;
+                    try {
+                        an = st.animate([
+                            { transform: 'translate(0px,0px) rotate(0deg) scale(1)', opacity: 1, offset: 0 },
+                            { transform: 'translate(' + dx * 0.55 + 'px,' + dy * 0.55 + 'px) rotate(220deg) scale(0.9)', opacity: 1, offset: 0.6 },
+                            { transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(400deg) scale(0.2)', opacity: 0, offset: 1 }
+                        ], { duration: 780, easing: 'ease-in-out' });
+                    } catch (e) { }
+                    if (an) { an.onfinish = function () { if (st.parentNode) st.parentNode.removeChild(st); }; }
+                    setTimeout(function () { if (st.parentNode) st.parentNode.removeChild(st); }, 950);
+                }, 120 + k * 55);
+            })(i);
+        }
+    }
+
+    // 融合：素材卡围绕中心旋转融合 → 紫色爆闪
+    function fxFusion(target, matCards) {
+        var wrap = fxEl('rp-fusion-wrap', 0, 0, target.x, target.y);
+        var list = (matCards && matCards.length) ? matCards.slice(0, 5) : [];
+        var n = Math.max(1, list.length);
+        for (var i = 0; i < n; i++) {
+            var ang = (Math.PI * 2 * i) / n - Math.PI / 2;
+            var m = document.createElement('div');
+            m.className = 'rp-fusion-mat';
+            if (list[i] && list[i].code) {
+                var im = document.createElement('img');
+                wireImgChain(im, list[i].code);
+                im.src = cardImgSrc(list[i].code);
+                m.appendChild(im);
+            }
+            m.style.left = (Math.cos(ang) * 70 - 24) + 'px';
+            m.style.top = (Math.sin(ang) * 70 - 33) + 'px';
+            wrap.appendChild(m);
+        }
+        try {
+            var an = wrap.animate([
+                { transform: 'rotate(0deg) scale(1)', opacity: 0, offset: 0 },
+                { transform: 'rotate(180deg) scale(1)', opacity: 1, offset: 0.35 },
+                { transform: 'rotate(430deg) scale(0.85)', opacity: 1, offset: 0.7 },
+                { transform: 'rotate(560deg) scale(0.2)', opacity: 0, offset: 1 }
+            ], { duration: 900, easing: 'cubic-bezier(.4,.2,.3,1)' });
+            an.onfinish = function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); };
+        } catch (e) { }
+        setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 1050);
+        setTimeout(function () {
+            if (animSuppress) return;
+            var fl = fxEl('rp-fx-hit', 130, 130, target.x - 65, target.y - 65);
+            setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 90);
+        }, 820);
+    }
+
+    // 超量：素材光球 → 星系黑洞 → 爆炸
+    function fxFusionXyz(target, srcRects) {
+        fxOrbs(srcRects, target, '#ffd700', true);
+        // 星系/黑洞
+        setTimeout(function () {
+            if (animSuppress) return;
+            var gal = fxEl('rp-galaxy', 40, 40, target.x - 20, target.y - 20);
+            try {
+                var g = gal.animate([
+                    { transform: 'scale(0.2) rotate(0deg)', opacity: 0, offset: 0 },
+                    { transform: 'scale(1.1) rotate(240deg)', opacity: 1, offset: 0.55 },
+                    { transform: 'scale(1.5) rotate(420deg)', opacity: 0.95, offset: 0.8 },
+                    { transform: 'scale(0.25) rotate(560deg)', opacity: 0, offset: 1 }
+                ], { duration: 620, easing: 'ease-in' });
+                g.onfinish = function () { if (gal.parentNode) gal.parentNode.removeChild(gal); };
+            } catch (e) { }
+            setTimeout(function () { if (gal.parentNode) gal.parentNode.removeChild(gal); }, 760);
+        }, 470);
+        // 爆炸
+        setTimeout(function () {
+            if (animSuppress) return;
+            var hit = fxEl('rp-fx-hit', 150, 150, target.x - 75, target.y - 75);
+            setTimeout(function () { hit.style.opacity = '0'; setTimeout(function () { if (hit.parentNode) hit.parentNode.removeChild(hit); }, 330); }, 100);
+            for (var i = 0; i < 12; i++) {
+                var sp = fxEl('rp-orb', 10, 10, target.x - 5, target.y - 5);
+                sp.style.background = '#ffe27a';
+                sp.style.boxShadow = '0 0 10px 3px #ffd700';
+                var ang = (Math.PI * 2 * i) / 12, dist = 70 + Math.random() * 50;
+                var an = null;
+                try {
+                    an = sp.animate([
+                        { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                        { transform: 'translate(' + Math.cos(ang) * dist + 'px,' + Math.sin(ang) * dist + 'px) scale(0.3)', opacity: 0, offset: 1 }
+                    ], { duration: 480, easing: 'ease-out' });
+                } catch (e) { }
+                if (an) { an.onfinish = function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }; }
+                setTimeout(function (el) { if (el.parentNode) el.parentNode.removeChild(el); }, 620, sp);
+            }
+        }, 1020);
+    }
+
+    // 灵摆：钟摆晃动
+    function fxPendulum(target) {
+        var w = fxEl('rp-pend', 8, 90, target.x - 4, target.y - 90);
+        try {
+            var a = w.animate([
+                { transform: 'rotate(28deg)', opacity: 0, offset: 0 },
+                { transform: 'rotate(-26deg)', opacity: 1, offset: 0.28 },
+                { transform: 'rotate(22deg)', opacity: 1, offset: 0.52 },
+                { transform: 'rotate(-16deg)', opacity: 1, offset: 0.74 },
+                { transform: 'rotate(0deg)', opacity: 0, offset: 1 }
+            ], { duration: 1000, easing: 'ease-in-out' });
+            a.onfinish = function () { if (w.parentNode) w.parentNode.removeChild(w); };
+        } catch (e) { }
+        setTimeout(function () { if (w.parentNode) w.parentNode.removeChild(w); }, 1150);
+        setTimeout(function () {
+            if (animSuppress) return;
+            var fl = fxEl('rp-fx-flash', 120, 120, target.x - 60, target.y - 60);
+            setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 90);
+        }, 900);
+    }
+
+    // 连接：红色光球 → 连接标记箭头
+    function fxLink(target, srcRects) {
+        fxOrbs(srcRects, target, '#ff3b3b', true);
+        setTimeout(function () {
+            if (animSuppress) return;
+            var arrows = ['▲', '▶', '▼', '◀'];
+            for (var i = 0; i < 4; i++) {
+                var ang = (Math.PI * 2 * i) / 4 - Math.PI / 2;
+                var ax = target.x + Math.cos(ang) * 52, ay = target.y + Math.sin(ang) * 52;
+                var el = fxEl('rp-link-arrow', 22, 22, ax - 11, ay - 11);
+                el.textContent = arrows[i];
+                el.style.transform = 'rotate(' + (i * 90) + 'deg)';
+                var an = null;
+                try {
+                    an = el.animate([
+                        { opacity: 0, offset: 0 },
+                        { opacity: 1, offset: 0.3 },
+                        { opacity: 1, offset: 0.7 },
+                        { opacity: 0, offset: 1 }
+                    ], { duration: 700, easing: 'ease-out' });
+                } catch (e) { }
+                if (an) { an.onfinish = function () { if (el.parentNode) el.parentNode.removeChild(el); }; }
+                setTimeout(function (x) { if (x.parentNode) x.parentNode.removeChild(x); }, 850, el);
+            }
+        }, 470);
+    }
+
+    // 召唤演出总入口：按召唤种类播放
+    function summonShowFx(code, rect) {
+        if (animSuppress || !rect || !rect.width) return;
+        var type = summonTypeOf(code);
+        if (!type) return;
+        var target = centerOf(rect);
+        var mats = takeMats();
+        var srcRects = mats.map(function (m) { return m.rect; }).filter(Boolean);
+        if (!srcRects.length) srcRects = [rect];
+        if (type === 'xyz') fxFusionXyz(target, srcRects);
+        else if (type === 'synchro') fxSynchro(target, cardLevel(code));
+        else if (type === 'fusion') fxFusion(target, mats);
+        else if (type === 'link') fxLink(target, srcRects);
+        else if (type === 'pendulum') fxPendulum(target);
+    }
+
+    // 移动动画：幽灵卡从原格滑到目标格（flip = 对手的卡需倒置显示）    function flyGhost(cardCode, down, s, d, flip) {
         if (animSuppress || !s || !d || !s.width || !d.width) return;
         var g = fxEl('rp-fly' + (down || !cardCode ? ' rp-fly-down' : ''), s.width, s.height, s.left, s.top);
         if (!down && cardCode) {
@@ -1134,9 +1390,9 @@ function initReplayViewer() {
                             removeFromHandByCode(mCon, code);
                         }
                         if (hostRectForFx && animPreSrc) overlayStackFx(animPreSrc, hostRectForFx, code);
+                        pushMat(code, animPreSrc);   // 素材入缓冲（供超量/融合演出用）
                     } else {
-                        moveCard(prev, cur, code);
-                        // 宿主从额外卡组落地：把之前叠放的素材归到它头上，并播叠放动画
+                        moveCard(prev, cur, code);                        // 宿主从额外卡组落地：把之前叠放的素材归到它头上，并播叠放动画
                         if (!prevOv && pPlain === LOC.EXTRA) {
                             var lk = mConC + ':' + mSeqP;
                             var pend = pendingMats[lk];
@@ -1151,6 +1407,15 @@ function initReplayViewer() {
                                 }
                             }
                             delete pendingMats[lk];
+                        }
+                        // 记录最近一次怪兽落地（供 SpSummoning 判断召唤种类/是否来自额外卡组）
+                        if (cPlain === LOC.MZONE) {
+                            lastLand = { code: code, fromExtra: (pPlain === LOC.EXTRA), idx: idx, ctl: mConC, seq: mSeqC, rawLoc: cRawM };
+                        }
+                        // 素材进缓冲：场上/手牌/卡组 → 墓地（非战斗破坏）
+                        if (!animSuppress && !inBattle && cPlain === LOC.GRAVE
+                            && (pPlain === LOC.MZONE || pPlain === LOC.SZONE || pPlain === LOC.HAND || pPlain === LOC.DECK)) {
+                            pushMat(code, animPreSrc);
                         }
                     }
                     // 素材取除（素材 → 墓/手/除外等）：宿主计数 -1
@@ -1215,6 +1480,15 @@ function initReplayViewer() {
             }
             case 'SpSummoning': {
                 log('✨ 特殊召唤 ' + cardName(f.code));
+                // 召唤演出：融合/同调/超量/连接（来自额外卡组）、灵摆
+                if (!animSuppress && lastLand && lastLand.code === f.code && idx - lastLand.idx <= 6) {
+                    var st = summonTypeOf(f.code);
+                    var extraType = st === 'fusion' || st === 'synchro' || st === 'xyz' || st === 'link';
+                    if ((extraType && lastLand.fromExtra) || st === 'pendulum') {
+                        var sRect = rectAt(lastLand.ctl, lastLand.rawLoc, lastLand.seq);
+                        if (sRect) summonShowFx(f.code, sRect);
+                    }
+                }
                 break;
             }
             case 'Chaining': {

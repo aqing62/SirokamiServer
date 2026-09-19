@@ -569,3 +569,61 @@
     .rp-card { width: 44px; height: 62px; }
     .replay-field { min-height: 380px; }
 }
+
+
+/* ══════ 召唤演出（融合/同调/超量/灵摆/连接）══════ */
+.rp-orb {
+    position: fixed; z-index: 9996; border-radius: 50%;
+    pointer-events: none;
+}
+.rp-syn-ring {
+    position: fixed; z-index: 9996; border-radius: 50%;
+    border: 4px solid #7dffb0;
+    box-shadow: 0 0 24px 8px rgba(90, 255, 160, 0.55), inset 0 0 18px rgba(150, 255, 190, 0.5);
+    pointer-events: none;
+}
+.rp-star { position: fixed; z-index: 9996; pointer-events: none; }
+.rp-star::after {
+    content: '★';
+    display: block; width: 20px; height: 20px; line-height: 20px; text-align: center;
+    font-size: 18px; color: #c6ffdc;
+    text-shadow: 0 0 12px #5affa0, 0 0 4px #ffffff;
+}
+.rp-fusion-wrap { position: fixed; z-index: 9996; width: 0; height: 0; pointer-events: none; }
+.rp-fusion-mat {
+    position: absolute; width: 48px; height: 66px;
+    border-radius: 4px; overflow: hidden;
+    border: 1px solid rgba(200, 140, 255, 0.85);
+    background: #1a1020;
+    box-shadow: 0 0 16px rgba(190, 110, 255, 0.8);
+}
+.rp-fusion-mat img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rp-galaxy {
+    position: fixed; z-index: 9996; border-radius: 50%;
+    pointer-events: none;
+    background: radial-gradient(circle at 50% 50%,
+        rgba(0,0,0,0.95) 0%, rgba(90,50,160,0.85) 45%,
+        rgba(255,215,90,0.35) 70%, rgba(0,0,0,0) 100%);
+    box-shadow: 0 0 44px 16px rgba(140, 80, 220, 0.5), inset 0 0 30px 10px rgba(255, 220, 120, 0.35);
+}
+.rp-pend {
+    position: fixed; z-index: 9996; width: 8px; height: 90px;
+    border-radius: 4px;
+    background: linear-gradient(#fff8d0, #ffd700);
+    box-shadow: 0 0 16px rgba(255, 215, 90, 0.7);
+    transform-origin: top center;
+    pointer-events: none;
+}
+.rp-pend::after {
+    content: '';
+    position: absolute; left: 50%; bottom: -14px;
+    width: 22px; height: 22px; margin-left: -11px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fffbe0, #ffcc33 60%, #a97a00 100%);
+    box-shadow: 0 0 18px rgba(255, 210, 80, 0.9);
+}
+.rp-link-arrow {
+    position: fixed; z-index: 9996; pointer-events: none;
+    color: #ff3b3b; font-size: 22px; line-height: 22px; text-align: center;
+    text-shadow: 0 0 12px #ff5a5a, 0 0 4px #ffffff;
+}
