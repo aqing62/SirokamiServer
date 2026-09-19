@@ -339,15 +339,14 @@ function initReplayViewer() {
             var cell = zoneEls[cellKey];
             var card = cell ? (field[controller] ? field[controller][loc + ':' + seq] : null) : null;
             setCellCard(cell, card, controller === 1 && !!card && !card.faceDown,
-                !!card && (loc === LOC.MZONE ? isDefense(card.pos) : (loc === LOC.SZONE && card.faceDown)));
+                !!card && loc === LOC.MZONE && isDefense(card.pos));   // 只有怪兽区守备横置
         }
         // 场地区：魔陷区的 seq=5 格（场地魔法）单独显示在怪兽行外轨
         if (loc === LOC.SZONE) {
             var fKey = controller + ':' + LOC.SZONE + ':5';
             var fCell = zoneEls[fKey];
             var fCard = field[controller] ? field[controller][LOC.SZONE + ':5'] : null;
-            setCellCard(fCell, fCard, controller === 1 && !!fCard && !fCard.faceDown,
-                !!fCard && fCard.faceDown);   // 场地魔法盖放也横置
+            setCellCard(fCell, fCard, controller === 1 && !!fCard && !fCard.faceDown, false);   // 场地/魔陷不倒不横置
         }
     }
 
