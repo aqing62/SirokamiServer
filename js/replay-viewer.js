@@ -926,11 +926,11 @@ function initReplayViewer() {
     }
 
     // 灵摆：在该玩家场地上方摆一次（左→右→回左），持续到连续特殊召唤结束
-    var pend = { active: false, ctl: -1, el: null, timer: 0 };
+    var pendFx = { active: false, ctl: -1, el: null, timer: 0 };
     function fxPendulum(ctl) {
         if (animSuppress) return;
         if (ctl === undefined) ctl = 0;
-        if (pend.active && pend.ctl === ctl) { pendExtend(); return; }   // 同一次连续召唤只触发一次
+        if (pendFx.active && pendFx.ctl === ctl) { pendExtend(); return; }   // 同一次连续召唤只触发一次
         pendClose();
         var pane = fieldEl.getBoundingClientRect();
         var x = pane.left + pane.width / 2;
@@ -958,24 +958,24 @@ function initReplayViewer() {
                 { transform: 'rotate(-28deg)', offset: 1 }
             ], { duration: 1250, easing: 'ease-in-out' });
         } catch (e) { /* ignore */ }
-        pend.active = true;
-        pend.ctl = ctl;
-        pend.el = wrap;
+        pendFx.active = true;
+        pendFx.ctl = ctl;
+        pendFx.el = wrap;
         pendExtend();
     }
     // 延续本次连续特殊召唤（重置兜底计时）
     function pendExtend() {
-        if (!pend.active) return;
-        clearTimeout(pend.timer);
-        pend.timer = setTimeout(function () { pendClose(); }, 2600);
+        if (!pendFx.active) return;
+        clearTimeout(pendFx.timer);
+        pendFx.timer = setTimeout(function () { pendClose(); }, 2600);
     }
     function pendClose() {
-        if (!pend.active) return;
-        clearTimeout(pend.timer);
-        var el = pend.el;
-        pend.active = false;
-        pend.ctl = -1;
-        pend.el = null;
+        if (!pendFx.active) return;
+        clearTimeout(pendFx.timer);
+        var el = pendFx.el;
+        pendFx.active = false;
+        pendFx.ctl = -1;
+        pendFx.el = null;
         if (el) {
             el.style.transition = 'opacity 0.3s ease';
             el.style.opacity = '0';
@@ -1583,7 +1583,7 @@ function initReplayViewer() {
         var n = m.name;
         var f = m.f || {};
         // 灵摆特效：连续特殊召唤结束后收尾（召唤/Move/填充消息视为延续）
-        if (pend.active) {
+        if (pendFx.active) {
             if (n === 'SpSummoning' || n === 'Summoning' || n === 'Move') {
                 pendExtend();
             } else if (VISIBLE_MSG[n]) {
@@ -1754,13 +1754,13 @@ function initReplayViewer() {
                         moveCard(prev, cur, code);                        // 宿主从额外卡组落地：把之前叠放的素材归到它头上，并播叠放动画
                         if (!prevOv && pPlain === LOC.EXTRA) {
                             var lk = mConC + ':' + mSeqP;
-                            var pend = pendingMats[lk];
+                            var pendMats = pendingMats[lk];
                             var landed = field[mConC] ? field[mConC][(cPlain || 0) + ':' + mSeqC] : null;
-                            if (pend && landed) {
-                                landed.mats = (landed.mats || 0) + pend.count;
+                            if (pendMats && landed) {
+                                landed.mats = (landed.mats || 0) + pendMats.count;
                                 var hostR = rectAt(mConC, cRawM, mSeqC);
                                 if (hostR) {
-                                    pend.rects.forEach(function (r, i) {
+                                    pendMats.rects.forEach(function (r, i) {
                                         setTimeout(function () { overlayStackFx(r, hostR, code); }, 60 + i * 70);
                                     });
                                 }
