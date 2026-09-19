@@ -73,6 +73,7 @@ function initReplayViewer() {
     var pendingMats = {};        // 额外卡组超量：召唤前先叠放的素材 "ctl:extraSeq" → {count, rects}
     var lastLand = null;         // 最近一次怪兽落地 {code, fromExtra, idx, ctl, seq, rawLoc}
     var pendingImpact = null;    // 攻击命中后等待"真正破坏"以同步爆炸+破碎 {code, rect, defCtl, done}
+    var lastPayLp = null;        // 最近一次支付 LP 的位置（避免 LpUpdate 重复飘字）
 
     // 卡池索引（卡名/卡片种类查询，可选加载 /api/cards）
     var cardNameMap = {};
@@ -1387,8 +1388,8 @@ function initReplayViewer() {
         setTimeout(function () { side.classList.remove('rp-hurt'); }, 620);
     }
 
-    // 伤害/恢复数字提示：-3000 红字上飘 / +N 绿字上飘
-    function dmgFloat(ctl, value, sign) {
+    // 伤害/恢复数字提示：-3000 红字上飘 / +N 绿字上飘（可指定颜色）
+    function dmgFloat(ctl, value, sign, colorOverride) {
         if (animSuppress) return;
         var side = fieldEl.querySelector(ctl === 1 ? '.rp-opp' : '.rp-self');
         if (!side) return;
@@ -1397,7 +1398,7 @@ function initReplayViewer() {
         var y = sr.top + sr.height * (ctl === 1 ? 0.45 : 0.55);
         var el = fxEl('rp-dmg-num', 0, 0, 0, 0);
         el.textContent = (sign === '+' ? '+' : '-') + value;
-        el.style.color = sign === '+' ? '#8dff9e' : '#ff5b6e';
+        el.style.color = colorOverride || (sign === '+' ? '#8dff9e' : '#ff5b6e');
         el.style.left = x + 'px';
         el.style.top = y + 'px';
         el.style.transform = 'translate(-50%,-50%)';
@@ -1797,6 +1798,33 @@ function initReplayViewer() {
                 log('💚 ' + playerName(rpl) + ' 恢复 ' + f.value + ' LP');
                 break;
             }
+            case 'PayLpCost': {
+                // 支付基本分（后端白名单不含金额 → 从原始 hex 解码：player(1B) + cost(4B LE)）
+                var plp = m.f && m.f.player !== undefined ? m.f.player : hexU8(m.hex, 1);
+                var cost = (m.f && typeof m.f.value === 'number') ? m.f.value : hexU32(m.hex, 2);
+                if (cost > 0) {
+                    lp[plp] = Math.max(0, (lp[plp] || 8000) - cost);
+                    renderPlayerHead(plp);
+                    dmgFloat(plp, cost, '-', '#ffb347');       // 橙色 = 支付
+                    lastPayLp = { player: plp, idx: idx };
+                    log('💳 ' + playerName(plp) + ' 支付 ' + cost + ' LP（LP ' + lp[plp] + '）', 'rp-log-damage');
+                }
+                break;
+            }
+            case 'LpUpdate': {
+                // 绝对 LP（权威）：直接校准，避免累计误差
+                var lup = f.player;
+                if (typeof f.lp === 'number' && (lup === 0 || lup === 1)) {
+                    var prevLp = lp[lup];
+                    lp[lup] = f.lp;
+                    renderPlayerHead(lup);
+                    var dlp = f.lp - prevLp;
+                    if (dlp !== 0 && !(lastPayLp && lastPayLp.player === lup && idx - lastPayLp.idx <= 3)) {
+                        dmgFloat(lup, Math.abs(dlp), dlp > 0 ? '+' : '-');
+                    }
+                }
+                break;
+            }
             case 'Win': {
                 var wpl = f.player;
                 log('🏆 ' + playerName(wpl) + ' 获胜！', 'rp-log-win');
@@ -1958,13 +1986,25 @@ function initReplayViewer() {
         return div.innerHTML;
     }
 
+    // ── 原始 payload hex 解码（用于后端白名单没提取的字段，如 PayLpCost 的金额）──
+    function hexU8(hex, off) {
+        if (!hex || hex.length < (off + 1) * 2) return 0;
+        return parseInt(hex.substr(off * 2, 2), 16);
+    }
+    function hexU32(hex, off) {
+        if (!hex || hex.length < (off + 4) * 2) return 0;
+        var b0 = hexU8(hex, off), b1 = hexU8(hex, off + 1), b2 = hexU8(hex, off + 2), b3 = hexU8(hex, off + 3);
+        return (b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)) >>> 0;
+    }
+
     // ── 播放推进 ──
     // 哪些消息算“可见步”：会写日志或改变场地。
     // UpdateData / UpdateCard / Select* / CardHint 等只是查询回声/等待输入，算填充消息。
     var VISIBLE_MSG = {
         Start: 1, Draw: 1, NewTurn: 1, NewPhase: 1, Move: 1, Attack: 1,
         Summoning: 1, SpSummoning: 1, Chaining: 1, ChainSolving: 1,
-        ChainSolved: 1, ChainEnd: 1, Damage: 1, Recover: 1, Win: 1, Hint: 1,
+        ChainSolved: 1, ChainEnd: 1, Damage: 1, Recover: 1, PayLpCost: 1,
+        Win: 1, Hint: 1,
     };
 
     function playNext() {
