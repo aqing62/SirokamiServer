@@ -660,19 +660,25 @@
 
 /* 卡片攻守数值角标 */
 .rp-stat {
-    position: absolute; right: 3px; bottom: 3px; z-index: 5;
-    background: rgba(0,0,0,0.78);
-    color: #f2f2f2;
-    border: 1px solid rgba(255,255,255,0.25);
-    border-radius: 4px;
-    padding: 1px 4px;
-    font-size: 10px; font-weight: 700; line-height: 1.25;
+    position: absolute; left: 50%; bottom: 5px; transform: translateX(-50%);
+    z-index: 5;
+    padding: 2px 12px;
+    border: none;
+    border-radius: 12px;
+    /* 黑底 + 边缘柔和过渡（径向渐变淡出）+ 背景模糊 */
+    background: radial-gradient(ellipse at center,
+        rgba(0, 0, 0, 0.88) 42%, rgba(0, 0, 0, 0.62) 68%, rgba(0, 0, 0, 0) 100%);
+    -webkit-backdrop-filter: blur(2px);
+    backdrop-filter: blur(2px);
+    color: #f6f6f6;
+    font-size: 11px; font-weight: 700; line-height: 1.3;
     white-space: nowrap;
     pointer-events: none;
     font-family: Consolas, monospace;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.95);
 }
-.rp-stat.atk-up { color: #ffd27a; border-color: rgba(255,200,90,0.55); }
-.rp-stat.def-pos { color: #9fd0ff; border-color: rgba(140,190,255,0.5); }
+.rp-stat.atk-up { color: #ffd27a; }
+.rp-stat.def-pos { color: #9fd0ff; }
 /* 连接标记箭头（表侧连接怪显示其指向） */
 .rp-lmark {
     position: absolute; z-index: 6; width: 0; height: 0;

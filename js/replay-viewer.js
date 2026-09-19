@@ -957,14 +957,34 @@ function initReplayViewer() {
         cell._fxHold = false;
         cell.style.opacity = '';
     }
+    // 现身：卡片由小变大（保留翻转/横置角度）
+    function fxRevealPop(cell, flip, def) {
+        if (!cell) return;
+        cell._fxHold = false;
+        cell.style.opacity = '';
+        var node = cell.querySelector('.rp-card');
+        if (!node) return;
+        var rot = '';
+        if (flip && def) rot = 'rotate(90deg) ';
+        else if (flip) rot = 'rotate(180deg) ';
+        else if (def) rot = 'rotate(-90deg) ';
+        var scaleEnd = def ? ' scale(0.68)' : '';
+        try {
+            node.animate([
+                { transform: rot + 'scale(0.15)', opacity: 0, offset: 0 },
+                { transform: rot + 'scale(1.12)' + scaleEnd, opacity: 1, offset: 0.68 },
+                { transform: rot + 'scale(1)' + scaleEnd, opacity: 1, offset: 1 }
+            ], { duration: 420, easing: 'cubic-bezier(.2,.8,.3,1)' });
+        } catch (e) { /* ignore */ }
+    }
 
-    // 连接：素材红色特效飞向召唤位置 → 到位后连接怪现身 + 六边形数码特效
-    function fxLink(target, srcRects, cellEl) {
+    // 连接：素材红色特效飞向召唤位置 → 到位后连接怪由小变大现身 + 六边形数码特效
+    function fxLink(target, srcRects, cellEl, flip, def) {
         fxOrbs(srcRects, target, '#ff3b3b', true);
         setTimeout(function () {
             if (animSuppress) { fxReleaseCell(cellEl); return; }
-            // 素材到位：卡片现身 + 数码特效
-            fxReleaseCell(cellEl);
+            // 素材到位：卡片由小变大现身 + 数码特效
+            fxRevealPop(cellEl, flip, def);
             hexRingFx(target, 130, 0, 760, 2.6, '#8ef0ff');
             hexRingFx(target, 100, 60, 820, 2.2, '#d8fbff');
             hexRingFx(target, 70, 120, 880, 1.8, '#7fe9ff');
@@ -1024,7 +1044,7 @@ function initReplayViewer() {
     }
 
     // 召唤演出总入口：按召唤种类播放（cellEl 用于"素材到位后卡片才现身"）
-    function summonShowFx(code, rect, cellEl) {
+    function summonShowFx(code, rect, cellEl, flip, def) {
         if (animSuppress || !rect || !rect.width) return;
         var type = summonTypeOf(code);
         if (!type) return;
@@ -1033,8 +1053,8 @@ function initReplayViewer() {
         var srcRects = mats.map(function (m) { return m.rect; }).filter(Boolean);
         if (!srcRects.length) srcRects = [rect];
         if (type === 'link') {
-            fxHoldCell(cellEl, 1200);        // 先隐藏连接怪
-            fxLink(target, srcRects, cellEl);  // 红色素材特效飞到位后再现身
+            fxHoldCell(cellEl, 1500);           // 兜底：确保仍处于隐藏
+            fxLink(target, srcRects, cellEl, flip, def);  // 红球飞到位 → 由小变大现身 + 六边形
             return;
         }
         if (type === 'xyz') fxFusionXyz(target, srcRects);
@@ -1704,6 +1724,11 @@ function initReplayViewer() {
                         // 记录最近一次怪兽落地（供 SpSummoning 判断召唤种类/是否来自额外卡组）
                         if (cPlain === LOC.MZONE) {
                             lastLand = { code: code, fromExtra: (pPlain === LOC.EXTRA), idx: idx, ctl: mConC, seq: mSeqC, rawLoc: cRawM };
+                            // 连接怪：落地瞬间就先隐藏（避免特效前闪一下），等素材红球飞到位再由小变大现身
+                            if (!animSuppress && pPlain === LOC.EXTRA && summonTypeOf(code) === 'link') {
+                                var linkCell = cellElFor(mConC, cRawM, mSeqC);
+                                if (linkCell) fxHoldCell(linkCell, 1800);
+                            }
                         }
                         // 素材进缓冲：场上/手牌/卡组 → 墓地（非战斗破坏）
                         if (!animSuppress && !inBattle && cPlain === LOC.GRAVE
@@ -1791,7 +1816,10 @@ function initReplayViewer() {
                     if ((extraType && lastLand.fromExtra) || st === 'pendulum') {
                         var sRect = rectAt(lastLand.ctl, lastLand.rawLoc, lastLand.seq);
                         var sCell = cellElFor(lastLand.ctl, lastLand.rawLoc, lastLand.seq);
-                        if (sRect) summonShowFx(f.code, sRect, sCell);
+                        var sCard = field[lastLand.ctl] ? field[lastLand.ctl][(lastLand.rawLoc & 0x7f) + ':' + lastLand.seq] : null;
+                        var sFlip = lastLand.ctl === 1 && !!sCard && !sCard.faceDown;
+                        var sDef = !!sCard && isDefense(sCard.pos);
+                        if (sRect) summonShowFx(f.code, sRect, sCell, sFlip, sDef);
                     }
                 }
                 break;
