@@ -925,7 +925,7 @@ function initReplayViewer() {
         }, 1020);
     }
 
-    // 灵摆：召唤前先摆一次（左→右→回左）→ 动画结束钟摆消失；怪兽照常立即上场（不隐藏）
+    // 灵摆：两条锁链分别吊着蓝水晶与红水晶，交错摇摆（反向、各摆一次，结束停在倾斜角度不回正）
     // batchOpen：本次灵摆召唤批次（整批只触发一次）；active：钟摆元素当前是否在画面上
     var pendFx = { batchOpen: false, active: false, ctl: -1, el: null, timer: 0 };
     var PEND_SWING_MS = 1250;
@@ -934,32 +934,44 @@ function initReplayViewer() {
         if (ctl === undefined) ctl = 0;
         pendFx.batchOpen = true;
         var pane = fieldEl.getBoundingClientRect();
-        var x = pane.left + pane.width / 2;
-        var H = 96;
-        var wrap = fxEl('rp-pend-wrap', 0, 0, x, ctl === 0 ? (pane.top + pane.height * 0.53) : (pane.top + pane.height * 0.47));
-        var line = document.createElement('div');
-        line.className = 'rp-pend' + (ctl === 0 ? '' : ' rp-pend-up');
-        line.style.left = '-4px';
-        line.style.top = (ctl === 0 ? 0 : -H) + 'px';
-        line.style.height = H + 'px';
-        line.style.transformOrigin = ctl === 0 ? '50% 0%' : '50% 100%';
-        wrap.appendChild(line);
-        try {
-            line.animate([
-                { transform: 'rotate(-28deg)', offset: 0 },
-                { transform: 'rotate(28deg)', offset: 0.5 },
-                { transform: 'rotate(-28deg)', offset: 1 }
-            ], { duration: PEND_SWING_MS, easing: 'ease-in-out' });
-        } catch (e) { /* ignore */ }
+        var cx = pane.left + pane.width / 2;
+        var pivotY = ctl === 0 ? (pane.top + pane.height * 0.53) : (pane.top + pane.height * 0.47);
+        var H = 104;
+        var wrap = fxEl('rp-pend-wrap' + (ctl === 0 ? '' : ' is-up'), 0, 0, cx, pivotY);
+        // 蓝水晶在左、红水晶在右；反向摆动（交错）
+        function arm(kind, offsetX, fromDeg, toDeg) {
+            var el = document.createElement('div');
+            el.className = 'rp-pend-arm ' + kind;
+            el.style.left = (offsetX - 3) + 'px';
+            el.style.top = (ctl === 0 ? 0 : -H) + 'px';
+            el.style.height = H + 'px';
+            el.style.transformOrigin = ctl === 0 ? '50% 0%' : '50% 100%';
+            var chain = document.createElement('div');
+            chain.className = 'rp-pend-chain';
+            var gem = document.createElement('div');
+            gem.className = 'rp-pend-crystal';
+            el.appendChild(chain);
+            el.appendChild(gem);
+            wrap.appendChild(el);
+            try {
+                el.animate([
+                    { transform: 'rotate(' + fromDeg + 'deg)', offset: 0 },
+                    { transform: 'rotate(' + ((fromDeg + toDeg) / 2 + (toDeg - fromDeg) * 0.15) + 'deg)', offset: 0.55 },
+                    { transform: 'rotate(' + toDeg + 'deg)', offset: 1 }
+                ], { duration: PEND_SWING_MS, easing: 'ease-in-out', fill: 'forwards' });   // 不回正
+            } catch (e) { /* ignore */ }
+        }
+        arm('is-blue', -78, -34, 30);
+        arm('is-red', 78, 32, -30);
         pendFx.active = true;
         pendFx.ctl = ctl;
         pendFx.el = wrap;
         pendExtend();
-        // 动画结束：钟摆随即消失
+        // 动画结束：保持倾斜姿态片刻后，整个特效消失
         setTimeout(function () {
             if (!pendFx.batchOpen) return;
-            pendHide();
-        }, PEND_SWING_MS + 10);
+            setTimeout(pendHide, 180);
+        }, PEND_SWING_MS);
     }
     // 兼容旧入口（若在 SpSummoning 才拿到种类）
     function fxPendulum(ctl) {
