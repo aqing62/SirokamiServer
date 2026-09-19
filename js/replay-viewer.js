@@ -1778,7 +1778,10 @@ function initReplayViewer() {
                             }
                         } else {
                             var dRect = rectAt(mConC, cRawM, mSeqC);
-                            if (dRect) {
+                            // 连接召唤：不播"卡图滑行"（否则会在演出前露出卡图），交给素材红球+数码特效
+                            var isLinkLand = (!prevOv && pPlain === LOC.EXTRA && cPlain === LOC.MZONE
+                                && summonTypeOf(code) === 'link');
+                            if (dRect && !isLinkLand) {
                                 flyGhost(code || 0, isFaceDown(cur.position) || cPlain === LOC.DECK || cPlain === LOC.EXTRA, animPreSrc, dRect,
                                     mConC === 1 && (cPlain === LOC.MZONE || cPlain === LOC.SZONE) && !isFaceDown(cur.position));
                                 if (cPlain === LOC.MZONE) {
