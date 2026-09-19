@@ -881,7 +881,8 @@ function initReplayViewer() {
         else if (type === 'pendulum') fxPendulum(target);
     }
 
-    // 移动动画：幽灵卡从原格滑到目标格（flip = 对手的卡需倒置显示）    function flyGhost(cardCode, down, s, d, flip) {
+    // 移动动画：幽灵卡从原格滑到目标格（flip = 对手的卡需倒置显示）
+    function flyGhost(cardCode, down, s, d, flip) {
         if (animSuppress || !s || !d || !s.width || !d.width) return;
         var g = fxEl('rp-fly' + (down || !cardCode ? ' rp-fly-down' : ''), s.width, s.height, s.left, s.top);
         if (!down && cardCode) {
