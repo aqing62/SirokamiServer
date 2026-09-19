@@ -477,24 +477,31 @@ function initReplayViewer() {
             }
             // 攻守角标 + 连接标记箭头（仅怪兽区；魔陷/场地区不显示攻守）
             var isMonsterStat = st && (st.type === undefined || (st.type & 0x1) !== 0);
-            if (withStat && st && isMonsterStat && (st.atk !== undefined || st.def !== undefined || st.link)) {
+            if (withStat && st && isMonsterStat) {
                 var badge = document.createElement('span');
                 var isLink = !!st.link;
-                var cur = isLink ? st.atk : st.atk;
+                var cur = st.atk;
                 var base = st.batk;
                 var txt;
                 if (isLink) {
                     txt = (cur !== undefined ? cur : '?') + ' / L' + st.link;
+                } else if (st.def !== undefined) {
+                    txt = (cur !== undefined ? cur : '?') + ' / ' + st.def;
+                } else if (cur !== undefined) {
+                    txt = String(cur);          // 守备力未知时只显示攻击力，不显示 "?"
                 } else {
-                    txt = (cur !== undefined ? cur : '?') + ' / ' + (st.def !== undefined ? st.def : '?');
+                    txt = '';
                 }
-                badge.className = 'rp-stat' + (d ? ' def-pos' : '')
-                    + ((base !== undefined && cur !== undefined && base !== cur) ? ' atk-up' : '');
-                badge.textContent = txt;
-                badge.title = (cardName(card.code) || card.code)
-                    + (isLink ? ('  攻击 ' + cur + '  连接 ' + st.link) : ('  攻击 ' + cur + '  守备 ' + st.def))
-                    + (base !== undefined ? ('  (基础 ' + base + '/' + (st.bdef !== undefined ? st.bdef : '?') + ')') : '');
-                cell.appendChild(badge);
+                if (txt) {
+                    badge.className = 'rp-stat' + (d ? ' def-pos' : '')
+                        + ((base !== undefined && cur !== undefined && base !== cur) ? ' atk-up' : '');
+                    badge.textContent = txt;
+                    badge.title = (cardName(card.code) || card.code)
+                        + (isLink ? ('  攻击 ' + cur + '  连接 ' + st.link)
+                            : ('  攻击 ' + cur + (st.def !== undefined ? '  守备 ' + st.def : '  守备 ?')))
+                        + (base !== undefined ? ('  (基础 ' + base + '/' + (st.bdef !== undefined ? st.bdef : '?') + ')') : '');
+                    cell.appendChild(badge);
+                }
                 if (isLink && st.marker) {
                     var marks = linkMarkerDirs(st.marker, f);
                     marks.forEach(function (dir) {
@@ -2404,6 +2411,20 @@ function initReplayViewer() {
         if (!s) return '';
         return [s.atk, s.def, s.link, s.marker, s.level, s.rank].join('|');
     }
+    // 字段级合并：query 可能只带部分字段（如只查攻击力），缺的字段保留旧值，避免守备力变 "?"
+    function mergeStat(prev, c) {
+        var out = {};
+        function pick(name) {
+            if (c[name] !== undefined) return c[name];
+            if (prev && prev[name] !== undefined) return prev[name];
+            return undefined;
+        }
+        ['atk', 'def', 'batk', 'bdef', 'level', 'rank', 'link', 'marker', 'type'].forEach(function (k) {
+            var v = pick(k);
+            if (v !== undefined) out[k] = v;
+        });
+        return out;
+    }
     // 解析 UpdateData 的 hex，缓存攻守等数据；返回是否有更新
     function ingestUpdateDataStats(m) {
         if (!m || !m.hex || m.hex.length < 6) return false;
@@ -2422,23 +2443,39 @@ function initReplayViewer() {
             if (!r || !r.length) break;
             var c = r.card;
             off += r.length;
-            if (c && c.code && (c.atk !== undefined || c.def !== undefined || c.batk !== undefined)) {
-                var rec = { atk: c.atk, def: c.def, batk: c.batk, bdef: c.bdef, level: c.level, rank: c.rank, link: c.link, marker: c.marker, type: c.type };
+            if (c && c.code && (c.atk !== undefined || c.def !== undefined || c.batk !== undefined
+                || c.link !== undefined || c.level !== undefined)) {
                 var key = player + ':' + locPlain + ':' + (c.sequence !== undefined ? c.sequence : slot);
-                if (statSig(cardStatByKey[key]) !== statSig(rec)) changed = true;
-                cardStatByKey[key] = rec;
-                if (statSig(cardStatByCode[c.code]) !== statSig(rec)) changed = true;
-                cardStatByCode[c.code] = rec;
+                var mergedKey = mergeStat(cardStatByKey[key], c);
+                if (statSig(cardStatByKey[key]) !== statSig(mergedKey)) changed = true;
+                cardStatByKey[key] = mergedKey;
+                var mergedCode = mergeStat(cardStatByCode[c.code], c);
+                if (statSig(cardStatByCode[c.code]) !== statSig(mergedCode)) changed = true;
+                cardStatByCode[c.code] = mergedCode;
             }
             slot++;
         }
         return changed;
     }
-    // 取某格/某卡的攻守：优先实时 query 数据，其次卡池基础值
+    // 取某格/某卡的攻守：优先实时 query 数据（字段级合并），其次卡池基础值
+    // 连接怪没有守备力：改用连接值显示（卡池里 level=连接值、def=箭头掩码）
     function statFor(cellKey, code) {
         var s = cardStatByKey[cellKey] || cardStatByCode[code] || null;
-        if (s) return s;
         var m = cardMetaMap[String(code)];
+        var isLinkMon = !!(s && s.link) || !!(m && (m.cat || '').indexOf('连接') >= 0);
+        if (isLinkMon) {
+            var out = s ? {
+                atk: s.atk, batk: s.batk, level: s.level, rank: s.rank,
+                link: s.link, marker: s.marker, type: s.type,
+            } : {};
+            if (out.link === undefined && m && m.level) out.link = m.level;                 // 连接值
+            if (out.marker === undefined && m && typeof m.def === 'number') out.marker = m.def;  // 箭头掩码
+            if (out.atk === undefined && m) out.atk = m.atk;
+            if (out.batk === undefined) out.batk = out.atk;
+            out.def = undefined;   // 连接怪不显示守备力
+            return out;
+        }
+        if (s) return s;
         if (m && (m.atk !== undefined || m.def !== undefined)) {
             return { atk: m.atk, def: m.def, batk: m.atk, bdef: m.def, level: m.level };
         }
