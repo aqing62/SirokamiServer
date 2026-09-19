@@ -925,25 +925,62 @@ function initReplayViewer() {
         }, 1020);
     }
 
-    // 灵摆：钟摆晃动
-    function fxPendulum(target) {
-        var w = fxEl('rp-pend', 8, 90, target.x - 4, target.y - 90);
+    // 灵摆：在该玩家场地上方摆一次（左→右→回左），持续到连续特殊召唤结束
+    var pend = { active: false, ctl: -1, el: null, timer: 0 };
+    function fxPendulum(ctl) {
+        if (animSuppress) return;
+        if (ctl === undefined) ctl = 0;
+        if (pend.active && pend.ctl === ctl) { pendExtend(); return; }   // 同一次连续召唤只触发一次
+        pendClose();
+        var pane = fieldEl.getBoundingClientRect();
+        var x = pane.left + pane.width / 2;
+        var H = 96;
+        var wrap = fxEl('rp-pend-wrap', 0, 0, x, ctl === 0 ? (pane.top + pane.height * 0.53) : (pane.top + pane.height * 0.47));
+        var line = document.createElement('div');
+        line.className = 'rp-pend' + (ctl === 0 ? '' : ' rp-pend-up');
+        if (ctl === 0) {
+            line.style.left = '-4px';
+            line.style.top = '0px';
+            line.style.height = H + 'px';
+            line.style.transformOrigin = '50% 0%';
+        } else {
+            line.style.left = '-4px';
+            line.style.top = (-H) + 'px';
+            line.style.height = H + 'px';
+            line.style.transformOrigin = '50% 100%';
+        }
+        wrap.appendChild(line);
+        // 只摆一次：左 → 右 → 回左
         try {
-            var a = w.animate([
-                { transform: 'rotate(28deg)', opacity: 0, offset: 0 },
-                { transform: 'rotate(-26deg)', opacity: 1, offset: 0.28 },
-                { transform: 'rotate(22deg)', opacity: 1, offset: 0.52 },
-                { transform: 'rotate(-16deg)', opacity: 1, offset: 0.74 },
-                { transform: 'rotate(0deg)', opacity: 0, offset: 1 }
-            ], { duration: 1000, easing: 'ease-in-out' });
-            a.onfinish = function () { if (w.parentNode) w.parentNode.removeChild(w); };
-        } catch (e) { }
-        setTimeout(function () { if (w.parentNode) w.parentNode.removeChild(w); }, 1150);
-        setTimeout(function () {
-            if (animSuppress) return;
-            var fl = fxEl('rp-fx-flash', 120, 120, target.x - 60, target.y - 60);
-            setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 90);
-        }, 900);
+            line.animate([
+                { transform: 'rotate(-28deg)', offset: 0 },
+                { transform: 'rotate(28deg)', offset: 0.5 },
+                { transform: 'rotate(-28deg)', offset: 1 }
+            ], { duration: 1250, easing: 'ease-in-out' });
+        } catch (e) { /* ignore */ }
+        pend.active = true;
+        pend.ctl = ctl;
+        pend.el = wrap;
+        pendExtend();
+    }
+    // 延续本次连续特殊召唤（重置兜底计时）
+    function pendExtend() {
+        if (!pend.active) return;
+        clearTimeout(pend.timer);
+        pend.timer = setTimeout(function () { pendClose(); }, 2600);
+    }
+    function pendClose() {
+        if (!pend.active) return;
+        clearTimeout(pend.timer);
+        var el = pend.el;
+        pend.active = false;
+        pend.ctl = -1;
+        pend.el = null;
+        if (el) {
+            el.style.transition = 'opacity 0.3s ease';
+            el.style.opacity = '0';
+            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 360);
+        }
     }
 
     // 召唤演出：临时隐藏卡片，等特效到位后再现身
@@ -1045,7 +1082,7 @@ function initReplayViewer() {
     }
 
     // 召唤演出总入口：按召唤种类播放（cellEl 用于"素材到位后卡片才现身"）
-    function summonShowFx(code, rect, cellEl, flip, def) {
+    function summonShowFx(code, rect, cellEl, flip, def, ctlOf) {
         if (animSuppress || !rect || !rect.width) return;
         var type = summonTypeOf(code);
         if (!type) return;
@@ -1061,7 +1098,7 @@ function initReplayViewer() {
         if (type === 'xyz') fxFusionXyz(target, srcRects);
         else if (type === 'synchro') fxSynchro(target, cardLevel(code));
         else if (type === 'fusion') fxFusion(target);
-        else if (type === 'pendulum') fxPendulum(target);
+        else if (type === 'pendulum') fxPendulum(ctlOf);
     }
 
     // 移动动画：幽灵卡从原格滑到目标格（flip = 对手的卡需倒置显示）
@@ -1545,6 +1582,14 @@ function initReplayViewer() {
     function handleMessage(m) {
         var n = m.name;
         var f = m.f || {};
+        // 灵摆特效：连续特殊召唤结束后收尾（召唤/Move/填充消息视为延续）
+        if (pend.active) {
+            if (n === 'SpSummoning' || n === 'Summoning' || n === 'Move') {
+                pendExtend();
+            } else if (VISIBLE_MSG[n]) {
+                pendClose();
+            }
+        }
         switch (n) {
             case 'Start': {
                 idx = 0;
@@ -1823,7 +1868,7 @@ function initReplayViewer() {
                         var sCard = field[lastLand.ctl] ? field[lastLand.ctl][(lastLand.rawLoc & 0x7f) + ':' + lastLand.seq] : null;
                         var sFlip = lastLand.ctl === 1 && !!sCard && !sCard.faceDown;
                         var sDef = !!sCard && isDefense(sCard.pos);
-                        if (sRect) summonShowFx(f.code, sRect, sCell, sFlip, sDef);
+                        if (sRect) summonShowFx(f.code, sRect, sCell, sFlip, sDef, lastLand.ctl);
                     }
                 }
                 break;

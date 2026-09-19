@@ -695,3 +695,7 @@
 .rp-lmark.tr { border-left-color: #ff4d4d; right: -2px; top: -2px; transform: rotate(45deg); }
 .rp-lmark.bl { border-right-color: #ff4d4d; left: -2px; bottom: -2px; transform: rotate(45deg); }
 .rp-lmark.br { border-left-color: #ff4d4d; right: -2px; bottom: -2px; transform: rotate(-45deg); }
+
+/* 灵摆特效：包装层定位 + 朝上摆动时球在上端 */
+.rp-pend-wrap { position: fixed; z-index: 9996; pointer-events: none; }
+.rp-pend.rp-pend-up::after { top: -14px; bottom: auto; }
