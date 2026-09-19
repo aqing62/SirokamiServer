@@ -657,3 +657,35 @@
     box-shadow: 0 0 44px 16px rgba(140, 240, 255, 0.45);
     transition: opacity 0.3s ease;
 }
+
+/* 卡片攻守数值角标 */
+.rp-stat {
+    position: absolute; right: 3px; bottom: 3px; z-index: 5;
+    background: rgba(0,0,0,0.78);
+    color: #f2f2f2;
+    border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 4px;
+    padding: 1px 4px;
+    font-size: 10px; font-weight: 700; line-height: 1.25;
+    white-space: nowrap;
+    pointer-events: none;
+    font-family: Consolas, monospace;
+}
+.rp-stat.atk-up { color: #ffd27a; border-color: rgba(255,200,90,0.55); }
+.rp-stat.def-pos { color: #9fd0ff; border-color: rgba(140,190,255,0.5); }
+/* 连接标记箭头（表侧连接怪显示其指向） */
+.rp-lmark {
+    position: absolute; z-index: 6; width: 0; height: 0;
+    pointer-events: none;
+    border: 6px solid transparent;
+    opacity: 0.92;
+    filter: drop-shadow(0 0 4px rgba(255,60,60,0.8));
+}
+.rp-lmark.top { border-bottom-color: #ff4d4d; top: -3px; left: 50%; margin-left: -6px; }
+.rp-lmark.bottom { border-top-color: #ff4d4d; bottom: -3px; left: 50%; margin-left: -6px; }
+.rp-lmark.left { border-right-color: #ff4d4d; left: -3px; top: 50%; margin-top: -6px; }
+.rp-lmark.right { border-left-color: #ff4d4d; right: -3px; top: 50%; margin-top: -6px; }
+.rp-lmark.tl { border-right-color: #ff4d4d; left: -2px; top: -2px; transform: rotate(-45deg); }
+.rp-lmark.tr { border-left-color: #ff4d4d; right: -2px; top: -2px; transform: rotate(45deg); }
+.rp-lmark.bl { border-right-color: #ff4d4d; left: -2px; bottom: -2px; transform: rotate(45deg); }
+.rp-lmark.br { border-left-color: #ff4d4d; right: -2px; bottom: -2px; transform: rotate(-45deg); }
