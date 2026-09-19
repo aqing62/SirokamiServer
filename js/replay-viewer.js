@@ -302,9 +302,9 @@ function initReplayViewer() {
         var L = content([[0, 5], [1, 6]]);
         var R = content([[0, 6], [1, 5]]);
         setCellCard(zoneEls['emz:L'], L ? L.card : null, L ? L.flip : false, L ? isDefense(L.card.pos) : false,
-            L ? (L.ctl + ':' + LOC.MZONE + ':5') : null);
+            L ? (L.ctl + ':' + LOC.MZONE + ':5') : null, true);
         setCellCard(zoneEls['emz:R'], R ? R.card : null, R ? R.flip : false, R ? isDefense(R.card.pos) : false,
-            R ? (R.ctl + ':' + LOC.MZONE + ':5') : null);
+            R ? (R.ctl + ':' + LOC.MZONE + ':5') : null, true);
     }
 
     // 侧边牌堆格子：墓地/除外 = 计数徽标 + 最顶卡（里侧则盖牌）；卡组 = 计数 + 卡背
@@ -376,14 +376,14 @@ function initReplayViewer() {
             var card = cell ? (field[controller] ? field[controller][loc + ':' + seq] : null) : null;
             setCellCard(cell, card, controller === 1 && !!card && !card.faceDown,
                 !!card && loc === LOC.MZONE && isDefense(card.pos),   // 只有怪兽区守备横置
-                cellKey);
+                cellKey, loc === LOC.MZONE);                          // 只有怪兽区显示攻守
         }
         // 场地区：魔陷区的 seq=5 格（场地魔法）单独显示在怪兽行外轨
         if (loc === LOC.SZONE) {
             var fKey = controller + ':' + LOC.SZONE + ':5';
             var fCell = zoneEls[fKey];
             var fCard = field[controller] ? field[controller][LOC.SZONE + ':5'] : null;
-            setCellCard(fCell, fCard, controller === 1 && !!fCard && !fCard.faceDown, false, fKey);   // 场地/魔陷不倒不横置
+            setCellCard(fCell, fCard, controller === 1 && !!fCard && !fCard.faceDown, false, fKey, false);   // 场地/魔陷不倒不横置、不显示攻守
         }
     }
 
@@ -455,7 +455,7 @@ function initReplayViewer() {
 
     // 单元格精确更新：同卡同状态/同朝向/同素材数/同攻守数据不动 DOM；否则重建并回收旧图
     // statKey: "ctl:loc:seq"，用于查该格实时攻守数据
-    function setCellCard(cell, card, flip, def, statKey) {
+    function setCellCard(cell, card, flip, def, statKey, withStat) {
         if (!cell) return;
         if (card) {
             var f = !!flip, d = !!def;
@@ -475,8 +475,9 @@ function initReplayViewer() {
                 mb.title = '超量素材 ' + mats;
                 cell.appendChild(mb);
             }
-            // 攻守角标 + 连接标记箭头
-            if (st && (st.atk !== undefined || st.def !== undefined || st.link)) {
+            // 攻守角标 + 连接标记箭头（仅怪兽区；魔陷/场地区不显示攻守）
+            var isMonsterStat = st && (st.type === undefined || (st.type & 0x1) !== 0);
+            if (withStat && st && isMonsterStat && (st.atk !== undefined || st.def !== undefined || st.link)) {
                 var badge = document.createElement('span');
                 var isLink = !!st.link;
                 var cur = isLink ? st.atk : st.atk;
