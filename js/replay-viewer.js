@@ -2460,7 +2460,10 @@ function initReplayViewer() {
     // 取某格/某卡的攻守：优先实时 query 数据（字段级合并），其次卡池基础值
     // 连接怪没有守备力：改用连接值显示（卡池里 level=连接值、def=箭头掩码）
     function statFor(cellKey, code) {
-        var s = cardStatByKey[cellKey] || cardStatByCode[code] || null;
+        var sKey = cardStatByKey[cellKey] || null;
+        var sCode = cardStatByCode[code] || null;
+        // 以"卡号记录"为底，用"本格记录"覆盖已知字段（两处互补，避免残缺记录丢字段）
+        var s = (sKey || sCode) ? mergeStat(sCode, sKey || {}) : null;
         var m = cardMetaMap[String(code)];
         var isLinkMon = !!(s && s.link) || !!(m && (m.cat || '').indexOf('连接') >= 0);
         if (isLinkMon) {
