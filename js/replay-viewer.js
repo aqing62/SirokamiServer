@@ -267,8 +267,8 @@ function initReplayViewer() {
         }
         var L = content([[0, 5], [1, 6]]);
         var R = content([[0, 6], [1, 5]]);
-        setCellCard(zoneEls['emz:L'], L ? L.card : null, L ? L.flip : false);
-        setCellCard(zoneEls['emz:R'], R ? R.card : null, R ? R.flip : false);
+        setCellCard(zoneEls['emz:L'], L ? L.card : null, L ? L.flip : false, L ? isDefense(L.card.pos) : false);
+        setCellCard(zoneEls['emz:R'], R ? R.card : null, R ? R.flip : false, R ? isDefense(R.card.pos) : false);
     }
 
     // 侧边牌堆格子：墓地/除外 = 计数徽标 + 最顶卡（里侧则盖牌）；卡组 = 计数 + 卡背
@@ -338,14 +338,16 @@ function initReplayViewer() {
             var cellKey = controller + ':' + loc + ':' + seq;
             var cell = zoneEls[cellKey];
             var card = cell ? (field[controller] ? field[controller][loc + ':' + seq] : null) : null;
-            setCellCard(cell, card, controller === 1 && !!card && !card.faceDown);
+            setCellCard(cell, card, controller === 1 && !!card && !card.faceDown,
+                !!card && (loc === LOC.MZONE ? isDefense(card.pos) : (loc === LOC.SZONE && card.faceDown)));
         }
         // 场地区：魔陷区的 seq=5 格（场地魔法）单独显示在怪兽行外轨
         if (loc === LOC.SZONE) {
             var fKey = controller + ':' + LOC.SZONE + ':5';
             var fCell = zoneEls[fKey];
             var fCard = field[controller] ? field[controller][LOC.SZONE + ':5'] : null;
-            setCellCard(fCell, fCard, controller === 1 && !!fCard && !fCard.faceDown);
+            setCellCard(fCell, fCard, controller === 1 && !!fCard && !fCard.faceDown,
+                !!fCard && fCard.faceDown);   // 场地魔法盖放也横置
         }
     }
 
@@ -399,30 +401,36 @@ function initReplayViewer() {
 
     // 生成卡牌外层节点（正面图从池中取；盖牌/卡背无 img 节点）
     // flip=true：正面卡上下倒置（用于区分对手的卡；手牌不做）
-    function cardNode(card, flip) {
+    // def=true：守备表示 → 横置
+    function cardNode(card, flip, def) {
         var w = document.createElement('div');
         w.className = 'rp-card';
         if (!card) { w.className += ' rp-card-empty'; return w; }
-        if (card.faceDown) { w.className += ' rp-card-down'; w.title = '盖牌'; return w; }
+        if (card.faceDown) { w.className += ' rp-card-down'; w.title = '盖牌'; }
+        else {
+            var nm = cardName(card.code);
+            w.title = escapeHtml(nm || card.code);
+            w.appendChild(takeImg(card.code));
+        }
+        if (def) w.className += ' rp-def';
         if (flip) w.className += ' rp-flip';
-        var nm = cardName(card.code);
-        w.title = escapeHtml(nm || card.code);
-        w.appendChild(takeImg(card.code));
         return w;
     }
 
-    // 单元格精确更新：同卡同状态不动 DOM；换卡/翻面/翻转才重建并回收旧图
-    function setCellCard(cell, card, flip) {
+    // 单元格精确更新：同卡同状态/同朝向不动 DOM；换卡、翻面、转守备才重建并回收旧图
+    function setCellCard(cell, card, flip, def) {
         if (!cell) return;
         if (card) {
-            var f = !!flip;
-            if (cell._code === card.code && cell._down === !!card.faceDown && cell._flip === f && cell.querySelector('.rp-card')) return;
+            var f = !!flip, d = !!def;
+            if (cell._code === card.code && cell._down === !!card.faceDown && cell._flip === f
+                && cell._def === d && cell.querySelector('.rp-card')) return;
             giveImgsIn(cell);
             cell.innerHTML = '';
-            cell.appendChild(cardNode(card, f));
+            cell.appendChild(cardNode(card, f, d));
             cell._code = card.code;
             cell._down = !!card.faceDown;
             cell._flip = f;
+            cell._def = d;
             if (!card.faceDown) warmCardImg(card.code);
         } else {
             if (cell._code !== undefined || cell.innerHTML !== '') {
@@ -431,6 +439,7 @@ function initReplayViewer() {
                 cell._code = null;
                 cell._down = false;
                 cell._flip = false;
+                cell._def = false;
             }
         }
     }
@@ -1355,6 +1364,12 @@ function initReplayViewer() {
     function isFaceDown(pos) {
         if (pos === undefined) return false;
         return (pos & 0x8) !== 0 || (pos & 0x2) !== 0; // FACEDOWN_DEFENSE=8 FACEDOWN_ATTACK=2
+    }
+
+    // 守备表示：表侧守备 0x4 / 里侧守备 0x8
+    function isDefense(pos) {
+        if (pos === undefined) return false;
+        return (pos & 0x4) !== 0 || (pos & 0x8) !== 0;
     }
 
     function escapeHtml(text) {

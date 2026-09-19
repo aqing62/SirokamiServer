@@ -327,8 +327,11 @@
     background: #1a1a1a;
 }
 .rp-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
-/* 对手(上方)的正面卡上下倒置以区分归属（共用额外区里也能分清）；手牌不倒 */
+/* 守备表示：横置（缩放以适配竖格，不越界） */
+.rp-card.rp-def { transform: rotate(90deg) scale(0.68); }
 .rp-card.rp-flip { transform: rotate(180deg); }
+/* 对手的守备怪：倒置 + 横置 */
+.rp-card.rp-flip.rp-def { transform: rotate(270deg) scale(0.68); }
 .rp-card-down {
     /* 卡背用 cover2.jpg（加载失败时退回红条纹渐变） */
     background-image: url('../cover2.jpg'),
