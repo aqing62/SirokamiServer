@@ -84,9 +84,110 @@
     flex-wrap: wrap;
     gap: 8px;
     justify-content: center;
+    align-content: flex-start;
 }
+/* ── 工具条：搜索 + 统计 ── */
+.cd-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+    margin-bottom: 4px;
+    background: linear-gradient(180deg, #141414 70%, rgba(20, 20, 20, 0));
+    backdrop-filter: blur(3px);
+}
+.cd-search {
+    flex: 1 1 auto;
+    min-width: 0;
+    background: #0a0a0c;
+    border: 1px solid rgba(216, 30, 68, 0.7);
+    color: var(--light-gold);
+    padding: 8px 12px;
+    font-size: 13px;
+    outline: none;
+}
+.cd-search::placeholder { color: rgba(240, 217, 140, 0.45); }
+.cd-search:focus { border-color: var(--light-gold); box-shadow: 0 0 8px rgba(216, 30, 68, 0.45); }
+.cd-info {
+    flex: 0 0 auto;
+    color: rgba(240, 217, 140, 0.75);
+    font-size: 12px;
+    white-space: nowrap;
+}
+/* ── 字母快速定位条 ── */
+.cd-index {
+    position: sticky;
+    top: 46px;
+    z-index: 6;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 0 8px;
+    background: linear-gradient(180deg, #141414 72%, rgba(20, 20, 20, 0));
+}
+.cd-index-label {
+    color: rgba(240, 217, 140, 0.55);
+    font-size: 11px;
+    margin-right: 2px;
+}
+.cd-index-chip {
+    width: 24px;
+    height: 24px;
+    line-height: 1;
+    background: #0a0a0c;
+    color: var(--light-gold);
+    border: 1px solid rgba(216, 30, 68, 0.7);
+    font-size: 12px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.18s;
+    padding: 0;
+}
+.cd-index-chip:hover { background: rgba(216, 30, 68, 0.22); border-color: var(--light-gold); }
+.cd-index-chip.active { background: var(--red); color: #fff; border-color: var(--light-gold); }
+/* ── 字母分组标题 ── */
+.chronicle-letter-row {
+    flex-basis: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 12px 0 4px;
+    scroll-margin-top: 84px;
+}
+.chronicle-letter {
+    flex: 0 0 auto;
+    min-width: 24px;
+    text-align: center;
+    padding: 2px 8px;
+    background: #0a0a0c;
+    color: var(--light-gold);
+    border: 1px solid var(--red);
+    font-size: 13px;
+    font-weight: bold;
+    letter-spacing: 1px;
+    line-height: 1.4;
+    box-shadow: 0 0 8px rgba(216, 30, 68, 0.35);
+}
+.chronicle-letter-count {
+    flex: 0 0 auto;
+    color: rgba(240, 217, 140, 0.6);
+    font-size: 11px;
+}
+.chronicle-letter-line {
+    flex: 1 1 auto;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(216, 30, 68, 0.75), rgba(216, 30, 68, 0));
+}
+/* ── 卡组按钮：主体名醒目 + 投稿前缀弱化 + 张数角标 ── */
 .chronicle-deck-btn {
-    padding: 8px 16px;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 8px 14px;
     background: #0a0a0c;                 /* 黑底 */
     color: var(--light-gold);            /* 黄字 */
     border: 1px solid var(--red);        /* 红线 */
@@ -94,42 +195,30 @@
     font-size: 13px;
     font-weight: bold;
     cursor: pointer;
-    transition: 0.25s;
+    transition: 0.2s;
+}
+.chronicle-deck-btn .cd-prefix {
+    color: rgba(240, 217, 140, 0.5);
+    font-size: 11px;
+    font-weight: normal;
+}
+.chronicle-deck-btn .cd-core { color: var(--light-gold); letter-spacing: 0.5px; }
+.chronicle-deck-btn .cd-counts {
+    color: rgba(240, 217, 140, 0.5);
+    font-size: 10px;
+    font-weight: normal;
+    border-left: 1px solid rgba(216, 30, 68, 0.5);
+    padding-left: 6px;
 }
 .chronicle-deck-btn:hover {
     background: rgba(216, 30, 68, 0.18);
-    box-shadow: 0 0 8px rgba(216, 30, 68, 0.5);
+    border-color: var(--light-gold);
+    box-shadow: 0 0 10px rgba(216, 30, 68, 0.6);
 }
+.chronicle-deck-btn:hover .cd-core { color: #fff; }
 @media (max-width: 768px) {
     .chronicle-modal {
         width: 95vw;
         padding: 16px;
     }
-}
-
-/* 首字母分组标识（编年史卡组池） */
-.chronicle-letter-row {
-    flex-basis: 100%;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin: 10px 0 2px;
-}
-.chronicle-letter {
-    flex: 0 0 auto;
-    min-width: 22px;
-    text-align: center;
-    padding: 1px 7px;
-    background: #0a0a0c;
-    color: var(--light-gold);
-    border: 1px solid var(--red);
-    font-size: 12px;
-    font-weight: bold;
-    letter-spacing: 1px;
-    line-height: 1.5;
-}
-.chronicle-letter-line {
-    flex: 1 1 auto;
-    height: 1px;
-    background: linear-gradient(90deg, rgba(216, 30, 68, 0.75), rgba(216, 30, 68, 0));
 }

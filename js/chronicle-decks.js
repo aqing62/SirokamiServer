@@ -1,13 +1,15 @@
 /**
  * 白神服Sirokami — 编年史模式卡组列表
- * 主页「编年史模式」Tab 内「卡组列表」按钮 → 弹出卡组池列表弹窗 → 点击卡组名
+ * 主页「编年史模式」Tab 内「卡组列表」按钮 → 弹出卡组池弹窗 → 点击卡组名
  * 复用全局卡组查看器弹窗（DeckViewer.showDeck）查看卡组详情
  * 数据源: decks/chronicle_decks.json（由 decks/update_chronicle_decks.ps1 从 chronicle/*.ydk 生成）
+ * 排序/分组: 按首字母 A→Z；「XX投稿-卡组名」取横线后第一个字（例：命运博士投稿-光道 → G）
  */
 (function () {
     'use strict';
 
     var loaded = false;
+    var allDecks = [];
 
     function escapeHtml(str) {
         var div = document.createElement('div');
@@ -16,7 +18,6 @@
     }
 
     // ── 排序：按名称首字母 A→Z ──
-    // 形如「投稿者-卡组名」时取 "-" 之后的第一个字（例：命运博士投稿-光道 → G）
     // 常见首字直接查表；其余用中文拼音排序规则比较推定首字母
     var PINYIN_MAP = {
         '白': 'B', '爆': 'B', '饼': 'B', '不': 'B', '超': 'C', '点': 'D', '电': 'D', '二': 'E',
@@ -82,6 +83,148 @@
         }
         return String(a.name).localeCompare(String(b.name));
     }
+    // 名称拆分：「投稿者-卡组名」→ 前缀 + 主体（主体更醒目，便于识别）
+    function splitName(name) {
+        var s = String(name == null ? '' : name);
+        var m = s.match(/^(.*[-－—–_])([\s\S]+)$/);
+        if (m) return { prefix: m[1], core: m[2].trim() };
+        return { prefix: '', core: s.trim() };
+    }
+    function deckCounts(d) {
+        var m = (d.main || []).length, e = (d.extra || []).length, s = (d.side || []).length;
+        if (!m && !e) return '';
+        return m + '主' + (e ? '·' + e + '额' : '') + (s ? '·' + s + '副' : '');
+    }
+
+    function makeDeckButton(d, key) {
+        var parts = splitName(d.name);
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chronicle-deck-btn';
+        if (parts.prefix) {
+            var pre = document.createElement('span');
+            pre.className = 'cd-prefix';
+            pre.textContent = parts.prefix;
+            btn.appendChild(pre);
+        }
+        var core = document.createElement('span');
+        core.className = 'cd-core';
+        core.textContent = parts.core;
+        btn.appendChild(core);
+        var counts = deckCounts(d);
+        if (counts) {
+            var cb = document.createElement('span');
+            cb.className = 'cd-counts';
+            cb.textContent = counts;
+            btn.appendChild(cb);
+        }
+        btn.title = '首字母 ' + key + (parts.prefix ? '（' + parts.prefix + '）' : '') + ' · 点击查看卡组详情';
+        btn.onclick = function () {
+            closeModal();
+            if (window.DeckViewer && window.DeckViewer.showDeck) {
+                window.DeckViewer.showDeck(
+                    { main: d.main || [], extra: d.extra || [], side: d.side || [] },
+                    d.name
+                );
+            }
+        };
+        return btn;
+    }
+
+    function buildList(listEl, decks) {
+        listEl.innerHTML = '';
+        if (!decks.length) {
+            listEl.innerHTML = '<div class="loading-hint">没有匹配的卡组</div>';
+            return;
+        }
+        var groups = {}, order = [];
+        decks.forEach(function (d) {
+            var k = initialKey(d.name);
+            if (!groups[k]) { groups[k] = []; order.push(k); }
+            groups[k].push(d);
+        });
+        order.forEach(function (k) {
+            var row = document.createElement('div');
+            row.className = 'chronicle-letter-row';
+            row.setAttribute('data-letter', k);
+            var chip = document.createElement('span');
+            chip.className = 'chronicle-letter';
+            chip.textContent = k;
+            var cnt = document.createElement('span');
+            cnt.className = 'chronicle-letter-count';
+            cnt.textContent = groups[k].length + ' 套';
+            var line = document.createElement('span');
+            line.className = 'chronicle-letter-line';
+            row.appendChild(chip);
+            row.appendChild(cnt);
+            row.appendChild(line);
+            listEl.appendChild(row);
+            groups[k].forEach(function (d) { listEl.appendChild(makeDeckButton(d, k)); });
+        });
+    }
+
+    function buildIndex(indexEl, listEl, decks) {
+        indexEl.innerHTML = '';
+        var seen = [];
+        decks.forEach(function (d) {
+            var k = initialKey(d.name);
+            if (seen.indexOf(k) < 0) seen.push(k);
+        });
+        if (seen.length < 2) return;
+        var label = document.createElement('span');
+        label.className = 'cd-index-label';
+        label.textContent = '快速定位';
+        indexEl.appendChild(label);
+        seen.forEach(function (k) {
+            var chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'cd-index-chip';
+            chip.textContent = k;
+            chip.onclick = function () {
+                var target = listEl.querySelector('.chronicle-letter-row[data-letter="' + k + '"]');
+                if (!target) return;
+                target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                Array.prototype.forEach.call(indexEl.querySelectorAll('.cd-index-chip'), function (c) {
+                    c.classList.remove('active');
+                });
+                chip.classList.add('active');
+            };
+            indexEl.appendChild(chip);
+        });
+    }
+
+    function renderModal(body, decks) {
+        body.innerHTML = '';
+        var bar = document.createElement('div');
+        bar.className = 'cd-toolbar';
+        var search = document.createElement('input');
+        search.type = 'search';
+        search.className = 'cd-search';
+        search.placeholder = '搜索卡组名 / 投稿者…';
+        var info = document.createElement('span');
+        info.className = 'cd-info';
+        bar.appendChild(search);
+        bar.appendChild(info);
+        var index = document.createElement('div');
+        index.className = 'cd-index';
+        var list = document.createElement('div');
+        list.className = 'chronicle-modal-list';
+        body.appendChild(bar);
+        body.appendChild(index);
+        body.appendChild(list);
+
+        function apply(filter) {
+            var f = String(filter || '').trim().toLowerCase();
+            var subset = f ? decks.filter(function (d) {
+                return String(d.name).toLowerCase().indexOf(f) >= 0;
+            }) : decks;
+            info.textContent = '共 ' + decks.length + ' 套' + (f ? (' · 匹配 ' + subset.length + ' 套') : ' · 按首字母排序');
+            buildList(list, subset);
+            buildIndex(index, list, subset);
+        }
+        search.addEventListener('input', function () { apply(search.value); });
+        apply('');
+    }
 
     function openModal() {
         document.getElementById('chronicleOverlay').classList.add('show');
@@ -110,43 +253,8 @@
                     body.innerHTML = '<div class="loading-hint">暂无编年史卡组</div>';
                     return;
                 }
-                decks = decks.slice().sort(compareDecks);   // 按首字母 A→Z 排序
-                var wrap = document.createElement('div');
-                wrap.className = 'chronicle-modal-list';
-                var lastKey = null;
-                decks.forEach(function (d) {
-                    var key = initialKey(d.name);
-                    // 首字母分组标识（便于玩家查找）
-                    if (key !== lastKey) {
-                        var row = document.createElement('div');
-                        row.className = 'chronicle-letter-row';
-                        var lb = document.createElement('span');
-                        lb.className = 'chronicle-letter';
-                        lb.textContent = key;
-                        var ln = document.createElement('span');
-                        ln.className = 'chronicle-letter-line';
-                        row.appendChild(lb);
-                        row.appendChild(ln);
-                        wrap.appendChild(row);
-                        lastKey = key;
-                    }
-                    var btn = document.createElement('button');
-                    btn.className = 'chronicle-deck-btn';
-                    btn.textContent = d.name;
-                    btn.title = '首字母 ' + key + ' · 点击查看卡组详情';
-                    btn.onclick = function () {
-                        closeModal();
-                        if (window.DeckViewer && window.DeckViewer.showDeck) {
-                            window.DeckViewer.showDeck(
-                                { main: d.main || [], extra: d.extra || [], side: d.side || [] },
-                                d.name
-                            );
-                        }
-                    };
-                    wrap.appendChild(btn);
-                });
-                body.innerHTML = '';
-                body.appendChild(wrap);
+                allDecks = decks.slice().sort(compareDecks);   // 按首字母 A→Z 排序
+                renderModal(body, allDecks);
             })
             .catch(function (e) {
                 body.innerHTML = '<div class="loading-hint">⚠️ 加载卡组列表失败: ' +
