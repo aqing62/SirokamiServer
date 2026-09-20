@@ -501,7 +501,7 @@ tr.cut-line td { padding: 0; border: none; background: transparent; }
 
 .bracket-layer {
     position: relative;
-    width: 232px;
+    width: 262px;
     flex-shrink: 0;
 }
 .bracket-layer-title {
@@ -550,8 +550,17 @@ tr.cut-line td { padding: 0; border: none; background: transparent; }
 .bracket-layer:last-child .bracket-slot::before,
 .bracket-layer:last-child .bracket-slot::after { display: none; }
 
-/* 决赛冠军标记 */
-.bracket-layer:last-child .match-player.winner .player-name::after { content: ' 👑'; }
+/* 决赛冠军标记（挂在卡片上，避免被名字省略号截断） */
+.bracket-layer:last-child .match-card.finished::before {
+    content: '👑';
+    position: absolute;
+    left: 6px;
+    top: 2px;
+    font-size: 12px;
+    line-height: 1;
+    filter: drop-shadow(0 0 4px rgba(255, 210, 63, 0.8));
+}
+.bracket-layer:last-child .match-card.finished { border-left-color: #ffd23f; box-shadow: 0 0 16px rgba(255, 210, 63, 0.25); }
 
 .bracket-subtitle {
     display: flex;
