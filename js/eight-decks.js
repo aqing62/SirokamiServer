@@ -206,24 +206,32 @@ function renderRankingTable(participants) {
     });
 
     let rows = '';
+    const CUT = 8;   // 晋级线：前 8 名
     sorted.forEach((p, i) => {
         const s = p.score || {};
         const rank = i + 1;
-        const cls = rank <= 8 ? 'rank-top' : '';
-        const quitMark = p.quit ? ' ⚠️' : '';
+        const qualified = rank <= CUT;
+        const cls = [qualified ? 'qualified' : '', p.quit ? 'quit' : ''].filter(Boolean).join(' ');
+        const rankInner = rank <= 3
+            ? `<span class="rank-pill top${rank}">${['🥇','🥈','🥉'][rank-1]}</span>`
+            : `<span class="rank-pill">${rank}</span>`;
         rows += `<tr class="${cls}">
-            <td class="rank-col">${rank <= 3 ? ['🥇','🥈','🥉'][rank-1] : rank}</td>
-            <td>${escapeHtml(p.name || '?')}${quitMark}</td>
-            <td>${s.score || 0}</td>
-            <td>${s.win || 0}</td>
-            <td>${s.draw || 0}</td>
-            <td>${s.lose || 0}</td>
-            <td>${s.bye || 0}</td>
+            <td class="rank-col">${rankInner}</td>
+            <td class="name-col">${escapeHtml(p.name || '?')}${p.quit ? '<span class="quit-tag">退赛</span>' : ''}</td>
+            <td class="points-cell">${s.score || 0}</td>
+            <td class="win-cell">${s.win || 0}</td>
+            <td class="draw-cell">${s.draw || 0}</td>
+            <td class="lose-cell">${s.lose || 0}</td>
+            <td class="bye-cell">${s.bye || 0}</td>
         </tr>`;
+        // 晋级线（参与者多于晋级名额时在临界处插一条分隔）
+        if (rank === CUT && sorted.length > CUT) {
+            rows += `<tr class="cut-line"><td colspan="7"><div class="cut-line-bar"><span>晋级线 · 前 ${CUT} 名</span></div></td></tr>`;
+        }
     });
 
     return `<div class="ranking-section">
-        <h3 class="section-title">🏆 参赛者排名</h3>
+        <h3 class="section-title">🏆 参赛者排名 <span class="section-sub">${sorted.length} 人</span></h3>
         <div class="ranking-wrap">
             <table class="ranking-table">
                 <thead><tr>
@@ -252,17 +260,22 @@ function renderSwissRounds(matches, participants) {
     const sortedRounds = [...rounds.entries()].sort((a, b) => a[0] - b[0]);
     const maxRound = sortedRounds.length > 0 ? sortedRounds[sortedRounds.length - 1][0] : 1;
 
-    // 轮次选择器
+    // 轮次选择：chip 按钮（原生 select 保留隐藏，仅用于逻辑）
     let opts = '';
+    let chips = '';
     for (let r = 1; r <= maxRound; r++) {
         const sel = r === maxRound ? ' selected' : '';
         opts += `<option value="${r}"${sel}>第 ${r} 轮</option>`;
+        const cnt = (rounds.get(r) || []).length;
+        chips += `<button type="button" class="round-chip${r === maxRound ? ' is-active' : ''}" data-round="${r}">`
+            + `第 ${r} 轮<span class="chip-meta">${cnt} 场</span></button>`;
     }
 
     let html = `<div class="swiss-section">
-        <h3 class="section-title">⚔️ 对局</h3>
+        <h3 class="section-title">⚔️ 对局 <span class="section-sub">共 ${maxRound} 轮 · ${matches.length} 场</span></h3>
         <div class="round-selector">
             <select id="swissRoundSelect" onchange="switchSwissRound()">${opts}</select>
+            ${chips}
         </div>`;
 
     // 每轮一个容器，默认显示最后一轮
@@ -439,6 +452,7 @@ function renderMatchCard(m, nameMap) {
     const p2Name = nameMap.get(m.player2Id) || `选手#${m.player2Id}`;
     const isFinished = m.status === 'Finished';
     const isLive = m.status === 'InProgress';
+    const isPending = !isFinished && !isLive;
     const p1IsWinner = isFinished && m.winnerId === m.player1Id;
 
     // 胜者放右边
@@ -447,18 +461,20 @@ function renderMatchCard(m, nameMap) {
     const leftScore = p1IsWinner ? (m.player2Score ?? '-') : (m.player1Score ?? '-');
     const rightScore = p1IsWinner ? (m.player1Score ?? '-') : (m.player2Score ?? '-');
 
-    let statusIcon = '';
-    if (isLive) statusIcon = ' 🔴';
-    else if (m.status === 'Pending') statusIcon = ' ⏳';
+    let statusTag = '';
+    if (isLive) statusTag = '<span class="match-status live">● 进行中</span>';
+    else if (isPending) statusTag = '<span class="match-status pending">待开始</span>';
 
-    return `<div class="match-card${isFinished ? ' finished' : ''}${isLive ? ' live' : ''}">
-        <div class="match-player left">
+    const showScore = isFinished || isLive;
+    return `<div class="match-card${isFinished ? ' finished' : ''}${isLive ? ' live' : ''}${isPending ? ' pending' : ''}">
+        ${statusTag}
+        <div class="match-player left${isFinished ? ' loser' : ''}">
             <span class="player-name">${escapeHtml(leftName)}</span>
-            <span class="player-score">${isFinished || isLive ? leftScore : ''}</span>
+            <span class="player-score">${showScore ? leftScore : ''}</span>
         </div>
-        <div class="match-vs">VS${statusIcon}</div>
+        <div class="match-vs">VS</div>
         <div class="match-player right${isFinished ? ' winner' : ''}">
-            <span class="player-score">${isFinished || isLive ? rightScore : ''}</span>
+            <span class="player-score">${showScore ? rightScore : ''}</span>
             <span class="player-name">${escapeHtml(rightName)}</span>
         </div>
     </div>`;
@@ -470,11 +486,26 @@ function renderMatchCard(m, nameMap) {
 function switchSwissRound() {
     const sel = document.getElementById('swissRoundSelect');
     if (!sel) return;
-    const r = sel.value;
+    switchSwissRoundTo(sel.value);
+}
+
+function switchSwissRoundTo(r) {
+    const sel = document.getElementById('swissRoundSelect');
+    if (sel) sel.value = String(r);
     document.querySelectorAll('.round-group[data-round]').forEach(g => {
-        g.style.display = g.dataset.round === r ? '' : 'none';
+        g.style.display = g.dataset.round === String(r) ? '' : 'none';
+    });
+    document.querySelectorAll('.round-chip').forEach(c => {
+        c.classList.toggle('is-active', c.dataset.round === String(r));
     });
 }
+
+// 轮次 chip 点击（事件委托，渲染后即生效）
+document.addEventListener('click', function (e) {
+    const chip = e.target.closest ? e.target.closest('.round-chip') : null;
+    if (!chip) return;
+    switchSwissRoundTo(chip.dataset.round);
+});
 
 function buildNameMap(participants) {
     const map = new Map();
