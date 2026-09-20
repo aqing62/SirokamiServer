@@ -47,14 +47,31 @@ function calcDeckScoreEight(main, extra, side) {
 }
 
 // ── 比赛数据 ────────────────────────────────────────────
-let tournamentData = null;  // Tabulator API 返回的完整数据
+// 两个赛事槽位：swiss=瑞士轮（左），elim=淘汰赛（右）
+const TOURNEY_SLOTS = [
+    { key: 'swiss', label: '🇨🇭 瑞士轮' },
+    { key: 'elim', label: '🏆 淘汰赛' },
+];
+let activeSlot = 'swiss';
+const slotData = {};        // key → Tabulator 数据
+const slotFetchedAt = {};   // key → 时间戳
 let pollTimer = null;
 
 
 function initEightDecksModule() {
-    // 启动轮询
+    // 启动轮询（只刷新当前显示的赛事）
     fetchTournamentData();
-    pollTimer = setInterval(fetchTournamentData, POLL_INTERVAL);
+    pollTimer = setInterval(function () { fetchTournamentData(); }, POLL_INTERVAL);
+    window.addEventListener('resize', moveTourneyThumb);
+
+    // 顶部滑块切换赛事
+    const sw = document.getElementById('tourneySwitch');
+    if (sw) {
+        sw.querySelectorAll('.tourney-switch-btn').forEach(btn => {
+            btn.onclick = function () { switchTourneySlot(btn.dataset.slot); };
+        });
+        moveTourneyThumb();
+    }
 
     // 右上角按钮 → 打开历届卡组 modal
     document.getElementById('oldDecksTrigger').onclick = openOldDecksModal;
@@ -79,9 +96,42 @@ function initEightDecksModule() {
 //  比赛数据：获取 & 渲染
 // ================================================================
 
-async function fetchTournamentData() {
+// 切换赛事槽位（滑块）
+function switchTourneySlot(slot) {
+    if (!slot || slot === activeSlot) return;
+    activeSlot = slot;
+    const sw = document.getElementById('tourneySwitch');
+    if (sw) {
+        sw.querySelectorAll('.tourney-switch-btn').forEach(b => {
+            b.classList.toggle('is-active', b.dataset.slot === slot);
+        });
+        moveTourneyThumb();
+    }
+    // 先用手上的缓存立即渲染，再后台刷新
+    if (slotData[slot]) {
+        renderTournamentView(slotData[slot]);
+    } else {
+        const main = document.getElementById('tournamentMain');
+        if (main) main.innerHTML = '<div class="loading-hint">加载比赛数据中...</div>';
+    }
+    fetchTournamentData(true);
+}
+
+// 滑块指示条跟随
+function moveTourneyThumb() {
+    const sw = document.getElementById('tourneySwitch');
+    const thumb = document.getElementById('tourneyThumb');
+    if (!sw || !thumb) return;
+    const btn = sw.querySelector('.tourney-switch-btn.is-active');
+    if (!btn) return;
+    thumb.style.width = btn.offsetWidth + 'px';
+    thumb.style.transform = 'translateX(' + btn.offsetLeft + 'px)';
+}
+
+async function fetchTournamentData(force) {
+    const slot = activeSlot;
     try {
-        const resp = await fetch('/api/tournament');
+        const resp = await fetch('/api/tournament?slot=' + encodeURIComponent(slot) + '&t=' + Date.now());
         if (!resp.ok) {
             const err = await resp.json().catch(() => ({}));
             throw new Error(err.error || `HTTP ${resp.status}`);
@@ -89,17 +139,18 @@ async function fetchTournamentData() {
         const wrapper = await resp.json();
         // 兼容两种格式: { data: {...} } 或直接返回数据
         const data = wrapper.data || wrapper;
-        // 仅数据变化时重新渲染
         const newJson = JSON.stringify(data);
-        const oldJson = JSON.stringify(tournamentData);
-        if (newJson !== oldJson) {
-            tournamentData = data;
+        const oldJson = JSON.stringify(slotData[slot]);
+        slotData[slot] = data;
+        slotFetchedAt[slot] = Date.now();
+        // 仅当仍在查看该槽位且数据变化时重绘
+        if (slot === activeSlot && (force || newJson !== oldJson)) {
             renderTournamentView(data);
         }
     } catch (e) {
         console.error('获取比赛数据失败：', e);
         const main = document.getElementById('tournamentMain');
-        if (!tournamentData) {
+        if (slot === activeSlot && !slotData[slot] && main) {
             main.innerHTML = `<div class="loading-hint">⚠️ 加载比赛数据失败: ${escapeHtml(String(e.message || e))}</div>`;
         }
     }

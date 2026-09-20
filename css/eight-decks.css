@@ -856,3 +856,49 @@
     .player-score { font-size: 14px; }
     .player-name { max-width: 60px; font-size: 11px; }
 }
+
+/* ── 比赛相关：赛事切换滑块（左=瑞士轮 / 右=淘汰赛）── */
+.tourney-switch {
+    position: relative;
+    display: inline-flex;
+    align-items: stretch;
+    gap: 0;
+    margin: 4px 0 16px;
+    padding: 4px;
+    background: #0a0a0c;
+    border: 1px solid var(--red, #D81E44);
+    border-radius: 0;                       /* 直角风格 */
+    box-shadow: 0 0 12px rgba(216, 30, 68, 0.25);
+    user-select: none;
+}
+.tourney-switch-thumb {
+    position: absolute;
+    top: 4px;
+    left: 0;
+    height: calc(100% - 8px);
+    background: linear-gradient(135deg, var(--red, #D81E44), var(--dark-red, #8f0d17));
+    box-shadow: 0 0 12px rgba(216, 30, 68, 0.55);
+    transition: transform 0.28s cubic-bezier(.4, .1, .2, 1), width 0.28s cubic-bezier(.4, .1, .2, 1);
+    pointer-events: none;
+    z-index: 0;
+}
+.tourney-switch-btn {
+    position: relative;
+    z-index: 1;
+    background: transparent;
+    border: none;
+    color: rgba(240, 217, 140, 0.7);
+    font-size: 14px;
+    font-weight: bold;
+    padding: 8px 22px;
+    cursor: pointer;
+    transition: color 0.2s;
+    font-family: inherit;
+}
+.tourney-switch-btn:hover { color: var(--light-gold, #F0D98C); }
+.tourney-switch-btn.is-active { color: #fff; text-shadow: 0 0 8px rgba(255, 255, 255, 0.4); }
+
+@media (max-width: 768px) {
+    .tourney-switch { width: 100%; }
+    .tourney-switch-btn { flex: 1 1 0; padding: 10px 8px; font-size: 13px; }
+}

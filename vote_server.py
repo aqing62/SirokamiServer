@@ -32,7 +32,13 @@ THUMB_WIDTH = 200
 THUMB_QUALITY = 72
 
 # ── 比赛排表代理配置 ──────────────────────────────────────
-TOURNAMENT_ID = "159"  # 比赛ID，每次新比赛改这里
+TOURNAMENT_ID = "159"  # 默认比赛ID（淘汰赛/当前赛事），每次新比赛改这里
+# 「比赛相关」板块展示的两场比赛：左=瑞士轮，右=淘汰赛
+# 前端通过 /api/tournament?slot=swiss|elim 取用；新比赛时改这里即可
+TOURNAMENT_SLOTS = {
+    "swiss": "151",   # 瑞士轮
+    "elim": "159",    # 淘汰赛（单淘/双淘）
+}
 TABULATOR_API_URL = "https://api-tabulator.moecube.com:444/api/tournament"
 TABULATOR_API_KEY = "MRAUXnLph1YP2sVeC9fQr7MKSK9KvbmoKrPchtED2YjKuVe5Q2x1zv32HrRxjfiC"
 TOURNAMENT_CACHE_TTL = 15  # 缓存秒数
@@ -447,15 +453,17 @@ def refresh_scores_cache():
     logger.info(f"分数缓存已刷新: {len(scores)} 张, alias {len(aliases)} 条, 同名补充 {filled} 张")
 
 
-def _get_tournament_data() -> dict:
-    """获取比赛数据 (带内存缓存)。"""
+def _get_tournament_data(tid: str | None = None) -> dict:
+    """获取比赛数据 (带内存缓存，按比赛ID分别缓存)。"""
     global _tournament_cache, _tournament_cache_time
+    tournament_id = str(tid or TOURNAMENT_ID)
     now = time.time()
-    if (_tournament_cache is not None
-            and (now - _tournament_cache_time) < TOURNAMENT_CACHE_TTL):
-        return _tournament_cache
+    cached = _tournament_cache.get(tournament_id) if isinstance(_tournament_cache, dict) else None
+    cached_at = _tournament_cache_time.get(tournament_id, 0) if isinstance(_tournament_cache_time, dict) else 0
+    if cached is not None and (now - cached_at) < TOURNAMENT_CACHE_TTL:
+        return cached
 
-    url = f"{TABULATOR_API_URL}/{TOURNAMENT_ID}"
+    url = f"{TABULATOR_API_URL}/{tournament_id}"
     req = urllib.request.Request(url)
     req.add_header("Authorization", "Bearer " + TABULATOR_API_KEY)
 
@@ -467,9 +475,13 @@ def _get_tournament_data() -> dict:
         with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
             raw = resp.read()
             data = json.loads(raw)
-            _tournament_cache = data
-            _tournament_cache_time = now
-            logger.info(f"比赛数据已刷新 (ID={TOURNAMENT_ID})")
+            if not isinstance(_tournament_cache, dict):
+                _tournament_cache = {}
+            if not isinstance(_tournament_cache_time, dict):
+                _tournament_cache_time = {}
+            _tournament_cache[tournament_id] = data
+            _tournament_cache_time[tournament_id] = now
+            logger.info(f"比赛数据已刷新 (ID={tournament_id})")
             return data
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="replace")
@@ -791,12 +803,36 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(_cards_json)
 
         elif path == "/api/tournament":
-            try:
-                data = _get_tournament_data()
-                self._json_response(data)
-            except Exception as e:
-                logger.error(f"获取比赛数据失败: {e}")
-                self._json_response({"error": str(e)}, status=502)
+            # 支持 ?slot=swiss|elim（配置内映射）或 ?id=NNN（直接指定），不带参数=默认赛事
+            qs = self.path.split("?", 1)[1] if "?" in self.path else ""
+            qargs = {}
+            for pair in qs.split("&"):
+                if not pair:
+                    continue
+                k, _, v = pair.partition("=")
+                qargs[unquote(k)] = unquote(v)
+            slot = (qargs.get("slot") or "").strip().lower()
+            raw_id = (qargs.get("id") or "").strip()
+            tid = None
+            err = None
+            if slot:
+                tid = TOURNAMENT_SLOTS.get(slot)
+                if not tid:
+                    err = f"未知赛事槽位: {slot}"
+            elif raw_id:
+                if not raw_id.isdigit() or len(raw_id) > 10:
+                    err = "比赛ID格式不正确"
+                else:
+                    tid = raw_id
+            if err:
+                self._json_response({"error": err}, status=400)
+            else:
+                try:
+                    data = _get_tournament_data(tid)
+                    self._json_response(data)
+                except Exception as e:
+                    logger.error(f"获取比赛数据失败: {e}")
+                    self._json_response({"error": str(e)}, status=502)
         elif path == "/api/liverooms":
             try:
                 data = _srvpro_fetch("/api/getrooms", {
