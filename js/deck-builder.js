@@ -128,6 +128,7 @@
         renderZone('main');
         renderZone('extra');
         renderZone('side');
+        updateHighScoreUI();   // 卡组变化时同步"高分卡"按钮文案/数量
         var scoreEl = $('dbScore');
         if (!scoreMap) {
             scoreEl.textContent = '总分：…/100';
@@ -147,7 +148,7 @@
         var zone = zones[zoneKey];
         zone.el.innerHTML = zone.list.length
             ? zone.list.map(function (id, i) {
-                return '<div class="db-card-slot" data-zone="' + zoneKey + '" data-index="' + i
+                return '<div class="db-card-slot' + highScoreClassOf(id) + '" data-zone="' + zoneKey + '" data-index="' + i
                     + '" data-id="' + id + '" title="点击查看卡牌详情">'
                     + '<div class="db-slot-score">' + scoreBadgeText(id) + '</div>'
                     + cardImgHtml(id, 'db-card-img')
@@ -155,6 +156,46 @@
             }).join('')
             : '<div class="db-zone-empty">空</div>';
         zone.countEl.textContent = zone.list.length;
+    }
+
+    // ── 查询高分卡：高亮卡组内 8 分及以上的卡 ──
+    var HIGH_SCORE_MIN = 8;
+    var highScoreOn = false;
+    function highScoreClassOf(id) {
+        if (!highScoreOn) return '';
+        var sc = cardScoreOf(id);
+        return (sc && !sc.forbidden && sc.score >= HIGH_SCORE_MIN) ? ' db-hs' : '';
+    }
+    function highScoreCount() {
+        var n = 0;
+        ['main', 'extra', 'side'].forEach(function (k) {
+            zones[k].list.forEach(function (id) {
+                var sc = cardScoreOf(id);
+                if (sc && !sc.forbidden && sc.score >= HIGH_SCORE_MIN) n++;
+            });
+        });
+        return n;
+    }
+    function updateHighScoreUI() {
+        var btn = $('dbHighScore');
+        if (!btn) return;
+        btn.classList.toggle('db-btn-on', highScoreOn);
+        btn.textContent = highScoreOn
+            ? ('🔍 高分卡 ×' + highScoreCount() + '（点击取消）')
+            : '🔍 查询高分卡';
+    }
+    function refreshHighScore() {
+        ['main', 'extra', 'side'].forEach(function (k) { renderZone(k); });
+        updateHighScoreUI();
+        if (highScoreOn) {
+            var n = highScoreCount();
+            toast(n ? ('已高亮 ' + n + ' 张 ' + HIGH_SCORE_MIN + ' 分及以上的卡')
+                : ('卡组内没有 ' + HIGH_SCORE_MIN + ' 分及以上的卡'));
+        }
+    }
+    function toggleHighScore() {
+        highScoreOn = !highScoreOn;
+        refreshHighScore();
     }
 
     // 卡组内点卡 → 查看该卡详细信息（DIY 卡 / 官方卡均可）
@@ -1166,6 +1207,8 @@
         $('dbImport').addEventListener('click', importDeck);
         $('dbCopy').addEventListener('click', copyDeckCode);
         $('dbDownload').addEventListener('click', downloadYdk);
+        var hsBtn = $('dbHighScore');
+        if (hsBtn) hsBtn.addEventListener('click', toggleHighScore);
         $('dbClear').addEventListener('click', function () {
             var all = zones.main.list.length + zones.extra.list.length + zones.side.list.length;
             if (!all) { toast('卡组已是空的'); return; }

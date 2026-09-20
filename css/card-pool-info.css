@@ -831,7 +831,7 @@
   border-radius: 0 4px 0 0;
   pointer-events: none;
 }
-/* 右上角 × ：移除这张卡（常显，悬停更亮） */
+/* 右上角 × ：移除这张卡（鼠标移上去才显示） */
 .db-remove {
   position: absolute;
   top: 0; right: 0;
@@ -841,7 +841,7 @@
   line-height: 1;
   padding: 3px 6px;
   border-radius: 0 0 0 4px;
-  opacity: 0.55;
+  opacity: 0;
   cursor: pointer;
   z-index: 2;
   transition: opacity 0.15s, background 0.15s, transform 0.15s;
@@ -852,6 +852,31 @@
   opacity: 1;
   transform: scale(1.15);
   box-shadow: 0 0 8px rgba(255, 42, 82, 0.8);
+}
+/* 「查询高分卡」高亮：8 分及以上的卡 */
+.db-btn.db-btn-on {
+  background: var(--red, #D81E44) !important;
+  color: #fff !important;
+  border-color: var(--light-gold, #F0D98C) !important;
+}
+.db-card-slot.db-hs {
+  border-color: #ffd23f;
+  box-shadow: 0 0 0 2px rgba(255, 210, 63, 0.85), 0 0 14px rgba(255, 210, 63, 0.6);
+  animation: dbHsPulse 1.4s ease-in-out infinite;
+}
+.db-card-slot.db-hs::after {
+  content: '★';
+  position: absolute;
+  left: 2px; top: 1px;
+  color: #ffd23f;
+  font-size: 12px;
+  line-height: 1;
+  text-shadow: 0 0 6px rgba(0, 0, 0, 0.9);
+  pointer-events: none;
+}
+@keyframes dbHsPulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255, 210, 63, 0.85), 0 0 12px rgba(255, 210, 63, 0.5); }
+  50% { box-shadow: 0 0 0 3px rgba(255, 210, 63, 1), 0 0 20px rgba(255, 210, 63, 0.85); }
 }
 
 /* 右栏：搜卡 */
