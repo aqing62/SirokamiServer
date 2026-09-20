@@ -224,6 +224,14 @@
     font-size: 13px;
 }
 .ranking-table tbody tr { height: var(--rk-row-h); }
+/* 强制行高（名次徽章较高，需固定高度才能精确显示 8 行） */
+.ranking-table tbody td {
+    height: var(--rk-row-h);
+    box-sizing: border-box;
+    padding-top: 0;
+    padding-bottom: 0;
+    vertical-align: middle;
+}
 .ranking-table thead th {
     height: var(--rk-head-h);
     box-sizing: border-box;
@@ -619,7 +627,7 @@ tr.cut-line td { padding: 0; border: none; background: transparent; height: 30px
 /* 响应式 */
 @media (max-width: 768px) {
     .ranking-table { font-size: 12px; }
-    .ranking-wrap { --rk-head-h: 36px; --rk-row-h: 33px; }
+    .ranking-wrap { --rk-head-h: 36px; --rk-row-h: 34px; }
     .ranking-table td, .ranking-table thead th { padding: 7px 5px; }
     .ranking-table .name-col { max-width: 130px; padding-left: 8px; }
     .points-cell { font-size: 13px; }
