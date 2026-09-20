@@ -812,7 +812,7 @@
   aspect-ratio: 5 / 7;
   width: 100%;
   min-width: 0;
-  cursor: pointer;
+  cursor: zoom-in;              /* 点卡牌 = 查看详情 */
   border-radius: 3px;
   overflow: hidden;
   border: 1px solid rgba(255,255,255,0.12);
@@ -831,19 +831,28 @@
   border-radius: 0 4px 0 0;
   pointer-events: none;
 }
+/* 右上角 × ：移除这张卡（常显，悬停更亮） */
 .db-remove {
   position: absolute;
   top: 0; right: 0;
-  background: rgba(216, 30, 68, 0.9);
+  background: rgba(216, 30, 68, 0.85);
   color: #fff;
-  font-size: 12px;
+  font-size: 13px;
   line-height: 1;
-  padding: 2px 5px;
+  padding: 3px 6px;
   border-radius: 0 0 0 4px;
-  opacity: 0;
-  transition: opacity 0.15s;
+  opacity: 0.55;
+  cursor: pointer;
+  z-index: 2;
+  transition: opacity 0.15s, background 0.15s, transform 0.15s;
 }
 .db-card-slot:hover .db-remove { opacity: 1; }
+.db-remove:hover {
+  background: #ff2a52;
+  opacity: 1;
+  transform: scale(1.15);
+  box-shadow: 0 0 8px rgba(255, 42, 82, 0.8);
+}
 
 /* 右栏：搜卡 */
 .db-search-panel { }

@@ -148,13 +148,50 @@
         zone.el.innerHTML = zone.list.length
             ? zone.list.map(function (id, i) {
                 return '<div class="db-card-slot" data-zone="' + zoneKey + '" data-index="' + i
-                    + '" data-id="' + id + '" title="点击移除">'
+                    + '" data-id="' + id + '" title="点击查看卡牌详情">'
                     + '<div class="db-slot-score">' + scoreBadgeText(id) + '</div>'
                     + cardImgHtml(id, 'db-card-img')
-                    + '<span class="db-remove">×</span></div>';
+                    + '<span class="db-remove" title="移除这张卡">×</span></div>';
             }).join('')
             : '<div class="db-zone-empty">空</div>';
         zone.countEl.textContent = zone.list.length;
+    }
+
+    // 卡组内点卡 → 查看该卡详细信息（DIY 卡 / 官方卡均可）
+    function showDetailForDeckCard(id) {
+        var cid = parseInt(id, 10);
+        if (!cid) return;
+        // 1) DIY 卡（/api/cards 索引）
+        loadDiyData().then(function () {
+            if (diyIndex && diyIndex.get(cid)) {
+                showDetailForDiyCard(diyIndex.get(cid));
+                return;
+            }
+            // 2) 当前官方搜索结果里已有
+            var o = officialResults.find(function (x) { return x.id === cid; });
+            if (o) { showDetailForOfficial(o); return; }
+            // 3) 直接用官方卡接口补全
+            fetch('/api/cards?id=' + cid + '&t=' + Date.now())
+                .then(function (r) { return r.ok ? r.json() : []; })
+                .then(function (list) {
+                    var hit = (list || []).find(function (x) { return parseInt(x.id, 10) === cid; }) || (list || [])[0];
+                    if (hit && window.DeckViewer && window.DeckViewer.officialCardFields) {
+                        var f = {};
+                        try { f = window.DeckViewer.officialCardFields(hit) || {}; } catch (e) { f = {}; }
+                        showDetailForOfficial({
+                            id: cid,
+                            name: hit.name || ('#' + cid),
+                            fullType: f.fullType || '',
+                            raceAttr: f.raceAttr || '',
+                            atkDef: f.atkDef || '',
+                            desc: f.desc || '',
+                        });
+                    } else {
+                        gridTipEl.textContent = '未找到 #' + cid + ' 的卡牌信息';
+                    }
+                })
+                .catch(function () { gridTipEl.textContent = '卡牌信息查询失败'; });
+        });
     }
 
     function scoreBadgeText(id) {
@@ -1135,14 +1172,20 @@
             if (confirm('确认清空当前卡组？')) clearAll();
         });
 
-        // 卡组区点击移除
+        // 卡组区：点卡牌 → 查看详情；点右上角 × → 移除
         ['main', 'extra', 'side'].forEach(function (k) {
             zones[k].el.addEventListener('click', function (e) {
                 var slot = e.target.closest ? e.target.closest('.db-card-slot') : null;
                 if (!slot) return;
                 var zk = slot.getAttribute('data-zone');
                 var idx = parseInt(slot.getAttribute('data-index'), 10);
-                if (zk && !isNaN(idx)) removeCard(zk, idx);
+                var cid = slot.getAttribute('data-id');
+                var isRemove = e.target.closest ? !!e.target.closest('.db-remove') : false;
+                if (isRemove) {
+                    if (zk && !isNaN(idx)) removeCard(zk, idx);
+                    return;
+                }
+                showDetailForDeckCard(cid);
             });
         });
 
