@@ -1238,16 +1238,16 @@ tr.cut-line td { padding: 0; border: none; background: transparent; height: 30px
    不透明并铺满弹窗顶部，避免出现半透明色块/镂空感 */
 .old-decks-topbar {
     position: sticky;
-    top: 0;
+    top: -1px;                                             /* 上移 1px：手机端顶部不再露 1px 缝 */
     z-index: 12;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 10px;
-    margin: 0 calc(-1 * var(--od-pad, 24px)) 14px;
-    padding: calc(var(--od-pad, 24px) - 8px) var(--od-pad, 24px) 12px;
-    background: linear-gradient(135deg, #1c1c20, #101013);
-    border-bottom: 1px solid rgba(216, 30, 68, 0.28);
+    margin: 0 calc(-1 * var(--od-pad, 24px)) 4px;
+    padding: calc(var(--od-pad, 24px) - 5px) var(--od-pad, 24px) 18px;   /* 顶 +1px 补偿，下方留出渐隐空间 */
+    /* 原风格：顶部近实底、向下渐隐（滚动时内容柔和地从下方透出） */
+    background: linear-gradient(180deg, rgba(20, 20, 22, 0.99) 58%, rgba(20, 20, 22, 0));
     border-radius: 18px 18px 0 0;
 }
 .old-decks-topbar h2 {
