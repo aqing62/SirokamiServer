@@ -1158,9 +1158,14 @@ tr.cut-line td { padding: 0; border: none; background: transparent; height: 30px
 
 /* ══ 手机端：比赛相关布局优化 ══════════════════════════════ */
 @media (max-width: 768px) {
-    /* 顶部预留两行悬浮按钮空间（含刘海安全区），避免被浏览器地址栏/输入框遮挡 */
+    /* 顶部预留两行悬浮按钮空间（含刘海安全区），避免被浏览器地址栏/输入框遮挡；
+       同时固定满宽（避免内容较窄时分区被压缩，导致瑞士轮/淘汰赛宽度不一致） */
     #section-eight-decks.active {
         padding: calc(104px + env(safe-area-inset-top, 0px)) 10px 24px;
+        width: 100%;
+        min-width: 0;
+        align-self: stretch;
+        box-sizing: border-box;
     }
     /* 左上：历届八强 */
     .old-decks-trigger {
