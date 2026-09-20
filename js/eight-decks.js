@@ -305,6 +305,8 @@ function drawBracketConnectors() {
     if (old) old.remove();
     const layers = Array.from(tree.querySelectorAll('.bracket-layer'));
     if (layers.length < 2) return;
+    // 手机端不画连线（窄屏对阵需横向滚动，连线反而干扰）
+    if (window.innerWidth <= 768) return;
 
     const treeRect = tree.getBoundingClientRect();
     const ox = treeRect.left - tree.scrollLeft;
