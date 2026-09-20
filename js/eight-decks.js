@@ -49,8 +49,8 @@ function calcDeckScoreEight(main, extra, side) {
 // ── 比赛数据 ────────────────────────────────────────────
 // 两个赛事槽位：swiss=瑞士轮（左），elim=淘汰赛（右）
 const TOURNEY_SLOTS = [
-    { key: 'swiss', label: '🇨🇭 瑞士轮' },
-    { key: 'elim', label: '🏆 淘汰赛' },
+    { key: 'swiss', label: '瑞士轮' },
+    { key: 'elim', label: '淘汰赛' },
 ];
 let activeSlot = 'swiss';
 const slotData = {};        // key → Tabulator 数据
