@@ -445,14 +445,14 @@ function renderBracketTree(matches, thirdPlaceMatches, nameMap, isDouble) {
             </div>`;
         });
 
-        // 季军赛：塞进两张半决赛卡片的上下中间
+        // 季军赛：塞进两张半决赛中间，且与决赛卡片高度对齐（整列居中，同一公式）
         if (isSemis && !isLast && thirdPlaceMatches.length > 0 && count === 2) {
             const top0 = (0 + 0.5) * step * ROW_H - ROW_H / 2;
             const top1 = (1 + 0.5) * step * ROW_H - ROW_H / 2;
-            const gapTop = top0 + CARD_H;
-            const gapH = top1 - gapTop;
+            const gapH = top1 - (top0 + CARD_H);
             if (gapH >= 100) {
-                html += `<div class="bracket-slot third-place" style="top:${Math.round(gapTop)}px;height:${Math.round(gapH)}px;">
+                const tpTop = (N * ROW_H) / 2 - ROW_H / 2;   // 与决赛槽位一致 → 卡片中心对齐决赛
+                html += `<div class="bracket-slot third-place" style="top:${Math.round(tpTop)}px;">
                     <span class="tp-tag">🥉 季军赛</span>
                     ${renderMatchCard(thirdPlaceMatches[0], nameMap)}
                 </div>`;
