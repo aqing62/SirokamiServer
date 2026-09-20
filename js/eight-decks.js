@@ -640,6 +640,9 @@ function openOldDecksModal() {
     const overlay = document.getElementById('oldDecksOverlay');
     overlay.classList.add('show');
     document.body.style.overflow = 'hidden';
+    // 分区提层：否则弹窗会被底部固定板块栏盖住（分区 z-index 低于侧边栏）
+    const sec = document.getElementById('section-eight-decks');
+    if (sec) sec.classList.add('modal-open');
 
     if (!oldDecksLoaded || !decksData || !decksData.tournaments.length) {
         loadDecksDataIfNeeded().then(() => renderOldDecks());
@@ -652,6 +655,8 @@ function openOldDecksModal() {
 function closeOldDecksModal() {
     document.getElementById('oldDecksOverlay').classList.remove('show');
     document.body.style.overflow = '';
+    const sec = document.getElementById('section-eight-decks');
+    if (sec) sec.classList.remove('modal-open');
 }
 
 function renderOldDecks() {

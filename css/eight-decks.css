@@ -1209,3 +1209,19 @@ tr.cut-line td { padding: 0; border: none; background: transparent; height: 30px
         transform: none;
     }
 }
+
+/* 弹窗打开时把分区提到板块栏之上（否则弹窗嵌在分区里，会被底部固定栏盖住） */
+#section-eight-decks.modal-open {
+    z-index: 1500;
+}
+
+/* 手机端：历届八强弹窗底部让出板块栏高度，避免内容被遮挡 */
+@media (max-width: 768px) {
+    .old-decks-modal {
+        height: auto;
+        max-height: calc(100vh - 132px - env(safe-area-inset-bottom, 0px));
+        margin-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+        padding: 16px;
+    }
+    .old-decks-modal h2 { font-size: 1.15rem; margin-bottom: 12px; }
+}
