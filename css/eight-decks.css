@@ -1155,3 +1155,51 @@ tr.cut-line td { padding: 0; border: none; background: transparent; height: 30px
     .tourney-switch { width: 100%; }
     .tourney-switch-btn { flex: 1 1 0; padding: 10px 8px; font-size: 13px; }
 }
+
+/* ══ 手机端：比赛相关布局优化 ══════════════════════════════ */
+@media (max-width: 768px) {
+    /* 顶部预留两行悬浮按钮空间（含刘海安全区），避免被浏览器地址栏/输入框遮挡 */
+    #section-eight-decks.active {
+        padding: calc(104px + env(safe-area-inset-top, 0px)) 10px 24px;
+    }
+    /* 左上：历届八强 */
+    .old-decks-trigger {
+        position: fixed;
+        top: calc(12px + env(safe-area-inset-top, 0px));
+        left: 12px;
+        right: auto;
+        padding: 8px 12px;
+        font-size: 12px;
+        z-index: 999;
+    }
+    /* 右上：当前对局（与左侧同一行对齐；提高特异性覆盖 live-duels.css） */
+    #section-eight-decks .live-duels-trigger {
+        position: fixed;
+        top: calc(12px + env(safe-area-inset-top, 0px));
+        right: 12px;
+        left: auto;
+        padding: 8px 12px;
+        font-size: 12px;
+        z-index: 999;
+    }
+    /* 返回按钮：第二行左侧 */
+    .back-btn {
+        top: calc(58px + env(safe-area-inset-top, 0px));
+        left: 12px;
+    }
+
+    /* 宽度统一：滑块 / 信息卡 / 内容区 使用同一宽度 */
+    .tourney-switch,
+    .tournament-header,
+    .tournament-main {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    /* 滑块高亮条：默认按 50% 计算（两按钮等宽），JS 会写入精确值 */
+    .tourney-switch-thumb {
+        width: var(--thumb-w, calc(50% - 4px));
+        left: var(--thumb-x, 4px);
+        transform: none;
+    }
+}

@@ -117,15 +117,16 @@ function switchTourneySlot(slot) {
     fetchTournamentData(true);
 }
 
-// 滑块指示条跟随
+// 滑块指示条跟随（写入 CSS 变量；默认值由 CSS 的 50% 兜底）
 function moveTourneyThumb() {
     const sw = document.getElementById('tourneySwitch');
     const thumb = document.getElementById('tourneyThumb');
     if (!sw || !thumb) return;
+    sw.dataset.active = activeSlot;
     const btn = sw.querySelector('.tourney-switch-btn.is-active');
-    if (!btn) return;
-    thumb.style.width = btn.offsetWidth + 'px';
-    thumb.style.transform = 'translateX(' + btn.offsetLeft + 'px)';
+    if (!btn || !btn.offsetWidth) return;   // 分区隐藏时量不到，跳过（显示后会再量）
+    thumb.style.setProperty('--thumb-x', btn.offsetLeft + 'px');
+    thumb.style.setProperty('--thumb-w', btn.offsetWidth + 'px');
 }
 
 async function fetchTournamentData(force) {
@@ -190,8 +191,11 @@ function renderTournamentView(data) {
     }
 
     main.innerHTML = html;
-    // 对阵图渲染后按真实几何画连线（换行/尺寸变化会重算）
-    requestAnimationFrame(function () { drawBracketConnectors(); });
+    // 渲染后：重算滑块高亮条（分区隐藏时量不准）+ 按真实几何画对阵连线
+    requestAnimationFrame(function () {
+        moveTourneyThumb();
+        drawBracketConnectors();
+    });
 }
 
 
