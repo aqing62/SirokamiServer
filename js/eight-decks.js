@@ -190,6 +190,8 @@ function renderTournamentView(data) {
     }
 
     main.innerHTML = html;
+    // 对阵图渲染后按真实几何画连线（换行/尺寸变化会重算）
+    requestAnimationFrame(function () { drawBracketConnectors(); });
 }
 
 
@@ -293,6 +295,65 @@ function renderSwissRounds(matches, participants) {
     html += '</div>';
     return html;
 }
+
+
+// ── 对阵图连线：按实际几何绘制（横出 → 竖连 → 横入），保证各轮完全连上 ──
+function drawBracketConnectors() {
+    const tree = document.querySelector('.bracket-tree');
+    if (!tree) return;
+    const old = tree.querySelector('svg.bracket-links');
+    if (old) old.remove();
+    const layers = Array.from(tree.querySelectorAll('.bracket-layer'));
+    if (layers.length < 2) return;
+
+    const treeRect = tree.getBoundingClientRect();
+    const ox = treeRect.left - tree.scrollLeft;
+    const oy = treeRect.top - tree.scrollTop;
+
+    const cardsOf = (layer) => Array.from(layer.querySelectorAll('.bracket-slot .match-card')).map(c => {
+        const r = c.getBoundingClientRect();
+        return { left: r.left - ox, right: r.right - ox, cy: (r.top + r.bottom) / 2 - oy };
+    });
+
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('class', 'bracket-links');
+    svg.setAttribute('width', String(tree.scrollWidth));
+    svg.setAttribute('height', String(tree.scrollHeight));
+    const addLine = (x1, y1, x2, y2) => {
+        const ln = document.createElementNS(NS, 'line');
+        ln.setAttribute('x1', x1.toFixed(1));
+        ln.setAttribute('y1', y1.toFixed(1));
+        ln.setAttribute('x2', x2.toFixed(1));
+        ln.setAttribute('y2', y2.toFixed(1));
+        svg.appendChild(ln);
+    };
+
+    for (let li = 0; li < layers.length - 1; li++) {
+        const kids = cardsOf(layers[li]);
+        const parents = cardsOf(layers[li + 1]);
+        if (!kids.length || !parents.length) continue;
+        const per = kids.length / parents.length;   // 每个父节点对应的子节点数
+        parents.forEach((p, k) => {
+            const group = kids.slice(Math.round(k * per), Math.round((k + 1) * per));
+            if (!group.length) return;
+            const midX = p.left - 16;               // 折点：父卡片左侧 16px
+            group.forEach(c => addLine(c.right, c.cy, midX, c.cy));       // 子 → 折点
+            if (group.length > 1) {
+                addLine(midX, group[0].cy, midX, group[group.length - 1].cy);   // 竖向连接
+            }
+            addLine(midX, p.cy, p.left, p.cy);                            // 折点 → 父
+        });
+    }
+    tree.appendChild(svg);
+}
+
+// 窗口尺寸变化时重算连线
+let _brkTimer = 0;
+window.addEventListener('resize', function () {
+    clearTimeout(_brkTimer);
+    _brkTimer = setTimeout(drawBracketConnectors, 150);
+});
 
 
 // ── 淘汰赛对阵图 ────────────────────────────────────────
