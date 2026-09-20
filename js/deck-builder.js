@@ -40,6 +40,70 @@
     var detailCard = null;   // { id, name, typeInfo... } DIY 结构
     var detailId = null;
 
+    // 卡图缓存：① 记住每张卡最终可用的图片地址（避免每次都走失败回退链）② 复用已加载的 <img> 节点
+    var imgSrcCache = {};
+    var imgNodePool = {};
+    var IMG_FALLBACK = [
+        function (id) { return 'https://api.ygopro3.cn/pics/siro/' + id + '.jpg'; },
+        function (id) { return 'https://cdn.233.momobako.com/ygopro/pics/' + id + '.jpg'; },
+        function () { return 'cover.jpg'; },
+    ];
+    function imgSrcFor(id) {
+        var k = String(id);
+        return imgSrcCache[k] || IMG_FALLBACK[0](k);
+    }
+    // 创建一个卡图元素（优先复用池中同 id 的节点，避免重绘时重新解码）
+    function makeCardImg(id, cls) {
+        var key = String(id);
+        var pool = imgNodePool[key];
+        if (pool && pool.length) {
+            var node = pool.pop();
+            node.className = cls || 'db-img';
+            return node;
+        }
+        var img = document.createElement('img');
+        img.className = cls || 'db-img';
+        img.alt = key;
+        img.loading = 'lazy';
+        img.setAttribute('data-card-id', key);
+        var chain;
+        if (imgSrcCache[key]) {
+            chain = [imgSrcCache[key]];
+        } else {
+            chain = IMG_FALLBACK.map(function (f) { return f(key); });
+        }
+        var idx = 0;
+        img.setAttribute('data-src-idx', '0');
+        img.src = chain[0];
+        img.onerror = function () {
+            idx++;
+            if (idx < chain.length) {
+                img.setAttribute('data-src-idx', String(idx));
+                img.src = chain[idx];
+            } else {
+                img.onerror = null;
+            }
+        };
+        img.onload = function () {
+            imgSrcCache[key] = chain[idx];   // 记住可用地址：后续重绘不再走失败回退
+            img.onerror = null;
+            img.onload = null;
+        };
+        return img;
+    }
+    // 回收某容器内的卡图节点进池（供下次渲染复用）
+    function recycleImgs(container) {
+        if (!container) return;
+        Array.prototype.forEach.call(container.querySelectorAll('img[data-card-id]'), function (im) {
+            var key = im.getAttribute('data-card-id');
+            if (!key) return;
+            im.onerror = null;
+            im.onload = null;
+            var pool = imgNodePool[key] || (imgNodePool[key] = []);
+            if (pool.length < 3) pool.push(im);
+        });
+    }
+
     // 右栏搜索状态
     var searchQuery = '';
     var PAGE = 60;
@@ -83,13 +147,34 @@
         return s || null;
     }
 
-    // ── 卡图 URL ──
+    // ── 卡图 URL（带缓存：记住每张卡可用地址，避免重复走失败回退链）──
     function cardImgHtml(id, extraCls) {
-        return '<img class="' + (extraCls || 'db-img') + '" src="https://api.ygopro3.cn/pics/siro/' + id
-            + '.jpg" alt="' + id + '" loading="lazy"'
-            + ' onerror="this.onerror=null;this.src=\'https://cdn.233.momobako.com/ygopro/pics/' + id
-            + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'cover.jpg\';}">';
+        var key = String(id);
+        var cls = extraCls || 'db-img';
+        var cached = imgSrcCache[key];
+        if (cached) {
+            return '<img class="' + cls + '" src="' + cached + '" alt="' + key + '" loading="lazy">';
+        }
+        return '<img class="' + cls + '" src="' + IMG_FALLBACK[0](key) + '" alt="' + key + '" loading="lazy"'
+            + ' onload="window.__dbImgOk&&window.__dbImgOk(this)"'
+            + ' onerror="window.__dbImgErr&&window.__dbImgErr(this)">';
     }
+    // 全局回调（供字符串模板里的 <img> 使用）
+    window.__dbImgOk = function (img) {
+        var id = img.getAttribute('alt');
+        if (id) imgSrcCache[id] = img.currentSrc || img.src;
+        img.onerror = null;
+    };
+    window.__dbImgErr = function (img) {
+        var id = img.getAttribute('alt') || '';
+        var step = parseInt(img.getAttribute('data-fb') || '0', 10) + 1;
+        if (id && step < IMG_FALLBACK.length) {
+            img.setAttribute('data-fb', String(step));
+            img.src = IMG_FALLBACK[step](id);
+        } else {
+            img.onerror = null;
+        }
+    };
 
     // ── 规则校验 ──
     function checkAdd(zoneKey, id) {
@@ -129,7 +214,84 @@
         renderZone('extra');
         renderZone('side');
         updateHighScoreUI();   // 卡组变化时同步"高分卡"按钮文案/数量
+        updateScoreLabel();
+    }
+
+    function refreshScore() {
+        if (scoreMap) { updateScoreLabel(); return; }   // 分数已加载：只更新文字，不重绘卡组
+        loadScores().then(function () { updateScoreLabel(); });
+    }
+
+    // 单个卡位元素（渲染与增量插入共用）
+    function makeSlot(zoneKey, id, i) {
+        var slot = document.createElement('div');
+        slot.className = 'db-card-slot' + highScoreClassOf(id);
+        slot.setAttribute('data-zone', zoneKey);
+        slot.setAttribute('data-index', String(i));
+        slot.setAttribute('data-id', String(id));
+        slot.title = '点击查看卡牌详情';
+        var sc = document.createElement('div');
+        sc.className = 'db-slot-score';
+        sc.textContent = scoreBadgeText(id);
+        slot.appendChild(sc);
+        slot.appendChild(makeCardImg(id, 'db-card-img'));
+        var rm = document.createElement('span');
+        rm.className = 'db-remove';
+        rm.title = '移除这张卡';
+        rm.textContent = '×';
+        slot.appendChild(rm);
+        return slot;
+    }
+
+    function renderZone(zoneKey) {
+        var zone = zones[zoneKey];
+        recycleImgs(zone.el);          // 回收卡图节点，重绘时复用（不重新下载/解码）
+        zone.el.innerHTML = '';
+        if (!zone.list.length) {
+            var empty = document.createElement('div');
+            empty.className = 'db-zone-empty';
+            empty.textContent = '空';
+            zone.el.appendChild(empty);
+        } else {
+            var frag = document.createDocumentFragment();
+            zone.list.forEach(function (id, i) { frag.appendChild(makeSlot(zoneKey, id, i)); });
+            zone.el.appendChild(frag);
+        }
+        zone.countEl.textContent = zone.list.length;
+    }
+
+    // 增量：追加一个卡位（不重绘整个卡组，避免卡图重新加载）
+    function appendSlot(zoneKey, id) {
+        var zone = zones[zoneKey];
+        var empty = zone.el.querySelector('.db-zone-empty');
+        if (empty) empty.parentNode.removeChild(empty);
+        var idx = zone.list.length - 1;
+        zone.el.appendChild(makeSlot(zoneKey, id, idx));
+        zone.countEl.textContent = zone.list.length;
+    }
+
+    // 增量：移除第 index 个卡位，并给后续卡位重编号
+    function removeSlot(zoneKey, index) {
+        var zone = zones[zoneKey];
+        var slot = zone.el.querySelector('.db-card-slot[data-index="' + index + '"]');
+        if (slot) {
+            recycleImgs(slot);
+            if (slot.parentNode) slot.parentNode.removeChild(slot);
+        }
+        Array.prototype.forEach.call(zone.el.querySelectorAll('.db-card-slot'), function (el) {
+            var i = parseInt(el.getAttribute('data-index'), 10);
+            if (!isNaN(i) && i > index) el.setAttribute('data-index', String(i - 1));
+        });
+        zone.countEl.textContent = zone.list.length;
+        if (!zone.list.length) {
+            zone.el.innerHTML = '<div class="db-zone-empty">空</div>';
+        }
+    }
+
+    // 只更新总分显示（不重绘卡组）
+    function updateScoreLabel() {
         var scoreEl = $('dbScore');
+        if (!scoreEl) return;
         if (!scoreMap) {
             scoreEl.textContent = '总分：…/100';
             scoreEl.style.color = '#888';
@@ -138,24 +300,6 @@
         var total = calcTotalScore();
         scoreEl.textContent = '总分：' + total + '/' + scoreLimit;
         scoreEl.style.color = total > scoreLimit ? '#ff6b6b' : '#F0E68C';
-    }
-
-    function refreshScore() {
-        loadScores().then(renderAll);
-    }
-
-    function renderZone(zoneKey) {
-        var zone = zones[zoneKey];
-        zone.el.innerHTML = zone.list.length
-            ? zone.list.map(function (id, i) {
-                return '<div class="db-card-slot' + highScoreClassOf(id) + '" data-zone="' + zoneKey + '" data-index="' + i
-                    + '" data-id="' + id + '" title="点击查看卡牌详情">'
-                    + '<div class="db-slot-score">' + scoreBadgeText(id) + '</div>'
-                    + cardImgHtml(id, 'db-card-img')
-                    + '<span class="db-remove" title="移除这张卡">×</span></div>';
-            }).join('')
-            : '<div class="db-zone-empty">空</div>';
-        zone.countEl.textContent = zone.list.length;
     }
 
     // ── 查询高分卡：高亮卡组内 8 分及以上的卡 ──
@@ -379,20 +523,34 @@
         toast('卡组已排序（降序）');
     }
 
-    // ── 加减卡 ──
+    // ── 加减卡（增量更新 DOM，不整块重绘，避免卡图重新加载）──
     function addCard(zoneKey, id) {
         var res = checkAdd(zoneKey, id);
         if (!res.ok) { toast(res.reason); return false; }
         zones[zoneKey].list.push(id);
-        renderAll();
-        refreshScore();
+        appendSlot(zoneKey, id);
+        updateScoreLabel();
+        updateHighScoreUI();
+        primeImg(id);
         return true;
     }
 
     function removeCard(zoneKey, index) {
+        if (index < 0 || index >= zones[zoneKey].list.length) return;
         zones[zoneKey].list.splice(index, 1);
-        renderAll();
-        refreshScore();
+        removeSlot(zoneKey, index);
+        updateScoreLabel();
+        updateHighScoreUI();
+    }
+
+    // 预取卡图（命中缓存即瞬间完成）
+    function primeImg(id) {
+        try {
+            if (imgSrcCache[String(id)]) return;
+            var im = new Image();
+            im.decoding = 'async';
+            im.src = imgSrcFor(id);
+        } catch (e) { /* ignore */ }
     }
 
     // 加入按钮（左栏详情底部）
