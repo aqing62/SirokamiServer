@@ -147,6 +147,18 @@
         return s || null;
     }
 
+    // ── 衍生物（Token）识别：组卡界面不展示 ──
+    // 依据 typeInfo.subTypes 含「衍生物」，或 type 含 TOKEN 位（0x4000）；
+    // 不按名字判断，避免误伤真卡（如「衍生物收集者」「衍生物复活祭」）
+    var TYPE_TOKEN_BIT = 0x4000;
+    function isTokenCard(card) {
+        if (!card) return false;
+        var ti = card.typeInfo || {};
+        if ((ti.subTypes || []).indexOf('衍生物') >= 0) return true;
+        if (((card.type || 0) & TYPE_TOKEN_BIT) !== 0) return true;
+        return false;
+    }
+
     // ── 卡图 URL（带缓存：记住每张卡可用地址，避免重复走失败回退链）──
     function cardImgHtml(id, extraCls) {
         var key = String(id);
@@ -621,7 +633,8 @@
         return fetch('/api/cards?t=' + Date.now())
             .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
             .then(function (cards) {
-                diyCards = cards || [];
+                // 组卡界面不展示衍生物（Token）
+                diyCards = (cards || []).filter(function (c) { return !isTokenCard(c); });
                 diyIndex = new Map();
                 diyCards.forEach(function (c) { diyIndex.set(parseInt(c.id, 10), c); });
                 return diyCards;
@@ -1034,11 +1047,13 @@
                 // 归一化
                 officialResults = list.map(function (c) {
                     var t = c.text || {};
+                    // 衍生物（官方库 types 含 TOKEN 位）不在组卡界面展示
+                    if (((t.types || 0) & TYPE_TOKEN_BIT) !== 0) return null;
                     var f = null;
                     if (window.DeckViewer && window.DeckViewer.officialCardFields) {
                         try { f = window.DeckViewer.officialCardFields(c); } catch (e) {}
                     }
-                    return {
+                    var obj = {
                         id: c.id,
                         name: f ? f.name : (c.nwbbs_n || c.sc_name || c.cn_name || c.en_name || ('卡牌 ' + c.id)),
                         fullType: f ? f.fullType : '',
@@ -1046,7 +1061,9 @@
                         atkDef: f ? f.atkDef : '',
                         desc: f ? f.desc : '',
                     };
-                });
+                    if ((obj.fullType || '').indexOf('衍生物') >= 0) return null;
+                    return obj;
+                }).filter(Boolean);
                 renderOfficialResults();
             })
             .catch(function (e) {
