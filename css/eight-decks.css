@@ -1230,3 +1230,54 @@ tr.cut-line td { padding: 0; border: none; background: transparent; height: 30px
     }
     .old-decks-modal h2 { font-size: 1.15rem; margin-bottom: 12px; }
 }
+
+/* ══ 历届八强：顶部吸顶栏（筛选 + 标题 + 关闭 同一高度对齐）══ */
+.old-decks-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 12;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin: -8px 0 12px;
+    padding: 4px 0;
+    background: linear-gradient(180deg, rgba(20, 20, 22, 0.98) 70%, rgba(20, 20, 22, 0));
+}
+.old-decks-topbar h2 {
+    flex: 1;
+    margin: 0 !important;
+    font-size: 1.35rem !important;
+    text-align: center;
+}
+/* 两个圆形悬浮按钮统一外观与高度 */
+.old-decks-topbar .old-decks-close {
+    position: static;
+    float: none;
+    flex: 0 0 auto;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, var(--red), var(--dark-red));
+    color: var(--light-gold);
+    font-size: 20px;
+    line-height: 1;
+    cursor: pointer;
+    transition: 0.25s;
+}
+.old-decks-topbar .old-decks-close.filter-float-btn { font-size: 17px; }
+.old-decks-topbar .old-decks-close:hover {
+    transform: scale(1.1);
+    box-shadow: 0 0 12px rgba(216, 30, 68, 0.65);
+}
+
+@media (max-width: 768px) {
+    .old-decks-topbar { margin: -6px 0 10px; }
+    .old-decks-topbar h2 { font-size: 1.1rem !important; }
+    .old-decks-topbar .old-decks-close { width: 34px; height: 34px; font-size: 18px; }
+}

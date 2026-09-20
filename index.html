@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="css/style.css?v=20260903a" id="css-style">
     <link rel="stylesheet" href="css/card-list.css" id="css-card-list" media="not all">
     <link rel="stylesheet" href="css/card-pool-info.css?v=20260920c" id="css-card-pool" media="not all">
-    <link rel="stylesheet" href="css/eight-decks.css?v=20260920v" id="css-eight-decks" media="not all">
+    <link rel="stylesheet" href="css/eight-decks.css?v=20260920w" id="css-eight-decks" media="not all">
     <link rel="stylesheet" href="css/xiaobairenshe.css" id="css-xiaobai" media="not all">
     <link rel="stylesheet" href="css/new-cards.css" id="css-new-cards" media="not all">
     <link rel="stylesheet" href="css/player-ranking.css?v=20260903c" id="css-player-ranking" media="not all">
@@ -596,8 +596,12 @@
         <!-- 原八强卡组 modal（点击右上角按钮打开） -->
         <div class="old-decks-overlay" id="oldDecksOverlay">
             <div class="old-decks-modal" id="oldDecksModal">
-                <button class="old-decks-close" id="oldDecksClose">×</button>
-                <h2>历届八强</h2>
+                <!-- 顶部吸顶栏：筛选(左) + 关闭(右)，同一高度对齐 -->
+                <div class="old-decks-topbar">
+                    <button class="old-decks-close filter-float-btn" id="filterFloatBtn" title="筛选赛事">☰</button>
+                    <h2>历届八强</h2>
+                    <button class="old-decks-close" id="oldDecksClose" title="关闭">×</button>
+                </div>
                 <div class="old-decks-body">
                     <div class="filter-panel old-filter-panel">
                         <h3>赛事列表</h3>
@@ -605,8 +609,6 @@
                     </div>
                     <div class="container old-container" id="oldContainer">加载中...</div>
                 </div>
-                <!-- 移动端筛选（modal 内） -->
-                <button class="filter-float-btn" id="filterFloatBtn">☰</button>
                 <div class="filter-mask" id="filterMask"></div>
                 <div class="filter-popup" id="filterPopup">
                     <button class="filter-close-btn" id="filterCloseBtn">×</button>
