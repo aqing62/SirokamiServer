@@ -325,3 +325,16 @@
     padding: 5px 7px;
   }
 }
+
+/* ══ 手机端：当前对局弹窗底部让出板块栏高度 ══════════════════
+   （弹窗嵌在 #section-eight-decks 内，分区层级低于底部固定栏，
+     故同时由 JS 在打开时给分区加 .modal-open 提层） */
+@media (max-width: 768px) {
+  .live-duels-modal {
+    height: auto;
+    max-height: calc(100vh - 132px - env(safe-area-inset-bottom, 0px));
+    margin-bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+  .live-duels-header { padding: 14px 16px 10px; }
+  .live-duels-header h2 { font-size: 1.15rem; }
+}

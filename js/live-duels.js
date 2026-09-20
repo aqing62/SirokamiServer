@@ -30,6 +30,9 @@ function initLiveDuelsModule() {
 function openLiveDuels() {
     document.getElementById('liveDuelsOverlay').classList.add('show');
     document.body.style.overflow = 'hidden';
+    // 分区提层：否则弹窗会被底部固定板块栏盖住（分区 z-index 低于侧边栏）
+    var sec = document.getElementById('section-eight-decks');
+    if (sec) sec.classList.add('modal-open');
     liveDuelsOpen = true;
     fetchLiveRooms();
     startPolling();
@@ -38,6 +41,8 @@ function openLiveDuels() {
 function closeLiveDuels() {
     document.getElementById('liveDuelsOverlay').classList.remove('show');
     document.body.style.overflow = '';
+    var sec = document.getElementById('section-eight-decks');
+    if (sec) sec.classList.remove('modal-open');
     liveDuelsOpen = false;
     stopPolling();
 }
