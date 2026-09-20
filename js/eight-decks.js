@@ -310,7 +310,7 @@ function drawBracketConnectors() {
     const ox = treeRect.left - tree.scrollLeft;
     const oy = treeRect.top - tree.scrollTop;
 
-    const cardsOf = (layer) => Array.from(layer.querySelectorAll('.bracket-slot .match-card')).map(c => {
+    const cardsOf = (layer) => Array.from(layer.querySelectorAll('.bracket-slot:not(.third-place) .match-card')).map(c => {
         const r = c.getBoundingClientRect();
         return { left: r.left - ox, right: r.right - ox, cy: (r.top + r.bottom) / 2 - oy };
     });
@@ -426,8 +426,11 @@ function renderBracketTree(matches, thirdPlaceMatches, nameMap, isDouble) {
     if (isDouble) html += '<h4 class="bracket-subtitle">胜者组</h4>';
     html += '<div class="bracket-tree">';
 
+    let thirdPlacePlaced = false;   // 季军赛是否已嵌入半决赛之间
+
     layers.forEach((layer, layerIdx) => {
         const isLast = layerIdx === layers.length - 1;
+        const isSemis = layerIdx === layers.length - 2;   // 半决赛层（决赛的上一层）
         const count = layer.matches.length;
         const step = N / count;
 
@@ -442,12 +445,28 @@ function renderBracketTree(matches, thirdPlaceMatches, nameMap, isDouble) {
             </div>`;
         });
 
+        // 季军赛：塞进两张半决赛卡片的上下中间
+        if (isSemis && !isLast && thirdPlaceMatches.length > 0 && count === 2) {
+            const top0 = (0 + 0.5) * step * ROW_H - ROW_H / 2;
+            const top1 = (1 + 0.5) * step * ROW_H - ROW_H / 2;
+            const gapTop = top0 + CARD_H;
+            const gapH = top1 - gapTop;
+            if (gapH >= 100) {
+                html += `<div class="bracket-slot third-place" style="top:${Math.round(gapTop)}px;height:${Math.round(gapH)}px;">
+                    <span class="tp-tag">🥉 季军赛</span>
+                    ${renderMatchCard(thirdPlaceMatches[0], nameMap)}
+                </div>`;
+                thirdPlacePlaced = true;
+            }
+        }
+
         html += '</div></div>';
     });
 
     html += '</div>';
 
-    if (thirdPlaceMatches.length > 0) {
+    // 未能嵌入时（半决赛不足两张等）仍放到下方
+    if (thirdPlaceMatches.length > 0 && !thirdPlacePlaced) {
         html += '<h4 class="bracket-subtitle" style="margin-top:32px;">🥉 季军赛</h4>';
         html += '<div class="match-list">';
         thirdPlaceMatches.forEach(m => { html += renderMatchCard(m, nameMap); });
