@@ -127,36 +127,11 @@
 
                 <!-- 天梯模式 -->
                 <div class="rules-panel" id="tab-ladder">
-                    <p><strong>怎么开始</strong>：创建 <code>M#</code> 房间（或进入随机天梯房），双方在聊天框登录官网账号后，开局即自动进入天梯对局（房间内会提示「天梯对局已生效」）</p>
-
-                    <p><strong>计分条件</strong>（以下全部满足才计入积分）：
-                        <br>· 房间为 <code>M#</code> 房 或 随机天梯房，且开启「先攻不可攻击」
-                        <br>· 双方均已登录官网账号，且<strong>不是同一账号、不在同一网络（IP）</strong>
-                        <br>· 房间为 2 人对战，对手不是系统 / AI
-                        <br><span style="color:#aaa;">不满足时房间内会提示具体原因（例如「双方都需登录官网账号（XX 未登录）」）</span></p>
-
-                    <p><strong>积分规则</strong>：初始 0 分，<strong>纯正向</strong>——胜 <strong>+10</strong>（对手分每高 100 额外 +1，最多 +5）、负 <strong>+0</strong>、平 <strong>+5</strong>、每日首胜额外 <strong>+2</strong></p>
-
-                    <p>⚠️ <strong>投降惩罚</strong>：同一天内第 N 次投降扣 N 分（第 1 次 -1、第 2 次 -2 …… 最多 -10），次日重置回 -1；积分不会低于 0</p>
-
-                    <p>🛡️ <strong>防刷分</strong>：同一对手连胜超过 5 场后不再加分；同账号、同 IP 的对局不计分</p>
-
-                    <p>🏅 <strong>上榜条件</strong>：完成 <strong>5 场定级赛</strong> <strong>且</strong>与 <strong>3 名不同对手</strong>对战过，才会出现在排行榜；未满足时 <code>/rating</code> 与会提示还差多少</p>
-
-                    <p>🎖️ <strong>段位</strong>：按活跃玩家（近 7 天有对局）的百分比实时计算 —— 巅峰（第 1 名）、大师 前 8%、钻石 前 18%、黄金 前 35%、白银 前 60%、参战者（其余已上榜玩家）</p>
-
-                    <p>📝 <strong>DIY 投稿资格</strong>：积分达到 <strong>150</strong> 分即可联系群主投稿</p>
-
-                    <p>房间内指令：</p>
-                    <table class="code-table">
-                        <tr><td><code>/register 用户名 密码 显示名</code></td><td>注册新账号（首次）</td></tr>
-                        <tr><td><code>/login 用户名 密码</code></td><td>登录已有账号</td></tr>
-                        <tr><td><code>/rating</code></td><td>查看自己积分（含上榜进度、今日投降次数）</td></tr>
-                        <tr><td><code>/rating 玩家名</code></td><td>查看指定玩家积分</td></tr>
-                        <tr><td><code>/ladder</code></td><td>查看天梯排行榜 TOP10</td></tr>
-                        <tr><td><code>/winnerdeck 玩家名</code></td><td>查看该玩家天梯胜者卡组</td></tr>
-                    </table>
-                    <p style="margin-top:12px;">主站「<strong>玩家排名</strong>」板块可查看 TOP50 与精准搜索；个人主页可查看对局记录与回放</p>
+                    <p><strong>怎么玩</strong>：进 <code>M#</code> 房或随机天梯房，双方登录官网账号即自动开赛</p>
+                    <p><strong>计分</strong>：胜 <strong>+10</strong>（对手分高最多再 +5）、平 <strong>+5</strong>、负 <strong>+0</strong>、每日首胜 <strong>+2</strong>；需双方已登录、非同一账号 / 同 IP 才计分</p>
+                    <p><strong>投降</strong>：当天第 N 次投降扣 N 分（最多 -10），次日重置</p>
+                    <p><strong>上榜</strong>：打完 5 场定级赛 + 遇上 3 名不同对手即可进榜；段位按活跃玩家百分比（巅峰 / 大师 8% / 钻石 18% / 黄金 35% / 白银 60%）；积分 ≥150 可投稿 DIY</p>
+                    <p><strong>指令</strong>：<code>/register 用户名 密码 显示名</code> · <code>/login 用户名 密码</code> · <code>/rating</code> · <code>/ladder</code> · <code>/winnerdeck</code></p>
                 </div>
 
                 <!-- C模式·编年史 -->
