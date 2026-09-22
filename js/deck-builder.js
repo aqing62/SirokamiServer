@@ -1221,7 +1221,7 @@
         }
         loadDiyData().then(function () {
             var list = diySearchList();
-            gridTipEl.textContent = relatedTerms.length
+            gridTipEl.textContent = (relatedTerms.length || relatedLabels.length)
                 ? (relatedTipText(list.length) + ' · 点一下看详情，再点一下加入卡组')
                 : ('共 ' + list.length + ' 张 · 点一下看详情，再点一下加入卡组');
             resetGrid(list);
