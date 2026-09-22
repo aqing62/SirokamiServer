@@ -824,20 +824,55 @@
   background: rgba(212, 175, 55, 0.08);
   align-self: center;
 }
-.db-btn {
-  background: rgba(216, 30, 68, 0.75);
-  color: #fff;
-  border: none;
-  border-radius: 6px;
-  padding: 6px 12px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
+/* ═══ 中栏工具条按钮：方角 + 渐变底 + 同色描边同色字（与相关卡片/筛选同风格）═══ */
+.db-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
 }
-.db-btn:hover { background: rgba(216, 30, 68, 1); }
-.db-btn.db-danger { background: rgba(60,60,60,0.9); }
-.db-btn.db-danger:hover { background: rgba(180,40,40,0.9); }
+.db-btn {
+  background: linear-gradient(135deg, rgba(216, 30, 68, 0.26), rgba(216, 30, 68, 0.07));
+  color: #ff9db0;
+  border: 1px solid rgba(216, 30, 68, 0.72);
+  border-radius: 0;
+  padding: 5px 11px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: 0.18s;
+}
+.db-btn:hover {
+  background: linear-gradient(135deg, rgba(216, 30, 68, 0.44), rgba(216, 30, 68, 0.18));
+  color: #fff;
+  box-shadow: 0 0 10px rgba(216, 30, 68, 0.4);
+}
+/* 查询高分卡：金色系（与「相关卡片」同色） */
+.db-btn.db-btn-gold {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.22), rgba(212, 175, 55, 0.05));
+  border-color: rgba(212, 175, 55, 0.72);
+  color: var(--light-gold, #F0D98C);
+}
+.db-btn.db-btn-gold:hover,
+.db-btn.db-btn-gold.db-btn-on {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.42), rgba(212, 175, 55, 0.16));
+  color: #fff;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+}
+/* 清空：灰红 */
+.db-btn.db-danger {
+  background: linear-gradient(135deg, rgba(120, 120, 128, 0.22), rgba(120, 120, 128, 0.06));
+  border-color: rgba(150, 150, 160, 0.6);
+  color: #c9c9d2;
+}
+.db-btn.db-danger:hover {
+  background: linear-gradient(135deg, rgba(180, 40, 40, 0.55), rgba(180, 40, 40, 0.2));
+  border-color: rgba(216, 30, 68, 0.8);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(216, 30, 68, 0.4);
+}
 
 /* 中栏分区：主卡组滚动区大，额外/副小 */
 .db-col-mid .db-section { display: flex; flex-direction: column; min-height: 0; }
@@ -907,11 +942,12 @@
   transform: scale(1.15);
   box-shadow: 0 0 8px rgba(255, 42, 82, 0.8);
 }
-/* 「查询高分卡」高亮：8 分及以上的卡 */
+/* 「查询高分卡」高亮（开启态）：金色实底，与新风格统一 */
 .db-btn.db-btn-on {
-  background: var(--red, #D81E44) !important;
-  color: #fff !important;
-  border-color: var(--light-gold, #F0D98C) !important;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.85), rgba(212, 175, 55, 0.5)) !important;
+  color: #1a1a1a !important;
+  border-color: rgba(255, 226, 130, 0.95) !important;
+  box-shadow: 0 0 12px rgba(212, 175, 55, 0.55);
 }
 .db-card-slot.db-hs {
   border-color: #ffd23f;
