@@ -714,20 +714,47 @@
 .db-detail-actions {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid rgba(255,255,255,0.08);
   flex-shrink: 0;
 }
+/* 相关卡片：整行长方形按钮 */
+.db-detail-related {
+  width: 100%;
+  padding: 9px 10px;
+  border: 1px solid rgba(212, 175, 55, 0.75);
+  border-radius: 0;                 /* 方角 */
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.22), rgba(212, 175, 55, 0.06));
+  color: var(--light-gold, #F0D98C);
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.db-detail-related:hover {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.38), rgba(212, 175, 55, 0.14));
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
+}
+.db-detail-related:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+/* 三个加入按钮：方形、并排同一行 */
+.db-detail-addrow {
+  display: flex;
+  gap: 6px;
+}
 .db-detail-add {
+  flex: 1 1 0;
+  min-width: 0;
   background: rgba(216, 30, 68, 0.8);
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 10px;
-  font-size: 0.9rem;
+  border-radius: 0;                 /* 方角 */
+  padding: 9px 2px;
+  font-size: 0.8rem;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   transition: background 0.2s;
 }
@@ -1017,13 +1044,15 @@
   #section-card-pool.builder-mode #cardContainer { display: grid !important; }
 }
 
-/* ═══ 组卡右侧 高级筛选 ═══ */
+/* ═══ 组卡右侧 筛选（+ 清空）═══ */
 .db-filter-toggle-row {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  gap: 6px;
   margin-top: 6px;
 }
 .db-filter-toggle {
+  flex: 1 1 auto;
   background: none;
   border: 1px dashed rgba(255, 255, 255, 0.25);
   color: #aaa;
@@ -1038,6 +1067,23 @@
   color: #F0E68C;
 }
 .db-filter-count { color: var(--gold); }
+/* 清空：与筛选按钮并排 */
+.db-filter-clear {
+  flex: 0 0 auto;
+  background: rgba(216, 30, 68, 0.18);
+  border: 1px solid rgba(216, 30, 68, 0.65);
+  color: #ffb3b3;
+  font-size: 0.75rem;
+  border-radius: 10px;
+  padding: 3px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.db-filter-clear:hover {
+  background: rgba(216, 30, 68, 0.4);
+  color: #fff;
+  border-color: var(--red);
+}
 
 .db-adv-filters {
   display: none;

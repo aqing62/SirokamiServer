@@ -565,8 +565,13 @@
         } catch (e) { /* ignore */ }
     }
 
-    // 加入按钮（左栏详情底部）
+    // 加入按钮（左栏详情底部）+ 相关卡片
     function bindDetailAddButtons() {
+        var rel = $('dbRelatedBtn');
+        if (rel && !rel._bound) {
+            rel._bound = true;
+            rel.addEventListener('click', doRelatedSearch);
+        }
         document.querySelectorAll('.db-detail-add[data-zone]').forEach(function (b) {
             b.onclick = function () {
                 if (detailId == null) { toast('请先选择一张卡片'); return; }
@@ -578,6 +583,7 @@
     // ── 左栏：详情 ──
     function renderDetail(id, name, typeHtml, detailRowsHtml, desc) {
         detailId = id;
+        detailDescText = desc || '';   // 供「相关卡片」提取「」关键词
         var sc = cardScoreOf(id);
         var scHtml = sc
             ? (sc.forbidden
@@ -599,9 +605,12 @@
             + '<div class="db-detail-desc">' + (desc || '') + '</div>'
             + '</div>'
             + '<div class="db-detail-actions">'
+            + '<button class="db-detail-related" id="dbRelatedBtn" type="button">🔗 相关卡片</button>'
+            + '<div class="db-detail-addrow">'
             + '<button class="db-detail-add" data-zone="main">加入主卡组</button>'
             + '<button class="db-detail-add" data-zone="extra">加入额外</button>'
             + '<button class="db-detail-add" data-zone="side">加入副卡组</button>'
+            + '</div>'
             + '</div>';
         bindDetailAddButtons();
     }
@@ -913,11 +922,11 @@
 
     function matchQuery(card, q) {
         if (!q) return true;
-        q = q.toLowerCase();
-        var text = (card.name || '') + ' ' + card.id + ' '
-            + (card.processedDesc || card.desc || '')
-            + (card.typeInfo && card.typeInfo.fullType ? card.typeInfo.fullType : '');
-        return text.toLowerCase().indexOf(q) !== -1;
+        // 空格分隔多个关键词：需全部命中（AND），例如「真红眼 融合」
+        var terms = String(q).toLowerCase().split(/\s+/).filter(function (t) { return t; });
+        if (!terms.length) return true;
+        var text = cardTextLower(card);
+        return terms.every(function (t) { return text.indexOf(t) !== -1; });
     }
 
     // 卡对象排序（与卡组排序一致：怪兽→魔法→陷阱，怪兽内额外沉底后按等级↓攻↓守↓属性）
@@ -935,9 +944,99 @@
     function diySearchList() {
         var q = searchQuery;
         var list = diyCards.filter(function (c) {
-            return matchFilter(c) && matchQuery(c, q);
+            return matchFilter(c) && matchRelated(c) && matchQuery(c, q);
         });
         return list.sort(compareCardObj);
+    }
+
+    // ── 相关卡片：提取卡牌效果文本中「」内的关键词，搜索包含这些词的卡 ──
+    var detailDescText = '';   // 当前详情卡的完整效果文本
+    var relatedTerms = [];     // 当前「相关卡片」关键词（空=未启用）
+
+    function extractBracketTerms(text) {
+        var out = [];
+        var re = /「([^」]{1,20})」/g;
+        var m;
+        while ((m = re.exec(String(text || ''))) !== null) {
+            var w = m[1].trim();
+            if (w && out.indexOf(w) === -1) out.push(w);
+        }
+        return out;
+    }
+
+    function cardTextLower(card) {
+        return ((card.name || '') + ' ' + card.id + ' '
+            + (card.processedDesc || card.desc || '') + ' '
+            + ((card.typeInfo && card.typeInfo.fullType) || '')).toLowerCase();
+    }
+
+    function matchRelated(card) {
+        if (!relatedTerms.length) return true;
+        var text = cardTextLower(card);
+        return relatedTerms.some(function (t) {
+            return text.indexOf(String(t).toLowerCase()) !== -1;
+        });
+    }
+
+    function clearRelated() {
+        if (!relatedTerms.length) return;
+        relatedTerms = [];
+    }
+
+    // 点击「相关卡片」：按当前详情卡的「」关键词搜索
+    function doRelatedSearch() {
+        var terms = extractBracketTerms(detailDescText);
+        if (!terms.length) {
+            toast('该卡效果里没有「」关键词');
+            return;
+        }
+        relatedTerms = terms;
+        // 相关搜索与关键词搜索互斥：清掉搜索框，避免叠加限制
+        var inp = $('dbSearchInput');
+        if (inp) inp.value = '';
+        searchQuery = '';
+        if (officialMode) {
+            officialRelatedSearch(terms);
+        } else {
+            doSearch();
+        }
+    }
+
+    // 官方卡模式下的相关搜索：逐词查询并合并去重
+    function officialRelatedSearch(terms) {
+        var use = terms.slice(0, 4);
+        gridTipEl.textContent = '查询中...';
+        Promise.all(use.map(function (t) {
+            return fetch('/api/ygocdb/?search=' + encodeURIComponent(t) + '&t=' + Date.now())
+                .then(function (r) { return r.ok ? r.json() : { result: [] }; })
+                .then(function (d) { return (d && d.result) || []; })
+                .catch(function () { return []; });
+        })).then(function (lists) {
+            var seen = {}, out = [];
+            lists.forEach(function (l) {
+                l.forEach(function (c) {
+                    if (!c || seen[c.id]) return;
+                    seen[c.id] = 1;
+                    var f = null;
+                    if (window.DeckViewer && window.DeckViewer.officialCardFields) {
+                        try { f = window.DeckViewer.officialCardFields(c); } catch (e) { f = null; }
+                    }
+                    var obj = {
+                        id: c.id,
+                        name: f ? f.name : (c.nwbbs_n || c.sc_name || c.cn_name || c.en_name || ('卡牌 ' + c.id)),
+                        fullType: f ? f.fullType : '',
+                        raceAttr: f ? f.raceAttr : '',
+                        atkDef: f ? f.atkDef : '',
+                        desc: f ? f.desc : '',
+                    };
+                    if ((obj.fullType || '').indexOf('衍生物') >= 0) return;
+                    out.push(obj);
+                });
+            });
+            officialResults = out;
+            gridTipEl.textContent = '🔗 相关卡片：' + use.join(' / ') + ' · 共 ' + out.length + ' 张（滚轮翻阅）';
+            resetGrid(out);
+        });
     }
 
     // ── 右栏网格：滚动懒加载（一批 PAGE 张，滚近底部加载下一批）──
@@ -1026,7 +1125,9 @@
         }
         loadDiyData().then(function () {
             var list = diySearchList();
-            gridTipEl.textContent = '共 ' + list.length + ' 张 · 滚轮翻阅';
+            gridTipEl.textContent = relatedTerms.length
+                ? ('🔗 相关卡片：' + relatedTerms.join(' / ') + ' · 共 ' + list.length + ' 张 · 滚轮翻阅')
+                : ('共 ' + list.length + ' 张 · 滚轮翻阅');
             resetGrid(list);
         });
     }
@@ -1080,6 +1181,7 @@
     function showDetailForOfficial(o) {
         if (!o) return;
         detailId = o.id;
+        detailDescText = o.desc || '';   // 供「相关卡片」提取「」关键词
         var sc = cardScoreOf(o.id);
         var scHtml = sc
             ? (sc.forbidden
@@ -1100,9 +1202,12 @@
             + '<div class="db-detail-desc">' + escapeHtml(o.desc || '暂无效果文本') + '</div>'
             + '</div>'
             + '<div class="db-detail-actions">'
+            + '<button class="db-detail-related" id="dbRelatedBtn" type="button">🔗 相关卡片</button>'
+            + '<div class="db-detail-addrow">'
             + '<button class="db-detail-add" data-zone="main">加入主卡组</button>'
             + '<button class="db-detail-add" data-zone="extra">加入额外</button>'
             + '<button class="db-detail-add" data-zone="side">加入副卡组</button>'
+            + '</div>'
             + '</div>';
         bindDetailAddButtons();
     }
@@ -1354,6 +1459,7 @@
         searchInputEl.addEventListener('input', function () {
             clearTimeout(debounce);
             var q = searchInputEl.value.trim();
+            relatedTerms = [];   // 手动输入关键词时退出「相关卡片」模式
             debounce = setTimeout(function () {
                 if (officialMode) {
                     if (q) officialSearch(q);
@@ -1384,6 +1490,18 @@
         $('dbDownload').addEventListener('click', downloadYdk);
         var hsBtn = $('dbHighScore');
         if (hsBtn) hsBtn.addEventListener('click', toggleHighScore);
+        // 清空：重置全部筛选 + 关键词 + 「相关卡片」
+        var clrBtn = $('dbFilterClear');
+        if (clrBtn) clrBtn.addEventListener('click', function () {
+            resetAdvFilters();
+            relatedTerms = [];
+            searchQuery = '';
+            var inp = $('dbSearchInput');
+            if (inp) inp.value = '';
+            if (officialMode) { officialResults = []; renderGridEmpty(); }
+            else { doSearch(); }
+            toast('已清空筛选与相关卡片');
+        });
         $('dbClear').addEventListener('click', function () {
             var all = zones.main.list.length + zones.extra.list.length + zones.side.list.length;
             if (!all) { toast('卡组已是空的'); return; }
