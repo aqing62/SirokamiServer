@@ -301,7 +301,7 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
     try:
         rows = conn.execute(
             "SELECT datas.id, texts.name, datas.type, datas.atk, datas.def, "
-            "datas.level, datas.race, datas.attribute, texts.desc, datas.alias "
+            "datas.level, datas.race, datas.attribute, texts.desc, datas.alias, datas.setcode "
             "FROM datas JOIN texts ON datas.id = texts.id"
         ).fetchall()
     finally:
@@ -309,7 +309,7 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
 
     cards = []
     for row in rows:
-        card_id, name, type_val, atk, def_, level, race, attr, desc, alias = row
+        card_id, name, type_val, atk, def_, level, race, attr, desc, alias, setcode = row
         type_info = _parse_type(type_val)
         cards.append({
             "id": card_id,
@@ -323,6 +323,7 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
             "attribute": attr,
             "desc": desc,
             "alias": alias or 0,
+            "setcode": setcode or 0,   # 字段（系列）编号，配合 /api/archetypes 映射为字段名
             "typeInfo": type_info,
             "raceName": _parse_race(race),
             "attrName": _parse_attr(attr),
@@ -344,6 +345,27 @@ _cards_etag: str = ""
 _scores_cache: dict = {}
 _scores_json: bytes = b"{}"
 _scores_limit: int = 100  # G-Ext 卡组总分上限（lflist.conf $genesys）
+
+# 字段（系列）映射表：setcode → 字段名，由 tools/gen_archetypes.py 从 strings.conf 生成
+_archetypes_json: bytes = b"{}"
+_archetypes_etag: str = ""
+
+
+def load_archetypes():
+    """读取 archetypes.json（字段表），供前端「相关卡片 → 同字段」使用。"""
+    global _archetypes_json, _archetypes_etag
+    path = ROOT / "archetypes.json"
+    if not path.is_file():
+        logger.warning(f"字段表不存在: {path}")
+        return
+    data = path.read_bytes()
+    _archetypes_json = data
+    _archetypes_etag = f'"{hashlib.md5(data).hexdigest()}"'
+    try:
+        count = len(json.loads(data.decode("utf-8")))
+    except Exception:
+        count = 0
+    logger.info(f"字段表已加载: {count} 条, {len(data) / 1024:.0f} KB")
 
 # 比赛数据缓存 (惰性加载，定期刷新)
 _tournament_cache: dict | None = None
@@ -889,6 +911,27 @@ class VoteHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(_scores_json)
 
+        elif path == "/api/archetypes":
+            # 字段（系列）表：setcode(16进制) → 字段名
+            if self.headers.get("If-None-Match") == _archetypes_etag and _archetypes_etag:
+                self.send_response(304)
+                self.end_headers()
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "public, max-age=3600")
+            if _archetypes_etag:
+                self.send_header("ETag", _archetypes_etag)
+            accept = self.headers.get("Accept-Encoding", "")
+            if "gzip" in accept:
+                body = gzip.compress(_archetypes_json, compresslevel=6)
+                self.send_header("Content-Encoding", "gzip")
+            else:
+                body = _archetypes_json
+            self.send_header("Content-Length", len(body))
+            self.end_headers()
+            self.wfile.write(body)
+
         elif path == "/api/admin/status":
             creds = self._get_admin_cookie()
             self._json_response({"loggedIn": creds is not None})
@@ -1272,6 +1315,7 @@ if __name__ == "__main__":
     logger.info(f"Pillow: {'YES' if HAS_PILLOW else 'NO (pip install Pillow)'}")
     refresh_cards_cache()
     refresh_scores_cache()
+    load_archetypes()
     generate_thumbnails()
 
     server = ThreadingHTTPServer((HOST, PORT), VoteHandler)

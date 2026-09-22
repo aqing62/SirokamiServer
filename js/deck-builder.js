@@ -654,6 +654,7 @@
                 + '<span>ATK ' + atk + '</span><span>DEF ' + def + '</span></div>';
         }
         var typeHtml = '<div class="db-detail-type">' + escapeHtml(ti.fullType || '') + '</div>';
+        detailCardObj = card;   // DIY 卡对象（含 setcode）供同字段相关卡使用
         renderDetail(card.id, card.name, typeHtml, rows, card.processedDesc || card.desc || '', isExtraDeckCard(card));
     }
 
@@ -970,10 +971,44 @@
         return list.sort(compareCardObj);
     }
 
-    // ── 相关卡片：提取卡牌效果文本中「」内的关键词，搜索包含这些词的卡 ──
+    // ── 相关卡片：效果中「」关键词 + 同字段（系列）的卡 ──
     var detailDescText = '';   // 当前详情卡的完整效果文本
-    var relatedTerms = [];     // 当前「相关卡片」关键词（空=未启用）
+    var detailCardObj = null;  // 当前详情卡对象（DIY 卡用，取 setcode）
+    var detailSetcode = 0;     // 当前详情卡 setcode（官方卡用）
+    var relatedTerms = [];     // 「」关键词（空=未启用）
+    var relatedCodes = {};     // 同字段的 setcode 键（hex 字符串 → 字段名）
+    var relatedLabels = [];    // 提示用：字段名列表
+    var archetypeMap = null;   // setcode(hex) → 字段名，惰性加载
     var lastGridClickId = null; // 便利操作：记住上次点过的卡（再点一次=加入卡组）
+
+    // 加载字段表（/api/archetypes）
+    function loadArchetypeMap() {
+        if (archetypeMap) return Promise.resolve(archetypeMap);
+        return fetch('/api/archetypes?t=' + Date.now())
+            .then(function (r) { return r.ok ? r.json() : {}; })
+            .then(function (m) { archetypeMap = m || {}; return archetypeMap; })
+            .catch(function () { archetypeMap = {}; return archetypeMap; });
+    }
+
+    // 取一张卡的 setcode（DIY 卡来自卡对象，官方卡来自详情状态）
+    function cardSetcodeOf(card) {
+        if (card && typeof card.setcode === 'number') return card.setcode;
+        return 0;
+    }
+
+    // 拆出 setcode 里可识别的字段（低/高 16 位，以及整体）
+    function archetypesFromSetcode(setcode) {
+        var out = [];
+        if (!archetypeMap || !setcode) return out;
+        var cands = [setcode & 0xFFFF, (setcode >> 16) & 0xFFFF, setcode];
+        for (var i = 0; i < cands.length; i++) {
+            var code = cands[i];
+            if (!code) continue;
+            var name = archetypeMap[code.toString(16)];
+            if (name && out.indexOf(name) === -1) out.push(name);
+        }
+        return out;
+    }
 
     function extractBracketTerms(text) {
         var out = [];
@@ -993,40 +1028,67 @@
     }
 
     function matchRelated(card) {
-        if (!relatedTerms.length) return true;
+        if (!relatedTerms.length && !relatedLabels.length) return true;
         var text = cardTextLower(card);
-        return relatedTerms.some(function (t) {
+        if (relatedTerms.some(function (t) {
             return text.indexOf(String(t).toLowerCase()) !== -1;
-        });
+        })) return true;
+        // 同字段：setcode 命中任一字段编号
+        if (relatedLabels.length) {
+            var code = cardSetcodeOf(card);
+            if (code) {
+                var cands = [code & 0xFFFF, (code >> 16) & 0xFFFF];
+                for (var i = 0; i < cands.length; i++) {
+                    if (cands[i] && archetypeMap && relatedLabels.indexOf(archetypeMap[cands[i].toString(16)]) !== -1) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     function clearRelated() {
-        if (!relatedTerms.length) return;
+        if (!relatedTerms.length && !relatedLabels.length) return;
         relatedTerms = [];
+        relatedLabels = [];
+        relatedCodes = {};
     }
 
-    // 点击「相关卡片」：按当前详情卡的「」关键词搜索
+    // 点击「相关卡片」：效果中的「」关键词 + 同字段的卡
     function doRelatedSearch() {
         var terms = extractBracketTerms(detailDescText);
-        if (!terms.length) {
-            toast('该卡效果里没有「」关键词');
-            return;
-        }
-        relatedTerms = terms;
-        // 相关搜索与关键词搜索互斥：清掉搜索框，避免叠加限制
-        var inp = $('dbSearchInput');
-        if (inp) inp.value = '';
-        searchQuery = '';
-        if (officialMode) {
-            officialRelatedSearch(terms);
-        } else {
-            doSearch();
-        }
+        loadArchetypeMap().then(function () {
+            var setcode = detailCardObj ? cardSetcodeOf(detailCardObj) : detailSetcode;
+            var fields = archetypesFromSetcode(setcode);
+            if (!terms.length && !fields.length) {
+                toast('该卡没有「」关键词，也没有可识别的字段');
+                return;
+            }
+            relatedTerms = terms;
+            relatedLabels = fields;
+            // 相关搜索与关键词搜索互斥：清掉搜索框，避免叠加限制
+            var inp = $('dbSearchInput');
+            if (inp) inp.value = '';
+            searchQuery = '';
+            if (officialMode) {
+                officialRelatedSearch(terms, fields);
+            } else {
+                doSearch();
+            }
+        });
     }
 
-    // 官方卡模式下的相关搜索：逐词查询并合并去重
-    function officialRelatedSearch(terms) {
-        var use = terms.slice(0, 4);
+    function relatedTipText(count) {
+        var parts = [];
+        if (relatedTerms.length) parts.push(relatedTerms.join(' / '));
+        if (relatedLabels.length) parts.push('字段：' + relatedLabels.join('、'));
+        return '🔗 相关卡片：' + parts.join(' · ') + ' · 共 ' + count + ' 张';
+    }
+
+    // 官方卡模式下的相关搜索：逐词（含字段名）查询并合并去重
+    function officialRelatedSearch(terms, fields) {
+        var use = terms.concat(fields || []).slice(0, 5);
         gridTipEl.textContent = '查询中...';
         Promise.all(use.map(function (t) {
             return fetch('/api/ygocdb/?search=' + encodeURIComponent(t) + '&t=' + Date.now())
@@ -1052,11 +1114,22 @@
                         desc: f ? f.desc : '',
                     };
                     if ((obj.fullType || '').indexOf('衍生物') >= 0) return;
+                    // 过滤：效果含任一「」关键词，或与当前卡同字段
+                    var text = ((obj.name || '') + ' ' + (obj.desc || '') + ' ' + (obj.fullType || '')).toLowerCase();
+                    var hitTerm = terms.some(function (t) { return text.indexOf(String(t).toLowerCase()) !== -1; });
+                    var hitField = false;
+                    if (fields && fields.length) {
+                        var cands = [(obj.setcode & 0xFFFF), ((obj.setcode >> 16) & 0xFFFF)];
+                        hitField = cands.some(function (cd) {
+                            return cd && archetypeMap && fields.indexOf(archetypeMap[cd.toString(16)]) !== -1;
+                        });
+                    }
+                    if (!hitTerm && !hitField) return;
                     out.push(obj);
                 });
             });
             officialResults = out;
-            gridTipEl.textContent = '🔗 相关卡片：' + use.join(' / ') + ' · 共 ' + out.length + ' 张（滚轮翻阅）';
+            gridTipEl.textContent = relatedTipText(out.length) + '（滚轮翻阅）';
             resetGrid(out);
         });
     }
@@ -1149,7 +1222,7 @@
         loadDiyData().then(function () {
             var list = diySearchList();
             gridTipEl.textContent = relatedTerms.length
-                ? ('🔗 相关卡片：' + relatedTerms.join(' / ') + ' · 共 ' + list.length + ' 张 · 点一下看详情，再点一下加入卡组')
+                ? (relatedTipText(list.length) + ' · 点一下看详情，再点一下加入卡组')
                 : ('共 ' + list.length + ' 张 · 点一下看详情，再点一下加入卡组');
             resetGrid(list);
         });
@@ -1184,6 +1257,7 @@
                         raceAttr: f ? f.raceAttr : '',
                         atkDef: f ? f.atkDef : '',
                         desc: f ? f.desc : '',
+                        setcode: (c.data && c.data.setcode) || 0,
                     };
                     if ((obj.fullType || '').indexOf('衍生物') >= 0) return null;
                     return obj;
@@ -1205,6 +1279,8 @@
         if (!o) return;
         detailId = o.id;
         detailDescText = o.desc || '';   // 供「相关卡片」提取「」关键词
+        detailSetcode = o.setcode || 0;  // 官方卡字段（同字段相关卡用）
+        detailCardObj = null;
         var sc = cardScoreOf(o.id);
         var scHtml = sc
             ? (sc.forbidden
@@ -1512,6 +1588,8 @@
             clearTimeout(debounce);
             var q = searchInputEl.value.trim();
             relatedTerms = [];   // 手动输入关键词时退出「相关卡片」模式
+            relatedLabels = [];
+            relatedCodes = {};
             debounce = setTimeout(function () {
                 if (officialMode) {
                     if (q) officialSearch(q);
@@ -1561,6 +1639,8 @@
         if (clrBtn) clrBtn.addEventListener('click', function () {
             resetAdvFilters();
             relatedTerms = [];
+            relatedLabels = [];
+            relatedCodes = {};
             searchQuery = '';
             var inp = $('dbSearchInput');
             if (inp) inp.value = '';
