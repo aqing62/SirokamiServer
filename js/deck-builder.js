@@ -581,7 +581,18 @@
     }
 
     // ── 左栏：详情 ──
-    function renderDetail(id, name, typeHtml, detailRowsHtml, desc) {
+    // 详情卡片的两个加入按钮：按卡片分类自动决定「加入主卡」还是「加入额外」
+    function detailAddRowHtml(isExtra) {
+        var primary = isExtra
+            ? '<button class="db-detail-add" data-zone="extra">加入额外</button>'
+            : '<button class="db-detail-add" data-zone="main">加入主卡</button>';
+        return '<div class="db-detail-addrow">'
+            + primary
+            + '<button class="db-detail-add" data-zone="side">加入副卡</button>'
+            + '</div>';
+    }
+
+    function renderDetail(id, name, typeHtml, detailRowsHtml, desc, isExtra) {
         detailId = id;
         detailDescText = desc || '';   // 供「相关卡片」提取「」关键词
         var sc = cardScoreOf(id);
@@ -606,11 +617,7 @@
             + '</div>'
             + '<div class="db-detail-actions">'
             + '<button class="db-detail-related" id="dbRelatedBtn" type="button">🔗 相关卡片</button>'
-            + '<div class="db-detail-addrow">'
-            + '<button class="db-detail-add" data-zone="main">加入主卡组</button>'
-            + '<button class="db-detail-add" data-zone="extra">加入额外</button>'
-            + '<button class="db-detail-add" data-zone="side">加入副卡组</button>'
-            + '</div>'
+            + detailAddRowHtml(!!isExtra)
             + '</div>';
         bindDetailAddButtons();
     }
@@ -633,7 +640,7 @@
                 + '<span>ATK ' + atk + '</span><span>DEF ' + def + '</span></div>';
         }
         var typeHtml = '<div class="db-detail-type">' + escapeHtml(ti.fullType || '') + '</div>';
-        renderDetail(card.id, card.name, typeHtml, rows, card.processedDesc || card.desc || '');
+        renderDetail(card.id, card.name, typeHtml, rows, card.processedDesc || card.desc || '', isExtraMonster(card));
     }
 
     // ── 右栏：搜索与网格 ──
@@ -1203,11 +1210,7 @@
             + '</div>'
             + '<div class="db-detail-actions">'
             + '<button class="db-detail-related" id="dbRelatedBtn" type="button">🔗 相关卡片</button>'
-            + '<div class="db-detail-addrow">'
-            + '<button class="db-detail-add" data-zone="main">加入主卡组</button>'
-            + '<button class="db-detail-add" data-zone="extra">加入额外</button>'
-            + '<button class="db-detail-add" data-zone="side">加入副卡组</button>'
-            + '</div>'
+            + detailAddRowHtml(/融合|同调|超量|连接/.test(o.fullType || ''))
             + '</div>';
         bindDetailAddButtons();
     }

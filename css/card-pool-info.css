@@ -739,7 +739,7 @@
   box-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
 }
 .db-detail-related:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
-/* 三个加入按钮：方形、并排同一行 */
+/* 加入按钮：与「相关卡片」同风格（渐变底 + 同色描边 + 同色字），方角 */
 .db-detail-addrow {
   display: flex;
   gap: 6px;
@@ -747,22 +747,49 @@
 .db-detail-add {
   flex: 1 1 0;
   min-width: 0;
-  background: rgba(216, 30, 68, 0.8);
-  color: #fff;
-  border: none;
+  padding: 9px 4px;
   border-radius: 0;                 /* 方角 */
-  padding: 9px 2px;
-  font-size: 0.8rem;
-  font-weight: 600;
+  border: 1px solid;
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
   white-space: nowrap;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: 0.2s;
 }
-.db-detail-add:hover { background: rgba(216, 30, 68, 1); }
-.db-detail-add[data-zone="extra"] { background: rgba(212, 175, 55, 0.75); }
-.db-detail-add[data-zone="extra"]:hover { background: rgba(212, 175, 55, 1); }
-.db-detail-add[data-zone="side"] { background: rgba(80, 80, 80, 0.9); }
-.db-detail-add[data-zone="side"]:hover { background: rgba(110, 110, 110, 1); }
+/* 主卡：红 */
+.db-detail-add[data-zone="main"] {
+  background: linear-gradient(135deg, rgba(216, 30, 68, 0.28), rgba(216, 30, 68, 0.07));
+  border-color: rgba(216, 30, 68, 0.75);
+  color: #ff9db0;
+}
+.db-detail-add[data-zone="main"]:hover {
+  background: linear-gradient(135deg, rgba(216, 30, 68, 0.45), rgba(216, 30, 68, 0.18));
+  color: #fff;
+  box-shadow: 0 0 10px rgba(216, 30, 68, 0.4);
+}
+/* 额外：金（与相关卡片同色） */
+.db-detail-add[data-zone="extra"] {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.26), rgba(212, 175, 55, 0.07));
+  border-color: rgba(212, 175, 55, 0.75);
+  color: var(--light-gold, #F0D98C);
+}
+.db-detail-add[data-zone="extra"]:hover {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.42), rgba(212, 175, 55, 0.16));
+  color: #fff;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.4);
+}
+/* 副卡：银蓝 */
+.db-detail-add[data-zone="side"] {
+  background: linear-gradient(135deg, rgba(130, 155, 190, 0.24), rgba(130, 155, 190, 0.06));
+  border-color: rgba(150, 175, 210, 0.7);
+  color: #bcd0e6;
+}
+.db-detail-add[data-zone="side"]:hover {
+  background: linear-gradient(135deg, rgba(130, 155, 190, 0.4), rgba(130, 155, 190, 0.16));
+  color: #fff;
+  box-shadow: 0 0 10px rgba(150, 175, 210, 0.4);
+}
 
 /* 中栏：卡组 */
 .db-col-mid .deck-builder-panel {
@@ -1044,45 +1071,49 @@
   #section-card-pool.builder-mode #cardContainer { display: grid !important; }
 }
 
-/* ═══ 组卡右侧 筛选（+ 清空）═══ */
+/* ═══ 组卡右侧 筛选 / 清空（各占一半，方角 + 渐变底 + 同色字）═══ */
 .db-filter-toggle-row {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 6px;
   margin-top: 6px;
 }
-.db-filter-toggle {
-  flex: 1 1 auto;
-  background: none;
-  border: 1px dashed rgba(255, 255, 255, 0.25);
-  color: #aaa;
-  font-size: 0.75rem;
-  border-radius: 10px;
-  padding: 3px 10px;
+.db-filter-toggle,
+.db-filter-clear {
+  flex: 1 1 0;                      /* 55 开 */
+  min-width: 0;
+  border-radius: 0;                 /* 方角 */
+  border: 1px solid;
+  padding: 5px 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: 0.2s;
 }
-.db-filter-toggle:hover, .db-filter-toggle.active {
-  border-color: var(--gold);
-  color: #F0E68C;
+/* 筛选：金（与相关卡片同色系） */
+.db-filter-toggle {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.2), rgba(212, 175, 55, 0.05));
+  border-color: rgba(212, 175, 55, 0.7);
+  color: var(--light-gold, #F0D98C);
+}
+.db-filter-toggle:hover,
+.db-filter-toggle.active {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.38), rgba(212, 175, 55, 0.14));
+  color: #fff;
+  box-shadow: 0 0 10px rgba(212, 175, 55, 0.35);
 }
 .db-filter-count { color: var(--gold); }
-/* 清空：与筛选按钮并排 */
+/* 清空：红 */
 .db-filter-clear {
-  flex: 0 0 auto;
-  background: rgba(216, 30, 68, 0.18);
-  border: 1px solid rgba(216, 30, 68, 0.65);
-  color: #ffb3b3;
-  font-size: 0.75rem;
-  border-radius: 10px;
-  padding: 3px 12px;
-  cursor: pointer;
-  transition: all 0.15s;
+  background: linear-gradient(135deg, rgba(216, 30, 68, 0.24), rgba(216, 30, 68, 0.06));
+  border-color: rgba(216, 30, 68, 0.72);
+  color: #ff9db0;
 }
 .db-filter-clear:hover {
-  background: rgba(216, 30, 68, 0.4);
+  background: linear-gradient(135deg, rgba(216, 30, 68, 0.42), rgba(216, 30, 68, 0.16));
   color: #fff;
-  border-color: var(--red);
+  box-shadow: 0 0 10px rgba(216, 30, 68, 0.4);
 }
 
 .db-adv-filters {
