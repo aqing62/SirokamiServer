@@ -231,15 +231,20 @@ function initReplayViewer() {
             + '<span class="rp-lp" data-lp="' + controller + '"></span>'
             + '</div>';
 
-        function zoneRow(loc, count) {
+        function zoneRow(loc, count, mirrored) {
+            // 对手半场镜像：与游戏客户端一致（对手的 zone 4 显示在最左，zone 0 在最右），
+            // 这样"对手在自己视角最左边放的怪"在观战者画面里出现在右边，与客户端一致
             var cells = '';
-            for (var i = 0; i < count; i++) {
-                cells += '<div class="rp-cell" data-zone="' + controller + ':' + loc + ':' + i + '"></div>';
+            var order = [];
+            for (var i = 0; i < count; i++) order.push(i);
+            if (mirrored) order.reverse();
+            for (var k = 0; k < order.length; k++) {
+                cells += '<div class="rp-cell" data-zone="' + controller + ':' + loc + ':' + order[k] + '"></div>';
             }
             return cells;
         }
-        var mzone = zoneRow(LOC.MZONE, 5);
-        var szone = zoneRow(LOC.SZONE, 5);
+        var mzone = zoneRow(LOC.MZONE, 5, isOpp);
+        var szone = zoneRow(LOC.SZONE, 5, isOpp);
         var hand = '<div class="rp-hand" data-zone="' + controller + ':' + LOC.HAND + '"></div>';
         var mzoneRow = '<div class="rp-fieldrow rp-mzone">' + mzone + '</div>';
         var szoneRow = '<div class="rp-fieldrow rp-szone">' + szone + '</div>';
