@@ -128,6 +128,19 @@
         return /融合|同调|超量|连接/.test(sub + ' ' + cat);
     }
 
+    // 是否属于额外卡组（融合/同调/超量/连接怪兽）——魔法·陷阱一律进主卡组
+    function isExtraDeckCard(card) {
+        if (!card || !card.typeInfo) return false;
+        if (card.typeInfo.baseType !== '怪兽') return false;
+        return isExtraMonster(card);
+    }
+
+    // 官方卡：fullType 形如「怪兽 效果 融合」「魔法」，据此判断是否额外卡组怪兽
+    function isExtraDeckFullType(fullType) {
+        var t = String(fullType || '');
+        return /^怪兽/.test(t) && /融合|同调|超量|连接/.test(t);
+    }
+
     // ── 分数加载 ──
     function loadScores() {
         if (scoreMap) return Promise.resolve(scoreMap);
@@ -640,7 +653,7 @@
                 + '<span>ATK ' + atk + '</span><span>DEF ' + def + '</span></div>';
         }
         var typeHtml = '<div class="db-detail-type">' + escapeHtml(ti.fullType || '') + '</div>';
-        renderDetail(card.id, card.name, typeHtml, rows, card.processedDesc || card.desc || '', isExtraMonster(card));
+        renderDetail(card.id, card.name, typeHtml, rows, card.processedDesc || card.desc || '', isExtraDeckCard(card));
     }
 
     // ── 右栏：搜索与网格 ──
@@ -1210,7 +1223,7 @@
             + '</div>'
             + '<div class="db-detail-actions">'
             + '<button class="db-detail-related" id="dbRelatedBtn" type="button">🔗 相关卡片</button>'
-            + detailAddRowHtml(/融合|同调|超量|连接/.test(o.fullType || ''))
+            + detailAddRowHtml(isExtraDeckFullType(o.fullType))
             + '</div>';
         bindDetailAddButtons();
     }
