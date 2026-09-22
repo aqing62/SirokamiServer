@@ -972,6 +972,7 @@
     // ── 相关卡片：提取卡牌效果文本中「」内的关键词，搜索包含这些词的卡 ──
     var detailDescText = '';   // 当前详情卡的完整效果文本
     var relatedTerms = [];     // 当前「相关卡片」关键词（空=未启用）
+    var lastGridClickId = null; // 便利操作：记住上次点过的卡（再点一次=加入卡组）
 
     function extractBracketTerms(text) {
         var out = [];
@@ -1095,6 +1096,7 @@
         disconnectGridLoad();
         gridList = list || [];
         gridLoaded = 0;
+        lastGridClickId = null;   // 结果集变化后重置「连点加入」状态
         gridEl.innerHTML = '';
         if (!gridList.length) {
             gridEl.innerHTML = '<div class="db-grid-empty">无匹配卡片</div>';
@@ -1146,14 +1148,14 @@
         loadDiyData().then(function () {
             var list = diySearchList();
             gridTipEl.textContent = relatedTerms.length
-                ? ('🔗 相关卡片：' + relatedTerms.join(' / ') + ' · 共 ' + list.length + ' 张 · 滚轮翻阅')
-                : ('共 ' + list.length + ' 张 · 滚轮翻阅');
+                ? ('🔗 相关卡片：' + relatedTerms.join(' / ') + ' · 共 ' + list.length + ' 张 · 点一下看详情，再点一下加入卡组')
+                : ('共 ' + list.length + ' 张 · 点一下看详情，再点一下加入卡组');
             resetGrid(list);
         });
     }
 
     function renderOfficialResults() {
-        gridTipEl.textContent = '官方卡 · 共 ' + officialResults.length + ' 张（滚轮翻阅）';
+        gridTipEl.textContent = '官方卡 · 共 ' + officialResults.length + ' 张（点一下看详情，再点一下加入卡组）';
         resetGrid(officialResults);
     }
 
@@ -1234,6 +1236,12 @@
         if (!cell) return;
         var id = parseInt(cell.getAttribute('data-id'), 10);
         if (!id) return;
+        // 便利操作：第一次点=看详情，再点一次同一张=直接加入卡组（额外怪兽进额外，其余进主卡）
+        if (lastGridClickId === id) {
+            quickAddFromGrid(id, cell);
+            return;
+        }
+        lastGridClickId = id;
         if (officialMode) {
             var o = officialResults.find(function (x) { return x.id === id; });
             if (o) showDetailForOfficial(o);
@@ -1247,6 +1255,31 @@
                 if (o2) showDetailForOfficial(o2);
             }
         }
+    }
+
+    // 连点第二下：直接入卡组
+    function quickAddFromGrid(id, cell) {
+        var isExtra;
+        if (officialMode) {
+            var o = officialResults.find(function (x) { return x.id === id; });
+            isExtra = !!(o && isExtraDeckFullType(o.fullType));
+        } else {
+            var c = diyIndex && diyIndex.get(id);
+            isExtra = !!(c && isExtraDeckCard(c));
+        }
+        var zoneKey = isExtra ? 'extra' : 'main';
+        var okAdd = addCard(zoneKey, id);
+        if (okAdd) {
+            var label = isExtra ? '额外卡组' : '主卡组';
+            toast('已加入' + label + ' ✓（再点一次可继续加入）');
+            if (cell && cell.classList) {
+                cell.classList.remove('db-cell-added');
+                void cell.offsetWidth;   // 重启动画
+                cell.classList.add('db-cell-added');
+            }
+        }
+        // 保持"第一下看详情、第二下加卡"的节奏：加入后重置，下次点击先看详情
+        lastGridClickId = null;
     }
 
     // ── 导出 ──

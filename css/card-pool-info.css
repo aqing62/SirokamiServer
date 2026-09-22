@@ -1214,3 +1214,12 @@
 
 /* 组卡模式：隐藏右下角个人中心（避免遮挡筛选面板） */
 body.db-builder-active .global-login { display: none !important; }
+
+/* 连点加入卡组：卡片格闪一下作为反馈 */
+@keyframes dbCellAdded {
+  0%   { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0.9); transform: scale(1); }
+  35%  { box-shadow: 0 0 14px 3px rgba(212, 175, 55, 0.85); transform: scale(1.06); }
+  100% { box-shadow: 0 0 0 0 rgba(212, 175, 55, 0); transform: scale(1); }
+}
+.db-cell.db-cell-added { animation: dbCellAdded 0.45s ease-out; }
+.db-cell.db-cell-added .db-cell-imgwrap { outline: 2px solid rgba(212, 175, 55, 0.85); }
