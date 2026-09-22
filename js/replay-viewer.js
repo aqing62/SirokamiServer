@@ -1879,12 +1879,12 @@ function initReplayViewer() {
             case 'PosChange': {
                 // 表示形式变更（守备↔攻击）
                 // payload: code(4) controller(1) location(1) sequence(1) previousPosition(1) currentPosition(1)
-                var pcCode = hexU32(msg.hex, 1);
-                var pcCtl = hexU8(msg.hex, 5);
-                var pcLoc = hexU8(msg.hex, 6);
-                var pcSeq = hexU8(msg.hex, 7);
-                var pcPrev = hexU8(msg.hex, 8);
-                var pcCur = hexU8(msg.hex, 9) || (f.currentPosition || 0);
+                var pcCode = hexU32(m.hex, 1);
+                var pcCtl = hexU8(m.hex, 5);
+                var pcLoc = hexU8(m.hex, 6);
+                var pcSeq = hexU8(m.hex, 7);
+                var pcPrev = hexU8(m.hex, 8);
+                var pcCur = hexU8(m.hex, 9) || (f.currentPosition || 0);
                 var pcName = cardName(pcCode) || ('#' + pcCode);
                 // 先按 (controller,location,sequence) 精确找，找不到再按卡号在场上扫
                 var pcCard = field[pcCtl] ? field[pcCtl][pcLoc + ':' + pcSeq] : null;
