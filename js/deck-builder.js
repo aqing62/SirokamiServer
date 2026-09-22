@@ -65,6 +65,7 @@
         img.className = cls || 'db-img';
         img.alt = key;
         img.loading = 'lazy';
+        img.draggable = false;          // 禁止原生图片拖拽（长按拖动会导致卡顿/卡死）
         img.setAttribute('data-card-id', key);
         var chain;
         if (imgSrcCache[key]) {
@@ -178,9 +179,9 @@
         var cls = extraCls || 'db-img';
         var cached = imgSrcCache[key];
         if (cached) {
-            return '<img class="' + cls + '" src="' + cached + '" alt="' + key + '" loading="lazy">';
+            return '<img class="' + cls + '" src="' + cached + '" alt="' + key + '" loading="lazy" draggable="false">';
         }
-        return '<img class="' + cls + '" src="' + IMG_FALLBACK[0](key) + '" alt="' + key + '" loading="lazy"'
+        return '<img class="' + cls + '" src="' + IMG_FALLBACK[0](key) + '" alt="' + key + '" loading="lazy" draggable="false"'
             + ' onload="window.__dbImgOk&&window.__dbImgOk(this)"'
             + ' onerror="window.__dbImgErr&&window.__dbImgErr(this)">';
     }
@@ -1533,6 +1534,20 @@
 
         // 网格点击 → 详情
         gridEl.addEventListener('click', onGridClick);
+
+        // 禁止卡图的原生拖拽与长按菜单（长按拖动会造成页面卡顿/卡死）
+        layout.addEventListener('dragstart', function (e) {
+            var t = e.target;
+            if (t && t.closest && t.closest('.db-card-slot, .db-cell, img')) e.preventDefault();
+        });
+        layout.addEventListener('contextmenu', function (e) {
+            var t = e.target;
+            if (t && t.closest && t.closest('.db-card-slot')) e.preventDefault();
+        });
+        layout.addEventListener('selectstart', function (e) {
+            var t = e.target;
+            if (t && t.closest && t.closest('.db-card-slot, .db-cell')) e.preventDefault();
+        });
 
         // 中栏按钮
         $('dbSort').addEventListener('click', sortDeck);

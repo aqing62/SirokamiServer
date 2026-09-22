@@ -1223,3 +1223,20 @@ body.db-builder-active .global-login { display: none !important; }
 }
 .db-cell.db-cell-added { animation: dbCellAdded 0.45s ease-out; }
 .db-cell.db-cell-added .db-cell-imgwrap { outline: 2px solid rgba(212, 175, 55, 0.85); }
+
+/* ═══ 卡图防拖拽/防长按选择（长按拖动卡组的卡会卡顿甚至卡死）═══ */
+.db-card-slot,
+.db-cell,
+.db-detail-card {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;   /* iOS 长按不弹菜单 */
+}
+.db-card-slot img,
+.db-cell img,
+.db-detail-card img,
+.db-detail-img {
+  -webkit-user-drag: none;
+  user-drag: none;
+  pointer-events: auto;
+}
