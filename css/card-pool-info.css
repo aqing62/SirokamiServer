@@ -1163,6 +1163,8 @@
   transition: 0.15s;
 }
 .db-af-input::placeholder { color: #6b6b74; }
+/* 分值一行带「-1=禁卡」提示，需要更宽 */
+#dbFScoreMin, #dbFScoreMax { width: 84px; }
 .db-af-input:focus {
   border-color: rgba(212, 175, 55, 0.85);
   background: rgba(0, 0, 0, 0.72);
