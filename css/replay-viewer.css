@@ -560,14 +560,61 @@
 
 /* 移动端 */
 @media (max-width: 900px) {
-    .rp-modal-box { aspect-ratio: auto; width: 96vw; max-height: 94vh; overflow-y: auto; }
-    .replay-main { flex-direction: column; height: auto; width: 100%; aspect-ratio: auto; }
-    .replay-field { flex: none; min-height: 420px; }
-    .replay-log { flex: none; height: 40vh; }
+    /* 手机端：弹窗占满屏，上方=回放画面（自适应高度），下方=日志（占满剩余），无多余空位 */
+    .rp-modal-box {
+        aspect-ratio: auto;
+        width: 100vw;
+        max-width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        max-height: 100vh;
+        max-height: 100dvh;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        padding: 6px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+        gap: 6px;
+        overflow: hidden;
+    }
+    .rp-modal-head { padding: 0 2px; margin-bottom: 4px; }
+    .rp-modal-head .replay-title { font-size: 1rem; }
+    .rp-modal-close { width: 30px; height: 30px; }
+    #replayModal .replay-input-bar { margin-bottom: 4px; flex-wrap: nowrap; gap: 6px; }
+    .replay-input-bar input { width: auto; flex: 1 1 auto; min-width: 0; padding: 6px 10px; font-size: 0.82rem; }
+    #replayLoadBtn { padding: 6px 12px; font-size: 0.8rem; flex: 0 0 auto; }
+    .replay-meta { display: none; }                    /* 手机端省空间，元信息不显示 */
+    #replayModal .replay-controls { margin-bottom: 4px; gap: 5px; }
+    .replay-controls button { padding: 5px 9px; font-size: 0.76rem; }
+    .replay-controls .rp-speed { padding: 4px 7px; }
+    .rp-speed-label { display: none; }
+    .rp-progress-text { font-size: 0.72rem; }
+
+    .replay-main {
+        flex: 1 1 auto;
+        min-height: 0;
+        flex-direction: column;
+        width: 100%;
+        aspect-ratio: auto;
+        gap: 6px;
+    }
+    /* 上方：画面按实际缩放后的尺寸占位（不再有上下空白） */
+    .replay-field {
+        flex: 0 0 auto;
+        min-height: 0;
+        padding: 4px;
+    }
+    /* 下方：日志占满剩余高度 */
+    .replay-log {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 26vh;
+    }
+    .replay-log-title { padding: 6px 10px; font-size: 0.8rem; }
+    .replay-log-body { padding: 6px 10px; font-size: 0.76rem; line-height: 1.55; }
 }
 @media (max-width: 768px) {
     .rp-card { width: 44px; height: 62px; }
-    .replay-field { min-height: 380px; }
+    .replay-field { min-height: 0; }
 }
 
 

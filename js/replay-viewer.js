@@ -156,14 +156,25 @@ function initReplayViewer() {
     var cardDomCache = {}; // code → 已创建的 img src（内存缓存避免闪）
 
     // 场地棋盘按播放器窗口自动缩放：整体缩小到刚好放下，不出现滚动条
+    // zoom 会参与布局（transform: scale 不会），用 zoom 才能让场地框高度贴合实际画面、不出现上下空白
+    var ZOOM_OK = (function () {
+        try { return !!(window.CSS && CSS.supports && CSS.supports('zoom', '0.5')); } catch (e) { return false; }
+    })();
+
     function fitBoard() {
         if (!boardEl || !fieldEl.clientWidth) return;
         var availW = fieldEl.clientWidth - 12;
         var availH = fieldEl.clientHeight - 12;
         var bw = boardEl.scrollWidth || boardEl.offsetWidth;
         var bh = boardEl.scrollHeight || boardEl.offsetHeight;
+        if (!bw || !bh) return;
         var k = Math.min(1, availW / bw, availH / bh);
-        boardEl.style.transform = k < 1 ? 'scale(' + k + ')' : '';
+        if (ZOOM_OK) {
+            boardEl.style.zoom = k < 1 ? String(k) : '';
+            boardEl.style.transform = '';
+        } else {
+            boardEl.style.transform = k < 1 ? 'scale(' + k + ')' : '';
+        }
     }
 
     function createFieldDOM() {
