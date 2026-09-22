@@ -1116,61 +1116,85 @@
   box-shadow: 0 0 10px rgba(216, 30, 68, 0.4);
 }
 
+/* ═══ 筛选面板：方角 + 渐变 + 金/红强调，与新按钮同风格 ═══ */
 .db-adv-filters {
   display: none;
   margin-top: 8px;
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 8px;
-  padding: 8px;
+  padding: 4px 10px 8px;
+  background: linear-gradient(180deg, rgba(26, 26, 29, 0.94), rgba(12, 12, 14, 0.94));
+  border: 1px solid rgba(216, 30, 68, 0.3);
+  border-radius: 0;
+  box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.55);
 }
+/* 分组：左侧红色竖条 + 细分隔线 */
 .db-af-group {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 7px;
   flex-wrap: wrap;
+  padding: 8px 0 8px 9px;
+  border-left: 2px solid rgba(216, 30, 68, 0.5);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
+.db-af-group:last-child { border-bottom: none; }
 .db-af-group.db-af-wide {
   flex-direction: column;
-  align-items: flex-start;
+  align-items: stretch;
 }
 .db-af-label {
-  color: #aaa;
+  color: var(--light-gold, #F0D98C);
   font-size: 0.72rem;
-  min-width: 46px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  min-width: 44px;
   flex-shrink: 0;
 }
+.db-af-group.db-af-wide .db-af-label { margin-bottom: 7px; }
+/* 数值输入框 */
 .db-af-input {
-  width: 62px;
-  background: rgba(20, 20, 20, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  color: #eee;
-  border-radius: 5px;
-  padding: 3px 6px;
-  font-size: 0.75rem;
+  width: 64px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #f0e6c8;
+  border-radius: 0;
+  padding: 4px 7px;
+  font-size: 0.74rem;
   outline: none;
+  transition: 0.15s;
 }
-.db-af-input:focus { border-color: var(--gold); }
-.db-af-sep { color: #666; font-size: 0.7rem; }
+.db-af-input::placeholder { color: #6b6b74; }
+.db-af-input:focus {
+  border-color: rgba(212, 175, 55, 0.85);
+  background: rgba(0, 0, 0, 0.72);
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.25);
+}
+.db-af-sep { color: rgba(212, 175, 55, 0.6); font-size: 0.72rem; }
+/* 选项 chips */
 .db-af-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 5px;
 }
 .db-af-chip {
-  background: rgba(40, 40, 40, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #ccc;
-  border-radius: 10px;
-  padding: 2px 8px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #c8c8d0;
+  border-radius: 0;
+  padding: 3px 9px;
   font-size: 0.7rem;
+  line-height: 1.5;
   cursor: pointer;
-  transition: all 0.12s;
+  transition: 0.15s;
+}
+.db-af-chip:hover {
+  border-color: rgba(212, 175, 55, 0.8);
+  color: #F0E68C;
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.16), rgba(212, 175, 55, 0.04));
+  box-shadow: 0 0 8px rgba(212, 175, 55, 0.22);
 }
 .db-af-chip.active {
-  background: rgba(216, 30, 68, 0.75);
+  background: linear-gradient(135deg, rgba(216, 30, 68, 0.6), rgba(216, 30, 68, 0.22));
+  border-color: rgba(216, 30, 68, 0.95);
   color: #fff;
-  border-color: var(--red);
+  box-shadow: 0 0 9px rgba(216, 30, 68, 0.4);
 }
-.db-af-chip:hover { border-color: var(--gold); }
