@@ -1876,6 +1876,43 @@ function initReplayViewer() {
                 if (!animSuppress) phaseBanner(phaseText);
                 break;
             }
+            case 'PosChange': {
+                // 表示形式变更（守备↔攻击）
+                // payload: code(4) controller(1) location(1) sequence(1) previousPosition(1) currentPosition(1)
+                var pcCode = hexU32(msg.hex, 1);
+                var pcCtl = hexU8(msg.hex, 5);
+                var pcLoc = hexU8(msg.hex, 6);
+                var pcSeq = hexU8(msg.hex, 7);
+                var pcPrev = hexU8(msg.hex, 8);
+                var pcCur = hexU8(msg.hex, 9) || (f.currentPosition || 0);
+                var pcName = cardName(pcCode) || ('#' + pcCode);
+                // 先按 (controller,location,sequence) 精确找，找不到再按卡号在场上扫
+                var pcCard = field[pcCtl] ? field[pcCtl][pcLoc + ':' + pcSeq] : null;
+                if (!pcCard || (pcCard.code && pcCard.code !== pcCode)) {
+                    pcCard = null;
+                    var pcLocs = [LOC.MZONE, LOC.SZONE];
+                    for (var pli = 0; pli < pcLocs.length && !pcCard; pli++) {
+                        for (var psq = 0; psq < 7; psq++) {
+                            var pcCand = field[pcCtl] ? field[pcCtl][pcLocs[pli] + ':' + psq] : null;
+                            if (pcCand && pcCand.code === pcCode) {
+                                pcCard = pcCand; pcLoc = pcLocs[pli]; pcSeq = psq; break;
+                            }
+                        }
+                    }
+                }
+                if (pcCard) {
+                    pcCard.pos = pcCur;                       // 更新表示形式（守备横置 / 攻击竖置）
+                    pcCard.faceDown = isFaceDown(pcCur);
+                    updateZone(pcCtl, pcLoc);
+                    if (pcLoc === LOC.MZONE && pcSeq >= 5) refreshEmz();   // 额外怪兽区(seq5/6)单独刷新
+                }
+                var pcPosText = function (p) {
+                    if (isFaceDown(p)) return '里侧' + (isDefense(p) ? '守备' : '攻击');
+                    return isDefense(p) ? '守备' : '攻击';
+                };
+                log(playerName(pcCtl) + ' ' + pcName + '：表示形式 ' + pcPosText(pcPrev) + ' → ' + pcPosText(pcCur));
+                break;
+            }
             case 'Move': {
                 var code = f.code;
                 var prev = f.previous || {};
