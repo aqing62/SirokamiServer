@@ -1406,6 +1406,8 @@
         if (toggleBtn) toggleBtn.classList.toggle('active', on);
         var section = document.getElementById('section-card-pool');
         if (section) section.classList.toggle('builder-mode', on);
+        // 组卡模式隐藏右下角个人中心，避免遮挡筛选面板
+        document.body.classList.toggle('db-builder-active', on);
         layout.style.display = on ? 'flex' : 'none';
         if (on) {
             document.body.style.overflow = 'hidden';

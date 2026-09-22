@@ -1120,7 +1120,11 @@
 .db-adv-filters {
   display: none;
   margin-top: 8px;
-  padding: 4px 10px 8px;
+  padding: 2px 9px 6px;
+  max-height: 46vh;                 /* 限高：内部滚动，不把卡格挤太空 */
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--red) transparent;
   background: linear-gradient(180deg, rgba(26, 26, 29, 0.94), rgba(12, 12, 14, 0.94));
   border: 1px solid rgba(216, 30, 68, 0.3);
   border-radius: 0;
@@ -1130,9 +1134,9 @@
 .db-af-group {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   flex-wrap: wrap;
-  padding: 8px 0 8px 9px;
+  padding: 4px 0 4px 8px;
   border-left: 2px solid rgba(216, 30, 68, 0.5);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
@@ -1143,30 +1147,33 @@
 }
 .db-af-label {
   color: var(--light-gold, #F0D98C);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 700;
   letter-spacing: 1px;
-  min-width: 44px;
+  min-width: 42px;
   flex-shrink: 0;
 }
-.db-af-group.db-af-wide .db-af-label { margin-bottom: 7px; }
+.db-af-group.db-af-wide .db-af-label { margin-bottom: 4px; }
 /* 数值输入框 */
 .db-af-input {
-  width: 64px;
+  width: 60px;
   background: rgba(0, 0, 0, 0.55);
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #f0e6c8;
   border-radius: 0;
-  padding: 4px 7px;
-  font-size: 0.74rem;
+  padding: 2px 6px;
+  font-size: 0.72rem;
   outline: none;
   transition: 0.15s;
 }
 .db-af-input::placeholder { color: #6b6b74; }
+.db-adv-filters::-webkit-scrollbar { width: 6px; }
+.db-adv-filters::-webkit-scrollbar-track { background: transparent; }
+.db-adv-filters::-webkit-scrollbar-thumb { background: var(--red); }
 /* 行内小字说明（如「-1 = 禁卡」） */
 .db-af-hint {
   color: rgba(212, 175, 55, 0.55);
-  font-size: 0.68rem;
+  font-size: 0.66rem;
   white-space: nowrap;
 }
 .db-af-input:focus {
@@ -1179,16 +1186,16 @@
 .db-af-chips {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
 }
 .db-af-chip {
   background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.02));
   border: 1px solid rgba(255, 255, 255, 0.14);
   color: #c8c8d0;
   border-radius: 0;
-  padding: 3px 9px;
-  font-size: 0.7rem;
-  line-height: 1.5;
+  padding: 2px 7px;
+  font-size: 0.68rem;
+  line-height: 1.45;
   cursor: pointer;
   transition: 0.15s;
 }
@@ -1204,3 +1211,6 @@
   color: #fff;
   box-shadow: 0 0 9px rgba(216, 30, 68, 0.4);
 }
+
+/* 组卡模式：隐藏右下角个人中心（避免遮挡筛选面板） */
+body.db-builder-active .global-login { display: none !important; }
