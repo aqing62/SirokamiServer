@@ -1906,11 +1906,14 @@ function initReplayViewer() {
                     updateZone(pcCtl, pcLoc);
                     if (pcLoc === LOC.MZONE && pcSeq >= 5) refreshEmz();   // 额外怪兽区(seq5/6)单独刷新
                 }
+                var pcIsMonster = (pcLoc === LOC.MZONE);
                 var pcPosText = function (p) {
+                    if (!pcIsMonster) return isFaceDown(p) ? '里侧' : '表侧';   // 魔陷：只分表侧/里侧
                     if (isFaceDown(p)) return '里侧' + (isDefense(p) ? '守备' : '攻击');
                     return isDefense(p) ? '守备' : '攻击';
                 };
-                log(playerName(pcCtl) + ' ' + pcName + '：表示形式 ' + pcPosText(pcPrev) + ' → ' + pcPosText(pcCur));
+                log(playerName(pcCtl) + ' ' + pcName + '：' + (pcIsMonster ? '表示形式 ' : '')
+                    + pcPosText(pcPrev) + ' → ' + pcPosText(pcCur));
                 break;
             }
             case 'Move': {
