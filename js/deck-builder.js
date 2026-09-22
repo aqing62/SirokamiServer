@@ -351,8 +351,8 @@
         if (!btn) return;
         btn.classList.toggle('db-btn-on', highScoreOn);
         btn.textContent = highScoreOn
-            ? ('🔍 高分卡 ×' + highScoreCount() + '（点击取消）')
-            : '🔍 查询高分卡';
+            ? ('高分卡 ×' + highScoreCount() + '（点击取消）')
+            : '查询高分卡';
     }
     function refreshHighScore() {
         ['main', 'extra', 'side'].forEach(function (k) { renderZone(k); });
