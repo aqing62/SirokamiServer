@@ -457,13 +457,14 @@
 
   async function fetchRanking() {
     const search = (searchInput.value || '').trim();
-    let url = API_URL;
+    // 带时间戳防缓存：赛季重置后必须立刻看到最新榜单
+    let url = API_URL + '?t=' + Date.now();
     if (search) {
-      url += '?search=' + encodeURIComponent(search);
+      url += '&search=' + encodeURIComponent(search);
     }
 
     try {
-      const resp = await fetch(url);
+      const resp = await fetch(url, { cache: 'no-store' });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       currentData = data.players || [];
