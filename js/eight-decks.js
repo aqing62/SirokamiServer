@@ -145,7 +145,7 @@ function renderTournamentPending(data) {
 
     header.style.display = 'flex';
     document.getElementById('tourneyName').textContent = label;
-    document.getElementById('tourneyRule').textContent = slot === 'elim' ? 'SingleElimination' : 'Swiss';
+    document.getElementById('tourneyRule').textContent = slot === 'elim' ? '单淘（对阵待定）' : '瑞士轮';
     document.getElementById('tourneyStatus').textContent = '待公布';
     document.getElementById('tourneyStatus').className = 'badge status-badge status-pending';
 
