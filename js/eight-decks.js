@@ -57,6 +57,12 @@ const slotData = {};        // key → Tabulator 数据
 const slotFetchedAt = {};   // key → 时间戳
 let pollTimer = null;
 
+// 槽位 key → 中文名（瑞士轮 / 淘汰赛）
+function slotLabel(key) {
+    const s = TOURNEY_SLOTS.find(function (x) { return x.key === key; });
+    return s ? s.label : String(key || '');
+}
+
 
 function initEightDecksModule() {
     // 启动轮询（只刷新当前显示的赛事）
@@ -129,6 +135,34 @@ function moveTourneyThumb() {
     thumb.style.setProperty('--thumb-w', btn.offsetWidth + 'px');
 }
 
+// 槽位编号未确定时的专属占位效果（如淘汰赛要等瑞士轮结束）
+function renderTournamentPending(data) {
+    const header = document.getElementById('tournamentHeader');
+    const main = document.getElementById('tournamentMain');
+    const slot = (data && data.slot) || activeSlot;
+    const label = (data && data.label) || slotLabel(slot);
+    const msg = (data && data.message) || '对阵待公布';
+
+    header.style.display = 'flex';
+    document.getElementById('tourneyName').textContent = label;
+    document.getElementById('tourneyRule').textContent = slot === 'elim' ? 'SingleElimination' : 'Swiss';
+    document.getElementById('tourneyStatus').textContent = '待公布';
+    document.getElementById('tourneyStatus').className = 'badge status-badge status-pending';
+
+    main.innerHTML =
+        '<div class="tourney-pending">'
+        + '<div class="tp-icon">⏳</div>'
+        + '<div class="tp-title">' + escapeHtml(msg) + '</div>'
+        + '<div class="tp-sub">瑞士轮全部对局结束后，组委会才会生成淘汰赛对阵表；生成后这里会自动显示，无需刷新页面</div>'
+        + '<div class="tp-steps">'
+        + '<span class="tp-step done">① 瑞士轮进行中</span>'
+        + '<span class="tp-step-arrow">→</span>'
+        + '<span class="tp-step waiting">② 淘汰赛对阵待公布</span>'
+        + '</div>'
+        + '<div class="tp-foot">想看瑞士轮实时排名与对阵，请点击上方「瑞士轮」</div>'
+        + '</div>';
+}
+
 async function fetchTournamentData(force) {
     const slot = activeSlot;
     try {
@@ -161,6 +195,12 @@ async function fetchTournamentData(force) {
 function renderTournamentView(data) {
     const header = document.getElementById('tournamentHeader');
     const main = document.getElementById('tournamentMain');
+
+    // 槽位编号未确定（如淘汰赛要等瑞士轮结束）：显示专属「待公布」占位效果
+    if (data && data.pending) {
+        renderTournamentPending(data);
+        return;
+    }
 
     if (!data || data.error) {
         header.style.display = 'none';

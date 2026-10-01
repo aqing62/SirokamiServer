@@ -1297,3 +1297,86 @@ tr.cut-line td { padding: 0; border: none; background: transparent; height: 30px
         height: 36px;
     }
 }
+
+/* ══ 赛事槽位「待公布」占位效果（如淘汰赛等瑞士轮结束）══ */
+.status-badge.status-pending {
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.35), rgba(212, 175, 55, 0.12));
+  border-color: rgba(212, 175, 55, 0.75);
+  color: var(--light-gold, #F0D98C);
+}
+.tourney-pending {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 46px 18px 38px;
+  margin: 6px 0 0;
+  border: 1px dashed rgba(212, 175, 55, 0.45);
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(212, 175, 55, 0.1), rgba(0, 0, 0, 0) 60%),
+    linear-gradient(180deg, rgba(24, 24, 27, 0.9), rgba(12, 12, 14, 0.9));
+  text-align: center;
+}
+.tourney-pending .tp-icon {
+  font-size: 2.4rem;
+  line-height: 1;
+  opacity: 0.95;
+  animation: tpPulse 2.2s ease-in-out infinite;
+}
+@keyframes tpPulse {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0.85; }
+  50%      { transform: translateY(-4px) scale(1.06); opacity: 1; }
+}
+.tourney-pending .tp-title {
+  color: var(--light-gold, #F0D98C);
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+.tourney-pending .tp-sub {
+  color: #b9b9c2;
+  font-size: 0.82rem;
+  line-height: 1.65;
+  max-width: 460px;
+}
+.tourney-pending .tp-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: 2px;
+}
+.tourney-pending .tp-step {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 11px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #c9c9d2;
+}
+.tourney-pending .tp-step.done {
+  border-color: rgba(216, 30, 68, 0.7);
+  background: linear-gradient(135deg, rgba(216, 30, 68, 0.25), rgba(216, 30, 68, 0.07));
+  color: #ff9db0;
+}
+.tourney-pending .tp-step.waiting {
+  border-color: rgba(212, 175, 55, 0.7);
+  background: linear-gradient(135deg, rgba(212, 175, 55, 0.22), rgba(212, 175, 55, 0.06));
+  color: var(--light-gold, #F0D98C);
+}
+.tourney-pending .tp-step-arrow { color: rgba(212, 175, 55, 0.7); font-size: 0.85rem; }
+.tourney-pending .tp-foot {
+  margin-top: 4px;
+  color: #8d8d96;
+  font-size: 0.76rem;
+}
+
+/* 手机端：占位卡片压缩留白 */
+@media (max-width: 768px) {
+  .tourney-pending { padding: 30px 12px 26px; gap: 9px; }
+  .tourney-pending .tp-icon { font-size: 1.9rem; }
+  .tourney-pending .tp-title { font-size: 0.95rem; }
+  .tourney-pending .tp-sub { font-size: 0.76rem; }
+  .tourney-pending .tp-foot { display: none; }
+}

@@ -32,12 +32,20 @@ THUMB_WIDTH = 200
 THUMB_QUALITY = 72
 
 # ── 比赛排表代理配置 ──────────────────────────────────────
-TOURNAMENT_ID = "159"  # 默认比赛ID（淘汰赛/当前赛事），每次新比赛改这里
+TOURNAMENT_ID = "191"  # 默认比赛ID（当前赛事），每次新比赛改这里
 # 「比赛相关」板块展示的两场比赛：左=瑞士轮，右=淘汰赛
 # 前端通过 /api/tournament?slot=swiss|elim 取用；新比赛时改这里即可
+# 值填 False = 该槽位编号尚未确定（例如淘汰赛要等瑞士轮结束后才知道），
+# 前端会显示「待公布」占位效果，不再请求上游接口
 TOURNAMENT_SLOTS = {
-    "swiss": "151",   # 瑞士轮
-    "elim": "159",    # 淘汰赛（单淘/双淘）
+    "swiss": "191",   # 瑞士轮
+    "elim": False,    # 淘汰赛（等瑞士轮结束后再填编号）
+}
+# 槽位显示名 & 编号未确定时的提示文案
+TOURNAMENT_SLOT_LABELS = {"swiss": "瑞士轮", "elim": "淘汰赛"}
+TOURNAMENT_PENDING_MESSAGE = {
+    "elim": "淘汰赛对阵将在瑞士轮结束后公布",
+    "swiss": "瑞士轮对阵待公布",
 }
 TABULATOR_API_URL = "https://api-tabulator.moecube.com:444/api/tournament"
 TABULATOR_API_KEY = "MRAUXnLph1YP2sVeC9fQr7MKSK9KvbmoKrPchtED2YjKuVe5Q2x1zv32HrRxjfiC"
@@ -837,10 +845,15 @@ class VoteHandler(SimpleHTTPRequestHandler):
             raw_id = (qargs.get("id") or "").strip()
             tid = None
             err = None
+            pending = False
             if slot:
-                tid = TOURNAMENT_SLOTS.get(slot)
-                if not tid:
+                if slot not in TOURNAMENT_SLOTS:
                     err = f"未知赛事槽位: {slot}"
+                else:
+                    tid = TOURNAMENT_SLOTS[slot]
+                    # 编号未确定（值为 false/null/空）：通知前端显示「待公布」占位
+                    if not tid:
+                        pending = True
             elif raw_id:
                 if not raw_id.isdigit() or len(raw_id) > 10:
                     err = "比赛ID格式不正确"
@@ -848,6 +861,13 @@ class VoteHandler(SimpleHTTPRequestHandler):
                     tid = raw_id
             if err:
                 self._json_response({"error": err}, status=400)
+            elif pending:
+                self._json_response({
+                    "pending": True,
+                    "slot": slot,
+                    "label": TOURNAMENT_SLOT_LABELS.get(slot, slot),
+                    "message": TOURNAMENT_PENDING_MESSAGE.get(slot, "对阵待公布"),
+                })
             else:
                 try:
                     data = _get_tournament_data(tid)
