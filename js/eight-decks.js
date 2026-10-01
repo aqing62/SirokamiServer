@@ -221,6 +221,24 @@ function renderTournamentView(data) {
     const matches = data.matches || [];
     const rule = data.rule || '';
 
+    // 尚未开始（无选手且无对局）：友好占位，避免主区一片空白
+    if (!participants.length && !matches.length) {
+        main.innerHTML =
+            '<div class="tourney-pending tourney-idle">'
+            + '<div class="tp-icon">🕓</div>'
+            + '<div class="tp-title">' + escapeHtml(data.name || '比赛') + ' 尚未开始</div>'
+            + '<div class="tp-sub">当前状态：' + escapeHtml(formatStatus(data.status))
+            + '。选手报到、轮次编排完成后，这里会自动显示排名与对阵（无需刷新页面）</div>'
+            + '<div class="tp-steps">'
+            + '<span class="tp-step waiting">报名 / 报到</span>'
+            + '<span class="tp-step-arrow">→</span>'
+            + '<span class="tp-step">' + (rule === 'Swiss' ? '瑞士轮对阵' : '对阵表') + '</span>'
+            + '</div>'
+            + '</div>';
+        requestAnimationFrame(function () { moveTourneyThumb(); drawBracketConnectors(); });
+        return;
+    }
+
     let html = '';
     html += renderRankingTable(participants);
 
