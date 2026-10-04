@@ -757,6 +757,7 @@ body.nx-skip .nx-welcome { display: none; }
   margin-right: auto;
   box-sizing: border-box;
 }
+.nx-list-head, .nx-scroll, .nx-list-note { align-self: stretch; }   /* flex 列容器里默认会收缩成内容宽度 */
 .nx-list-head, .nx-scroll { padding-left: 12px; padding-right: 12px; }
 .nx-list-head, .nx-row { grid-template-columns: 54px 1fr 104px 76px 130px 72px; }
 
