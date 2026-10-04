@@ -1457,8 +1457,23 @@ body.nx-zoomed .nx-foot {
   color: #2a1c08;
   font-family: inherit; font-size: 13.5px; font-weight: 700; letter-spacing: .5px;
   cursor: pointer;
+  transform-origin: 0% 50%;                 /* 以左端为轴，撞击后右端翘起 */
   box-shadow: 0 8px 22px rgba(212, 175, 55, .38), 0 0 26px rgba(255, 214, 40, .18), inset 0 0 0 1px rgba(255, 245, 200, .5);
   transition: transform .2s cubic-bezier(.22, .9, .28, 1.02), box-shadow .25s, filter .2s;
+  /* 入场：从右边冲过来撞上左侧文字 → 右端翘起 → 回弹归正 → 闪一下 */
+  animation: nxDlIn 1.05s both;
+  animation-delay: .18s;
+}
+/* 冲击→翘起→回正→闪光 */
+@keyframes nxDlIn {
+  0%   { opacity: 0; transform: translateX(74px) rotate(0deg); animation-timing-function: cubic-bezier(.55, 0, .9, .35); }
+  34%  { opacity: 1; transform: translateX(0) rotate(0deg);     animation-timing-function: cubic-bezier(.2, .8, .3, 1); }
+  44%  { transform: translateX(0) rotate(-4deg);               animation-timing-function: cubic-bezier(.3, .1, .4, 1); }
+  58%  { transform: translateX(0) rotate(2.2deg);              animation-timing-function: cubic-bezier(.3, .1, .4, 1); }
+  70%  { transform: translateX(0) rotate(-1.1deg);             animation-timing-function: cubic-bezier(.3, .1, .4, 1); }
+  80%  { transform: translateX(0) rotate(0deg); }
+  88%  { filter: brightness(1.7) saturate(1.15); box-shadow: 0 0 40px rgba(255, 240, 180, .95), 0 0 80px rgba(255, 214, 40, .6), inset 0 0 0 1px rgba(255, 253, 240, .95); }
+  100% { opacity: 1; transform: none; filter: none; }
 }
 .nx-deck-dl svg { width: 18px; height: 18px; display: block; }
 .nx-deck-dl:hover {
