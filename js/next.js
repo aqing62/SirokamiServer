@@ -353,6 +353,7 @@
         // 点击选手条 → 弹出对战记录 / 卡组
         Array.prototype.forEach.call(scroller.querySelectorAll('.nx-row'), function (r) {
             r.addEventListener('click', function (ev) {
+                ev.stopPropagation();   // 不能被全局"点空白返回"接走，否则打开浮层的同时页面会偷偷退一级
                 openPlayerOverlay(
                     { name: r.getAttribute('data-player'), rating: r.getAttribute('data-rating'), tier: r.getAttribute('data-tier') },
                     { x: ev.clientX, y: ev.clientY }
@@ -1508,7 +1509,7 @@
         if (historyStack.length <= 1) return;                      // 没有上一步
         // 功能屏同样支持点空白返回（已无返回按钮）
         var t = ev.target;
-        if (t && t.closest && t.closest('button, a, input, select, textarea, label, .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug')) return;
+        if (t && t.closest && t.closest('button, a, input, select, textarea, label, .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug, .nx-row, .nx-pov')) return;
         playSfx('back');
         goBack();
     });
