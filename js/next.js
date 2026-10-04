@@ -249,7 +249,7 @@
         for (var i = 0; i < points; i++) {
             var a = (i / points) * Math.PI * 2;
             // 拉拽：朝 pullDir 方向 +cos 拉伸，反向 -cos 收窄（像被橡皮筋拽住）
-            var pullTerm = pullAmt * 0.34 * Math.cos(a - pullDir);
+            var pullTerm = pullAmt * 0.38 * Math.cos(a - pullDir);   // 0.38 = 最大甩长比例
             var rr = radius * (1
                 + wobble * Math.sin(a * 3 + seed) * 0.62
                 + wobble * Math.cos(a * 2 + seed * 1.7) * 0.34
@@ -304,10 +304,18 @@
     // ── 磁吸跟随 + 相互规避 ──────────────────────────────────
     // 按钮被光标"黏住"：靠近时轻微跟手，光标移远（超过 release 距离）才脱离；
     // 按钮之间保持最小间距，互相推开避免重叠。位移用 translate 属性，不影响 transform。
-    var MAG = { stick: 130, release: 240, maxPull: 38, ease: 0.16, gap: 14, repK: 0.5, pullR: 300, pullEase: 0.14 };
+    var MAG = { stick: 130, release: 240, maxPull: 38, ease: 0.16, gap: 14, repK: 0.5,
+                dragR: 340,      // 拉拽作用半径（指针在此范围内移动才影响该按钮）
+                speedRef: 2000,  // 达到此速度(px/s)时甩长最强
+                dragMax: 0.38,   // 最大甩长比例（沿运动方向拉长）
+                velEase: 0.35,   // 指针速度平滑
+                dragEase: 0.16 };// 形变自身的缓动（产生拖尾滞后）
     var _magBtns = [];
     var _magPx = null, _magPy = null;
     var _magLast = 0;
+    var _magVx = 0, _magVy = 0;              // 平滑后的指针速度 px/s
+    var _magSample = null;                   // 待处理的指针采样
+    var _magPrevPx = null, _magPrevPy = null, _magPrevT = 0;
 
     function bindMagnet(btn) {
         btn._mx = 0; btn._my = 0;
@@ -333,6 +341,23 @@
         if (!_magLast) _magLast = now;
         var dt = Math.min(0.05, (now - _magLast) / 1000);
         _magLast = now;
+        // 指针速度：有采样就更新（EMA 平滑），一段时间没动就衰减到 0
+        if (_magSample) {
+            var st2 = _magSample; _magSample = null;
+            if (_magPrevPx !== null) {
+                var vdt = Math.max(0.008, (st2.t - _magPrevT) / 1000);
+                var ivx = (st2.x - _magPrevPx) / vdt, ivy = (st2.y - _magPrevPy) / vdt;
+                var ve = MAG.velEase;
+                _magVx += (ivx - _magVx) * ve;
+                _magVy += (ivy - _magVy) * ve;
+            }
+            _magPrevPx = st2.x; _magPrevPy = st2.y; _magPrevT = st2.t;
+        } else if (now - _magPrevT > 90) {
+            _magVx *= 0.82; _magVy *= 0.82;      // 鼠标停下 → 甩长自然回弹
+            if (Math.abs(_magVx) < 2) _magVx = 0;
+            if (Math.abs(_magVy) < 2) _magVy = 0;
+        }
+
         var stageRect = stage.getBoundingClientRect();
 
         // 1) 目标偏移：磁吸（带滞回，靠近才吸、走远才松）
@@ -399,6 +424,7 @@
     document.addEventListener('pointermove', function (e) {
         if (e.pointerType === 'touch') return;
         _magPx = e.clientX; _magPy = e.clientY;
+        _magSample = { x: e.clientX, y: e.clientY, t: (e.timeStamp || performance.now()) };
     }, { passive: true });
     document.addEventListener('mouseleave', function () { _magPx = null; _magPy = null; });
     window.addEventListener('blur', function () { _magPx = null; _magPy = null; });
@@ -437,22 +463,25 @@
                 // 拉拽：按钮视觉中心 → 光标 的方向，越近越强（缓动，避免抖动）
                 if (owner._pullStamp !== _pullTick) {      // 同一按钮的 4 层只算一次
                     owner._pullStamp = _pullTick;
-                    var tgtUx = 0, tgtUy = 0;
-                    if (_srect && owner.parentNode) {
+                    var tgDx = 0, tgDy = 0;
+                    var vsp = Math.sqrt(_magVx * _magVx + _magVy * _magVy);
+                    if (_srect && owner.parentNode && vsp > 30) {
+                        // 靠近程度：指针离按钮越近，甩长越明显
                         var ocx = _srect.left + owner.offsetLeft + owner.offsetWidth / 2 + (owner._mx || 0);
                         var ocy = _srect.top + owner.offsetTop + owner.offsetHeight / 2 + (owner._my || 0);
                         var pdx = _magPx - ocx, pdy = _magPy - ocy;
                         var pd = Math.sqrt(pdx * pdx + pdy * pdy) || 1;
-                        var pt = Math.max(0, Math.min(1, (MAG.pullR - pd) / MAG.pullR));
-                        var pstr = Math.pow(pt, 1.5);
-                        tgtUx = (pdx / pd) * pstr;
-                        tgtUy = (pdy / pd) * pstr;
+                        var prox = Math.max(0, Math.min(1, (MAG.dragR - pd) / MAG.dragR));
+                        var sf = Math.min(1, vsp / MAG.speedRef);
+                        var amt = Math.pow(prox, 1.2) * sf;   // 0~1
+                        tgDx = (_magVx / vsp) * amt;          // 方向 = 指针移动方向
+                        tgDy = (_magVy / vsp) * amt;
                     }
-                    owner._pux = (owner._pux || 0) + (tgtUx - (owner._pux || 0)) * MAG.pullEase;
-                    owner._puy = (owner._puy || 0) + (tgtUy - (owner._puy || 0)) * MAG.pullEase;
+                    owner._dux = (owner._dux || 0) + (tgDx - (owner._dux || 0)) * MAG.dragEase;
+                    owner._duy = (owner._duy || 0) + (tgDy - (owner._duy || 0)) * MAG.dragEase;
                 }
-                var pmag = Math.sqrt(owner._pux * owner._pux + owner._puy * owner._puy);
-                if (pmag > 0.001) { pull = Math.min(1, pmag); pullAng = Math.atan2(owner._puy, owner._pux); }
+                var pmag = Math.sqrt((owner._dux || 0) * (owner._dux || 0) + (owner._duy || 0) * (owner._duy || 0));
+                if (pmag > 0.001) { pull = Math.min(1, pmag); pullAng = Math.atan2(owner._duy || 0, owner._dux || 0); }
                 else { pull = 0; }
                 if (owner._nxReg === undefined) owner._nxReg = 0;
                 if (owner._nxRegTarget === undefined) owner._nxRegTarget = 0;
