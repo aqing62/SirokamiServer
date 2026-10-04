@@ -315,6 +315,13 @@
 
     function magTick(now) {
         requestAnimationFrame(magTick);
+
+    // 尺寸变化时重算问句上移量（延迟到布局稳定）
+    var _liftTimer = 0;
+    window.addEventListener('resize', function () {
+        clearTimeout(_liftTimer);
+        _liftTimer = setTimeout(layoutQuestionLift, 120);
+    });
         if (!_magBtns.length) return;
         if (document.hidden) { _magLast = 0; return; }
         if (!_magLast) _magLast = now;
@@ -486,6 +493,19 @@
         }, 200);
     }
 
+    // 问句上移：把「问句到舞台顶部」的间距减半（响应式，随窗口变化重算）
+    function layoutQuestionLift() {
+        var stage = document.getElementById('nxStage');
+        if (!qEl || !stage) return;
+        qEl.style.setProperty('--q-lift', '0px');       // 归零后量原始位置
+        var qr = qEl.getBoundingClientRect();
+        var sr = stage.getBoundingClientRect();
+        var gap = qr.top - sr.top;
+        var lift = Math.max(0, Math.round(gap / 2));
+        qEl.style.setProperty('--q-lift', lift + 'px');
+        return lift;
+    }
+
     // 渲染当前节点（按类型自动分流：选项节点 / 结果节点）
     function renderCurrent() {
         var top = historyStack[historyStack.length - 1];
@@ -494,6 +514,7 @@
         if (!node) return;
         if (node.options) renderNode(node, top.key, _deferOptions);
         else renderResult(node, top.label);
+        layoutQuestionLift();
     }
 
     function goTo(key, label) {
@@ -670,6 +691,7 @@
             });
             // 先渲染（按钮已进入布局但被隐藏），随后量出「中心 → 常态位」的真实差值
             renderAny('root', true);
+            layoutQuestionLift();   // 先应用上移，再量「中心 → 常态位」的距离
             measureDelta();
             // 打字完成后：中央停留 → 滑回常态位置 → 放出按钮
             _afterTyped = function () {
