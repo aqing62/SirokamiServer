@@ -1053,7 +1053,8 @@
             if (!col || !count) return;
             var grid = col.querySelector(gridSel);
             if (!grid) return;
-            var n = bestCols(count, col.getBoundingClientRect().width, availH);
+            // 手机端固定一行 10 张（窄屏上按高度算会偏少，看着太挤）
+            var n = window.innerWidth <= 768 ? 10 : bestCols(count, col.getBoundingClientRect().width, availH);
             if (n > 0) {
                 grid.style.gridTemplateColumns = 'repeat(' + n + ', minmax(0, 1fr))';
                 // 对角序号（左上 → 右下），供入场动画错开
@@ -1090,6 +1091,8 @@
         box.style.height = '';
         box.style.overflow = '';
         fit.classList.remove('is-compact');
+        // 手机端一行 10 张，卡名会挤成一团 → 直接走紧凑模式（隐藏卡名、收紧间距）
+        if (window.innerWidth <= 768) fit.classList.add('is-compact');
 
         function bottom() { return fit.getBoundingClientRect().bottom; }
 
