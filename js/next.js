@@ -465,6 +465,7 @@
 
     var PIC_CHAIN = [PIC_OCG, PIC_ALT, PIC_DIY];   // 与老站一致：OCG → SuperPre → DIY
     var _scoreMap = null;
+    var _scoreLimit = 100;
 
     function cardInfo(id) { return (_cardMap && _cardMap[String(id)]) || null; }
 
@@ -472,7 +473,11 @@
     function loadScoreMap() {
         if (_scoreMap) return Promise.resolve(_scoreMap);
         return fetch('/api/scores?t=' + Date.now())
-            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                var lim = parseInt(r.headers.get('X-GExt-Limit'), 10);   // 卡组总分上限，与老站一致
+                if (!isNaN(lim) && lim > 0) _scoreLimit = lim;
+                return r.json();
+            })
             .then(function (d) { _scoreMap = d || {}; return _scoreMap; })
             .catch(function () { _scoreMap = {}; return _scoreMap; });
     }
@@ -797,7 +802,8 @@
                 var total = deckScore(d.deck);
                 box.innerHTML =
                     '<div class="nx-deck-info">' +
-                        '<span class="nx-deck-info-item">卡组总分 <b>' + total + '</b></span>' +
+                        '<span class="nx-deck-info-item">总分 <b>' + total + '</b>/' + _scoreLimit + '</span>' +
+                        (total > _scoreLimit ? '<span class="nx-deck-info-warn">超出上限</span>' : '') +
                         '<span class="nx-deck-info-item">主 <b>' + (d.deck.main || []).length + '</b></span>' +
                         '<span class="nx-deck-info-item">额外 <b>' + (d.deck.extra || []).length + '</b></span>' +
                         '<span class="nx-deck-info-item">副 <b>' + (d.deck.side || []).length + '</b></span>' +
@@ -833,11 +839,61 @@
         });
     }
 
+    // 卡组卡图尽量大：在可用高度内选列数（列越少卡越大），复刻老站"列数动态调整"的思路
+    function layoutDeckGrids(box) {
+        var fit = document.getElementById('nxDeckFit');
+        if (!fit) return;
+        var mainCol = fit.querySelector('.nx-deck-col-main');
+        var sideCol = fit.querySelector('.nx-deck-col-side');
+        var RATIO = 61 / 42;          // 卡图高/宽（老站 42:61）
+        var GAP = 2;
+
+        // 可用高度：内容顶部到屏幕底部，扣掉标题与信息行
+        var fitTop = fit.getBoundingClientRect().top;
+        var chromeH = 0;
+        Array.prototype.forEach.call(fit.querySelectorAll('.nx-deck-group'), function (g) {
+            var t = g.querySelector('.nx-deck-group-title');
+            if (t) chromeH += t.getBoundingClientRect().height + 4;
+        });
+        var availH = Math.max(120, window.innerHeight - fitTop - 16 - chromeH);
+
+        function bestCols(count, colWidth, avail) {
+            if (!count || colWidth <= 0) return 0;
+            for (var cols = 4; cols <= 24; cols++) {
+                var real = Math.min(cols, count);
+                var rows = Math.ceil(count / real);
+                var w = (colWidth - (real - 1) * GAP) / real;
+                var total = rows * (w * RATIO) + (rows - 1) * GAP;
+                if (total <= avail) return real;
+            }
+            return Math.min(24, count);
+        }
+        function apply(col, gridSel, count) {
+            if (!col || !count) return;
+            var grid = col.querySelector(gridSel);
+            if (!grid) return;
+            var n = bestCols(count, col.getBoundingClientRect().width, availH);
+            if (n > 0) grid.style.gridTemplateColumns = 'repeat(' + n + ', minmax(0, 1fr))';
+        }
+        var mainCount = fit.querySelectorAll('.nx-deck-col-main .nx-deck-tile').length;
+        var extraCount = fit.querySelectorAll('.nx-deck-col-side .nx-deck-group:nth-child(1) .nx-deck-tile').length;
+        var sideCount = fit.querySelectorAll('.nx-deck-col-side .nx-deck-group:nth-child(2) .nx-deck-tile').length;
+        apply(mainCol, '.nx-deck-cards', mainCount);
+        // 右栏两组的可用高度各占一半
+        var saveAvail = availH;
+        availH = Math.max(100, (saveAvail - 14) / 2);
+        apply(sideCol, '.nx-deck-group:nth-child(1) .nx-deck-cards', extraCount);
+        apply(sideCol, '.nx-deck-group:nth-child(2) .nx-deck-cards', sideCount);
+        availH = saveAvail;
+    }
+
     // 卡组一屏全显示：transform 等比缩放（transform 不参与布局，故显式设定外层高度）+ 迭代收敛
     // 注意：本环境 style.zoom 写入后不改变布局，所以必须用 transform。
     function fitDeckScale(box) {
         var fit = document.getElementById('nxDeckFit');
         if (!fit) return;
+
+        layoutDeckGrids(box);          // 先按可用高度选列数（尽量不缩放）
 
         fit.style.zoom = '';
         fit.style.transform = 'none';

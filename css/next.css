@@ -1041,6 +1041,7 @@ body.nx-zoomed .nx-foot {
   font-size: 11.5px; color: #9a9aa4;
 }
 .nx-deck-info-item b { color: #e8d9a8; font-weight: 700; }
+.nx-deck-info-warn { color: #ff8fa6; font-weight: 600; }
 
 .nx-deck-fit.is-compact .nx-deck-name { display: none; }
 .nx-deck-fit.is-compact .nx-deck-cards { gap: 2px; }
