@@ -204,11 +204,8 @@ body {
   animation: nxBubble .7s cubic-bezier(.25, .9, .3, 1.04) backwards;
   animation-delay: calc(var(--i, 0) * 130ms);
 }
-/* 旋转已移除；拉拽形变通过图层 transform（缩放椭圆）实现，原点固定在圆心 */
-.nx-ring .nx-rot {
-  transform-origin: 60px 60px;
-  will-change: transform;
-}
+/* 旋转已移除；原点固定在圆心（不再对 SVG 图层加 will-change，实测会拖慢） */
+.nx-ring .nx-rot { transform-origin: 60px 60px; }
 .nx-ring path {
   fill: none;
   stroke: rgba(216, 30, 68, 0.62);
