@@ -331,7 +331,8 @@
 
         var rows = players.map(function (p, i) {
             var tier = String(p.tier || '').replace(/^S\d+\s*/, '');
-            return '<div class="nx-row nx-item3d">' +   // 不用入场动画：animation-fill 会盖掉 3D 的 opacity
+            return '<div class="nx-row nx-item3d" data-player="' + esc(p.name) + '" data-rating="' + p.rating +
+                '" data-tier="' + esc(tier) + '">' +   // 不用入场动画：animation-fill 会盖掉 3D 的 opacity
                 '<span class="c-rank">' + rankMedal(i) + '</span>' +
                 '<span class="c-name">' + esc(p.name) +
                     (p.streak > 1 ? '<span class="nx-streak">' + p.streak + '连胜</span>' : '') + '</span>' +
@@ -351,7 +352,14 @@
             '</div>' +
             '<div class="nx-list-note">数据来自天梯服务 · 每场 M# 对局结束后更新</div>';
 
-        bindScroll3D(document.getElementById('nxLadderScroll'));
+        var scroller = document.getElementById('nxLadderScroll');
+        // 点击选手条 → 弹出对战记录 / 卡组
+        Array.prototype.forEach.call(scroller.querySelectorAll('.nx-row'), function (r) {
+            r.addEventListener('click', function () {
+                openPlayerModal({ name: r.getAttribute('data-player'), rating: r.getAttribute('data-rating'), tier: r.getAttribute('data-tier') });
+            });
+        });
+        bindScroll3D(scroller);
     }
 
     // ── 滚动 3D（圆润弧形）＋ 惯性缓动滚动 ────────────────────
@@ -444,6 +452,158 @@
             var ro = new ResizeObserver(function () { setPad(); paint(); });
             ro.observe(scroller);
         }
+    }
+
+    // ── 选手弹窗：左 对战记录 / 右 卡组 ──────────────────────
+    var DUELS_API = 'https://api.ygopro3.cn/api/ladder/duels';
+    var DECKS_API = 'https://api.ygopro3.cn/api/ladder/decks';
+    var _cardMap = null;
+
+    function loadCardMap() {
+        if (_cardMap) return Promise.resolve(_cardMap);
+        return fetch('/api/cards').then(function (r) { return r.json(); }).then(function (cards) {
+            _cardMap = {};
+            cards.forEach(function (c) { _cardMap[String(c.id)] = c; });
+            return _cardMap;
+        }).catch(function () { _cardMap = {}; return _cardMap; });
+    }
+    function cardName(id) {
+        var c = _cardMap && _cardMap[String(id)];
+        return (c && (c.name || c.cnName)) || ('#' + id);
+    }
+
+    function fmtTime(iso) {
+        if (!iso) return '';
+        var d = new Date(iso);
+        if (isNaN(d.getTime())) return String(iso).slice(0, 16).replace('T', ' ');
+        function p(n) { return (n < 10 ? '0' : '') + n; }
+        return (d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    }
+
+    // 测试数据模式下造点假的，方便看版式
+    function mockDuels(name) {
+        var out = [];
+        for (var i = 0; i < 8; i++) {
+            out.push({
+                time: new Date(Date.now() - i * 3600e3 * 3).toISOString(),
+                roomName: 'M#' + (1100 + i * 7),
+                opponentName: ['灵蛇', '奈奈川', 'Huager', '莱蒂丝', '鲁多', '244英雄'][i % 6],
+                replayCode: 'R#' + (4200 + i * 13),
+                win: i % 3 !== 1, draw: false, ladder: true
+            });
+        }
+        return { player: name, total: out.length, duels: out };
+    }
+    function mockDeck() {
+        var main = [], extra = [], side = [];
+        for (var i = 0; i < 40; i++) main.push(10000000 + i * 137);
+        for (var j = 0; j < 15; j++) extra.push(20000000 + j * 311);
+        for (var k = 0; k < 15; k++) side.push(30000000 + k * 173);
+        return { total: 1, decks: [{ roomName: 'M#1100', time: new Date().toISOString(), winner: '测试', opponent: '对手', score: 2, deck: { main: main, extra: extra, side: side } }] };
+    }
+
+    function closePlayerModal() {
+        var el = document.getElementById('nxModal');
+        if (el) el.remove();
+    }
+
+    function openPlayerModal(p) {
+        closePlayerModal();
+        var wrap = document.createElement('div');
+        wrap.className = 'nx-modal';
+        wrap.id = 'nxModal';
+        wrap.innerHTML =
+            '<div class="nx-modal-panel">' +
+                '<div class="nx-modal-head">' +
+                    '<div class="nx-modal-title">' + esc(p.name) +
+                        '<span>' + esc(p.tier || '') + (p.rating ? ' · ' + esc(p.rating) + ' 分' : '') + '</span>' +
+                    '</div>' +
+                    '<button class="nx-modal-close" type="button" title="关闭">✕</button>' +
+                '</div>' +
+                '<div class="nx-modal-cols">' +
+                    '<section class="nx-modal-col"><h3>对战记录</h3>' +
+                        '<div class="nx-col-body" id="nxDuelList"><div class="nx-loading"><span class="nx-spin"></span>读取中…</div></div>' +
+                    '</section>' +
+                    '<section class="nx-modal-col"><h3>卡组</h3>' +
+                        '<div class="nx-col-body" id="nxDeckBox"><div class="nx-loading"><span class="nx-spin"></span>读取中…</div></div>' +
+                    '</section>' +
+                '</div>' +
+            '</div>';
+        document.body.appendChild(wrap);
+        playSfx('click');
+
+        // 关闭：点背景 / 关闭键 / Esc（Esc 不穿透到返回）
+        wrap.addEventListener('click', function (ev) { if (ev.target === wrap) closePlayerModal(); });
+        var cl = wrap.querySelector('.nx-modal-close');
+        if (cl) cl.addEventListener('click', closePlayerModal);
+        document.addEventListener('keydown', escClose, true);
+        function escClose(ev) {
+            if (ev.key !== 'Escape') return;
+            ev.stopPropagation();
+            ev.preventDefault();
+            document.removeEventListener('keydown', escClose, true);
+            closePlayerModal();
+        }
+        wrap.addEventListener('nx-modal-closed', function () { document.removeEventListener('keydown', escClose, true); });
+
+        // 左侧：对战记录
+        var duelsP = FX.mock ? Promise.resolve(mockDuels(p.name))
+            : fetch(DUELS_API + '?player=' + encodeURIComponent(p.name) + '&limit=50').then(function (r) { return r.json(); });
+        duelsP.then(function (data) {
+            var box = document.getElementById('nxDuelList');
+            if (!box) return;
+            var list = (data && data.duels) || [];
+            if (!list.length) { box.innerHTML = '<div class="nx-empty-sm">还没有对局记录</div>'; return; }
+            box.innerHTML = list.map(function (d) {
+                var tag = d.draw ? '平' : (d.win ? '胜' : '负');
+                var cls = d.draw ? 'is-draw' : (d.win ? 'is-win' : 'is-lose');
+                return '<div class="nx-duel">' +
+                    '<span class="nx-duel-tag ' + cls + '">' + tag + '</span>' +
+                    '<span class="nx-duel-opp">' + esc(d.opponentName || '未知') + '</span>' +
+                    '<span class="nx-duel-meta">' + esc(d.roomName || '') + '</span>' +
+                    '<span class="nx-duel-time">' + fmtTime(d.time) + '</span>' +
+                    (d.replayCode ? '<button class="nx-duel-replay" type="button" data-code="' + esc(d.replayCode) + '">' + esc(d.replayCode) + '</button>' : '') +
+                '</div>';
+            }).join('');
+            Array.prototype.forEach.call(box.querySelectorAll('.nx-duel-replay'), function (b) {
+                b.addEventListener('click', function () {
+                    var code = b.getAttribute('data-code');
+                    try { navigator.clipboard.writeText(code); } catch (e) { /* 忽略 */ }
+                    var old = b.textContent;
+                    b.textContent = '已复制';
+                    setTimeout(function () { b.textContent = old; }, 1200);
+                });
+            });
+        }).catch(function () {
+            var box = document.getElementById('nxDuelList');
+            if (box) box.innerHTML = '<div class="nx-empty-sm">对战记录读取失败</div>';
+        });
+
+        // 右侧：卡组
+        var decksP = FX.mock ? Promise.resolve(mockDeck())
+            : fetch(DECKS_API + '?player=' + encodeURIComponent(p.name) + '&limit=1').then(function (r) { return r.json(); });
+        decksP.then(function (data) {
+            var box = document.getElementById('nxDeckBox');
+            if (!box) return;
+            var d = (data && data.decks && data.decks[0]) || null;
+            if (!d || !d.deck) { box.innerHTML = '<div class="nx-empty-sm">还没有可用于展示的卡组</div>'; return; }
+            return loadCardMap().then(function () {
+                function group(title, ids) {
+                    if (!ids || !ids.length) return '';
+                    return '<div class="nx-deck-group"><div class="nx-deck-group-title">' + title + ' <i>' + ids.length + '</i></div>' +
+                        '<div class="nx-deck-cards">' + ids.map(function (id) {
+                            return '<span class="nx-deck-card">' + esc(cardName(id)) + '</span>';
+                        }).join('') + '</div></div>';
+                }
+                box.innerHTML =
+                    '<div class="nx-deck-meta">' + esc(d.roomName || '') + ' · ' + esc(d.winner || '') + ' vs ' + esc(d.opponent || '') +
+                        ' · ' + fmtTime(d.time) + '</div>' +
+                    group('主卡组', d.deck.main) + group('额外卡组', d.deck.extra) + group('副卡组', d.deck.side);
+            });
+        }).catch(function () {
+            var box = document.getElementById('nxDeckBox');
+            if (box) box.innerHTML = '<div class="nx-empty-sm">卡组读取失败</div>';
+        });
     }
 
     var RENDERERS = { ladder: renderLadder };
