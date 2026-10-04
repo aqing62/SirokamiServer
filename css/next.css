@@ -957,6 +957,20 @@ body.nx-zoomed .nx-foot {
   margin-left: auto; font-size: 11px; letter-spacing: 0;
   color: #e8d9a8; font-weight: 600;
 }
+/* ── 卡组两栏：左主卡组(58%) / 右额外+副(38%)，与老站一致 ── */
+.nx-deck-fit { width: 100%; }
+.nx-deck-cols { display: flex; gap: clamp(10px, 1.6vw, 20px); align-items: flex-start; }
+.nx-deck-col-main { flex: 1 1 58%; min-width: 0; }
+.nx-deck-col-side { flex: 0 0 38%; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.nx-pov-view .nx-deck-col-main .nx-deck-cards,
+.nx-pov-view .nx-deck-col-side .nx-deck-cards { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+@media (max-width: 900px) {
+  .nx-deck-cols { flex-direction: column; gap: 8px; }
+  .nx-deck-col-main, .nx-deck-col-side { flex: 1 1 auto; width: 100%; }
+  .nx-pov-view .nx-deck-col-main .nx-deck-cards,
+  .nx-pov-view .nx-deck-col-side .nx-deck-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
 /* ── 卡组视图：复刻老站布局（紧凑网格 + 底部角标），去掉灰底/边框 ── */
 .nx-pov-view .nx-deck-cards {
   display: grid;
