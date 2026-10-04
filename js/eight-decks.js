@@ -592,8 +592,12 @@ function getRoundLabels(count) {
 // ── 对局卡片 ────────────────────────────────────────────
 
 function renderMatchCard(m, nameMap) {
-    const p1Name = nameMap.get(m.player1Id) || `选手#${m.player1Id}`;
-    const p2Name = nameMap.get(m.player2Id) || `选手#${m.player2Id}`;
+    // 选手位尚未产生（如淘汰赛后续轮次）→ 显示「待定」；有编号但查不到名字才回退成「选手#id」
+    const nameOf = (id) => (id === null || id === undefined || id === '')
+        ? '待定'
+        : (nameMap.get(id) || `选手#${id}`);
+    const p1Name = nameOf(m.player1Id);
+    const p2Name = nameOf(m.player2Id);
     const isFinished = m.status === 'Finished';
     const isLive = m.status === 'InProgress';
     const isPending = !isFinished && !isLive;
