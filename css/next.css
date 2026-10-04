@@ -1404,6 +1404,85 @@ body.nx-zoomed .nx-foot {
 .nx-group-chip.is-on i { color: rgba(42, 28, 8, .62); }
 .nx-card-tile.is-plain .nx-card-photo { box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
 
+/* ══ 房间 / 下载 / 登录：信息列表、下载行、账号卡 ═══════════ */
+.nx-info-hint {
+  align-self: stretch; max-width: 900px; margin: 0 auto 14px;
+  font-size: 13px; color: #8d8d96; text-align: center; line-height: 1.7; letter-spacing: .3px;
+}
+.nx-info-hint b { color: var(--nx-gold-light, #F0E68C); }
+.nx-info-list {
+  align-self: stretch; width: 100%; max-width: 720px; margin: 0 auto 14px;
+  display: flex; flex-direction: column;
+}
+.nx-info-row {
+  display: grid; grid-template-columns: 120px 1fr; align-items: center; gap: 14px;
+  padding: 9px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, .05);
+}
+.nx-info-row:last-child { border-bottom: none; }
+.nx-info-row code {
+  justify-self: start;
+  padding: 3px 11px; border-radius: 999px;
+  font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: .5px;
+  color: #ffe9a8; background: rgba(212, 175, 55, .14);
+}
+.nx-info-row span { font-size: 13.5px; color: #cfc8bf; }
+
+.nx-dl-list {
+  align-self: stretch; width: 100%; max-width: 720px; margin: 0 auto 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.nx-dl-row {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, .05), rgba(255, 255, 255, .015));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05);
+  text-decoration: none;
+  transition: transform .22s cubic-bezier(.22, .9, .28, 1.02), box-shadow .25s, background .25s;
+}
+.nx-dl-row:hover {
+  transform: translateY(-3px);
+  background: linear-gradient(135deg, rgba(212, 175, 55, .16), rgba(212, 175, 55, .04));
+  box-shadow: inset 0 0 0 1px rgba(212, 175, 55, .55), 0 12px 28px rgba(0, 0, 0, .5);
+}
+.nx-dl-icon { flex: 0 0 auto; width: 30px; height: 30px; color: var(--nx-gold, #D4AF37); }
+.nx-dl-icon svg { width: 100%; height: 100%; display: block; }
+.nx-dl-texts { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.nx-dl-texts b { font-size: 14.5px; color: #f2ece4; letter-spacing: .5px; }
+.nx-dl-texts i { font-style: normal; font-size: 12px; color: #8d8d96; }
+.nx-dl-go { flex: 0 0 auto; font-size: 16px; color: #7d7d86; transition: color .2s, transform .22s; }
+.nx-dl-row:hover .nx-dl-go { color: #ffe9a8; transform: translateX(4px); }
+
+.nx-login-card {
+  align-self: stretch; width: 100%; max-width: 520px; margin: 0 auto 14px;
+  display: flex; flex-direction: column;
+}
+.nx-login-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 6px;
+  border-bottom: 1px solid rgba(255, 255, 255, .05);
+  font-size: 14px; color: #9a9aa4;
+}
+.nx-login-row:last-child { border-bottom: none; }
+.nx-login-row b { color: #fff3c4; font-size: 16px; }
+.nx-big-link {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin: 6px auto 0;
+  padding: 11px 26px; border-radius: 999px;
+  background: linear-gradient(135deg, #ffe9a8, #d4af37 60%, #b08d24);
+  color: #2a1c08; font-size: 14px; font-weight: 700; letter-spacing: .5px;
+  text-decoration: none;
+  box-shadow: 0 8px 22px rgba(212, 175, 55, .38);
+  transition: transform .2s, box-shadow .25s, filter .2s;
+}
+.nx-big-link:hover { transform: translateY(-2px) scale(1.03); filter: brightness(1.06); }
+@media (max-width: 768px) {
+  .nx-info-row { grid-template-columns: 92px 1fr; gap: 10px; }
+  .nx-info-row code { font-size: 12px; }
+  .nx-dl-row { padding: 12px 14px; }
+}
+
 /* ══ 卡池：类型筛选 + 折叠搜索 + 分页卡图网格 ═════════════ */
 .nx-pool-bar { margin-bottom: 10px; }
 .nx-pool-kinds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

@@ -194,15 +194,15 @@
 
     // ── 功能屏幕（外壳）：每个按钮对应一个屏幕，先占位，后续逐页填内容 ──
     var SCREENS = {
-        room:     { title: '房间与规则', sub: '房间名 / 密码里的规则代码', goto: 'room',      todo: '静态内容：房间代码表 + 规则说明（无需接口）' },
-        download: { title: '下载与安装', sub: 'MDPro3 客户端 + DIY 卡包',  goto: 'download',  todo: '静态内容：下载入口与安装步骤' },
+        room:     { title: '房间与规则', sub: '房间密码规则代码',           goto: 'room',      render: 'room' },
+        download: { title: '下载与安装', sub: 'MDPro3 客户端 · DIY 卡包',   goto: 'download',  render: 'download' },
         match:    { title: '比赛相关',   sub: '瑞士轮积分 · 淘汰赛对阵',   goto: 'tournament', render: 'match' },
         pool:     { title: '卡池',       sub: '全卡检索 · 类型筛选 · 分值角标', goto: 'pool',      render: 'pool' },
         banlist:  { title: '卡表',       sub: '禁止 · 限制 · 准限制',        goto: 'banlist',   render: 'banlist' },
         preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    render: 'preset' },
         popular:  { title: '常用卡',     sub: '使用率 · 胜率统计',           goto: 'pool',      render: 'popular' },
         rank:     { title: '天梯排名',   sub: 'TOP50 · 段位 · 积分',         goto: 'ranking',   render: 'ladder' },
-        login:    { title: '登录账号',   sub: '天梯计分 / 投稿需要登录',     goto: 'login',     todo: '复用账号接口（/api/forum/*）' }
+        login:    { title: '登录账号',   sub: '天梯计分 / 投稿需要登录',     goto: 'login',     render: 'login' }
     };
 
     var screenEl = null;
@@ -2095,7 +2095,74 @@
         });
     }
 
-    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool, banlist: renderBanlist };
+    // ── 房间（决斗 → 房间）：房间密码代码一览 ────────────────
+    var ROOM_CODES = [
+        ['（不输入）', 'Genesys-Ext 模式（默认）'],
+        ['LF2', 'OT 合表模式'],
+        ['NF', '无禁限模式'],
+        ['M', '三局两胜 BO3'],
+        ['T', '双打模式'],
+        ['C', '编年史模式（随机卡组）'],
+        ['LP8000', '设置基本分（LP+数字）'],
+        ['TM300', '设置回合时限（秒）'],
+        ['ST5', '设置开局手卡数'],
+        ['DR1', '设置回合抽卡数'],
+        ['NS', '不洗切卡组']
+    ];
+    function renderRoom(body) {
+        body.innerHTML =
+            '<div class="nx-info-hint nx-reveal" style="--i:0">在房间密码里填下面的代码即可切换规则，' +
+                '多个代码用 <b>,</b> 组合，代码后加 <b>#</b> 再接房间名</div>' +
+            '<div class="nx-info-list nx-reveal" style="--i:1">' + ROOM_CODES.map(function (x) {
+                return '<div class="nx-info-row"><code>' + esc(x[0]) + '</code><span>' + esc(x[1]) + '</span></div>';
+            }).join('') + '</div>' +
+            '<div class="nx-info-hint nx-reveal" style="--i:2">例：<b>T,C#32</b> = 双打编年史房间，房间名 <b>32</b></div>';
+    }
+
+    // ── 下载（决斗 → 下载）：客户端 / 卡包 / 平台 ─────────────
+    var DOWNLOADS = [
+        { t: 'MDPro3 客户端', h: '夸克网盘', u: 'https://pan.quark.cn/s/ca2e4e7a8c63#/list/share', i: 'download' },
+        { t: 'DIY 卡包', h: 'siro.ypk（右键可复制链接）', u: 'https://api.ygopro3.cn/file/siro.ypk', i: 'box' },
+        { t: '萌卡平台', h: 'mycard.world', u: 'https://mycard.world/', i: 'globe' }
+    ];
+    function renderDownload(body) {
+        body.innerHTML =
+            '<div class="nx-dl-list nx-reveal" style="--i:0">' + DOWNLOADS.map(function (d) {
+                return '<a class="nx-dl-row" href="' + esc(d.u) + '" target="_blank" rel="noopener">' +
+                    '<span class="nx-dl-icon">' + iconSvg(d.i) + '</span>' +
+                    '<span class="nx-dl-texts"><b>' + esc(d.t) + '</b><i>' + esc(d.h) + '</i></span>' +
+                    '<span class="nx-dl-go">→</span>' +
+                '</a>';
+            }).join('') + '</div>' +
+            '<div class="nx-info-hint nx-reveal" style="--i:1">卡包放在客户端的 <b>expansions</b> 目录，重启后生效</div>';
+    }
+
+    // ── 登录（战绩 → 登录）：读取当前账号状态 ─────────────────
+    function renderLogin(body) {
+        body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
+            '<div class="nx-load-text">正在读取账号 <b>0</b></div></div>';
+        fetch('/api/forum/profile?t=' + Date.now(), { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (p) {
+                var u = (p && (p.user || p.profile || p.data)) || p || null;
+                var name = u && (u.username || u.name || u.nickname);
+                if (!name) throw new Error('未登录');
+                body.innerHTML =
+                    '<div class="nx-login-card nx-reveal" style="--i:0">' +
+                        '<div class="nx-login-row"><span>账号</span><b>' + esc(name) + '</b></div>' +
+                        (u.rating != null ? '<div class="nx-login-row"><span>积分</span><b>' + esc(u.rating) + '</b></div>' : '') +
+                        (u.tier ? '<div class="nx-login-row"><span>段位</span><b>' + esc(u.tier) + '</b></div>' : '') +
+                    '</div>' +
+                    '<div class="nx-info-hint nx-reveal" style="--i:1">天梯计分、投稿卡组都会记在这个账号下</div>';
+            })
+            .catch(function () {
+                body.innerHTML =
+                    '<div class="nx-info-hint nx-reveal" style="--i:0">还没有登录。<br>登录后可参与天梯计分、投稿卡组与回放。</div>' +
+                    '<a class="nx-big-link nx-reveal" style="--i:1" href="index.html?goto=login">打开经典版登录</a>';
+            });
+    }
+
+    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool, banlist: renderBanlist, room: renderRoom, download: renderDownload, login: renderLogin };
 
     // ── DOM ──
     var stage = document.getElementById('nxStage');
