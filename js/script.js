@@ -347,9 +347,10 @@ document.addEventListener('DOMContentLoaded', function () {
             } else if (target === 'login') {
                 // 登录：点右上角登录入口（openLoginModal 在闭包内，优先点按钮）
                 setTimeout(function () {
-                    const g = document.getElementById('globalLogin');
-                    if (g) { g.click(); return; }
-                    if (typeof window.openLoginModal === 'function') window.openLoginModal();
+                    const ov = document.getElementById('glModalOverlay');
+                    if (ov) { ov.classList.add('active'); return; }
+                    const t = document.getElementById('glLoginTrigger');
+                    if (t) t.click();
                 }, 340);
             }
         }, 80);
