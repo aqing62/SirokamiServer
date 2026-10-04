@@ -552,12 +552,20 @@ body.nx-skip .nx-welcome { display: none; }
 /* ── 2×2 布局（「卡片」节点：卡池 / 卡表 / 预组 / 常用卡）── */
 .nx-options.is-grid {
   display: grid;
-  grid-template-columns: repeat(2, auto);
+  grid-template-columns: repeat(2, minmax(0, auto));
+  grid-template-areas: none;          /* 覆盖三角布局的 "top top"/"left right" */
+  grid-auto-flow: row;
   justify-content: center;
   align-content: center;
   justify-items: center;
+  align-items: center;
   gap: clamp(6px, 1.6vh, 18px) clamp(10px, 3vw, 40px);
 }
+/* 四个按钮不再占用 top/left/right 区域，按顺序排成 2×2 */
+.nx-options.is-grid .nx-option:nth-child(1),
+.nx-options.is-grid .nx-option:nth-child(2),
+.nx-options.is-grid .nx-option:nth-child(3),
+.nx-options.is-grid .nx-option:nth-child(4) { grid-area: auto; }
 .nx-options.is-grid .nx-option { --size: clamp(104px, 14vw, 166px); }
 @media (max-width: 768px) {
   .nx-options.is-grid { gap: 4px clamp(6px, 3vw, 20px); }
