@@ -530,6 +530,10 @@
             '<div class="nct-desc">' + (c.processedDesc || c.desc || '') + '</div>' +
             (c.author ? '<div class="nct-author">' + esc(c.author) + '</div>' : '');
         tip.style.display = 'block';
+        tip.classList.remove('is-out');
+        tip.classList.remove('is-in');
+        void tip.offsetWidth;          // 重排以重播入场动画（边框左→右展开，随后文字缓入）
+        tip.classList.add('is-in');
         positionCardTip(ev, tip);
     }
     function positionCardTip(ev, tip) {
@@ -541,7 +545,17 @@
         tip.style.left = x + 'px';
         tip.style.top = y + 'px';
     }
-    function hideCardTip() { if (_tipEl) _tipEl.style.display = 'none'; }
+    function hideCardTip() {
+        if (!_tipEl || _tipEl.style.display === 'none') return;
+        var tip = _tipEl;
+        tip.classList.remove('is-in');
+        tip.classList.add('is-out');                 // 反向且更快：边框回收 + 文字快速淡出
+        clearTimeout(tip._hideTimer);
+        tip._hideTimer = setTimeout(function () {
+            tip.style.display = 'none';
+            tip.classList.remove('is-out');
+        }, 130);
+    }
 
     function loadCardMap() {
         if (_cardMap) return Promise.resolve(_cardMap);

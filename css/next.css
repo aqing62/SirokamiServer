@@ -1094,28 +1094,32 @@ body.nx-zoomed .nx-foot {
   to   { opacity: 1; transform: none; }
 }
 
-/* 边框：默认收在左侧（沿左边缘 100% 裁掉）→ 悬停自左向右展开 */
-.nx-deck-photo::after {
+
+
+/* ══ 效果框动画 ════════════════════════════════════════════
+   进入：金色边框自左向右展开 → 随后文字缓入
+   移出：反向回收到左侧，且更快
+   ═══════════════════════════════════════════════════════════ */
+.nx-card-tip { border: none; }
+.nx-card-tip::before {
   content: '';
   position: absolute; inset: 0;
-  border: 1px solid rgba(212, 175, 55, .95);
-  border-radius: 2px;
+  border-radius: inherit;
+  border: 1px solid rgba(212, 175, 55, .85);
+  box-shadow: 0 0 18px rgba(216, 30, 68, .18);
   clip-path: inset(0 100% 0 0);
   pointer-events: none;
-  transition: clip-path .1s ease-in;                 /* 移出：更快 */
 }
-.nx-deck-tile:hover .nx-deck-photo::after {
-  clip-path: inset(0 0 0 0);
-  transition: clip-path .3s cubic-bezier(.22, .9, .28, 1);   /* 移入：左→右展开 */
+.nx-card-tip.is-in::before { animation: nxTipBorder .26s cubic-bezier(.22, .9, .28, 1) both; }
+@keyframes nxTipBorder { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+.nx-card-tip.is-in { animation: none; }
+.nx-card-tip.is-in > * { animation: nxTipText .3s ease .14s both; }
+@keyframes nxTipText {
+  from { opacity: 0; transform: translateY(3px); filter: blur(3px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
 }
-.nx-deck-tile:hover .nx-deck-photo { box-shadow: 0 0 14px rgba(212, 175, 55, .28); }
-
-/* 卡名：默认压暗，边框展开后缓入 */
-.nx-deck-name {
-  opacity: .58;
-  transition: opacity .1s linear;                    /* 移出：更快 */
-}
-.nx-deck-tile:hover .nx-deck-name {
-  opacity: 1;
-  transition: opacity .3s ease .16s;                 /* 等边框展开完再缓入 */
-}
+/* 移出：更快、反向 */
+.nx-card-tip.is-out::before { animation: nxTipBorderOut .1s ease-in both; }
+@keyframes nxTipBorderOut { from { clip-path: inset(0); } to { clip-path: inset(0 100% 0 0); } }
+.nx-card-tip.is-out > * { animation: nxTipTextOut .08s ease-in both; }
+@keyframes nxTipTextOut { to { opacity: 0; transform: translateY(2px); } }
