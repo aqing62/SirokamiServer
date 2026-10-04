@@ -238,8 +238,8 @@ body {
 @keyframes nxTextIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 
 /* 悬停：圈转得更快、更亮 */
-.nx-option:hover .nx-ring,
-.nx-cta:hover .nx-ring { filter: drop-shadow(0 0 10px rgba(216, 30, 68, .5)); }
+/* 悬停光晕改用按钮 box-shadow（比 SVG drop-shadow 滤镜便宜很多） */
+.nx-option:hover, .nx-cta:hover { box-shadow: 0 18px 44px rgba(0, 0, 0, .65), 0 0 34px rgba(216, 30, 68, .45); }
 .nx-option:hover .nxb1, .nx-cta:hover .nxb1 { stroke: rgba(255, 120, 150, .95); }
 .nx-option:hover .nxb4, .nx-cta:hover .nxb4 { stroke: rgba(245, 226, 140, .8); }
 
@@ -513,4 +513,5 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-option, .nx-cta {
   translate: var(--mx, 0px) var(--my, 0px);
   will-change: translate;
+  backface-visibility: hidden;   /* 提示浏览器走合成层，减少重绘 */
 }

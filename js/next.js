@@ -334,13 +334,6 @@
 
     function magTick(now) {
         requestAnimationFrame(magTick);
-
-    // 尺寸变化时重算问句上移量（延迟到布局稳定）
-    var _liftTimer = 0;
-    window.addEventListener('resize', function () {
-        clearTimeout(_liftTimer);
-        _liftTimer = setTimeout(layoutQuestionLift, 120);
-    });
         if (!_magBtns.length) return;
         if (document.hidden) { _magLast = 0; return; }
         if (!_magLast) _magLast = now;
@@ -361,6 +354,18 @@
             _magVx *= MAG.dragDecay; _magVy *= MAG.dragDecay;   // 指针停下后的衰减（拖尾）
             if (Math.abs(_magVx) < 2) _magVx = 0;
             if (Math.abs(_magVy) < 2) _magVy = 0;
+        }
+
+        // 空闲跳过：指针已静止且所有按钮都归位时，直接不干活（省电、避免无谓掉帧）
+        var idle = (_magPx === null || now - _magPrevT > 400) && _magVx === 0 && _magVy === 0;
+        if (idle) {
+            var moving = false;
+            for (var ii = 0; ii < _magBtns.length; ii++) {
+                var bb = _magBtns[ii];
+                if (Math.abs(bb._mx || 0) > 0.05 || Math.abs(bb._my || 0) > 0.05 ||
+                    Math.abs(bb._dux || 0) > 0.005 || Math.abs(bb._duy || 0) > 0.005) { moving = true; break; }
+            }
+            if (!moving) return;
         }
 
         var stageRect = stage.getBoundingClientRect();
@@ -433,7 +438,14 @@
     }, { passive: true });
     document.addEventListener('mouseleave', function () { _magPx = null; _magPy = null; });
     window.addEventListener('blur', function () { _magPx = null; _magPy = null; });
-    requestAnimationFrame(magTick);
+    requestAnimationFrame(magTick);          // 启动磁吸/拉拽循环（仅一次）
+
+    // 尺寸变化时重算问句上移量（只注册一次）
+    var _liftTimer = 0;
+    window.addEventListener('resize', function () {
+        clearTimeout(_liftTimer);
+        _liftTimer = setTimeout(layoutQuestionLift, 120);
+    });
     function collectBlobs() {
         _blobs = Array.prototype.slice.call(document.querySelectorAll('.nx-ring path[data-blob-ready]'));
     }
@@ -442,7 +454,7 @@
         requestAnimationFrame(blobTick);
         var animOff = document.documentElement.classList.contains('nx-anim-off');
         if (animOff || document.hidden) { _blobLast = now; return; }   // 关动效/后台标签页时不做计算
-        if (now - _blobLast < 32) return;                              // 约 30fps
+        if (now - _blobLast < 42) return;                              // 约 24fps（降负载）
         _blobLast = now;
         // 逐帧时间差：单帧最大 100ms（切后台/隐藏回来不会一次性补算）
         if (!_tickLast) _tickLast = now;
@@ -519,7 +531,11 @@
             p._nxPhase += msp * (1 - reg * 0.85) * dt;
             // 抖动幅度呼吸 + 按规整度收敛为正圆（只变圆，不回到初始形状）
             var amp = wob * (0.62 + 0.5 * Math.sin(_breathT * 0.5 + mph * 1.3)) * (1 - reg);
-            p.setAttribute('d', blobPath(r, p._nxPhase, pts, amp, pull, pullAng));
+            // 形状变化极小时跳过写入（避免无谓的 SVG 重解析/重栅格化）
+            if (!p._lastSig || Math.abs(p._nxPhase - p._lastSig.p) > 0.004 || Math.abs(amp - p._lastSig.a) > 0.0015 || Math.abs(pull - (p._lastSig.u || 0)) > 0.01) {
+                p._lastSig = { p: p._nxPhase, a: amp, u: pull };
+                p.setAttribute('d', blobPath(r, p._nxPhase, pts, amp, pull, pullAng));
+            }
         }
     }
 
@@ -546,7 +562,8 @@
         for (var i = 0; i < list.length; i++) list[i].setAttribute('data-blob-ready', '1');
         collectBlobs();
     }
-    requestAnimationFrame(blobTick);
+
+    requestAnimationFrame(blobTick);         // 启动形状循环（仅一次）
 
     function ripple(btn, ev) {
         var r = btn.getBoundingClientRect();
