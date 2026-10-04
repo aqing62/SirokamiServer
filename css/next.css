@@ -924,3 +924,27 @@ body.nx-zoomed .nx-foot {
 .nx-deck-card { font-size: 12.5px; color: #ddd6cd; }
 .nx-deck-card:hover { color: #fff3c4; }
 .nx-empty { padding: 30px 4px; text-align: center; font-size: 12.5px; color: #7d7d86; }
+
+
+/* ── 退场动画 ───────────────────────────────────────────── */
+/* 内容退场（返回到两个线圈时） */
+.nx-pov-view.is-leaving { animation: nxPovViewOut .26s ease-in both; }
+@keyframes nxPovViewOut {
+  to { opacity: 0; transform: translateY(-10px) scale(.965); filter: blur(9px); }
+}
+/* 线圈回归 */
+.nx-pov-choices.is-back .nx-option {
+  animation: nxPovCircleBack .5s cubic-bezier(.22, .9, .28, 1.02) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+@keyframes nxPovCircleBack {
+  from { opacity: 0; transform: scale(.72); filter: blur(9px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+/* 关闭整个线圈层：内容整体收缩消失（舞台同时放大复原） */
+.nx-pov.is-closing .nx-pov-inner { animation: nxPovInnerOut .36s cubic-bezier(.4, 0, .7, .3) both; }
+@keyframes nxPovInnerOut {
+  to { opacity: 0; transform: scale(.82); filter: blur(12px); }
+}
+.nx-pov.is-closing .nx-pov-dim { animation: nxFadeOut .44s ease-in both; }
+@keyframes nxFadeOut { to { opacity: 0; } }

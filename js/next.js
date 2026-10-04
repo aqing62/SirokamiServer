@@ -515,19 +515,39 @@
 
     function closePlayerOverlay() {
         var el = povEl();
-        if (!el) return;
-        el.classList.add('is-closing');
-        document.body.classList.remove('nx-zoomed');
-        setTimeout(function () { el.remove(); document.removeEventListener('keydown', povKey, true); }, 460);
+        if (!el || el.classList.contains('is-closing')) return;
+        el.classList.add('is-closing');                  // 线圈/内容整体收缩消失
+        document.body.classList.remove('nx-zoomed');     // 同时舞台放大复原
+        setTimeout(function () {
+            el.remove();
+            document.removeEventListener('keydown', povKey, true);
+        }, 520);
     }
 
     function povBackToChoices() {
         var el = povEl();
         if (!el) return;
-        el.classList.remove('is-viewing');
-        var v = document.getElementById('nxPovView');
-        if (v) v.innerHTML = '';
+        if (!el.classList.contains('is-viewing') || el.classList.contains('is-returning')) return;
         playSfx('back');
+        var v = document.getElementById('nxPovView');
+        var back = el.querySelector('.nx-pov-back');
+        if (back) back.hidden = true;
+        el.classList.add('is-returning');
+        if (v) v.classList.add('is-leaving');            // 内容退场
+        setTimeout(function () {
+            if (v) { v.classList.remove('is-leaving'); v.hidden = true; v.innerHTML = ''; }
+            el.classList.remove('is-viewing');           // 线圈恢复可见
+            var ch = el.querySelector('.nx-pov-choices');
+            if (ch) {                                    // 重播线圈回归动画
+                ch.classList.remove('is-back');
+                void ch.offsetWidth;
+                ch.classList.add('is-back');
+            }
+            setTimeout(function () {
+                el.classList.remove('is-returning');
+                if (ch) ch.classList.remove('is-back');
+            }, 560);
+        }, 260);
     }
 
     function povKey(ev) {
