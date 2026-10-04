@@ -1009,12 +1009,6 @@ body.nx-zoomed .nx-foot {
 }
 .nx-deck-tile:hover { transform: translateY(-3px) scale(1.06); filter: drop-shadow(0 6px 16px rgba(216, 30, 68, .45)); }
 .nx-deck-tile:hover .nx-deck-img { box-shadow: 0 0 0 1px rgba(212, 175, 55, .75); }
-.nx-deck-name {
-  font-size: 9.5px; line-height: 1.25; text-align: center; color: #b9b9c2;
-  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
-  transition: color .2s;
-}
-.nx-deck-tile:hover .nx-deck-name { color: #fff3c4; }
 .nx-deck-img.is-missing { opacity: .28; }
 
 /* 角标（老站位置：分值左下、DIY 右下；深色底 + 金字，去描边） */
@@ -1044,7 +1038,6 @@ body.nx-zoomed .nx-foot {
 .nx-deck-info-item b { color: #e8d9a8; font-weight: 700; }
 .nx-deck-info-warn { color: #ff8fa6; font-weight: 600; }
 
-.nx-deck-fit.is-compact .nx-deck-name { display: none; }
 .nx-deck-fit.is-compact .nx-deck-cards { gap: 2px; }
 
 

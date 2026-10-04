@@ -928,7 +928,6 @@
                                     '<img class="nx-deck-img" src="' + picOf(id) + '" alt="">' +
                                     badge +
                                 '</div>' +
-                                '<span class="nx-deck-name">' + esc(nm) + '</span>' +
                             '</div>';
                         }).join('') + '</div></div>';
                 }
@@ -1004,7 +1003,7 @@
 
         function bestCols(count, colWidth, avail) {
             if (!count || colWidth <= 0) return 0;
-            var NAME_H = 24;             // 卡名两行的高度，算进去才能让卡名也显示得下
+            var NAME_H = 4;              // 卡名已去掉，只留一点点行间余量（卡图更大）
             for (var cols = 4; cols <= 24; cols++) {
                 var real = Math.min(cols, count);
                 var rows = Math.ceil(count / real);
