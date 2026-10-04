@@ -821,9 +821,10 @@
                 });
                 // 一屏全显示：放不下就整体等比缩小（不出现内部滚动条）
                 fitDeckScale(box);
-                refitDeckSoon(box);
+                scheduleDeckFit(box);
                 Array.prototype.forEach.call(box.querySelectorAll('.nx-deck-img'), function (img) {
                     img.addEventListener('load', function () { refitDeckSoon(box); });
+                    img.addEventListener('error', function () { refitDeckSoon(box); });
                 });
             });
         }).catch(function () {
@@ -866,8 +867,19 @@
         }
     }
     function refitDeckSoon(box) {
+        if (!box) return;
         clearTimeout(box._fitTimer);
         box._fitTimer = setTimeout(function () { fitDeckScale(box); }, 260);
+    }
+    // 渲染后连续校正：布局/字体/图片会在不同时刻改变高度，多次重算才能收敛
+    function scheduleDeckFit(box) {
+        if (!box) return;
+        (box._fitTimers || []).forEach(clearTimeout);
+        box._fitTimers = [0, 80, 200, 400, 700, 1100, 1700].map(function (d) {
+            return setTimeout(function () {
+                if (document.body.contains(box)) fitDeckScale(box);
+            }, d);
+        });
     }
     window.addEventListener('resize', function () {
         var box = document.getElementById('nxPovView');
