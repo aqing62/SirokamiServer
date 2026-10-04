@@ -202,11 +202,11 @@ body {
   animation: nxBubble .7s cubic-bezier(.25, .9, .3, 1.04) backwards;
   animation-delay: calc(var(--i, 0) * 130ms);
 }
+/* 自转改由 JS 逐帧驱动（避免改 animation-duration 造成相位跳变/越转越快） */
 .nx-ring .nx-rot {
   transform-origin: 60px 60px;
-  animation: nxSpin var(--spin, 34s) linear infinite;
+  will-change: transform;
 }
-.nx-ring .nx-rot.nx-rev { animation-direction: reverse; }
 .nx-ring path {
   fill: none;
   stroke: rgba(216, 30, 68, 0.62);
@@ -241,8 +241,6 @@ body {
 /* 悬停：圈转得更快、更亮 */
 .nx-option:hover .nx-ring,
 .nx-cta:hover .nx-ring { filter: drop-shadow(0 0 10px rgba(216, 30, 68, .5)); }
-.nx-option:hover .nx-rot,
-.nx-cta:hover .nx-rot { animation-duration: calc(var(--spin, 34s) * 0.35); }
 .nx-option:hover .nxb1, .nx-cta:hover .nxb1 { stroke: rgba(255, 120, 150, .95); }
 .nx-option:hover .nxb4, .nx-cta:hover .nxb4 { stroke: rgba(245, 226, 140, .8); }
 

@@ -278,7 +278,7 @@
     function ringSvg(gold) {
         var cls = 'nx-ring' + (gold ? ' nx-ring-gold' : '');
         var inner = RING_LAYERS.map(function (L) {
-            return '<g class="nx-rot ' + L.dir + '" style="--spin:' + L.spin + 's">'
+            return '<g class="nx-rot ' + L.dir + '" data-spin="' + L.spin + '" data-rev="' + (L.dir ? '1' : '0') + '">'
                 + '<path class="' + L.cls + '" d="' + blobPath(L.r, L.seed, L.pts, L.wob) + '"'
                 + ' data-r="' + L.r + '" data-seed="' + L.seed + '" data-pts="' + L.pts + '"'
                 + ' data-wob="' + L.wob + '" data-msp="' + L.msp + '" data-mph="' + L.mph + '"></path>'
@@ -293,8 +293,12 @@
     var _blobLast = 0;
     var _blobT0 = (window.performance && performance.now()) || Date.now();
 
+    var _rots = [];
+    var _tickLast = 0;
+
     function collectBlobs() {
         _blobs = Array.prototype.slice.call(document.querySelectorAll('.nx-ring path[data-blob-ready]'));
+        _rots = Array.prototype.slice.call(document.querySelectorAll('.nx-ring .nx-rot'));
     }
 
     function blobTick(now) {
@@ -302,8 +306,26 @@
         var animOff = document.documentElement.classList.contains('nx-anim-off');
         if (animOff || document.hidden) { _blobLast = now; return; }   // 关动效/后台标签页时不做计算
         if (now - _blobLast < 32) return;                              // 约 30fps
+        if (!_tickLast) _tickLast = now;
+        var dt = Math.min(0.1, (now - _tickLast) / 1000);   // 单帧最大 100ms，切后台回来不跳
+        _tickLast = now;
         _blobLast = now;
         var t = (now - _blobT0) / 1000;
+
+        // 旋转：JS 逐帧累积角度（速度平滑过渡，避免 CSS 改 duration 造成相位跳变）
+        for (var ri = 0; ri < _rots.length; ri++) {
+            var g = _rots[ri];
+            if (!g.parentNode) continue;
+            var owner = g.parentNode && g.parentNode.parentNode ? g.parentNode.parentNode._nxOwner : null;
+            var spin = parseFloat(g.getAttribute('data-spin')) || 12;
+            var dirSgn = g.getAttribute('data-rev') === '1' ? -1 : 1;
+            var om = (360 / spin) * dirSgn;              // 基础角速度 deg/s
+            var spd = owner && owner._nxSpeed !== undefined ? owner._nxSpeed : 1;
+            g._nxAng = (g._nxAng || 0) + om * spd * dt;
+            if (g._nxAng > 360) g._nxAng -= 360;
+            if (g._nxAng < -360) g._nxAng += 360;
+            g.style.transform = 'rotate(' + g._nxAng.toFixed(2) + 'deg)';
+        }
         for (var i = 0; i < _blobs.length; i++) {
             var p = _blobs[i];
             if (!p.parentNode) continue;                               // 已被重绘移除
@@ -319,6 +341,9 @@
                 if (owner._nxReg === undefined) owner._nxReg = 0;
                 if (owner._nxRegTarget === undefined) owner._nxRegTarget = 0;
                 owner._nxReg += (owner._nxRegTarget - owner._nxReg) * 0.085;
+                if (owner._nxSpeed === undefined) owner._nxSpeed = 1;
+                if (owner._nxSpeedTarget === undefined) owner._nxSpeedTarget = 1;
+                owner._nxSpeed += (owner._nxSpeedTarget - owner._nxSpeed) * 0.06;
                 if (Math.abs(owner._nxRegTarget - owner._nxReg) < 0.002) owner._nxReg = owner._nxRegTarget;
                 reg = owner._nxReg;
             }
@@ -334,12 +359,17 @@
     function bindHoverRegular(btn) {
         btn._nxReg = 0;
         btn._nxRegTarget = 0;
+        btn._nxSpeed = 1;
+        btn._nxSpeedTarget = 1;
+        btn._nxOwner = btn;
+        var groups = btn.querySelectorAll('.nx-ring .nx-rot');
+        for (var gi = 0; gi < groups.length; gi++) groups[gi].parentNode._nxOwner = btn;
         var paths = btn.querySelectorAll('.nx-ring path');
         for (var i = 0; i < paths.length; i++) paths[i]._nxBtn = btn;
-        btn.addEventListener('pointerenter', function () { btn._nxRegTarget = 1; });
-        btn.addEventListener('pointerleave', function () { btn._nxRegTarget = 0; });
-        btn.addEventListener('focus', function () { btn._nxRegTarget = 1; });
-        btn.addEventListener('blur', function () { btn._nxRegTarget = 0; });
+        btn.addEventListener('pointerenter', function () { btn._nxRegTarget = 1; btn._nxSpeedTarget = 2.6; });
+        btn.addEventListener('pointerleave', function () { btn._nxRegTarget = 0; btn._nxSpeedTarget = 1; });
+        btn.addEventListener('focus', function () { btn._nxRegTarget = 1; btn._nxSpeedTarget = 2.6; });
+        btn.addEventListener('blur', function () { btn._nxRegTarget = 0; btn._nxSpeedTarget = 1; });
     }
 
     // 标记可变形路径并启动循环（渲染后调用）
