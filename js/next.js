@@ -1129,7 +1129,7 @@
     });
 
     // ── 预组卡组（卡片 → 预组）：数据与经典版同一份 decks/chronicle_decks.json ──
-    var CHRONICLE_URL = 'decks/chronicle_decks.json?v=20261006c';
+    var CHRONICLE_URL = 'decks/chronicle_decks.json?v=20261006p';
     var _presetCache = null;
     function loadChronicleDecks() {
         if (_presetCache) return Promise.resolve(_presetCache);
