@@ -171,7 +171,7 @@ body {
   cursor: pointer;
   font-family: inherit;
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.6);
-  transition: transform .3s var(--nx-ease), box-shadow .3s;
+  transition: transform .42s var(--nx-ease), box-shadow .34s;
   animation: optionIn .55s var(--nx-ease) both;
   animation-delay: calc(var(--i, 0) * 110ms);
 }
@@ -184,7 +184,7 @@ body {
 .nx-option .nx-opt-sub { font-size: 11px; color: var(--nx-dim); }
 
 .nx-option:hover, .nx-option:focus-visible {
-  transform: translateY(-5px) scale(1.06);
+  transform: translateY(-6px) scale(1.13);
   box-shadow: 0 18px 44px rgba(0, 0, 0, .65), 0 0 30px rgba(216, 30, 68, .35);
   outline: none;
 }
@@ -304,10 +304,10 @@ body {
   font-family: inherit; font-size: clamp(12px, 1.5vw, 15px); font-weight: 800;
   cursor: pointer;
   box-shadow: 0 12px 34px rgba(0, 0, 0, .6);
-  transition: transform .3s var(--nx-ease), box-shadow .3s;
+  transition: transform .42s var(--nx-ease), box-shadow .34s;
   animation: optionIn .55s var(--nx-ease) both;
 }
-.nx-cta:hover { transform: translateY(-5px) scale(1.06); box-shadow: 0 18px 44px rgba(0, 0, 0, .65), 0 0 28px rgba(212, 175, 55, .4); }
+.nx-cta:hover { transform: translateY(-6px) scale(1.13); box-shadow: 0 18px 44px rgba(0, 0, 0, .65), 0 0 28px rgba(212, 175, 55, .4); }
 .nx-cta .nx-cta-icon { font-size: calc(var(--size) * .27); line-height: 1; }
 .nx-cta:hover .nx-ring circle { animation-duration: 2.6s, 4s, 8s, 5.5s; }
 /* 次级：红系 */

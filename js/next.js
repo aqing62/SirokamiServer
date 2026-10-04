@@ -291,11 +291,34 @@
             var wob = parseFloat(p.getAttribute('data-wob'));
             var msp = parseFloat(p.getAttribute('data-msp')) || 0;
             var mph = parseFloat(p.getAttribute('data-mph')) || 0;
-            // 相位缓慢游走（形状一直在变） + 抖动幅度呼吸（扭曲强弱起伏）
-            var phase = mph + t * msp;
-            var amp = wob * (0.62 + 0.5 * Math.sin(t * 0.5 + mph * 1.3));
+            // 悬停时"规整度"→1（线条收敛为正圆），移开后→0（回到呼吸扭曲），用指数插值过渡
+            var owner = p._nxBtn;
+            var reg = 0;
+            if (owner) {
+                if (owner._nxReg === undefined) owner._nxReg = 0;
+                if (owner._nxRegTarget === undefined) owner._nxRegTarget = 0;
+                owner._nxReg += (owner._nxRegTarget - owner._nxReg) * 0.085;
+                if (Math.abs(owner._nxRegTarget - owner._nxReg) < 0.002) owner._nxReg = owner._nxRegTarget;
+                reg = owner._nxReg;
+            }
+            // 相位缓慢游走 + 抖动幅度呼吸；再乘 (1-规整度) 收敛为正圆
+            var phase = mph + t * msp * (1 - reg * 0.85);
+            var amp = wob * (0.62 + 0.5 * Math.sin(t * 0.5 + mph * 1.3)) * (1 - reg);
             p.setAttribute('d', blobPath(r, phase, pts, amp));
         }
+    }
+
+
+    // 悬停：线条收敛为正圆（_nxRegTarget=1），移开回到呼吸扭曲（=0）
+    function bindHoverRegular(btn) {
+        btn._nxReg = 0;
+        btn._nxRegTarget = 0;
+        var paths = btn.querySelectorAll('.nx-ring path');
+        for (var i = 0; i < paths.length; i++) paths[i]._nxBtn = btn;
+        btn.addEventListener('pointerenter', function () { btn._nxRegTarget = 1; });
+        btn.addEventListener('pointerleave', function () { btn._nxRegTarget = 0; });
+        btn.addEventListener('focus', function () { btn._nxRegTarget = 1; });
+        btn.addEventListener('blur', function () { btn._nxRegTarget = 0; });
     }
 
     // 标记可变形路径并启动循环（渲染后调用）
@@ -378,6 +401,7 @@
                 ripple(b, ev);
                 setTimeout(function () { goTo(opt.next, opt.label); }, 120);
             });
+            bindHoverRegular(b);
             optEl.appendChild(b);
         });
         startBlobMorph();
@@ -436,6 +460,7 @@
                     setTimeout(function () { location.href = CTA_GOTO(c.goto); }, 260);
                 }
             });
+            bindHoverRegular(b);
             ctaEl.appendChild(b);
         });
         startBlobMorph();
