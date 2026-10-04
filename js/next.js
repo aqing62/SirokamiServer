@@ -291,7 +291,8 @@
     // ── 活体变形：形状持续改变（抖动相位缓慢游走 + 抖动幅度起伏呼吸） ──
     var _blobs = [];
     var _blobLast = 0;
-    var _blobT0 = (window.performance && performance.now()) || Date.now();
+    var _tickLast = 0;   // 上一帧时间戳（算 dt）
+    var _breathT = 0;    // 呼吸相位累加器（只按运行时间增长）
 
 
     function collectBlobs() {
@@ -304,7 +305,11 @@
         if (animOff || document.hidden) { _blobLast = now; return; }   // 关动效/后台标签页时不做计算
         if (now - _blobLast < 32) return;                              // 约 30fps
         _blobLast = now;
-        var t = (now - _blobT0) / 1000;
+        // 逐帧时间差：单帧最大 100ms（切后台/隐藏回来不会一次性补算）
+        if (!_tickLast) _tickLast = now;
+        var dt = Math.min(0.1, (now - _tickLast) / 1000);
+        _tickLast = now;
+        _breathT += dt;   // 呼吸相位也只按运行时间累加
 
         for (var i = 0; i < _blobs.length; i++) {
             var p = _blobs[i];
@@ -325,10 +330,12 @@
                 if (Math.abs(owner._nxRegTarget - owner._nxReg) < 0.002) owner._nxReg = owner._nxRegTarget;
                 reg = owner._nxReg;
             }
-            // 相位缓慢游走 + 抖动幅度呼吸；再乘 (1-规整度) 收敛为正圆
-            var phase = mph + t * msp * (1 - reg * 0.85);
-            var amp = wob * (0.62 + 0.5 * Math.sin(t * 0.5 + mph * 1.3)) * (1 - reg);
-            p.setAttribute('d', blobPath(r, phase, pts, amp));
+            // 相位逐帧累加（关键：不用绝对时间，避免暂停后恢复时“补算”导致突然飞快）
+            if (p._nxPhase === undefined) p._nxPhase = mph;
+            p._nxPhase += msp * (1 - reg * 0.85) * dt;
+            // 抖动幅度呼吸 + 按规整度收敛为正圆（只变圆，不回到初始形状）
+            var amp = wob * (0.62 + 0.5 * Math.sin(_breathT * 0.5 + mph * 1.3)) * (1 - reg);
+            p.setAttribute('d', blobPath(r, p._nxPhase, pts, amp));
         }
     }
 
