@@ -151,7 +151,7 @@ body {
     "left right";
   justify-items: center;
   align-items: center;
-  gap: clamp(8px, 2.2vh, 22px) clamp(16px, 5vw, 54px);
+  gap: clamp(2px, 1vh, 10px) clamp(10px, 4vw, 44px);
 }
 .nx-options .nx-option:nth-child(1) { grid-area: top; }
 .nx-options .nx-option:nth-child(2) { grid-area: left; }
@@ -163,7 +163,7 @@ body {
   grid-template-areas: "top top" "left right";
   justify-content: center;
   align-items: center;
-  gap: clamp(8px, 2vh, 20px) clamp(16px, 4vw, 44px);
+  gap: clamp(2px, 1vh, 10px) clamp(10px, 4vw, 40px);
 }
 .nx-result-cta.nx-tri > *:nth-child(1) { grid-area: top; }
 .nx-result-cta.nx-tri > *:nth-child(2) { grid-area: left; }
@@ -172,7 +172,7 @@ body {
 .nx-result-cta.nx-tri > * { justify-self: center; align-self: center; }
 
 .nx-option {
-  --size: clamp(104px, 15vw, 138px);
+  --size: clamp(112px, 16vw, 152px);
   position: relative;
   width: var(--size); height: var(--size);
   border-radius: 50%;
@@ -282,7 +282,7 @@ body {
 }
 /* 结果页主按钮（圆形，深色 + 金色流动环） */
 .nx-cta {
-  --size: clamp(108px, 16vw, 142px);
+  --size: clamp(114px, 17vw, 152px);
   position: relative;
   width: var(--size); height: var(--size);
   border-radius: 50%;
@@ -335,9 +335,9 @@ body {
   body { padding-left: 12px; padding-right: 12px; }
   .nx-brand-sub { display: none; }
   .nx-version-btn { min-width: 54px; font-size: 12px; padding: 5px 10px; }
-  .nx-option { --size: clamp(88px, 26vw, 108px); }
+  .nx-option { --size: clamp(96px, 27vw, 118px); }
   .nx-option .nx-opt-sub { display: none; }
-  .nx-cta { --size: clamp(96px, 28vw, 120px); }
+  .nx-cta { --size: clamp(100px, 28vw, 124px); }
   .nx-step-row { border-radius: 18px; padding: 9px 12px; }
   .nx-foot { font-size: 10.5px; }
   .nx-back { left: 12px; bottom: calc(48px + env(safe-area-inset-bottom, 0px)); width: 44px; height: 44px; }
