@@ -162,6 +162,48 @@
         }
     };
 
+    // ── DOM ──
+    var stage = document.getElementById('nxStage');
+    var qEl = document.getElementById('nxQuestion');
+    var optEl = document.getElementById('nxOptions');
+    var resEl = document.getElementById('nxResult');
+    var stepsEl = document.getElementById('nxSteps');
+    var ctaEl = document.getElementById('nxCta');
+    var verEl = document.getElementById('nxVersion');
+
+    var historyStack = [];   // 走过的节点（用于返回）
+    var busy = false;        // 转场锁
+    var typeTimer = null;
+
+    function esc(s) {
+        return String(s).replace(/[&<>"]/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+        });
+    }
+    // 允许 <b> / <code> 之类少量标签
+    function rich(s) { return String(s); }
+
+    // 打字机效果
+    function typeText(el, text, done) {
+        clearInterval(typeTimer);
+        el.textContent = '';
+        var caret = document.createElement('i');
+        caret.className = 'nx-caret';
+        el.appendChild(caret);
+        var i = 0;
+        typeTimer = setInterval(function () {
+            i += 1;
+            caret.remove();
+            el.textContent = text.slice(0, i);
+            el.appendChild(caret);
+            if (i >= text.length) {
+                clearInterval(typeTimer);
+                setTimeout(function () { caret.remove(); }, 700);
+                if (done) done();
+            }
+        }, 26);
+    }
+
     // ── 自绘线条图标（无 emoji）：24×24、无填充、1.6px 描边、圆头 ──
     var ICONS = {
         cards:   '<rect x="3.5" y="6" width="9" height="13" rx="1.6" transform="rotate(-9 8 12.5)"/><rect x="11.5" y="5" width="9" height="13" rx="1.6" transform="rotate(9 16 11.5)"/>',
