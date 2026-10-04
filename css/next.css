@@ -1127,3 +1127,41 @@ body.nx-zoomed .nx-foot {
 @keyframes nxTipBorderOut { from { clip-path: inset(0); } to { clip-path: inset(0 100% 0 0); } }
 .nx-card-tip.is-out > * { animation: nxTipTextOut .08s ease-in both; }
 @keyframes nxTipTextOut { to { opacity: 0; transform: translateY(2px); } }
+
+
+/* ══ 天梯界面整体放大 125%（基准值 ×1.25；想调大小只改这一段即可）══
+   仅作用于桌面端，手机端仍用自己的紧凑布局（见各自的 @media）
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) {
+  /* 列表宽度 880 → 1100 */
+  .nx-scroll, .nx-list-head, .nx-list-note { max-width: 1100px; }
+  /* 滚动区高度 56vh/520 → 64vh/650，保证放大后可见行数不变少 */
+  .nx-scroll { max-height: min(64vh, 650px); }
+
+  /* 表头 11.5 → 14.5 */
+  .nx-list-head { gap: 13px; padding-bottom: 10px; font-size: 14.5px; letter-spacing: .6px; }
+
+  /* 列宽 ×1.25：54/104/76/130/72 → 68/130/95/163/90 */
+  .nx-list-head, .nx-row { grid-template-columns: 68px 1fr 130px 95px 163px 90px; }
+
+  /* 行：内边距 11 → 14、字号 13 → 16、行高放宽 */
+  .nx-row { padding-top: 14px; padding-bottom: 14px; font-size: 16px; gap: 13px; }
+  .nx-row .c-rank { font-size: 17px; }
+
+  /* 段位徽章 11.5 → 14.5、内边距同步放大 */
+  .nx-tier-badge { padding: 3px 10px; font-size: 14.5px; }
+  .nx-streak { font-size: 13px; margin-left: 9px; }
+
+  /* 顶部：人数 26 → 32、单位 12 → 15 */
+  .nx-ladder-top { margin-bottom: 18px; }
+  .nx-ladder-count { gap: 8px; }
+  .nx-ladder-count b { font-size: 32px; }
+  .nx-ladder-count span { font-size: 15px; }
+
+  /* 表尾说明 */
+  .nx-list-note { margin-top: 8px; font-size: 14.5px; }
+
+  /* 屏幕标题 */
+  .nx-screen-titles h2 { font-size: 1.25em; }
+  .nx-screen-titles p { font-size: 15.5px; }
+}
