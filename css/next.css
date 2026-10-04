@@ -581,6 +581,9 @@ body.nx-skip .nx-welcome { display: none; }
 /* ══ 功能屏（外壳）════════════════════════════════════════
    问答区隐藏，改为整屏内容；返回靠左上角 ← / Esc（问答页仍可点空白返回）
    ═══════════════════════════════════════════════════════ */
+.nx-stage.nx-leaving .nx-screen { animation: nxScreenOut .2s ease-in both; }
+@keyframes nxScreenOut { to { opacity: 0; transform: scale(.99); filter: blur(3px); } }
+
 .nx-stage.is-screen .nx-question,
 .nx-stage.is-screen .nx-options,
 .nx-stage.is-screen .nx-result { display: none !important; }
@@ -597,11 +600,20 @@ body.nx-skip .nx-welcome { display: none; }
   border: 1px solid rgba(216, 30, 68, .28);
   background: linear-gradient(160deg, rgba(24, 12, 16, .92), rgba(10, 8, 10, .88));
   box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
-  animation: nxScreenIn .42s var(--nx-ease) both;
 }
+/* 每次打开都重播（JS 切换 .is-in）：与开场同款「失焦 → 合焦」 */
+.nx-screen.is-in { animation: nxScreenIn .52s cubic-bezier(.22, .9, .28, 1.02) both; }
 @keyframes nxScreenIn {
-  from { opacity: 0; transform: translateY(14px) scale(.985); }
-  to   { opacity: 1; transform: none; }
+  0%   { opacity: 0; transform: translateY(18px) scale(.975); filter: blur(7px); }
+  55%  { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: none; filter: blur(0); }
+}
+/* 内容逐条错开浮现（配合 element.style.--i 的延迟） */
+.nx-reveal { animation: nxReveal .5s cubic-bezier(.22, .9, .28, 1.02) both; animation-delay: calc(var(--i, 0) * 32ms); }
+@keyframes nxReveal {
+  0%   { opacity: 0; transform: translateY(10px); filter: blur(4px); }
+  60%  { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: none; filter: blur(0); }
 }
 .nx-screen-head { display: flex; align-items: center; gap: 12px; }
 .nx-screen-back {

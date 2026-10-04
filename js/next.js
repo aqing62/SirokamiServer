@@ -246,6 +246,15 @@
         }
         var back = screenEl.querySelector('.nx-screen-back');
         if (back) back.addEventListener('click', function () { playSfx('back'); goBack(); });
+        // 每次打开都重播入场动画（元素本身不会重建，直接加类只会播一次）
+        screenEl.classList.remove('is-in');
+        void screenEl.offsetWidth;            // 强制重排，重启动画
+        screenEl.classList.add('is-in');
+        // 内容逐条错开浮现
+        var reveals = screenEl.querySelectorAll('.nx-reveal');
+        for (var ri = 0; ri < reveals.length; ri++) {
+            reveals[ri].style.setProperty('--i', reveals[ri].getAttribute('data-i') || ri);
+        }
         var cl = screenEl.querySelector('.nx-screen-classic');
         if (cl) cl.addEventListener('click', function () { jumpClassic(s.goto); });
     }
@@ -287,14 +296,14 @@
         var total = (data && data.total) || players.length;
 
         // 段位门槛（取段位名去掉赛季前缀）
-        var cutHtml = cuts.map(function (c) {
+        var cutHtml = cuts.map(function (c, ci) {
             var name = String(c.name || '').replace(/^S\d+\s*/, '');
-            return '<span class="nx-tier-chip ' + tierClass(name) + '">' + esc(name) +
+            return '<span class="nx-tier-chip nx-reveal ' + tierClass(name) + '" data-i="' + (ci + 2) + '">' + esc(name) +
                    '<i>' + c.minRating + '</i></span>';
         }).join('');
 
         var head = '<div class="nx-ladder-top">' +
-            '<div class="nx-ladder-count"><b>' + total + '</b><span>人已上榜</span></div>' +
+            '<div class="nx-ladder-count nx-reveal" data-i="0"><b>' + total + '</b><span>人已上榜</span></div>' +
             '<div class="nx-ladder-tiers">' + cutHtml + '</div>' +
         '</div>';
 
@@ -306,7 +315,7 @@
 
         var rows = players.map(function (p, i) {
             var tier = String(p.tier || '').replace(/^S\d+\s*/, '');
-            return '<tr>' +
+            return '<tr class="nx-reveal" data-i="' + Math.min(i + 2, 22) + '">' +
                 '<td class="c-rank">' + rankMedal(i) + '</td>' +
                 '<td class="c-name">' + esc(p.name) + (p.streak > 1 ? '<span class="nx-streak">' + p.streak + '连胜</span>' : '') + '</td>' +
                 '<td class="c-tier"><span class="nx-tier-badge ' + tierClass(tier) + '">' + esc(tier) + '</span></td>' +
@@ -317,7 +326,7 @@
         }).join('');
 
         body.innerHTML = head +
-            '<div class="nx-table-wrap"><table class="nx-table nx-ladder-table">' +
+            '<div class="nx-table-wrap nx-reveal" data-i="1"><table class="nx-table nx-ladder-table">' +
             '<thead><tr><th>#</th><th>玩家</th><th>段位</th><th>积分</th><th>战绩</th><th>胜率</th></tr></thead>' +
             '<tbody>' + rows + '</tbody></table></div>' +
             '<div class="nx-table-note">数据来自天梯服务 · 每场 M# 对局结束后更新</div>';
