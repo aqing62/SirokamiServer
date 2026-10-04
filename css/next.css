@@ -752,6 +752,7 @@ body.nx-skip .nx-welcome { display: none; }
 
 /* 列表收窄居中；表头与行共用同一宽度上下文，保证列对齐 */
 .nx-scroll, .nx-list-head, .nx-list-note {
+  width: 100%;          /* flex 项上的 margin:auto 会让 align-self:stretch 失效，需显式撑满 */
   max-width: 880px;
   margin-left: auto;
   margin-right: auto;
