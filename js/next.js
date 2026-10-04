@@ -395,6 +395,9 @@
                 }
             }
             b._tx = tx; b._ty = ty;
+            // 标记是否处于交互范围（供形变分级刷新）
+            b._near = b._stuck || (_magPx !== null &&
+                Math.sqrt((_magPx - cx) * (_magPx - cx) + (_magPy - cy) * (_magPy - cy)) < MAG.dragR);
         }
 
         // 2) 相互规避：两两检查，重叠就沿连线推开
@@ -457,7 +460,7 @@
         requestAnimationFrame(blobTick);
         var animOff = document.documentElement.classList.contains('nx-anim-off');
         if (animOff || document.hidden) { _blobLast = now; return; }   // 关动效/后台标签页时不做计算
-        if (now - _blobLast < 16) return;                              // 跟随屏幕刷新（消除形变步进造成的顿挫）
+        // 不再用全局闸门：每条路径按自己的刷新节奏（交互中的按钮更密）
         _blobLast = now;
         // 逐帧时间差：单帧最大 100ms（切后台/隐藏回来不会一次性补算）
         if (!_tickLast) _tickLast = now;
@@ -477,6 +480,10 @@
             var mph = parseFloat(p.getAttribute('data-mph')) || 0;
             // 悬停时"规整度"→1（线条收敛为正圆），移开后→0（回到呼吸扭曲），用指数插值过渡
             var owner = p._nxBtn;
+            // 分级刷新：指针附近的按钮 60fps，其余 12fps（大幅降低每帧路径重写量）
+            var due = (owner && owner._near) ? 15 : 80;
+            if (p._lastPaint && now - p._lastPaint < due) continue;
+            p._lastPaint = now;
             var reg = 0;
             if (owner) {
                 // 拉拽：按钮被拖动/指针扫过 → 沿运动方向甩长（路径方案，实测比 SVG transform 快）
