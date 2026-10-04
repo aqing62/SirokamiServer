@@ -894,23 +894,29 @@
         var fit = document.getElementById('nxDeckFit');
         if (!fit) return;
 
-        layoutDeckGrids(box);          // 先按可用高度选列数（尽量不缩放）
-
+        // ① 必须先复位（否则量到的是上一次缩放后的布局，列数会算错 → 底部溢出）
         fit.style.zoom = '';
         fit.style.transform = 'none';
         fit.style.transformOrigin = 'top center';
         box.style.height = '';
         box.style.overflow = '';
+        fit.classList.remove('is-compact');
 
-        function contentH() { return fit.scrollHeight || 1; }   // 布局高度，不受 transform 影响
         function bottom() { return fit.getBoundingClientRect().bottom; }
 
-        // 第一轮：放不下就先隐藏卡名，换取更大比例
-        fit.classList.remove('is-compact');
-        if (bottom() > window.innerHeight - 6) fit.classList.add('is-compact');
+        // ② 复位状态下按真实可用高度选列数（尽量不缩放）
+        layoutDeckGrids(box);
 
-        // 迭代：scrollHeight 拿到未缩放高度 → 求比例 → 再按实际底部校正（最多 5 轮）
+        // ③ 还放不下：先牺牲卡名再选一次列数
+        if (bottom() > window.innerHeight - 6) {
+            fit.classList.add('is-compact');
+            layoutDeckGrids(box);
+        }
+
+        // ④ 最后仍放不下才等比缩放
+        var contentH = function () { return fit.scrollHeight || 1; };
         for (var i = 0; i < 5; i++) {
+            if (bottom() <= window.innerHeight - 6) break;
             var top = fit.getBoundingClientRect().top;
             var need = contentH();
             var avail = window.innerHeight - top - 10;
@@ -920,7 +926,6 @@
             fit.style.transform = k < 0.999 ? 'scale(' + k.toFixed(4) + ')' : 'none';
             box.style.height = Math.ceil(need * (k < 0.999 ? k : 1)) + 'px';
             box.style.overflow = 'hidden';
-            if (bottom() <= window.innerHeight - 6) break;
         }
     }
     function refitDeckSoon(box) {
