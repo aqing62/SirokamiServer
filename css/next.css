@@ -110,19 +110,6 @@ body {
   padding: 8px 0;
 }
 
-.nx-crumb {
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
-  min-height: 22px;
-  font-size: 12px; color: var(--nx-dim);
-}
-.nx-crumb .nx-step {
-  padding: 2px 10px;
-  border-radius: 999px;
-  border: 1px solid rgba(212, 175, 55, .4);
-  color: var(--nx-gold-light);
-  animation: crumbIn .3s ease-out both;
-}
-@keyframes crumbIn { from { opacity: 0; transform: translateY(6px) scale(.9); } to { opacity: 1; transform: none; } }
 
 .nx-question {
   margin: 0;
@@ -140,7 +127,6 @@ body {
 }
 @keyframes caretBlink { 50% { opacity: 0; } }
 
-.nx-hint { margin: 0; font-size: clamp(12px, 1.6vw, 14px); color: var(--nx-dim); max-width: 30em; line-height: 1.7; }
 
 /* ── 圆形选项按钮：深色空圆 + 边缘流动线条（三角布局）── */
 .nx-options {
@@ -151,7 +137,7 @@ body {
     "left right";
   justify-items: center;
   align-items: center;
-  gap: clamp(2px, 1vh, 10px) clamp(10px, 4vw, 44px);
+  gap: clamp(2px, 1vh, 12px) clamp(4px, 2vw, 26px);
 }
 .nx-options .nx-option:nth-child(1) { grid-area: top; }
 .nx-options .nx-option:nth-child(2) { grid-area: left; }
@@ -163,7 +149,7 @@ body {
   grid-template-areas: "top top" "left right";
   justify-content: center;
   align-items: center;
-  gap: clamp(2px, 1vh, 10px) clamp(10px, 4vw, 40px);
+  gap: clamp(2px, 1vh, 12px) clamp(4px, 2vw, 26px);
 }
 .nx-result-cta.nx-tri > *:nth-child(1) { grid-area: top; }
 .nx-result-cta.nx-tri > *:nth-child(2) { grid-area: left; }
@@ -172,7 +158,7 @@ body {
 .nx-result-cta.nx-tri > * { justify-self: center; align-self: center; }
 
 .nx-option {
-  --size: clamp(112px, 16vw, 152px);
+  --size: clamp(150px, 21vw, 210px);
   position: relative;
   width: var(--size); height: var(--size);
   border-radius: 50%;
@@ -193,9 +179,9 @@ body {
   from { opacity: 0; transform: translateY(24px) scale(.8); }
   to   { opacity: 1; transform: none; }
 }
-.nx-option .nx-opt-icon { font-size: calc(var(--size) * .25); line-height: 1; }
-.nx-option .nx-opt-label { font-size: clamp(12px, 1.5vw, 15px); font-weight: 800; letter-spacing: .5px; }
-.nx-option .nx-opt-sub { font-size: 10px; color: var(--nx-dim); }
+.nx-option .nx-opt-icon { font-size: calc(var(--size) * .26); line-height: 1; }
+.nx-option .nx-opt-label { font-size: clamp(14px, 1.7vw, 18px); font-weight: 800; letter-spacing: .8px; }
+.nx-option .nx-opt-sub { font-size: 11px; color: var(--nx-dim); }
 
 .nx-option:hover, .nx-option:focus-visible {
   transform: translateY(-5px) scale(1.06);
@@ -204,36 +190,57 @@ body {
 }
 .nx-option:active { transform: scale(.97); }
 
-/* 流动线条环（SVG 多层虚线，dashoffset 流动 + 反向旋转） */
+/* 交错流动线条环：圆 + 斜置椭圆，各自流动(dashoffset) + 呼吸(明暗/粗细)，整体极慢自转 */
 .nx-ring {
   position: absolute;
-  inset: -7%;
-  width: 114%; height: 114%;
+  inset: -10%;
+  width: 120%; height: 120%;
   overflow: visible;
   pointer-events: none;
-  filter: drop-shadow(0 0 5px rgba(216, 30, 68, .35));
+  transform-origin: 50% 50%;
+  animation: nxWholeBreath 7.5s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px rgba(216, 30, 68, .3));
   transition: filter .3s;
 }
-.nx-ring circle {
+.nx-ring .nx-rot { transform-origin: 60px 60px; animation: nxSpin 52s linear infinite; }
+.nx-ring circle, .nx-ring ellipse {
   fill: none;
-  stroke: rgba(216, 30, 68, 0.55);
+  stroke: rgba(216, 30, 68, 0.5);
   stroke-width: 1;
   vector-effect: non-scaling-stroke;
-  transform-box: fill-box;
-  transform-origin: center;
 }
-.nx-ring .nxr1 { stroke-dasharray: 2 6;  animation: nxFlow 5.5s linear infinite; }
-.nx-ring .nxr2 { stroke: rgba(216, 30, 68, 0.38); stroke-dasharray: 1 5; animation: nxFlow 8.5s linear infinite reverse; }
-.nx-ring .nxr3 { stroke: rgba(212, 175, 55, 0.42); stroke-dasharray: 9 14; animation: nxSpin 16s linear infinite; }
-.nx-ring .nxr4 { stroke: rgba(255, 120, 150, 0.35); stroke-dasharray: 3 9; animation: nxSpin 11s linear infinite reverse; }
-@keyframes nxFlow { to { stroke-dashoffset: -160; } }
-@keyframes nxSpin { to { transform: rotate(360deg); } }
+/* 每层：虚线流动 + 呼吸（不同的延迟形成交错起伏） */
+.nx-ring .nxr1 { stroke-dasharray: 2 7;   animation: nxFlow 5.2s linear infinite,  nxPulse 4.4s ease-in-out infinite; }
+.nx-ring .nxr2 { stroke: rgba(216, 30, 68, 0.34); stroke-dasharray: 1 4;  animation: nxFlow 8.6s linear infinite reverse, nxPulse 5.8s ease-in-out .5s infinite; }
+.nx-ring .nxr3 { stroke-dasharray: 5 11;  animation: nxFlow 7.2s linear infinite,  nxPulse 5.1s ease-in-out 1.1s infinite; }
+.nx-ring .nxr4 { stroke: rgba(212, 175, 55, 0.42); stroke-dasharray: 2 6; animation: nxFlow 9.4s linear infinite reverse, nxPulse 6.4s ease-in-out 1.7s infinite; }
+.nx-ring .nxr5 { stroke: rgba(255, 120, 150, 0.4); stroke-dasharray: 9 16; animation: nxFlow 11s linear infinite, nxPulse 5.6s ease-in-out 2.3s infinite; }
+.nx-ring .nxr6 { stroke: rgba(212, 175, 55, 0.3); stroke-dasharray: 3 9; animation: nxFlow 6.6s linear infinite reverse, nxPulse 4.9s ease-in-out 2.9s infinite; }
+.nx-ring .nxr7 { stroke: rgba(255, 150, 175, 0.34); stroke-dasharray: 1 5; animation: nxFlow 4.4s linear infinite, nxPulse 5.3s ease-in-out 3.5s infinite; }
 
-/* 悬停：线条加快、变亮 */
-.nx-option:hover .nx-ring { filter: drop-shadow(0 0 9px rgba(216, 30, 68, .6)); }
-.nx-option:hover .nx-ring circle { animation-duration: 2.6s, 4s, 8s, 5.5s; }
-.nx-option:hover .nx-ring .nxr1 { stroke: rgba(255, 90, 120, .9); }
-.nx-option:hover .nx-ring .nxr3 { stroke: rgba(240, 230, 140, .8); }
+@keyframes nxFlow { to { stroke-dashoffset: -180; } }
+@keyframes nxSpin { to { transform: rotate(360deg); } }
+/* 呼吸：明暗 + 粗细 + 轻微缩放（缩放单独做，避免与流动冲突） */
+@keyframes nxPulse {
+  0%, 100% { opacity: .38; stroke-width: 1; }
+  50%      { opacity: 1;   stroke-width: 1.7; }
+}
+/* 整环组的整体呼吸（缩放） */
+@keyframes nxWholeBreath {
+  0%, 100% { transform: scale(.985); }
+  50%      { transform: scale(1.035); }
+}
+
+/* 悬停：线条加速、变亮、呼吸加快 */
+.nx-option:hover .nx-ring { filter: drop-shadow(0 0 11px rgba(216, 30, 68, .6)); animation-duration: 3.4s; }
+.nx-option:hover .nx-ring .nx-rot { animation-duration: 16s; }
+.nx-option:hover .nx-ring circle, .nx-option:hover .nx-ring ellipse { animation-duration: 2.4s, 2.6s; }
+.nx-option:hover .nx-ring .nxr1 { stroke: rgba(255, 105, 135, .95); }
+.nx-option:hover .nx-ring .nxr4,
+.nx-option:hover .nx-ring .nxr6 { stroke: rgba(245, 226, 140, .85); }
+.nx-cta:hover .nx-ring { filter: drop-shadow(0 0 11px rgba(212, 175, 55, .55)); animation-duration: 3.4s; }
+.nx-cta:hover .nx-ring .nx-rot { animation-duration: 16s; }
+.nx-cta:hover .nx-ring circle, .nx-cta:hover .nx-ring ellipse { animation-duration: 2.4s, 2.6s; }
 
 /* 金色变体（结果页主按钮） */
 .nx-ring.nx-ring-gold circle { stroke: rgba(212, 175, 55, 0.6); }
@@ -282,7 +289,7 @@ body {
 }
 /* 结果页主按钮（圆形，深色 + 金色流动环） */
 .nx-cta {
-  --size: clamp(114px, 17vw, 152px);
+  --size: clamp(154px, 22vw, 214px);
   position: relative;
   width: var(--size); height: var(--size);
   border-radius: 50%;
@@ -297,7 +304,7 @@ body {
   animation: optionIn .55s var(--nx-ease) both;
 }
 .nx-cta:hover { transform: translateY(-5px) scale(1.06); box-shadow: 0 18px 44px rgba(0, 0, 0, .65), 0 0 28px rgba(212, 175, 55, .4); }
-.nx-cta .nx-cta-icon { font-size: calc(var(--size) * .26); line-height: 1; }
+.nx-cta .nx-cta-icon { font-size: calc(var(--size) * .27); line-height: 1; }
 .nx-cta:hover .nx-ring circle { animation-duration: 2.6s, 4s, 8s, 5.5s; }
 /* 次级：红系 */
 .nx-cta.nx-cta-ghost {
@@ -335,15 +342,16 @@ body {
   body { padding-left: 12px; padding-right: 12px; }
   .nx-brand-sub { display: none; }
   .nx-version-btn { min-width: 54px; font-size: 12px; padding: 5px 10px; }
-  .nx-option { --size: clamp(96px, 27vw, 118px); }
+  .nx-option { --size: clamp(124px, 34vw, 158px); }
   .nx-option .nx-opt-sub { display: none; }
-  .nx-cta { --size: clamp(100px, 28vw, 124px); }
+  .nx-cta { --size: clamp(128px, 35vw, 164px); }
   .nx-step-row { border-radius: 18px; padding: 9px 12px; }
   .nx-foot { font-size: 10.5px; }
   .nx-back { left: 12px; bottom: calc(48px + env(safe-area-inset-bottom, 0px)); width: 44px; height: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .nx-orb, .nx-grid, .nx-brand-dot, .nx-option, .nx-cta, .nx-step-row, .nx-crumb .nx-step, .nx-back { animation: none !important; }
+  .nx-orb, .nx-grid, .nx-brand-dot, .nx-option, .nx-cta, .nx-step-row, .nx-back,
+  .nx-ring, .nx-ring .nx-rot, .nx-ring circle, .nx-ring ellipse { animation: none !important; }
   .nx-question .nx-caret { animation: none; }
 }

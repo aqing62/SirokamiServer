@@ -179,12 +179,10 @@
     // ── DOM ──
     var stage = document.getElementById('nxStage');
     var qEl = document.getElementById('nxQuestion');
-    var hintEl = document.getElementById('nxHint');
     var optEl = document.getElementById('nxOptions');
     var resEl = document.getElementById('nxResult');
     var stepsEl = document.getElementById('nxSteps');
     var ctaEl = document.getElementById('nxCta');
-    var crumbEl = document.getElementById('nxCrumb');
     var backEl = document.getElementById('nxBack');
     var verEl = document.getElementById('nxVersion');
 
@@ -221,23 +219,20 @@
         }, 26);
     }
 
-    function renderCrumb() {
-        crumbEl.innerHTML = historyStack.map(function (n) {
-            return '<span class="nx-step">' + esc(n.label) + '</span>';
-        }).join('<span style="opacity:.5">›</span>');
-    }
-
-    // 边缘流动线条环：多层虚线圆（dashoffset 流动 + 反向旋转）
+    // 交错流动线条环：圆 + 斜置椭圆 交错叠放，各自流动 + 呼吸
     function ringSvg(gold) {
         var cls = 'nx-ring' + (gold ? ' nx-ring-gold' : '');
         return '<svg class="' + cls + '" viewBox="0 0 120 120" aria-hidden="true">'
+            + '<g class="nx-rot">'
             + '<circle class="nxr1" cx="60" cy="60" r="58"></circle>'
-            + '<circle class="nxr2" cx="60" cy="60" r="53"></circle>'
-            + '<circle class="nxr3" cx="60" cy="60" r="46"></circle>'
-            + '<circle class="nxr4" cx="60" cy="60" r="40"></circle>'
-            + '</svg>';
+            + '<ellipse class="nxr2" cx="60" cy="60" rx="57" ry="50" transform="rotate(17 60 60)"></ellipse>'
+            + '<circle class="nxr3" cx="60" cy="60" r="51"></circle>'
+            + '<ellipse class="nxr4" cx="60" cy="60" rx="47" ry="41" transform="rotate(-26 60 60)"></ellipse>'
+            + '<circle class="nxr5" cx="60" cy="60" r="43"></circle>'
+            + '<ellipse class="nxr6" cx="60" cy="60" rx="37" ry="32" transform="rotate(58 60 60)"></ellipse>'
+            + '<circle class="nxr7" cx="60" cy="60" r="27"></circle>'
+            + '</g></svg>';
     }
-
     function ripple(btn, ev) {
         var r = btn.getBoundingClientRect();
         var s = document.createElement('span');
@@ -298,11 +293,9 @@
         ctaEl.innerHTML = '';
         optEl.hidden = false;
 
-        renderCrumb();
         backEl.hidden = historyStack.length <= 1;
 
         typeText(qEl, node.q);
-        hintEl.textContent = node.hint || '';
 
         optEl.innerHTML = '';
         (node.options || []).forEach(function (opt, i) {
@@ -324,11 +317,9 @@
     function renderResult(node, label) {
         optEl.hidden = true;
         optEl.innerHTML = '';
-        renderCrumb();
         backEl.hidden = historyStack.length <= 1;
 
         typeText(qEl, node.q);
-        hintEl.textContent = node.hint || '';
 
         resEl.hidden = false;
         stepsEl.innerHTML = '';
