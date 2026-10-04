@@ -832,54 +832,33 @@
         });
     }
 
-    // 让卡组一屏放得下：按"整层（标题+间距+卡组）不超过视口"求解等比缩放
+    // 让卡组一屏放得下：用 CSS zoom 等比缩放（zoom 参与布局，父容器高度自动跟随，不会切底）
     function fitDeckScale(box) {
         var fit = document.getElementById('nxDeckFit');
         if (!fit) return;
         var inner = fit.closest ? fit.closest('.nx-pov-inner') : null;
 
-        // 先复位，量自然高度
-        fit.style.transform = 'none';
-        fit.style.transformOrigin = '';
+        fit.style.zoom = '';            // 复位后再量，值才准
         box.style.height = '';
         box.style.overflow = '';
 
         function solve() {
-            var nd = fit.scrollHeight;
-            var inat = inner ? inner.scrollHeight : nd;
-            var ch = Math.max(0, inat - nd);
-            var kk = (window.innerHeight - 24 - ch) / nd;
+            var nd = fit.scrollHeight || 1;
+            var avail = window.innerHeight - fit.getBoundingClientRect().top - 16;   // 从内容顶部到屏幕底部
+            var kk = avail / nd;
             if (kk > 1) kk = 1;
             if (kk < 0.2) kk = 0.2;
             return { need: nd, k: kk };
         }
-        var r1 = solve();
-        // 缩得太狠时隐藏卡名（图仍清楚），再解一次以求更大比例
-        if (r1.k < 0.88) {
+        var r = solve();
+        // 缩得太狠就隐藏卡名换取更大比例
+        if (r.k < 0.88) {
             fit.classList.add('is-compact');
-            r1 = solve();
+            r = solve();
         } else {
             fit.classList.remove('is-compact');
         }
-        var need = r1.need;
-        var k = r1.k;
-
-        if (k < 0.999) {
-            fit.style.transformOrigin = 'top center';
-            fit.style.transform = 'scale(' + k.toFixed(4) + ')';
-            box.style.height = Math.ceil(need * k) + 'px';
-            box.style.overflow = 'hidden';
-        }
-        // 兜底收敛：仍超出视口就再收一档（应对字体/图片等尺寸抖动）
-        if (inner) {
-            var h = inner.getBoundingClientRect().height;
-            var limit = window.innerHeight - 6;
-            if (h > limit) {
-                var k2 = k * (limit / h);
-                fit.style.transform = 'scale(' + k2.toFixed(4) + ')';
-                box.style.height = Math.ceil(need * k2) + 'px';
-            }
-        }
+        if (r.k < 0.999) fit.style.zoom = r.k.toFixed(4);
     }
     function refitDeckSoon(box) {
         clearTimeout(box._fitTimer);
