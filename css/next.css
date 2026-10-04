@@ -16,6 +16,10 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
+/* 全局：带 hidden 的元素必须真正隐藏（否则会被 .nx-screen/.nx-result 的 display 覆盖，
+   出现"空的红边圆角条"） */
+[hidden] { display: none !important; }
+
 html, body { height: 100%; }
 body {
   margin: 0;
