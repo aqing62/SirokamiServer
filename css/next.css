@@ -1133,7 +1133,8 @@ body.nx-zoomed .nx-foot {
    仅作用于桌面端，手机端仍用自己的紧凑布局（见各自的 @media）
    ═══════════════════════════════════════════════════════════════════ */
 @media (min-width: 769px) {
-  /* 列表宽度 880 → 1100 */
+  /* 外壳与列表宽度同步放大（1080→1350 / 880→1100），否则列表会被外壳卡在 952px */
+  .nx-screen { width: min(1350px, 100%); }
   .nx-scroll, .nx-list-head, .nx-list-note { max-width: 1100px; }
   /* 滚动区高度 56vh/520 → 64vh/650，保证放大后可见行数不变少 */
   .nx-scroll { max-height: min(64vh, 650px); }
