@@ -1008,7 +1008,6 @@
         _tickLast = now;
         _breathT += dt;
         var _pullTick = ++_pullTickId;                 // 每帧只算一次拉拽向量
-        var _srect = _magPx !== null ? stage.getBoundingClientRect() : null;   // 呼吸相位也只按运行时间累加
 
         for (var i = 0; i < _blobs.length; i++) {
             var p = _blobs[i];
@@ -1028,10 +1027,12 @@
                 if (owner._pullStamp !== _pullTick) {
                     owner._pullStamp = _pullTick;
                     var tgDx = 0, tgDy = 0;
-                    var ocx = _srect ? (_srect.left + owner.offsetLeft + owner.offsetWidth / 2 + (owner._mx || 0)) : 0;
-                    var ocy = _srect ? (_srect.top + owner.offsetTop + owner.offsetHeight / 2 + (owner._my || 0)) : 0;
+                    // 用元素自身的实际矩形中心（含磁吸位移与缩放），避免舞台偏移量在固定层里算错
+                    var orect = owner.getBoundingClientRect();
+                    var ocx = orect.left + orect.width / 2;
+                    var ocy = orect.top + orect.height / 2;
                     // 驱动 1：按钮自身移动速度
-                    if (_srect && owner._pcx !== undefined) {
+                    if (owner._pcx !== undefined) {
                         var odt = Math.max(0.008, dt);
                         var ovx = (ocx - owner._pcx) / odt, ovy = (ocy - owner._pcy) / odt;
                         owner._ovx = (owner._ovx || 0) + (ovx - (owner._ovx || 0)) * 0.18;
@@ -1043,10 +1044,10 @@
                             tgDy = (owner._ovy / ospd) * osf;
                         }
                     }
-                    if (_srect) { owner._pcx = ocx; owner._pcy = ocy; }
+                    owner._pcx = ocx; owner._pcy = ocy;
                     // 驱动 2：指针快速扫过
                     var vsp = Math.sqrt(_magVx * _magVx + _magVy * _magVy);
-                    if (_srect && vsp > 12) {
+                    if (vsp > 12) {
                         var pd3 = Math.sqrt((_magPx - ocx) * (_magPx - ocx) + (_magPy - ocy) * (_magPy - ocy)) || 1;
                         // 圆内(≤半径)满力，圆外到 dragR 平滑归零 → 靠近才明显、远处完全无感
                         var innerR = owner.offsetWidth / 2;
