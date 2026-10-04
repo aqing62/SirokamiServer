@@ -198,7 +198,7 @@
         download: { title: '下载与安装', sub: 'MDPro3 客户端 + DIY 卡包',  goto: 'download',  todo: '静态内容：下载入口与安装步骤' },
         match:    { title: '比赛相关',   sub: '瑞士轮积分 · 淘汰赛对阵',   goto: 'tournament', render: 'match' },
         pool:     { title: '卡池',       sub: '全卡检索 · 类型筛选 · 分值角标', goto: 'pool',      render: 'pool' },
-        banlist:  { title: '卡表',       sub: '禁限分值一览',               goto: 'banlist',   todo: '复用禁限表（微调 UI）' },
+        banlist:  { title: '卡表',       sub: '禁止 · 限制 · 准限制',        goto: 'banlist',   render: 'banlist' },
         preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    render: 'preset' },
         popular:  { title: '常用卡',     sub: '使用率 · 胜率统计',           goto: 'pool',      render: 'popular' },
         rank:     { title: '天梯排名',   sub: 'TOP50 · 段位 · 积分',         goto: 'ranking',   render: 'ladder' },
@@ -1714,7 +1714,7 @@
         }).then(function () {
             box.innerHTML = ids.map(function (x, i) {
                 var id = opts.plain ? x : x.cardId;
-                var nm = cardName(id);
+                var nm = (opts.names && opts.names[id]) || cardName(id);
                 var sc = _scoreMap && _scoreMap[id];
                 var stat = (!opts.plain && x.usageRate)
                     ? '<span class="nx-card-stats"><i class="is-use">' + esc(x.usageRate) + '</i>' +
@@ -2036,7 +2036,62 @@
         });
     }
 
-    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool };
+    // ── 卡表（卡片 → 卡表）：解析 lflist.conf 的 #forbidden / #limit / #semi limit ──
+    var LFLIST_URL = 'lflist.conf?v=20261007a';
+    var _lflistCache = null;
+    function loadLflist() {
+        if (_lflistCache) return Promise.resolve(_lflistCache);
+        return fetch(LFLIST_URL).then(function (r) { return r.text(); }).then(function (txt) {
+            var out = { forbidden: [], limit: [], semi: [] };
+            var cur = null;
+            (txt || '').split(/\r?\n/).forEach(function (line) {
+                var low = line.toLowerCase();
+                if (low.indexOf('#forbidden') >= 0) { cur = 'forbidden'; return; }
+                if (low.indexOf('#limit') >= 0) { cur = 'limit'; return; }
+                if (low.indexOf('#semi limit') >= 0 || low.indexOf('#semi-limit') >= 0) { cur = 'semi'; return; }
+                if (low.indexOf('#no limit') >= 0) { cur = null; return; }
+                if (!cur || line.charAt(0) === '#' || line.charAt(0) === '!' || line.charAt(0) === '$') return;
+                var m = line.match(/^(\d+)\s+(\d+)\s*--\s*(.*?)(?:\s+#.*)?$/);
+                if (!m) return;
+                var id = parseInt(m[1], 10);
+                if (!id) return;
+                var bucket = out[cur];
+                for (var i = 0; i < bucket.length; i++) if (bucket[i].id === id) return;
+                bucket.push({ id: id, name: (m[3] || '').trim() });
+            });
+            _lflistCache = out;
+            return out;
+        }).catch(function () { _lflistCache = { forbidden: [], limit: [], semi: [] }; return _lflistCache; });
+    }
+    function renderBanlist(body) {
+        var tab = (body.dataset && body.dataset.tab) || 'forbidden';
+        body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
+            '<div class="nx-load-text">正在读取卡表 <b>0</b></div></div>';
+        loadLflist().then(function (d) {
+            var tabs = [
+                { k: 'forbidden', label: '禁止', n: d.forbidden.length },
+                { k: 'limit', label: '限制 1 张', n: d.limit.length },
+                { k: 'semi', label: '准限制 2 张', n: d.semi.length }
+            ].map(function (x) {
+                return '<button class="nx-stats-tab' + (x.k === tab ? ' is-on' : '') + '" type="button" data-tab="' + x.k + '">' +
+                    x.label + '<i>' + x.n + '</i></button>';
+            }).join('');
+            var list = d[tab] || [];
+            body.innerHTML =
+                '<div class="nx-stats-top nx-reveal" style="--i:0">' +
+                    '<div class="nx-stats-tabs">' + tabs + '</div>' +
+                    '<div class="nx-stats-count">共 <b>' + (d.forbidden.length + d.limit.length + d.semi.length) + '</b> 张受限卡</div>' +
+                '</div>' +
+                '<div class="nx-card-grid" id="nxStatsGrid"></div>';
+            var nameMap = {};
+            list.forEach(function (x) { if (x.name) nameMap[x.id] = x.name; });
+            paintCardTiles(document.getElementById('nxStatsGrid'),
+                list.map(function (x) { return x.id; }), { plain: true, names: nameMap });
+            bindStatsTabs(body, renderBanlist);
+        });
+    }
+
+    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool, banlist: renderBanlist };
 
     // ── DOM ──
     var stage = document.getElementById('nxStage');
