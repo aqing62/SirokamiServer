@@ -1287,25 +1287,30 @@ body.nx-zoomed .nx-foot {
 .nx-cf-c2 { transform: translate(-17px, 7px) rotate(-12deg) scale(.93); filter: brightness(.72); }
 .nx-cf-c1 { transform: translate(17px, 5px) rotate(10deg) scale(.965); filter: brightness(.86); }
 .nx-cf-c0 { transform: none; }
-/* 中间那套：3 张卡摊开（左右各露一张），亮度恢复 */
-.nx-cf-item.is-center .nx-cf-c2 { transform: translate(-86px, -6px) rotate(-19deg) scale(1); filter: brightness(1); }
-.nx-cf-item.is-center .nx-cf-c1 { transform: translate(86px, -6px) rotate(19deg) scale(1); filter: brightness(1); }
+/* 中间那套：3 张卡摊开成弧形（中间的封面最高，两侧稍低），亮度恢复 */
+.nx-cf-item.is-center .nx-cf-c2 { transform: translate(-86px, 10px) rotate(-19deg) scale(1); filter: brightness(1); }
+.nx-cf-item.is-center .nx-cf-c1 { transform: translate(86px, 10px) rotate(19deg) scale(1); filter: brightness(1); }
+.nx-cf-item.is-center .nx-cf-c0 { transform: translateY(-12px); }
 
-/* 鼠标移上去：整组卡边缘呼吸发光 */
+/* 鼠标移上去：整组卡放大一点 */
+.nx-cf-fan { transition: transform .32s cubic-bezier(.22, .9, .28, 1.02); }
+.nx-cf-item:hover .nx-cf-fan { transform: scale(1.07); }
+
+/* 鼠标移上去：整组卡边缘呼吸发光（亮黄色） */
 .nx-cf-item:hover .nx-cf-card { animation: nxCfBreath 1.9s ease-in-out infinite; }
 .nx-cf-item:hover .nx-cf-c2 { animation-delay: .12s; }
 .nx-cf-item:hover .nx-cf-c1 { animation-delay: .24s; }
 @keyframes nxCfBreath {
   0%, 100% {
     box-shadow: 0 10px 26px rgba(0, 0, 0, .62),
-                0 0 0 1px rgba(212, 175, 55, .32),
-                0 0 12px rgba(216, 30, 68, .16);
+                0 0 0 1px rgba(255, 226, 96, .6),
+                0 0 20px rgba(255, 214, 40, .4);
   }
   50% {
     box-shadow: 0 14px 34px rgba(0, 0, 0, .68),
-                0 0 0 1px rgba(255, 233, 168, .92),
-                0 0 36px rgba(216, 30, 68, .46),
-                0 0 60px rgba(212, 175, 55, .22);
+                0 0 0 2px rgba(255, 245, 170, 1),
+                0 0 44px rgba(255, 214, 40, .9),
+                0 0 90px rgba(255, 204, 0, .5);
   }
 }
 .nx-cf-name {
