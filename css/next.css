@@ -172,7 +172,7 @@ body {
   font-family: inherit;
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.6);
   transition: transform .42s var(--nx-ease), box-shadow .34s;
-  animation: optionIn .55s var(--nx-ease) both;
+  animation: optionIn .55s var(--nx-ease) backwards;   /* backwards：动画结束不锁 transform，悬停放大才能生效 */
   animation-delay: calc(var(--i, 0) * 110ms);
 }
 @keyframes optionIn {
@@ -199,7 +199,7 @@ body {
   pointer-events: none;
   transform-origin: 50% 50%;
   /* 入场：像气泡一样扭曲回正 + 由小变大（每个按钮错开） */
-  animation: nxBubble .7s cubic-bezier(.25, .9, .3, 1.04) both;
+  animation: nxBubble .7s cubic-bezier(.25, .9, .3, 1.04) backwards;
   animation-delay: calc(var(--i, 0) * 130ms);
 }
 .nx-ring .nx-rot {
@@ -233,7 +233,7 @@ body {
 .nx-option .nx-opt-icon,
 .nx-option .nx-opt-label,
 .nx-option .nx-opt-sub {
-  animation: nxTextIn .5s ease-out both;
+  animation: nxTextIn .5s ease-out backwards;
   animation-delay: calc(var(--i, 0) * 130ms + 240ms);
 }
 @keyframes nxTextIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
@@ -272,7 +272,7 @@ body {
   border-radius: 999px;               /* 胶囊：尽量避免矩形 */
   background: linear-gradient(135deg, rgba(216, 30, 68, .16), rgba(20, 14, 18, .9));
   border: 1px solid rgba(212, 175, 55, .35);
-  animation: stepIn .42s var(--nx-ease) both;
+  animation: stepIn .42s var(--nx-ease) backwards;
   animation-delay: calc(var(--i, 0) * 110ms);
 }
 @keyframes stepIn { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
@@ -305,7 +305,7 @@ body {
   cursor: pointer;
   box-shadow: 0 12px 34px rgba(0, 0, 0, .6);
   transition: transform .42s var(--nx-ease), box-shadow .34s;
-  animation: optionIn .55s var(--nx-ease) both;
+  animation: optionIn .55s var(--nx-ease) backwards;
 }
 .nx-cta:hover { transform: translateY(-6px) scale(1.13); box-shadow: 0 18px 44px rgba(0, 0, 0, .65), 0 0 28px rgba(212, 175, 55, .4); }
 .nx-cta .nx-cta-icon { font-size: calc(var(--size) * .27); line-height: 1; }
@@ -326,7 +326,7 @@ body {
   color: var(--nx-gold-light);
   font-size: 20px; cursor: pointer;
   transition: transform .25s var(--nx-ease), box-shadow .25s;
-  animation: optionIn .4s var(--nx-ease) both;
+  animation: optionIn .4s var(--nx-ease) backwards;
 }
 .nx-back:hover { transform: scale(1.12); box-shadow: 0 0 18px rgba(216, 30, 68, .55); }
 
