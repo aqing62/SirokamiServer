@@ -307,6 +307,31 @@ function runIntroAnimation() {
 // ── 侧边栏 + 公告 (DOMContentLoaded) ─────────────────────
 document.addEventListener('DOMContentLoaded', function () {
 
+    // ── 深链入口：?goto=xxx 直接跳到对应功能（供新版引导页按钮调用）──
+    (function initGotoParam() {
+        let target = '';
+        try { target = new URLSearchParams(location.search).get('goto') || ''; } catch (e) { target = ''; }
+        if (!target) return;
+        const MAP = {
+            play: 'section-eight-decks', ladder: 'section-eight-decks',
+            tournament: 'section-eight-decks', eight: 'section-eight-decks',
+            ranking: 'section-player-ranking', stats: 'section-player-ranking',
+            cards: 'section-card-pool', pool: 'section-card-pool', deck: 'section-card-pool',
+            chronicle: 'section-main', newcards: 'section-card-list',
+            forum: 'section-community', xiaobai: 'section-xiaobai',
+        };
+        const sectionId = MAP[target] || 'section-main';
+        setTimeout(function () {
+            if (typeof window.showSection === 'function') window.showSection(sectionId);
+            if (target === 'deck') {
+                const t = document.getElementById('deckBuilderToggle');
+                if (t) setTimeout(function () { t.click(); }, 300);
+            } else if (target === 'replay' && typeof window.openReplay === 'function') {
+                setTimeout(function () { window.openReplay(''); }, 300);
+            }
+        }, 80);
+    })();
+
     // 侧边栏导航（再点同一页回到主页）
     function makeToggle(sectionId) {
         return function () {
@@ -901,3 +926,18 @@ function initXiaobaiModule() {
 
         draw();
     })();
+
+// ── 新版入口提示气泡：只提示一次，点掉后记住 ──
+document.addEventListener('DOMContentLoaded', function () {
+    var tip = document.getElementById('newUiTip');
+    if (!tip) return;
+    var KEY = 'siro_newui_tip_dismissed';
+    try { if (localStorage.getItem(KEY) === '1') { tip.style.display = 'none'; return; } } catch (e) { /* 忽略 */ }
+    var close = document.getElementById('newUiTipClose');
+    function dismiss() {
+        tip.style.display = 'none';
+        try { localStorage.setItem(KEY, '1'); } catch (e) { /* 忽略 */ }
+    }
+    if (close) close.addEventListener('click', function (ev) { ev.preventDefault(); dismiss(); });
+    setTimeout(function () { if (tip && tip.style.display !== 'none') dismiss(); }, 12000);
+});

@@ -1,0 +1,304 @@
+/* ══════════════════════════════════════════════════════════
+   新版引导界面（原型）— 配色沿用官网：红 #D81E44 / 金 #D4AF37 / 暗底
+   原则：圆形交互、每屏 ≤3 个按钮、动效强但要顺
+   ══════════════════════════════════════════════════════════ */
+:root {
+  --nx-red: #D81E44;
+  --nx-red-soft: rgba(216, 30, 68, 0.55);
+  --nx-gold: #D4AF37;
+  --nx-gold-light: #F0E68C;
+  --nx-bg: #0a0a0c;
+  --nx-bg2: #141116;
+  --nx-text: #ece9e4;
+  --nx-dim: #9b97a1;
+  --nx-ease: cubic-bezier(.2, .9, .25, 1.25);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--nx-bg);
+  color: var(--nx-text);
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: max(12px, env(safe-area-inset-top)) 16px calc(10px + env(safe-area-inset-bottom));
+}
+
+/* ── 背景光晕 ── */
+.nx-bg { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+.nx-orb {
+  position: absolute; border-radius: 50%; filter: blur(60px); opacity: .5;
+  animation: orbFloat 18s ease-in-out infinite;
+}
+.nx-orb-1 { width: 46vmax; height: 46vmax; left: -14vmax; top: -16vmax; background: radial-gradient(circle, rgba(216,30,68,.55), transparent 68%); }
+.nx-orb-2 { width: 38vmax; height: 38vmax; right: -12vmax; bottom: -14vmax; background: radial-gradient(circle, rgba(212,175,55,.34), transparent 70%); animation-delay: -6s; }
+.nx-orb-3 { width: 30vmax; height: 30vmax; left: 42%; top: 46%; background: radial-gradient(circle, rgba(216,30,68,.28), transparent 70%); animation-delay: -11s; }
+@keyframes orbFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(4vmax, -3vmax, 0) scale(1.08); }
+  66%      { transform: translate3d(-3vmax, 3vmax, 0) scale(.95); }
+}
+.nx-grid {
+  position: absolute; inset: 0; opacity: .16;
+  background-image:
+    linear-gradient(rgba(216,30,68,.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(216,30,68,.35) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
+  animation: gridDrift 26s linear infinite;
+}
+@keyframes gridDrift { to { background-position: 64px 64px, 64px 64px; } }
+
+/* ── 顶栏 ── */
+.nx-top {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.nx-brand { display: flex; align-items: center; gap: 8px; }
+.nx-brand-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--nx-red); box-shadow: 0 0 12px var(--nx-red);
+  animation: dotPulse 2.4s ease-in-out infinite;
+}
+@keyframes dotPulse { 0%,100% { transform: scale(1); opacity: .85; } 50% { transform: scale(1.35); opacity: 1; } }
+.nx-brand-name { font-weight: 800; letter-spacing: 1px; color: var(--nx-gold-light); }
+.nx-brand-sub { font-size: 12px; color: var(--nx-dim); letter-spacing: 1px; }
+
+/* 新旧版切换滑块 */
+.nx-version {
+  position: relative;
+  display: flex; align-items: center;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .5);
+  border: 1px solid rgba(212, 175, 55, .45);
+}
+.nx-version-thumb {
+  position: absolute; top: 4px; left: 4px;
+  width: calc(50% - 4px); height: calc(100% - 8px);
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--nx-red), rgba(216, 30, 68, .5));
+  box-shadow: 0 0 14px rgba(216, 30, 68, .55);
+  transition: transform .34s var(--nx-ease);
+}
+.nx-version[data-v="classic"] .nx-version-thumb { transform: translateX(100%); }
+.nx-version-btn {
+  position: relative; z-index: 1;
+  min-width: 62px;
+  padding: 6px 12px;
+  border: none; background: none; cursor: pointer;
+  color: var(--nx-dim); font-size: 13px; font-weight: 700;
+  border-radius: 999px;
+  transition: color .25s;
+}
+.nx-version-btn.is-active { color: #fff; }
+
+/* ── 舞台 ── */
+.nx-stage {
+  position: relative; z-index: 2;
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: clamp(10px, 2.4vh, 22px);
+  text-align: center;
+  padding: 8px 0;
+}
+
+.nx-crumb {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center;
+  min-height: 22px;
+  font-size: 12px; color: var(--nx-dim);
+}
+.nx-crumb .nx-step {
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(212, 175, 55, .4);
+  color: var(--nx-gold-light);
+  animation: crumbIn .3s ease-out both;
+}
+@keyframes crumbIn { from { opacity: 0; transform: translateY(6px) scale(.9); } to { opacity: 1; transform: none; } }
+
+.nx-question {
+  margin: 0;
+  font-size: clamp(22px, 4.6vw, 38px);
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #fff;
+  text-shadow: 0 0 26px rgba(216, 30, 68, .45);
+  min-height: 1.4em;
+}
+.nx-question .nx-caret {
+  display: inline-block; width: 3px; height: 1em; margin-left: 3px;
+  background: var(--nx-gold); vertical-align: -0.12em;
+  animation: caretBlink .9s steps(1) infinite;
+}
+@keyframes caretBlink { 50% { opacity: 0; } }
+
+.nx-hint { margin: 0; font-size: clamp(12px, 1.6vw, 14px); color: var(--nx-dim); max-width: 30em; line-height: 1.7; }
+
+/* ── 圆形选项按钮 ── */
+.nx-options {
+  display: flex; align-items: flex-start; justify-content: center;
+  gap: clamp(14px, 4vw, 40px);
+  flex-wrap: wrap;
+}
+.nx-option {
+  --size: clamp(96px, 15vw, 132px);
+  position: relative;
+  width: var(--size); height: var(--size);
+  border-radius: 50%;
+  border: 1px solid rgba(212, 175, 55, .55);
+  background:
+    radial-gradient(circle at 50% 26%, rgba(216, 30, 68, .38), rgba(16, 12, 15, .96) 68%);
+  color: var(--nx-gold-light);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .55), inset 0 0 22px rgba(216, 30, 68, .18);
+  transition: transform .28s var(--nx-ease), box-shadow .28s, border-color .28s;
+  animation: optionIn .5s var(--nx-ease) both;
+  animation-delay: calc(var(--i, 0) * 90ms);
+}
+@keyframes optionIn {
+  from { opacity: 0; transform: translateY(22px) scale(.82); }
+  to   { opacity: 1; transform: none; }
+}
+.nx-option .nx-opt-icon { font-size: calc(var(--size) * .27); line-height: 1; }
+.nx-option .nx-opt-label { font-size: clamp(12px, 1.5vw, 15px); font-weight: 800; letter-spacing: .5px; }
+.nx-option .nx-opt-sub { font-size: 10px; color: var(--nx-dim); }
+
+.nx-option:hover, .nx-option:focus-visible {
+  transform: translateY(-6px) scale(1.07);
+  border-color: var(--nx-gold-light);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .6), 0 0 26px rgba(216, 30, 68, .55);
+  outline: none;
+}
+.nx-option:active { transform: scale(.97); }
+
+/* 圆形按钮外圈脉冲（强调"可点"） */
+.nx-option::after {
+  content: '';
+  position: absolute; inset: -6px;
+  border-radius: 50%;
+  border: 1px solid rgba(216, 30, 68, .55);
+  opacity: 0;
+  transition: opacity .3s;
+}
+.nx-option:hover::after { opacity: 1; animation: ringPulse 1.4s ease-out infinite; }
+@keyframes ringPulse {
+  0%   { transform: scale(.96); opacity: .75; }
+  100% { transform: scale(1.16); opacity: 0; }
+}
+
+/* 点击水波纹 */
+.nx-ripple {
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, .55), rgba(216, 30, 68, .25) 60%, transparent 70%);
+  transform: translate(-50%, -50%) scale(0);
+  animation: rippleOut .6s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes rippleOut { to { transform: translate(-50%, -50%) scale(2.6); opacity: 0; } }
+
+/* ── 结果步骤 ── */
+.nx-result { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 640px; }
+.nx-result-steps { display: flex; flex-direction: column; gap: 8px; }
+.nx-step-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: 999px;               /* 胶囊：尽量避免矩形 */
+  background: linear-gradient(135deg, rgba(216, 30, 68, .16), rgba(20, 14, 18, .9));
+  border: 1px solid rgba(212, 175, 55, .35);
+  animation: stepIn .42s var(--nx-ease) both;
+  animation-delay: calc(var(--i, 0) * 110ms);
+}
+@keyframes stepIn { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+.nx-step-no {
+  flex: 0 0 auto;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 800;
+  color: #fff; background: linear-gradient(135deg, var(--nx-red), rgba(216, 30, 68, .45));
+  box-shadow: 0 0 12px rgba(216, 30, 68, .5);
+}
+.nx-step-text { font-size: 13.5px; line-height: 1.6; color: #e7e3dc; }
+.nx-step-text b { color: var(--nx-gold-light); }
+
+.nx-result-cta {
+  display: flex; align-items: center; justify-content: center; gap: clamp(12px, 3vw, 26px);
+  flex-wrap: wrap;
+}
+/* 结果页主按钮（圆形，金色系） */
+.nx-cta {
+  --size: clamp(104px, 16vw, 140px);
+  width: var(--size); height: var(--size);
+  border-radius: 50%;
+  border: 1px solid rgba(212, 175, 55, .8);
+  background: radial-gradient(circle at 50% 28%, rgba(212, 175, 55, .5), rgba(18, 13, 10, .96) 70%);
+  color: var(--nx-gold-light);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-family: inherit; font-size: clamp(12px, 1.5vw, 15px); font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .6), 0 0 22px rgba(212, 175, 55, .25);
+  transition: transform .28s var(--nx-ease), box-shadow .28s;
+  animation: optionIn .5s var(--nx-ease) both;
+}
+.nx-cta:hover { transform: translateY(-6px) scale(1.07); box-shadow: 0 18px 44px rgba(0, 0, 0, .65), 0 0 30px rgba(212, 175, 55, .6); }
+.nx-cta .nx-cta-icon { font-size: calc(var(--size) * .26); line-height: 1; }
+/* 次级：圆形，红系 */
+.nx-cta.nx-cta-ghost {
+  background: radial-gradient(circle at 50% 28%, rgba(216, 30, 68, .34), rgba(16, 12, 15, .96) 70%);
+  border-color: rgba(216, 30, 68, .7);
+  color: #ffb3c2;
+}
+
+/* ── 返回（圆形，左下）── */
+.nx-back {
+  position: fixed; z-index: 3;
+  left: 18px; bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  width: 48px; height: 48px; border-radius: 50%;
+  border: 1px solid rgba(212, 175, 55, .5);
+  background: rgba(10, 8, 10, .82);
+  color: var(--nx-gold-light);
+  font-size: 20px; cursor: pointer;
+  transition: transform .25s var(--nx-ease), box-shadow .25s;
+  animation: optionIn .4s var(--nx-ease) both;
+}
+.nx-back:hover { transform: scale(1.12); box-shadow: 0 0 18px rgba(216, 30, 68, .55); }
+
+.nx-foot {
+  position: relative; z-index: 2;
+  text-align: center; font-size: 11.5px; color: #6f6b75;
+}
+
+/* 转场：整屏淡出/淡入 */
+.nx-stage.nx-leaving { animation: stageOut .22s ease-in forwards; }
+@keyframes stageOut { to { opacity: 0; transform: scale(.97) translateY(8px); } }
+.nx-stage.nx-entering { animation: stageIn .34s var(--nx-ease) both; }
+@keyframes stageIn { from { opacity: 0; transform: scale(1.03) translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* ── 手机端 ── */
+@media (max-width: 768px) {
+  body { padding-left: 12px; padding-right: 12px; }
+  .nx-brand-sub { display: none; }
+  .nx-version-btn { min-width: 54px; font-size: 12px; padding: 5px 10px; }
+  .nx-option { --size: clamp(88px, 26vw, 108px); }
+  .nx-option .nx-opt-sub { display: none; }
+  .nx-cta { --size: clamp(96px, 28vw, 120px); }
+  .nx-step-row { border-radius: 18px; padding: 9px 12px; }
+  .nx-foot { font-size: 10.5px; }
+  .nx-back { left: 12px; bottom: calc(48px + env(safe-area-inset-bottom, 0px)); width: 44px; height: 44px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nx-orb, .nx-grid, .nx-brand-dot, .nx-option, .nx-cta, .nx-step-row, .nx-crumb .nx-step, .nx-back { animation: none !important; }
+  .nx-question .nx-caret { animation: none; }
+}
