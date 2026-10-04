@@ -1282,11 +1282,14 @@ body.nx-zoomed .nx-foot {
   border-radius: 4px;
   background: rgba(255, 255, 255, .04);
   box-shadow: 0 10px 26px rgba(0, 0, 0, .62);
-  transition: box-shadow .3s, transform .3s;
+  transition: box-shadow .3s, transform .3s, filter .3s;
 }
 .nx-cf-c2 { transform: translate(-17px, 7px) rotate(-12deg) scale(.93); filter: brightness(.72); }
 .nx-cf-c1 { transform: translate(17px, 5px) rotate(10deg) scale(.965); filter: brightness(.86); }
 .nx-cf-c0 { transform: none; }
+/* 中间那套：3 张卡摊开（左右各露一张），亮度恢复 */
+.nx-cf-item.is-center .nx-cf-c2 { transform: translate(-56px, -4px) rotate(-15deg) scale(1); filter: brightness(1); }
+.nx-cf-item.is-center .nx-cf-c1 { transform: translate(56px, -4px) rotate(15deg) scale(1); filter: brightness(1); }
 .nx-cf-name {
   margin-top: 4px;
   font-size: clamp(13px, 1.35vw, 16px);
