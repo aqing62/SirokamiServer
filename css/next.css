@@ -518,3 +518,46 @@ body.nx-skip .nx-welcome { display: none; }
   will-change: translate;
   backface-visibility: hidden;   /* 提示浏览器走合成层，减少重绘 */
 }
+
+
+/* ── 临时调试面板（定位手感问题用，可随时删除）── */
+.nx-debug {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 30, 68, .35);
+  background: rgba(10, 8, 10, .72);
+  backdrop-filter: blur(4px);
+  font-size: 12px;
+  opacity: .32;
+  transition: opacity .25s;
+}
+.nx-debug:hover { opacity: 1; }
+.nx-debug-title { color: #8d8d96; letter-spacing: 1px; }
+.nx-dbg-btn {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(150, 150, 160, .45);
+  background: transparent;
+  color: #9a9aa4;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: .18s;
+}
+.nx-dbg-btn.is-on {
+  border-color: rgba(216, 30, 68, .8);
+  background: rgba(216, 30, 68, .18);
+  color: #ffc0cd;
+}
+.nx-dbg-btn:hover { border-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
+@media (max-width: 560px) {
+  .nx-debug { left: 8px; bottom: 8px; gap: 4px; padding: 4px 6px; }
+  .nx-dbg-btn { padding: 3px 8px; font-size: 11px; }
+}

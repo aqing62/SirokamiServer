@@ -400,6 +400,7 @@
                     if (m > MAG.maxPull) { tx = tx / m * MAG.maxPull; ty = ty / m * MAG.maxPull; }
                 }
             }
+            if (!FX.magnet) { tx = 0; ty = 0; }        // 调试开关：关闭磁吸
             b._tx = tx; b._ty = ty;
             b._near = _magPx !== null && d < MAG.dragR;
         }
@@ -522,6 +523,7 @@
                             tgDy = (_magVy / vsp) * pamt3;
                         }
                     }
+                    if (!FX.drag) { tgDx = 0; tgDy = 0; }   // 调试开关：关闭拉拽
                     owner._dux = (owner._dux || 0) + (tgDx - (owner._dux || 0)) * MAG.dragEase;
                     owner._duy = (owner._duy || 0) + (tgDy - (owner._duy || 0)) * MAG.dragEase;
                 }
@@ -536,9 +538,9 @@
             }
             // 相位逐帧累加（关键：不用绝对时间，避免暂停后恢复时“补算”导致突然飞快）
             if (p._nxPhase === undefined) p._nxPhase = mph;
-            p._nxPhase += msp * (1 - reg * 0.85) * dt;
+            if (FX.wobble) p._nxPhase += msp * (1 - reg * 0.85) * dt;   // 调试开关：关闭扭曲时相位不动
             // 抖动幅度呼吸 + 按规整度收敛为正圆（只变圆，不回到初始形状）
-            var amp = wob * (0.62 + 0.5 * Math.sin(_breathT * 0.5 + mph * 1.3)) * (1 - reg);
+            var amp = (FX.wobble ? (0.62 + 0.5 * Math.sin(_breathT * 0.5 + mph * 1.3)) : 0.8) * wob * (1 - reg);
             p.setAttribute('d', blobPath(r, p._nxPhase, pts, amp, pull, pullAng));
         }
     }
@@ -556,6 +558,33 @@
         btn.addEventListener('focus', function () { btn._nxRegTarget = 1; });
         btn.addEventListener('blur', function () { btn._nxRegTarget = 0; });
     }
+
+    // ── 临时调试开关：磁吸 / 拉拽 / 扭曲 ──
+    var FX = { magnet: true, drag: true, wobble: true };
+    (function initFxPanel() {
+        var KEY = 'siro_next_fx';
+        try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+            if (saved) for (var k in FX) if (typeof saved[k] === 'boolean') FX[k] = saved[k];
+        } catch (e) { /* 忽略 */ }
+        var panel = document.getElementById('nxDebug');
+        if (!panel) return;
+        function sync() {
+            var btns = panel.querySelectorAll('.nx-dbg-btn');
+            for (var i = 0; i < btns.length; i++) {
+                var on = !!FX[btns[i].getAttribute('data-fx')];
+                btns[i].classList.toggle('is-on', on);
+            }
+            try { localStorage.setItem(KEY, JSON.stringify(FX)); } catch (e) { /* 忽略 */ }
+        }
+        panel.addEventListener('click', function (ev) {
+            var b = ev.target.closest ? ev.target.closest('.nx-dbg-btn') : null;
+            if (!b) return;
+            var key = b.getAttribute('data-fx');
+            FX[key] = !FX[key];
+            sync();
+        });
+        sync();
+    })();
 
     // 标记可变形路径并启动循环（渲染后调用）
     function startBlobMorph() {
