@@ -242,14 +242,19 @@
 
     // ── 边缘圈：4 个不规则闭合细线圈套叠，形状各异，各自旋转 ──
     // 用 Catmull-Rom 转三次贝塞尔，生成平滑但不规则的闭合曲线（非椭圆）
-    function blobPath(radius, seed, points, wobble) {
+    function blobPath(radius, seed, points, wobble, pull, pullAngle) {
+        var pullAmt = pull || 0;
+        var pullDir = pullAngle || 0;
         var pts = [];
         for (var i = 0; i < points; i++) {
             var a = (i / points) * Math.PI * 2;
+            // 拉拽：朝 pullDir 方向 +cos 拉伸，反向 -cos 收窄（像被橡皮筋拽住）
+            var pullTerm = pullAmt * 0.34 * Math.cos(a - pullDir);
             var rr = radius * (1
                 + wobble * Math.sin(a * 3 + seed) * 0.62
                 + wobble * Math.cos(a * 2 + seed * 1.7) * 0.34
-                + wobble * Math.sin(a * 5 + seed * 2.3) * 0.16);
+                + wobble * Math.sin(a * 5 + seed * 2.3) * 0.16
+                + pullTerm);
             pts.push([60 + Math.cos(a) * rr, 60 + Math.sin(a) * rr]);
         }
         var d = 'M' + pts[0][0].toFixed(2) + ',' + pts[0][1].toFixed(2);
@@ -292,13 +297,14 @@
     var _blobs = [];
     var _blobLast = 0;
     var _tickLast = 0;   // 上一帧时间戳（算 dt）
+    var _pullTickId = 0; // 帧号（用于每帧只算一次拉拽）
     var _breathT = 0;    // 呼吸相位累加器（只按运行时间增长）
 
 
     // ── 磁吸跟随 + 相互规避 ──────────────────────────────────
     // 按钮被光标"黏住"：靠近时轻微跟手，光标移远（超过 release 距离）才脱离；
     // 按钮之间保持最小间距，互相推开避免重叠。位移用 translate 属性，不影响 transform。
-    var MAG = { stick: 130, release: 240, maxPull: 38, ease: 0.16, gap: 14, repK: 0.5 };
+    var MAG = { stick: 130, release: 240, maxPull: 38, ease: 0.16, gap: 14, repK: 0.5, pullR: 300, pullEase: 0.14 };
     var _magBtns = [];
     var _magPx = null, _magPy = null;
     var _magLast = 0;
@@ -411,7 +417,9 @@
         if (!_tickLast) _tickLast = now;
         var dt = Math.min(0.1, (now - _tickLast) / 1000);
         _tickLast = now;
-        _breathT += dt;   // 呼吸相位也只按运行时间累加
+        _breathT += dt;
+        var _pullTick = ++_pullTickId;                 // 每帧只算一次拉拽向量
+        var _srect = _magPx !== null ? stage.getBoundingClientRect() : null;   // 呼吸相位也只按运行时间累加
 
         for (var i = 0; i < _blobs.length; i++) {
             var p = _blobs[i];
@@ -424,7 +432,28 @@
             // 悬停时"规整度"→1（线条收敛为正圆），移开后→0（回到呼吸扭曲），用指数插值过渡
             var owner = p._nxBtn;
             var reg = 0;
+            var pull = 0, pullAng = 0;
             if (owner) {
+                // 拉拽：按钮视觉中心 → 光标 的方向，越近越强（缓动，避免抖动）
+                if (owner._pullStamp !== _pullTick) {      // 同一按钮的 4 层只算一次
+                    owner._pullStamp = _pullTick;
+                    var tgtUx = 0, tgtUy = 0;
+                    if (_srect && owner.parentNode) {
+                        var ocx = _srect.left + owner.offsetLeft + owner.offsetWidth / 2 + (owner._mx || 0);
+                        var ocy = _srect.top + owner.offsetTop + owner.offsetHeight / 2 + (owner._my || 0);
+                        var pdx = _magPx - ocx, pdy = _magPy - ocy;
+                        var pd = Math.sqrt(pdx * pdx + pdy * pdy) || 1;
+                        var pt = Math.max(0, Math.min(1, (MAG.pullR - pd) / MAG.pullR));
+                        var pstr = Math.pow(pt, 1.5);
+                        tgtUx = (pdx / pd) * pstr;
+                        tgtUy = (pdy / pd) * pstr;
+                    }
+                    owner._pux = (owner._pux || 0) + (tgtUx - (owner._pux || 0)) * MAG.pullEase;
+                    owner._puy = (owner._puy || 0) + (tgtUy - (owner._puy || 0)) * MAG.pullEase;
+                }
+                var pmag = Math.sqrt(owner._pux * owner._pux + owner._puy * owner._puy);
+                if (pmag > 0.001) { pull = Math.min(1, pmag); pullAng = Math.atan2(owner._puy, owner._pux); }
+                else { pull = 0; }
                 if (owner._nxReg === undefined) owner._nxReg = 0;
                 if (owner._nxRegTarget === undefined) owner._nxRegTarget = 0;
                 owner._nxReg += (owner._nxRegTarget - owner._nxReg) * 0.085;
@@ -437,7 +466,7 @@
             p._nxPhase += msp * (1 - reg * 0.85) * dt;
             // 抖动幅度呼吸 + 按规整度收敛为正圆（只变圆，不回到初始形状）
             var amp = wob * (0.62 + 0.5 * Math.sin(_breathT * 0.5 + mph * 1.3)) * (1 - reg);
-            p.setAttribute('d', blobPath(r, p._nxPhase, pts, amp));
+            p.setAttribute('d', blobPath(r, p._nxPhase, pts, amp, pull, pullAng));
         }
     }
 
