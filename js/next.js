@@ -1198,19 +1198,19 @@
             var items = Array.prototype.slice.call(stage.querySelectorAll('.nx-cf-item'));
             var cur = 0;
 
-            function paint() {
-                var iw = (items[0] && items[0].offsetWidth) || 196;
-                var SPACING = Math.round(iw * 1.32);     // 间距随卡片宽度自适应（手机端不再把两侧卡推出屏幕）
+            function paint(extraX) {
+                extraX = extraX || 0;
+                var SPACING = spacing();                 // 间距随卡片宽度自适应（手机端不再把两侧卡推出屏幕）
                 for (var i = 0; i < items.length; i++) {
                     var off = i - cur, a = Math.abs(off), el = items[i];
                     if (a > 2) {                       // 同屏只保留 5 个
                         el.style.opacity = '0';
                         el.style.pointerEvents = 'none';
-                        el.style.transform = 'translate(-50%, -50%) translate3d(' + (off * SPACING) + 'px, 0, -520px) scale(.4)';
+                        el.style.transform = 'translate(-50%, -50%) translate3d(' + (off * SPACING + extraX) + 'px, 0, -520px) scale(.4)';
                         el.style.zIndex = '1';
                         continue;
                     }
-                    var x = off * SPACING;             // 水平间距
+                    var x = off * SPACING + extraX;    // 水平间距（含拖动位移）
                     var z = -a * 135;                  // 越远越后退（中间最近）
                     var ry = -off * 27;                // 侧转（3D）
                     var sc = 1 - a * 0.17;
@@ -1232,6 +1232,45 @@
                     wireDeckImage(img, fan || el, cid);
                 });
             });
+
+            // 拖动跟手（鼠标/触屏通用）：松手后按距离与甩动速度吸附到某一格
+            var dragX = 0, dragging = false, dragStartX = 0, dragStartT = 0, dragMoved = false, suppressClick = false;
+            function spacing() {
+                var iw = (items[0] && items[0].offsetWidth) || 196;
+                return Math.round(iw * 1.32);
+            }
+            cf.addEventListener('pointerdown', function (ev) {
+                if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+                dragging = true; dragMoved = false; dragX = 0;
+                dragStartX = ev.clientX; dragStartT = Date.now();
+                cf.classList.add('is-dragging');
+            });
+            cf.addEventListener('pointermove', function (ev) {
+                if (!dragging) return;
+                dragX = ev.clientX - dragStartX;
+                if (Math.abs(dragX) > 8) dragMoved = true;
+                if (dragMoved) paint(dragX);           // 跟手
+            });
+            function endDrag() {
+                if (!dragging) return;
+                dragging = false;
+                cf.classList.remove('is-dragging');
+                var sp = spacing();
+                var dt = Math.max(1, Date.now() - dragStartT);
+                var v = dragX / dt;                     // px/ms
+                var n = Math.round(-dragX / sp);        // 拖动距离换算格数
+                if (Math.abs(v) > 0.5) n = -Math.sign(dragX) * Math.max(1, Math.abs(n));   // 快速甩动至少一格
+                if (n) {
+                    cur = Math.max(0, Math.min(items.length - 1, cur + n));
+                    playSfx('click');
+                }
+                dragX = 0;
+                paint(0);
+                if (dragMoved) { suppressClick = true; setTimeout(function () { suppressClick = false; }, 60); }
+            }
+            cf.addEventListener('pointerup', endDrag);
+            cf.addEventListener('pointercancel', endDrag);
+            cf.addEventListener('pointerleave', function () { if (dragging) endDrag(); });
 
             // 滚轮：一格一步。阈值取 100（鼠标一格常是 100 或 120），
             // 且手势间隔超过 140ms 视为新手势、清零累积量，避免一格走两格。
@@ -1258,7 +1297,8 @@
             items.forEach(function (el, i) {
                 el.addEventListener('click', function (ev) {
                     ev.stopPropagation();
-                    if (i !== cur) { cur = i; paint(); playSfx('click'); return; }
+                    if (suppressClick) { ev.preventDefault(); return; }   // 刚拖动过，不当作点击
+                    if (i !== cur) { cur = i; paint(0); playSfx('click'); return; }
                     playSfx('click');
                     var d = sorted[i];
                     openDeckView(d, d.name, '预组卡组', '编年史卡组池 · 主 ' + (d.main || []).length + ' 张');

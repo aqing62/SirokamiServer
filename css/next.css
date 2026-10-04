@@ -1255,7 +1255,10 @@ body.nx-zoomed .nx-foot {
   width: 100%;
   overflow: hidden;          /* 两侧卡片被推到屏外时不要撑出横向滚动/右侧空白 */
   position: relative;
+  touch-action: pan-y;       /* 水平方向交给手势拖动，竖直方向仍可正常滚动 */
+  cursor: grab;
 }
+.nx-cf.is-dragging { cursor: grabbing; }
 .nx-cf-stage {
   position: relative;
   width: min(1180px, 96vw);
