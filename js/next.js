@@ -1810,7 +1810,7 @@
                         '<span class="c-name">' + esc(p.name || ('#' + p.id)) + '</span>' +
                         '<span class="c-tier"><span class="nx-tour-score">' + (s.score || 0) + '</span></span>' +
                         '<span class="c-wld">' + (s.win || 0) + '胜 ' + (s.lose || 0) + '负' + (s.draw ? ' ' + s.draw + '平' : '') + '</span>' +
-                        '<span class="c-rating">' + (s.tieBreaker != null ? s.tieBreaker : '-') + '</span>' +
+                        '<span class="c-rating">' + (s.tieBreaker != null ? (Math.round(Number(s.tieBreaker) * 100) / 100) : '-') + '</span>' +
                         '<span class="c-rate">' + (p.quit ? '退赛' : '') + '</span>' +
                     '</div>';
                 }).join('') +
