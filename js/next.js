@@ -511,8 +511,11 @@
             body.classList.remove('nx-boot');
             // 打字完成后：先滑回常态位置（0.58s），再出按钮
             _afterTyped = function (done) {
-                body.classList.remove('nx-q-center');
-                setTimeout(done, 600);
+                // 先在屏幕中央停留一下（让「在中间写出来」看得清），再滑回常态位置
+                setTimeout(function () {
+                    body.classList.remove('nx-q-center');
+                    setTimeout(done, 620);
+                }, 620);
             };
             renderAny('root', true);
         }, 2600));
