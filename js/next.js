@@ -1239,13 +1239,13 @@
                 '<div class="nx-cf-bar">' +
                     '<div class="nx-cf-letters" id="nxCfLetters"></div>' +
                     '<div class="nx-cf-search" id="nxCfSearchWrap">' +
-                        '<input id="nxCfSearch" type="text" placeholder="搜索卡组名 / 首字母" autocomplete="off" spellcheck="false">' +
                         '<button class="nx-cf-lens" id="nxCfLens" type="button" aria-label="搜索">' +
                             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">' +
                                 '<circle cx="10.4" cy="10.4" r="6.6"></circle>' +
                                 '<line x1="15.4" y1="15.4" x2="21" y2="21"></line>' +
                             '</svg>' +
                         '</button>' +
+                        '<input id="nxCfSearch" type="text" placeholder="搜索卡组名 / 首字母" autocomplete="off" spellcheck="false">' +
                         '<button class="nx-cf-clear" id="nxCfClear" type="button" aria-label="清除搜索" hidden>✕</button>' +
                         '<span class="nx-cf-count" id="nxCfCount"></span>' +
                     '</div>' +
