@@ -219,18 +219,15 @@
         }, 26);
     }
 
-    // 交错流动线条环：圆 + 斜置椭圆 交错叠放，各自流动 + 呼吸
+    // 交错流动线条环：贴近边缘的 1 实线 + 2 斜置椭圆 + 1 虚线圆，交错叠放 + 呼吸
     function ringSvg(gold) {
         var cls = 'nx-ring' + (gold ? ' nx-ring-gold' : '');
         return '<svg class="' + cls + '" viewBox="0 0 120 120" aria-hidden="true">'
             + '<g class="nx-rot">'
-            + '<circle class="nxr1" cx="60" cy="60" r="58"></circle>'
-            + '<ellipse class="nxr2" cx="60" cy="60" rx="57" ry="50" transform="rotate(17 60 60)"></ellipse>'
-            + '<circle class="nxr3" cx="60" cy="60" r="51"></circle>'
-            + '<ellipse class="nxr4" cx="60" cy="60" rx="47" ry="41" transform="rotate(-26 60 60)"></ellipse>'
-            + '<circle class="nxr5" cx="60" cy="60" r="43"></circle>'
-            + '<ellipse class="nxr6" cx="60" cy="60" rx="37" ry="32" transform="rotate(58 60 60)"></ellipse>'
-            + '<circle class="nxr7" cx="60" cy="60" r="27"></circle>'
+            + '<circle class="nxr1" cx="60" cy="60" r="57"></circle>'
+            + '<ellipse class="nxr2" cx="60" cy="60" rx="56" ry="48" transform="rotate(16 60 60)"></ellipse>'
+            + '<ellipse class="nxr4" cx="60" cy="60" rx="52" ry="45" transform="rotate(-29 60 60)"></ellipse>'
+            + '<circle class="nxr3" cx="60" cy="60" r="46"></circle>'
             + '</g></svg>';
     }
     function ripple(btn, ev) {
