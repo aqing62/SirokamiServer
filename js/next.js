@@ -723,6 +723,10 @@
                 });
                 // 一屏全显示：放不下就整体等比缩小（不出现内部滚动条）
                 fitDeckScale(box);
+                refitDeckSoon(box);
+                Array.prototype.forEach.call(box.querySelectorAll('.nx-deck-img'), function (img) {
+                    img.addEventListener('load', function () { refitDeckSoon(box); });
+                });
             });
         }).catch(function () {
             var box = document.getElementById('nxPovView');
@@ -730,24 +734,47 @@
         });
     }
 
-    // 让卡组一屏放得下：超出可用高度时整体等比缩放（老站式全显示，不用滚动）
+    // 让卡组一屏放得下：按"整层（标题+间距+卡组）不超过视口"求解等比缩放
     function fitDeckScale(box) {
         var fit = document.getElementById('nxDeckFit');
         if (!fit) return;
+        var inner = fit.closest ? fit.closest('.nx-pov-inner') : null;
+
+        // 先复位，量自然高度
         fit.style.transform = 'none';
+        fit.style.transformOrigin = '';
         box.style.height = '';
         box.style.overflow = '';
-        // 可用高度 = 从内容顶部到屏幕底部（留 34px 余量），随窗口/内容实时计算
-        var top = fit.getBoundingClientRect().top;
-        var avail = Math.max(220, window.innerHeight - top - 34);
+
         var need = fit.scrollHeight;
-        if (need > avail) {
-            var k = avail / need;
+        if (!need) return;
+        var avail = window.innerHeight - 24;                     // 上下各留余量
+        var innerNatural = inner ? inner.scrollHeight : need;
+        var chrome = Math.max(0, innerNatural - need);           // 标题、间距等非内容高度
+        var k = (avail - chrome) / need;
+        if (k > 1) k = 1;
+        if (k < 0.25) k = 0.25;
+
+        if (k < 0.999) {
             fit.style.transformOrigin = 'top center';
             fit.style.transform = 'scale(' + k.toFixed(4) + ')';
             box.style.height = Math.ceil(need * k) + 'px';
             box.style.overflow = 'hidden';
         }
+        // 兜底收敛：仍超出视口就再收一档（应对字体/图片等尺寸抖动）
+        if (inner) {
+            var h = inner.getBoundingClientRect().height;
+            var limit = window.innerHeight - 6;
+            if (h > limit) {
+                var k2 = k * (limit / h);
+                fit.style.transform = 'scale(' + k2.toFixed(4) + ')';
+                box.style.height = Math.ceil(need * k2) + 'px';
+            }
+        }
+    }
+    function refitDeckSoon(box) {
+        clearTimeout(box._fitTimer);
+        box._fitTimer = setTimeout(function () { fitDeckScale(box); }, 260);
     }
     window.addEventListener('resize', function () {
         var box = document.getElementById('nxPovView');
