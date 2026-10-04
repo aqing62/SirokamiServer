@@ -949,91 +949,81 @@ body.nx-zoomed .nx-foot {
   to   { opacity: 1; transform: none; filter: blur(0); }
 }
 .nx-pov-view .nx-deck-group-title {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 11.5px; letter-spacing: 3px; color: #b9a86a;
-  padding-bottom: 7px; margin-bottom: 10px;
-  border-bottom: 1px solid rgba(212, 175, 55, .18);
-}
-.nx-pov-view .nx-deck-group-title::before {
-  content: ''; width: 3px; height: 12px; border-radius: 2px;
-  background: linear-gradient(180deg, var(--nx-gold, #D4AF37), rgba(212, 175, 55, 0));
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--nx-gold, #D4AF37);
+  margin-bottom: 4px;
 }
 .nx-pov-view .nx-deck-group-title i {
   margin-left: auto; font-size: 11px; letter-spacing: 0;
   color: #e8d9a8; font-weight: 600;
 }
-.nx-pov-view .nx-deck-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 18px; }
-.nx-pov-view .nx-deck-card {
-  position: relative;
-  padding: 3px 0 3px 10px;
-  font-size: 12.5px;
-  color: #cfc8bf;
-  transition: color .18s, padding-left .18s;
-}
-.nx-pov-view .nx-deck-card::before {
-  content: ''; position: absolute; left: 0; top: 50%;
-  width: 3px; height: 3px; margin-top: -1.5px; border-radius: 50%;
-  background: rgba(216, 30, 68, .55);
-  transition: background .18s, box-shadow .18s;
-}
-.nx-pov-view .nx-deck-card:hover { color: #fff3c4; padding-left: 14px; }
-.nx-pov-view .nx-deck-card:hover::before { background: var(--nx-gold, #D4AF37); box-shadow: 0 0 8px var(--nx-gold, #D4AF37); }
-
-
-/* ── 卡组卡图网格 ─────────────────────────────────────── */
+/* ── 卡组视图：复刻老站布局（紧凑网格 + 底部角标），去掉灰底/边框 ── */
 .nx-pov-view .nx-deck-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(94px, 1fr));
-  gap: 14px 12px;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 2px;
+  background: none;
+  padding: 0;
+  border: none;
 }
 .nx-deck-tile {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  transition: transform .22s cubic-bezier(.22, .9, .28, 1.02), filter .22s;
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 0;
+  transition: transform .2s cubic-bezier(.22, .9, .28, 1.02), filter .2s;
+}
+.nx-deck-photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 42 / 61;
+  overflow: hidden;
+  border-radius: 2px;
 }
 .nx-deck-img {
-  width: 100%;
-  aspect-ratio: 59 / 86;
+  width: 100%; height: 100%;
+  aspect-ratio: 42 / 61;
   object-fit: cover;
   display: block;
-  border-radius: 7px;
+  border-radius: 2px;
+  border: none;                     /* 老站此处有 1px 描边，按要求去掉 */
   background: rgba(255, 255, 255, .04);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, .5);
-  transition: box-shadow .22s;
 }
-.nx-deck-tile:hover { transform: translateY(-4px) scale(1.05); filter: drop-shadow(0 8px 20px rgba(216, 30, 68, .4)); }
-.nx-deck-tile:hover .nx-deck-img { box-shadow: 0 0 0 1px rgba(212, 175, 55, .6), 0 8px 22px rgba(0, 0, 0, .6); }
+.nx-deck-tile:hover { transform: translateY(-3px) scale(1.06); filter: drop-shadow(0 6px 16px rgba(216, 30, 68, .45)); }
+.nx-deck-tile:hover .nx-deck-img { box-shadow: 0 0 0 1px rgba(212, 175, 55, .75); }
 .nx-deck-name {
-  font-size: 11px; line-height: 1.32; text-align: center; color: #b9b9c2;
+  font-size: 9.5px; line-height: 1.25; text-align: center; color: #b9b9c2;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
   transition: color .2s;
 }
 .nx-deck-tile:hover .nx-deck-name { color: #fff3c4; }
 .nx-deck-img.is-missing { opacity: .28; }
-@media (max-width: 768px) {
-  .nx-pov-view .nx-deck-cards { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 10px 8px; }
-  .nx-deck-name { font-size: 10px; }
+
+/* 角标（老站位置：分值左下、DIY 右下；深色底 + 金字，去描边） */
+.nx-deck-score,
+.nx-deck-diy {
+  position: absolute;
+  bottom: 2px;
+  height: 14px; line-height: 14px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 9.5px; font-weight: 700;
+  color: #FFD700;
+  background: rgba(0, 0, 0, .85);
+  pointer-events: none;
 }
+.nx-deck-score { left: 2px; min-width: 15px; text-align: center; }
+.nx-deck-score.is-forbidden { color: #ff9a9a; }
+.nx-deck-diy { right: 2px; font-size: 8.5px; letter-spacing: .3px; }
 
-
-/* ── 卡组：老站式两栏全显示（左主卡组 / 右额外+副，各 8 列，无内部滚动）── */
-.nx-deck-fit { width: 100%; }
-.nx-deck-cols { display: flex; gap: clamp(14px, 2vw, 26px); align-items: flex-start; }
-.nx-deck-col-main { flex: 1 1 58%; min-width: 0; }
-.nx-deck-col-side { flex: 0 0 38%; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
-.nx-pov-view .nx-deck-col-main .nx-deck-cards,
-.nx-pov-view .nx-deck-col-side .nx-deck-cards { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px 6px; }
-.nx-deck-tile { gap: 3px; }
-.nx-deck-name { font-size: 9.5px; line-height: 1.25; -webkit-line-clamp: 2; }
-@media (max-width: 900px) {
-  .nx-deck-cols { flex-direction: column; }
-  .nx-deck-col-main, .nx-deck-col-side { flex: 1 1 auto; width: 100%; }
-  .nx-pov-view .nx-deck-col-main .nx-deck-cards,
-  .nx-pov-view .nx-deck-col-side .nx-deck-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px 5px; }
-  .nx-deck-name { font-size: 9px; }
+/* 顶部信息行（对齐老站 deck-info） */
+.nx-deck-info {
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: 18px;
+  margin-bottom: 6px;
+  font-size: 11.5px; color: #9a9aa4;
 }
+.nx-deck-info-item b { color: #e8d9a8; font-weight: 700; }
 
-
-/* 缩得较狠时（一屏全显示）隐藏卡名，保证卡图更大更清晰 */
 .nx-deck-fit.is-compact .nx-deck-name { display: none; }
 .nx-deck-fit.is-compact .nx-deck-cards { gap: 5px 4px; }
 

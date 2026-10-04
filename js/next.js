@@ -485,7 +485,7 @@
                 var b = document.createElement('span');
                 b.className = 'nx-deck-diy';
                 b.textContent = 'DIY';
-                tile.appendChild(b);
+                (tile.querySelector('.nx-deck-photo') || tile).appendChild(b);
             }
         });
         img.addEventListener('error', function () {
@@ -769,13 +769,33 @@
                                   (sc.forbidden ? '禁' : sc.score) + '</span>'
                                 : '';
                             return '<div class="nx-deck-tile" data-id="' + id + '">' +
-                                '<img class="nx-deck-img" src="' + PIC_CHAIN[0] + id + '.jpg" loading="lazy" alt="">' +
-                                badge +
+                                '<div class="nx-deck-photo">' +
+                                    '<img class="nx-deck-img" src="' + PIC_CHAIN[0] + id + '.jpg" loading="lazy" alt="">' +
+                                    badge +
+                                '</div>' +
                                 '<span class="nx-deck-name">' + esc(nm) + '</span>' +
                             '</div>';
                         }).join('') + '</div></div>';
                 }
+                // 卡组总分（与老站同算法：按张数累加每张卡的分值）
+                function deckScore(dk) {
+                    var sum = 0;
+                    ['main', 'extra', 'side'].forEach(function (sec) {
+                        (dk[sec] || []).forEach(function (cid) {
+                            var s = _scoreMap && _scoreMap[cid];
+                            if (s) sum += (s.score || 0);
+                        });
+                    });
+                    return sum;
+                }
+                var total = deckScore(d.deck);
                 box.innerHTML =
+                    '<div class="nx-deck-info">' +
+                        '<span class="nx-deck-info-item">卡组总分 <b>' + total + '</b></span>' +
+                        '<span class="nx-deck-info-item">主 <b>' + (d.deck.main || []).length + '</b></span>' +
+                        '<span class="nx-deck-info-item">额外 <b>' + (d.deck.extra || []).length + '</b></span>' +
+                        '<span class="nx-deck-info-item">副 <b>' + (d.deck.side || []).length + '</b></span>' +
+                    '</div>' +
                     '<div class="nx-deck-meta">' + esc(d.roomName || '') + ' · ' + esc(d.winner || '') + ' vs ' + esc(d.opponent || '') +
                         ' · ' + fmtTime(d.time) + '</div>' +
                     '<div class="nx-deck-fit" id="nxDeckFit">' +
