@@ -749,6 +749,21 @@ body.nx-skip .nx-welcome { display: none; }
 }
 .nx-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
+/* 列表收窄居中，避免列间距过大 */
+.nx-scroll, .nx-list-head, .nx-list-note { max-width: 880px; margin-left: auto; margin-right: auto; }
+
+.nx-list-head {
+  display: grid;
+  grid-template-columns: 54px minmax(120px, 1.4fr) 104px 76px 130px 72px;
+  gap: 10px;
+  padding: 0 12px 8px;
+  font-size: 11.5px;
+  letter-spacing: .5px;
+  color: #7d7d86;
+  border-bottom: 1px solid rgba(216, 30, 68, .18);
+}
+.nx-list-head span:first-child { text-align: center; }
+
 .nx-list { display: flex; flex-direction: column; }
 .nx-row {
   display: grid;
@@ -772,6 +787,8 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-list-note { margin-top: 6px; font-size: 11.5px; color: #6f6f78; text-align: center; }
 
 @media (max-width: 768px) {
+  .nx-list-head { grid-template-columns: 40px minmax(90px, 1fr) 84px 60px; padding: 0 8px 6px; }
+  .nx-list-head span:nth-child(5), .nx-list-head span:nth-child(6) { display: none; }
   .nx-row { grid-template-columns: 40px minmax(90px, 1fr) 84px 60px; font-size: 12px; gap: 6px; padding: 9px 8px; }
   .nx-row .c-wld, .nx-row .c-rate { display: none; }
   .nx-scroll { max-height: 52vh; padding: 26px 2px; }

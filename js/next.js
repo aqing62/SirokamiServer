@@ -320,7 +320,7 @@
 
         var cutHtml = cuts.map(function (c, ci) {
             var name = String(c.name || '').replace(/^S\d+\s*/, '');
-            return '<span class="nx-tier-chip nx-reveal ' + tierClass(name) + '" style="--i:' + (ci + 1) + '">' +
+            return '<span class="nx-tier-chip nx-reveal ' + tierClass(name) + '" style="--i:' + (ci + 2) + '">' +
                    esc(name) + '<i>' + c.minRating + '</i></span>';
         }).join('');
 
@@ -349,7 +349,10 @@
         }).join('');
 
         body.innerHTML = head +
-            '<div class="nx-scroll nx-reveal" style="--i:1" id="nxLadderScroll">' +
+            '<div class="nx-list-head nx-reveal" style="--i:1">' +
+                '<span>#</span><span>玩家</span><span>段位</span><span>积分</span><span>战绩</span><span>胜率</span>' +
+            '</div>' +
+            '<div class="nx-scroll nx-reveal" style="--i:2" id="nxLadderScroll">' +
                 '<div class="nx-list">' + rows + '</div>' +
             '</div>' +
             '<div class="nx-list-note">数据来自天梯服务 · 每场 M# 对局结束后更新</div>';
