@@ -1448,25 +1448,1474 @@ body.nx-zoomed .nx-foot {
 }
 
 
-/* ── 卡组下载（YDK）：无边框小按钮，放在信息行里 ─────────── */
+/* ── 卡组下载（YDK）：金色渐变主按钮，摆在信息行里一眼可见 ── */
 .nx-deck-dl {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 3px 8px; margin-left: 4px;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 18px; margin-left: 10px;
   border: none; border-radius: 999px;
-  background: rgba(255, 255, 255, .05);
-  color: #b9b9c2; font-family: inherit; font-size: 11.5px; letter-spacing: .5px;
+  background: linear-gradient(135deg, #ffe9a8 0%, #d4af37 55%, #b08d24 100%);
+  color: #2a1c08;
+  font-family: inherit; font-size: 13.5px; font-weight: 700; letter-spacing: .5px;
   cursor: pointer;
-  transition: background .2s, color .2s, transform .2s, box-shadow .2s;
+  box-shadow: 0 8px 22px rgba(212, 175, 55, .38), 0 0 26px rgba(255, 214, 40, .18), inset 0 0 0 1px rgba(255, 245, 200, .5);
+  transition: transform .2s cubic-bezier(.22,.9,.28,1.02), box-shadow .25s, filter .2s;
 }
-.nx-deck-dl svg { width: 14px; height: 14px; display: block; }
+.nx-deck-dl svg { width: 18px; height: 18px; display: block; }
 .nx-deck-dl:hover {
-  background: rgba(212, 175, 55, .18);
-  color: #fff3c4;
-  box-shadow: 0 0 14px rgba(212, 175, 55, .28);
-  transform: translateY(-1px);
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 12px 30px rgba(212, 175, 55, .5), 0 0 34px rgba(255, 214, 40, .34), inset 0 0 0 1px rgba(255, 250, 220, .7);
+  filter: brightness(1.06);
 }
-.nx-deck-dl:active { transform: translateY(0) scale(.97); }
+.nx-deck-dl:active { transform: translateY(0) scale(.98); filter: brightness(.96); }
 @media (max-width: 768px) {
-  .nx-deck-dl { font-size: 12px; padding: 5px 10px; }
-  .nx-deck-dl svg { width: 15px; height: 15px; }
+  .nx-deck-dl { font-size: 14px; padding: 9px 20px; gap: 8px; }
+  .nx-deck-dl svg { width: 19px; height: 19px; }
+}
+* ══════════════════════════════════════════════════════════
+   新版引导界面（原型）— 配色沿用官网：红 #D81E44 / 金 #D4AF37 / 暗底
+   原则：圆形交互、每屏 ≤3 个按钮、动效强但要顺
+   ══════════════════════════════════════════════════════════ */
+:root {
+  --nx-red: #D81E44;
+  --nx-red-soft: rgba(216, 30, 68, 0.55);
+  --nx-gold: #D4AF37;
+  --nx-gold-light: #F0E68C;
+  --nx-bg: #0a0a0c;
+  --nx-bg2: #141116;
+  --nx-text: #ece9e4;
+  --nx-dim: #9b97a1;
+  --nx-ease: cubic-bezier(.2, .9, .25, 1.25);
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+/* 全局：带 hidden 的元素必须真正隐藏（否则会被 .nx-screen/.nx-result 的 display 覆盖，
+   出现"空的红边圆角条"） */
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--nx-bg);
+  color: var(--nx-text);
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: max(12px, env(safe-area-inset-top)) 16px calc(10px + env(safe-area-inset-bottom));
+}
+
+/* ── 背景光晕 ── */
+.nx-bg { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+/* 说明：这里曾用 filter: blur(60px)，但径向渐变本身已足够柔和，模糊会让浏览器每帧重做高斯模糊
+   （实测这是页面掉帧的主因），故移除；浮动只动 transform，可走合成器。 */
+.nx-orb {
+  position: absolute; border-radius: 50%; opacity: .5;
+  will-change: transform;
+  animation: orbFloat 18s ease-in-out infinite;
+}
+.nx-orb-1 { width: 46vmax; height: 46vmax; left: -14vmax; top: -16vmax; background: radial-gradient(circle, rgba(216,30,68,.55), transparent 68%); }
+.nx-orb-2 { width: 38vmax; height: 38vmax; right: -12vmax; bottom: -14vmax; background: radial-gradient(circle, rgba(212,175,55,.34), transparent 70%); animation-delay: -6s; }
+.nx-orb-3 { width: 30vmax; height: 30vmax; left: 42%; top: 46%; background: radial-gradient(circle, rgba(216,30,68,.28), transparent 70%); animation-delay: -11s; }
+@keyframes orbFloat {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33%      { transform: translate3d(4vmax, -3vmax, 0) scale(1.08); }
+  66%      { transform: translate3d(-3vmax, 3vmax, 0) scale(.95); }
+}
+.nx-grid {
+  position: absolute; inset: -64px; opacity: .16; will-change: transform;
+  background-image:
+    linear-gradient(rgba(216,30,68,.35) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(216,30,68,.35) 1px, transparent 1px);
+  background-size: 64px 64px;
+  mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
+  animation: gridDrift 26s linear infinite;
+}
+@keyframes gridDrift { to { transform: translate3d(64px, 64px, 0); } }   /* 位移代替 background-position：可合成、不重绘 */
+
+/* ── 顶栏 ── */
+.nx-top {
+  position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.nx-brand { display: flex; align-items: center; gap: 8px; }
+.nx-brand-dot {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--nx-red); box-shadow: 0 0 12px var(--nx-red);
+  animation: dotPulse 2.4s ease-in-out infinite;
+}
+@keyframes dotPulse { 0%,100% { transform: scale(1); opacity: .85; } 50% { transform: scale(1.35); opacity: 1; } }
+.nx-brand-name { font-weight: 800; letter-spacing: 1px; color: var(--nx-gold-light); }
+.nx-brand-sub { font-size: 12px; color: var(--nx-dim); letter-spacing: 1px; }
+
+/* 新旧版切换滑块 */
+.nx-version {
+  position: relative;
+  display: flex; align-items: center;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, .5);
+  border: 1px solid rgba(212, 175, 55, .45);
+}
+.nx-version-thumb {
+  position: absolute; top: 4px; left: 4px;
+  width: calc(50% - 4px); height: calc(100% - 8px);
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--nx-red), rgba(216, 30, 68, .5));
+  box-shadow: 0 0 14px rgba(216, 30, 68, .55);
+  transition: transform .34s var(--nx-ease);
+}
+.nx-version[data-v="classic"] .nx-version-thumb { transform: translateX(100%); }
+.nx-version-btn {
+  position: relative; z-index: 1;
+  min-width: 62px;
+  padding: 6px 12px;
+  border: none; background: none; cursor: pointer;
+  color: var(--nx-dim); font-size: 13px; font-weight: 700;
+  border-radius: 999px;
+  transition: color .25s;
+}
+.nx-version-btn.is-active { color: #fff; }
+
+/* ── 舞台 ── */
+.nx-stage {
+  position: relative; z-index: 2;
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: clamp(10px, 2.4vh, 22px);
+  text-align: center;
+  padding: 8px 0;
+}
+
+
+/* 问句上移量由 JS 计算（把到顶部的间距减半） */
+.nx-question { translate: 0 calc(-1 * var(--q-lift, 0px)); }
+.nx-question {
+  margin: 0;
+  font-size: clamp(22px, 4.6vw, 38px);
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #fff;
+  text-shadow: 0 0 26px rgba(216, 30, 68, .45);
+  min-height: 1.4em;
+}
+.nx-question .nx-caret {
+  display: inline-block; width: 3px; height: 1em; margin-left: 3px;
+  background: var(--nx-gold); vertical-align: -0.12em;
+  animation: caretBlink .9s steps(1) infinite;
+}
+@keyframes caretBlink { 50% { opacity: 0; } }
+
+
+/* ── 圆形选项按钮：深色空圆 + 边缘流动线条（三角布局）── */
+.nx-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
+  grid-template-areas:
+    "top top"
+    "left right";
+  justify-items: center;
+  align-items: center;
+  gap: clamp(2px, 1vh, 12px) clamp(4px, 2vw, 26px);
+}
+.nx-options .nx-option:nth-child(1) { grid-area: top; }
+.nx-options .nx-option:nth-child(2) { grid-area: left; }
+.nx-options .nx-option:nth-child(3) { grid-area: right; }
+/* 结果页 3 个 CTA 也用三角 */
+.nx-result-cta.nx-tri {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
+  grid-template-areas: "top top" "left right";
+  justify-content: center;
+  align-items: center;
+  gap: clamp(2px, 1vh, 12px) clamp(4px, 2vw, 26px);
+}
+.nx-result-cta.nx-tri > *:nth-child(1) { grid-area: top; }
+.nx-result-cta.nx-tri > *:nth-child(2) { grid-area: left; }
+.nx-result-cta.nx-tri > *:nth-child(3) { grid-area: right; }
+/* 固定宽度的圆形按钮在跨列区域里默认靠左，需显式居中 */
+.nx-result-cta.nx-tri > * { justify-self: center; align-self: center; }
+
+.nx-option {
+  --size: clamp(150px, 21vw, 210px);
+  position: relative;
+  width: var(--size); height: var(--size);
+  border-radius: 50%;
+  border: none;
+  /* 深色空圆：只在顶部留一点点红，整体近黑 */
+  background: radial-gradient(circle at 50% 26%, rgba(216, 30, 68, 0.13), rgba(6, 6, 8, 0.96) 68%);
+  color: var(--nx-gold-light);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  font-family: inherit;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.6);
+  transition: transform .42s var(--nx-ease), box-shadow .34s;
+  animation: optionIn .55s var(--nx-ease) backwards;   /* backwards：动画结束不锁 transform，悬停放大才能生效 */
+  animation-delay: calc(var(--i, 0) * 110ms);
+}
+@keyframes optionIn {
+  from { opacity: 0; transform: translateY(12px) scale(.93); }
+  to   { opacity: 1; transform: none; }
+}
+.nx-option .nx-opt-icon { font-size: calc(var(--size) * .26); line-height: 1; }
+.nx-option .nx-opt-label { font-size: clamp(14px, 1.7vw, 18px); font-weight: 800; letter-spacing: .8px; }
+.nx-option .nx-opt-sub { font-size: 11px; color: var(--nx-dim); }
+
+.nx-option:hover, .nx-option:focus-visible {
+  transform: translateY(-6px) scale(1.13);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .65), 0 0 30px rgba(216, 30, 68, .35);
+  outline: none;
+}
+.nx-option:active { transform: scale(.97); }
+
+/* ── 边缘圈：4 个不规则闭合细线圈（实线）套叠，各自旋转，气泡式入场 ── */
+.nx-ring {
+  position: absolute;
+  inset: -4%;
+  width: 108%; height: 108%;
+  overflow: visible;
+  pointer-events: none;
+  transform-origin: 50% 50%;
+  /* 入场：像气泡一样扭曲回正 + 由小变大（每个按钮错开） */
+  animation: nxBubble .7s cubic-bezier(.25, .9, .3, 1.04) backwards;
+  animation-delay: calc(var(--i, 0) * 130ms);
+}
+/* 旋转已移除；原点固定在圆心（不再对 SVG 图层加 will-change，实测会拖慢） */
+.nx-ring .nx-rot { transform-origin: 60px 60px; }
+.nx-ring path {
+  fill: none;
+  stroke: rgba(216, 30, 68, 0.62);
+  stroke-width: 1;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.nx-ring .nxb1 { stroke: rgba(216, 30, 68, 0.72); }
+.nx-ring .nxb2 { stroke: rgba(255, 108, 140, 0.55); }
+.nx-ring .nxb3 { stroke: rgba(216, 30, 68, 0.5); }
+.nx-ring .nxb4 { stroke: rgba(212, 175, 55, 0.42); }
+
+/* 气泡入场：先被压扁扭曲 → 过冲 → 回正 */
+@keyframes nxBubble {
+  0%   { opacity: 0; transform: scale(.64) rotate(-6deg) scaleY(.88); }
+  40%  { opacity: 1; transform: scale(1.055) rotate(2.5deg) scaleY(1.03); }
+  64%  { opacity: 1; transform: scale(.975) rotate(-1deg) scaleY(.985); }
+  84%  { opacity: 1; transform: scale(1.012) rotate(.4deg) scaleY(1.008); }
+  100% { opacity: 1; transform: scale(1) rotate(0deg) scaleY(1); }
+}
+@keyframes nxSpin { to { transform: rotate(360deg); } }
+
+/* 按钮内文字/图标：比圈稍晚一点浮现，避免被压扁感影响 */
+.nx-option .nx-opt-icon,
+.nx-option .nx-opt-label,
+.nx-option .nx-opt-sub {
+  animation: nxTextIn .5s ease-out backwards;
+  animation-delay: calc(var(--i, 0) * 130ms + 240ms);
+}
+@keyframes nxTextIn { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+/* 悬停：圈转得更快、更亮 */
+/* 悬停光晕改用按钮 box-shadow（比 SVG drop-shadow 滤镜便宜很多） */
+.nx-option:hover, .nx-cta:hover { box-shadow: 0 18px 44px rgba(0, 0, 0, .65), 0 0 34px rgba(216, 30, 68, .45); }
+.nx-option:hover .nxb1, .nx-cta:hover .nxb1 { stroke: rgba(255, 120, 150, .95); }
+.nx-option:hover .nxb4, .nx-cta:hover .nxb4 { stroke: rgba(245, 226, 140, .8); }
+
+/* 金色变体（结果页主按钮） */
+.nx-ring.nx-ring-gold circle { stroke: rgba(212, 175, 55, 0.6); }
+.nx-ring.nx-ring-gold .nxr2 { stroke: rgba(212, 175, 55, 0.4); }
+.nx-ring.nx-ring-gold .nxr3 { stroke: rgba(216, 30, 68, 0.45); }
+.nx-ring.nx-ring-gold .nxr4 { stroke: rgba(255, 214, 120, 0.4); }
+
+/* 点击水波纹 */
+.nx-ripple {
+  position: absolute; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, .55), rgba(216, 30, 68, .25) 60%, transparent 70%);
+  transform: translate(-50%, -50%) scale(0);
+  animation: rippleOut .6s ease-out forwards;
+  pointer-events: none;
+}
+@keyframes rippleOut { to { transform: translate(-50%, -50%) scale(2.6); opacity: 0; } }
+
+/* ── 结果步骤 ── */
+.nx-result { display: flex; flex-direction: column; gap: 14px; width: 100%; max-width: 640px; }
+.nx-result-steps { display: flex; flex-direction: column; gap: 8px; }
+.nx-step-row {
+  display: flex; align-items: flex-start; gap: 10px;
+  text-align: left;
+  padding: 10px 14px;
+  border-radius: 999px;               /* 胶囊：尽量避免矩形 */
+  background: linear-gradient(135deg, rgba(216, 30, 68, .16), rgba(20, 14, 18, .9));
+  border: 1px solid rgba(212, 175, 55, .35);
+  animation: stepIn .42s var(--nx-ease) backwards;
+  animation-delay: calc(var(--i, 0) * 110ms);
+}
+@keyframes stepIn { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+.nx-step-no {
+  flex: 0 0 auto;
+  width: 24px; height: 24px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 12px; font-weight: 800;
+  color: #fff; background: linear-gradient(135deg, var(--nx-red), rgba(216, 30, 68, .45));
+  box-shadow: 0 0 12px rgba(216, 30, 68, .5);
+}
+.nx-step-text { font-size: 13.5px; line-height: 1.6; color: #e7e3dc; }
+.nx-step-text b { color: var(--nx-gold-light); }
+
+.nx-result-cta {
+  display: flex; align-items: center; justify-content: center; gap: clamp(12px, 3vw, 26px);
+  flex-wrap: wrap;
+}
+/* 结果页主按钮（圆形，深色 + 金色流动环） */
+.nx-cta {
+  --size: clamp(154px, 22vw, 214px);
+  position: relative;
+  width: var(--size); height: var(--size);
+  border-radius: 50%;
+  border: none;
+  background: radial-gradient(circle at 50% 28%, rgba(212, 175, 55, 0.14), rgba(6, 6, 8, 0.96) 68%);
+  color: var(--nx-gold-light);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-family: inherit; font-size: clamp(12px, 1.5vw, 15px); font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .6);
+  transition: transform .42s var(--nx-ease), box-shadow .34s;
+  animation: optionIn .55s var(--nx-ease) backwards;
+}
+.nx-cta:hover { transform: translateY(-6px) scale(1.13); box-shadow: 0 18px 44px rgba(0, 0, 0, .65), 0 0 28px rgba(212, 175, 55, .4); }
+.nx-cta .nx-cta-icon { font-size: calc(var(--size) * .27); line-height: 1; }
+.nx-cta:hover .nx-ring circle { animation-duration: 2.6s, 4s, 8s, 5.5s; }
+/* 次级：红系 */
+.nx-cta.nx-cta-ghost {
+  background: radial-gradient(circle at 50% 28%, rgba(216, 30, 68, 0.16), rgba(6, 6, 8, 0.96) 68%);
+  color: #ffb3c2;
+}
+
+/* ── 返回（圆形，左下）── */
+/* .nx-back 已移除 */
+
+.nx-foot {
+  position: relative; z-index: 2;
+  text-align: center; font-size: 11.5px; color: #6f6b75;
+}
+
+/* 转场：整屏淡出/淡入 */
+.nx-stage.nx-leaving { animation: stageOut .22s ease-in forwards; }
+@keyframes stageOut { to { opacity: 0; transform: scale(.97) translateY(8px); } }
+.nx-stage.nx-entering { animation: stageIn .34s var(--nx-ease) both; }
+@keyframes stageIn { from { opacity: 0; transform: scale(1.03) translateY(-8px); } to { opacity: 1; transform: none; } }
+
+/* ── 手机端 ── */
+@media (max-width: 768px) {
+  body { padding-left: 12px; padding-right: 12px; }
+  .nx-brand-sub { display: none; }
+  .nx-version-btn { min-width: 54px; font-size: 12px; padding: 5px 10px; }
+  .nx-option { --size: clamp(124px, 34vw, 158px); }
+  .nx-option .nx-opt-sub { display: none; }
+  .nx-cta { --size: clamp(128px, 35vw, 164px); }
+  .nx-step-row { border-radius: 18px; padding: 9px 12px; }
+  .nx-foot { font-size: 10.5px; }
+}
+
+/* 注意：不按系统「减少动态效果」自动关闭动效（很多 Windows 用户默认关闭该项），
+   动效默认开启 */
+/* 说明：不使用 prefers-reduced-motion 自动关闭动效（大量 Windows 用户系统默认关闭该项，
+   会导致页面看起来是静态的）。动效默认开启。 */
+
+
+/* 手动关闭动效时的统一规则（只由 .nx-anim-off 控制） */
+html.nx-anim-off .nx-orb,
+html.nx-anim-off .nx-grid,
+html.nx-anim-off .nx-brand-dot,
+html.nx-anim-off .nx-option,
+html.nx-anim-off .nx-cta,
+html.nx-anim-off .nx-step-row,
+html.nx-anim-off .nx-ring,
+html.nx-anim-off .nx-ring .nx-rot,
+html.nx-anim-off .nx-option .nx-opt-icon,
+html.nx-anim-off .nx-option .nx-opt-label,
+html.nx-anim-off .nx-option .nx-opt-sub {
+  animation: none !important;
+}
+
+
+/* ══ 开场序列 ══════════════════════════════════════════════
+   阶段：黑屏(仅欢迎大字) → 背景渐显 → 问句打字机 → 按钮出现
+   由 body.nx-boot / .nx-bg-in / .nx-question-in 三个类控制
+   ═════════════════════════════════════════════════════════ */
+html, body { background: #000; }
+
+/* 开场时：除了欢迎大字，其它全部隐藏 */
+body.nx-boot .nx-top,
+body.nx-boot .nx-foot,
+body.nx-boot .nx-question,
+body.nx-boot .nx-options,
+body.nx-boot .nx-result { opacity: 0; visibility: hidden; }
+body.nx-boot .nx-bg { opacity: 0; }
+
+/* 背景与外壳的渐显 */
+.nx-bg { transition: opacity 1.15s ease-in-out; }
+body.nx-bg-in .nx-bg { opacity: 1; }
+.nx-top, .nx-foot { transition: opacity .9s ease-in-out; }
+
+/* 问句：打字机开始前先就位 */
+/* 问句：开场时先出现在屏幕正中，随后滑回常态位置 */
+.nx-question {
+  transition: opacity .45s ease-in-out, transform .78s cubic-bezier(.28, .02, .2, 1);
+  will-change: transform;
+}
+body.nx-q-center .nx-question { transform: translateY(var(--q-dy, 0px)); }
+/* 就位瞬间：位移不做过渡（直接出现在中央），但保留淡入 */
+body.nx-q-jump .nx-question { transition: opacity .45s ease-in-out; }
+/* 开场：按钮已进入布局但先隐藏（保证问句最终位置稳定，滑动连贯） */
+body.nx-await-opts .nx-options { visibility: hidden; }
+body.nx-await-opts .nx-option { animation: none !important; }
+body.nx-await-opts .nx-option .nx-opt-icon,
+body.nx-await-opts .nx-option .nx-opt-label,
+body.nx-await-opts .nx-option .nx-opt-sub { animation: none !important; }
+body.nx-boot.nx-question-in .nx-question { opacity: 1; visibility: visible; }
+
+/* 欢迎大字（固定居中，缓入 → 停留 → 缓出） */
+.nx-welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+  opacity: 0;
+}
+.nx-welcome .nx-w-greet {
+  font-size: clamp(16px, 2.4vw, 26px);
+  letter-spacing: .5em;
+  color: #cfc8bf;
+  text-indent: .5em;
+}
+.nx-welcome .nx-w-name {
+  font-size: clamp(38px, 8vw, 96px);
+  font-weight: 800;
+  letter-spacing: .06em;
+  color: var(--nx-gold-light, #F0E68C);
+  text-shadow: 0 0 28px rgba(216, 30, 68, .55), 0 0 70px rgba(216, 30, 68, .3);
+}
+body.nx-boot .nx-welcome {
+  animation: nxWelcomeIn 2.6s ease-in-out both;
+}
+@keyframes nxWelcomeIn {
+  0%   { opacity: 0; transform: scale(.94); filter: blur(6px); }   /* 远焦 → 合焦（入场） */
+  26%  { opacity: 1; transform: scale(1);   filter: blur(0); }
+  80%  { opacity: 1; transform: scale(1.004); filter: blur(0); }   /* 停留 */
+  100% { opacity: 0; transform: scale(1.02); filter: blur(0); }    /* 退场：不再叠模糊，让字母散开可见 */
+}
+/* 开场结束后彻底移除欢迎层 */
+body:not(.nx-boot) .nx-welcome { display: none; }
+
+/* 跳过开场：点击/按键后立刻进入最终状态 */
+body.nx-skip .nx-welcome { display: none; }
+
+
+/* ── 开场退场：Sirokami 逐字分开飘散 ──────────────────────
+   字母各自向外平移 + 轻微上飘与倾斜，并带一点错开延迟，
+   与外层的「失焦淡出」叠加，形成散开的效果 */
+.nx-welcome .nx-w-name {
+  display: inline-flex;
+  align-items: baseline;
+}
+.nx-welcome .nx-w-ch {
+  display: inline-block;
+  font-style: normal;
+  will-change: transform, opacity, filter;
+  /* 每个字母的飘散方向/距离：以中心为轴向外（跨度约 ±77px） */
+  --dx: calc((var(--li) - 3.5) * 26px);
+  --dy: calc(-6px - var(--li) * -0.6px);
+  --rt: calc((var(--li) - 3.5) * 0.9deg);
+  animation: nxChSplit 2.5s cubic-bezier(.32, .06, .3, 1) both;
+  animation-delay: calc(var(--li) * 16ms);
+}
+@keyframes nxChSplit {
+  0%, 46% { transform: translateX(0) translateY(0) rotate(0deg); opacity: 1; filter: blur(0); }
+  72%     { transform: translateX(calc(var(--dx) * .55)) translateY(calc(var(--dy) * .55)) rotate(calc(var(--rt) * .55)); opacity: 1; filter: blur(.4px); }
+  92%     { opacity: .9; filter: blur(1.2px); }
+  100%    {
+    transform: translateX(var(--dx)) translateY(var(--dy)) rotate(var(--rt));
+    opacity: .18;
+    filter: blur(2px);
+  }
+}
+/* 小字「欢迎来到」：比大字早一点淡出，让焦点先落在 Sirokami 上 */
+.nx-welcome .nx-w-greet {
+  animation: nxGreetOut 2.6s ease-in-out both;
+}
+@keyframes nxGreetOut {
+  0%, 40% { opacity: 1; }
+  72%     { opacity: 0; }
+  100%    { opacity: 0; }
+}
+
+
+/* ── 自绘线条图标（按钮内）── */
+.nx-icon {
+  display: block;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.nx-option .nx-opt-icon .nx-icon { width: calc(var(--size) * .28); height: calc(var(--size) * .28); }
+.nx-cta .nx-cta-icon .nx-icon { width: calc(var(--size) * .3); height: calc(var(--size) * .3); }
+/* 图标容器不再需要 emoji 字号 */
+.nx-option .nx-opt-icon, .nx-cta .nx-cta-icon { display: grid; place-items: center; line-height: 1; }
+.nx-option:hover .nx-icon { stroke-width: 1.9; }
+
+
+/* ── 磁吸位移：用 translate 独立属性（与 hover 的 transform 叠加，互不覆盖）── */
+.nx-option, .nx-cta {
+  translate: 0 0;                /* 实际位移由 JS 直接写 style.translate（避免自定义属性触发子树样式重算） */
+  will-change: translate;
+  backface-visibility: hidden;   /* 提示浏览器走合成层，减少重绘 */
+}
+
+
+/* ── 临时调试面板（定位手感问题用，可随时删除）── */
+.nx-debug {
+  position: fixed;
+  left: 14px;
+  bottom: 14px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 999px;
+  border: none;
+  background: rgba(10, 8, 10, .55);
+  backdrop-filter: blur(4px);
+  font-size: 12px;
+  opacity: .32;
+  transition: opacity .25s;
+}
+.nx-debug:hover { opacity: 1; }
+.nx-debug-title { color: #8d8d96; letter-spacing: 1px; }
+.nx-dbg-btn {
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: none;
+  background: transparent;
+  color: #9a9aa4;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: .18s;
+}
+.nx-dbg-btn.is-on { background: rgba(216, 30, 68, .22); color: #ffc0cd; }
+.nx-dbg-btn:hover { color: var(--nx-gold-light, #F0E68C); }
+@media (max-width: 560px) {
+  .nx-debug { left: 8px; bottom: 8px; gap: 4px; padding: 4px 6px; }
+  .nx-dbg-btn { padding: 3px 8px; font-size: 11px; }
+}
+
+
+/* ── 2×2 布局（「卡片」节点：卡池 / 卡表 / 预组 / 常用卡）── */
+.nx-options.is-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, auto));
+  grid-template-areas: none;          /* 覆盖三角布局的 "top top"/"left right" */
+  grid-auto-flow: row;
+  justify-content: center;
+  align-content: center;
+  justify-items: center;
+  align-items: center;
+  gap: clamp(6px, 1.6vh, 18px) clamp(10px, 3vw, 40px);
+}
+/* 四个按钮不再占用 top/left/right 区域，按顺序排成 2×2 */
+.nx-options.is-grid .nx-option:nth-child(1),
+.nx-options.is-grid .nx-option:nth-child(2),
+.nx-options.is-grid .nx-option:nth-child(3),
+.nx-options.is-grid .nx-option:nth-child(4) { grid-area: auto; }
+.nx-options.is-grid .nx-option { --size: clamp(104px, 14vw, 166px); }
+@media (max-width: 768px) {
+  .nx-options.is-grid { gap: 4px clamp(6px, 3vw, 20px); }
+  .nx-options.is-grid .nx-option { --size: clamp(92px, 25vw, 118px); }
+  .nx-options.is-grid .nx-option .nx-opt-sub { display: none; }
+}
+
+
+/* ══ 功能屏（外壳）════════════════════════════════════════
+   问答区隐藏，改为整屏内容；返回靠左上角 ← / Esc（问答页仍可点空白返回）
+   ═══════════════════════════════════════════════════════ */
+.nx-stage.nx-leaving .nx-screen { animation: nxScreenOut .2s ease-in both; }
+@keyframes nxScreenOut { to { opacity: 0; transform: scale(.99); filter: blur(3px); } }
+
+.nx-stage.is-screen .nx-question,
+.nx-stage.is-screen .nx-options,
+.nx-stage.is-screen .nx-result { display: none !important; }
+
+.nx-screen {
+  width: min(980px, 100%);
+  max-width: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: clamp(10px, 2vh, 20px);
+  padding: clamp(10px, 1.8vh, 20px) clamp(6px, 1vw, 14px);
+  /* 无边框、无底板：靠边缘渐变淡出与内容自身呼吸 */
+}
+/* 每次打开都重播（JS 切换 .is-in）：与开场同款「失焦 → 合焦」 */
+.nx-screen.is-in { animation: nxScreenIn .52s cubic-bezier(.22, .9, .28, 1.02) both; }
+@keyframes nxScreenIn {
+  0%   { opacity: 0; transform: translateY(18px) scale(.975); filter: blur(7px); }
+  55%  { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: none; filter: blur(0); }
+}
+/* 内容逐条错开浮现（配合 element.style.--i 的延迟） */
+.nx-reveal { animation: nxReveal .5s cubic-bezier(.22, .9, .28, 1.02) both; animation-delay: calc(var(--i, 0) * 32ms); }
+/* 表格行：<tr> 上的 transform/filter 浏览器不生效，改用纯透明度渐变 */
+.nx-reveal-fade { animation: nxRevealFade .42s ease-out both; animation-delay: calc(var(--i, 0) * 26ms); }
+@keyframes nxRevealFade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes nxReveal {
+  0%   { opacity: 0; transform: translateY(10px); filter: blur(4px); }
+  60%  { opacity: 1; filter: blur(0); }
+  100% { opacity: 1; transform: none; filter: blur(0); }
+}
+.nx-screen-head { display: flex; align-items: center; gap: 12px; }
+.nx-screen-titles h2 { margin: 0; font-size: clamp(18px, 2.4vw, 26px); letter-spacing: 1px; color: #f2ece4; }
+.nx-screen-titles p { margin: 3px 0 0; font-size: 12.5px; color: var(--nx-dim, #8d8d96); letter-spacing: .5px; }
+.nx-screen-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  padding: 0;
+}
+/* 占位说明仍给一点容器感，免得空落落 */
+.nx-screen-todo { margin-top: 34px; }
+.nx-screen-todo-sub { margin-bottom: 34px; }
+.nx-screen-todo { margin: 0; font-size: 15px; color: #e8e0d6; letter-spacing: 1px; }
+.nx-screen-todo-sub { margin: 0; font-size: 12.5px; color: var(--nx-dim, #8d8d96); }
+.nx-screen-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.nx-screen-classic {
+  padding: 9px 4px;
+  border: none;
+  background: none;
+  border-bottom: 1px solid rgba(216, 30, 68, .45);
+  color: #ffc0cd;
+  font-family: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: .22s;
+}
+.nx-screen-classic:hover { border-bottom-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
+.nx-screen-hint { font-size: 11.5px; color: #6f6f78; letter-spacing: .5px; }
+
+
+/* ── 天梯排名屏 ─────────────────────────────────────────── */
+.nx-screen-body > .nx-ladder-top,
+.nx-screen-body > .nx-table-wrap,
+.nx-screen-body > .nx-table-note,
+.nx-screen-body > .nx-empty,
+.nx-screen-body > .nx-loading,
+.nx-screen-body > .nx-screen-err { align-self: stretch; width: 100%; }
+
+.nx-ladder-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.nx-ladder-count { display: flex; align-items: baseline; gap: 6px; }
+.nx-ladder-count b { font-size: 26px; color: var(--nx-gold-light, #F0E68C); letter-spacing: 1px; }
+.nx-ladder-count span { font-size: 12px; color: var(--nx-dim, #8d8d96); }
+.nx-ladder-tiers { display: flex; gap: 6px; flex-wrap: wrap; }
+.nx-tier-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 11.5px; letter-spacing: .5px;
+  border: 1px solid rgba(150, 150, 160, .35); color: #b9b9c2;
+}
+.nx-tier-chip i { font-style: normal; color: #7d7d86; font-size: 10.5px; }
+
+.nx-table-wrap { overflow: auto; max-height: 46vh; border-radius: 14px; border: 1px solid rgba(216,30,68,.18); }
+.nx-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.nx-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  text-align: left; font-weight: 600; color: #9a9aa4;
+  padding: 9px 12px; background: #171116;
+  border-bottom: 1px solid rgba(216,30,68,.25);
+}
+.nx-table tbody td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.05); color: #ddd6cd; }
+.nx-table tbody tr:hover td { background: rgba(216,30,68,.07); }
+.nx-table .c-rank { width: 54px; color: var(--nx-gold, #D4AF37); font-weight: 700; text-align: center; }
+.nx-table .c-name { font-weight: 600; }
+.nx-table .c-rating { color: var(--nx-gold-light, #F0E68C); font-weight: 700; }
+.nx-table .c-rate { color: #9a9aa4; }
+.nx-streak {
+  margin-left: 7px;
+  font-size: 10.5px; color: #ff8fa6; letter-spacing: .5px;
+}
+.nx-tier-badge { padding: 2px 8px; border-radius: 999px; font-size: 11.5px; border: none; }
+.nx-tier-badge.is-peak { color: #ffe9a8; background: rgba(212,175,55,.16); }
+.nx-tier-badge.is-master { color: #d9b8ff; background: rgba(170,110,255,.14); }
+.nx-tier-badge.is-diamond { color: #a8e6ff; background: rgba(90,200,255,.14); }
+.nx-tier-badge.is-gold { color: #ffd9a0; background: rgba(230,160,60,.14); }
+.nx-tier-badge.is-silver { color: #d6dbe3; background: rgba(180,190,205,.12); }
+.nx-tier-badge.is-rookie { color: #b9b9c2; background: rgba(150,150,160,.12); }
+.nx-table-note { margin-top: 10px; font-size: 11.5px; color: #6f6f78; }
+
+.nx-loading { display: flex; align-items: center; justify-content: center; gap: 10px; color: #9a9aa4; font-size: 13px; padding: 40px 0; }
+.nx-spin {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(216,30,68,.25); border-top-color: var(--nx-red, #D81E44);
+  animation: nxSpinRot .8s linear infinite;
+}
+@keyframes nxSpinRot { to { transform: rotate(360deg); } }
+.nx-empty { text-align: center; color: #9a9aa4; font-size: 13px; line-height: 1.9; padding: 34px 10px; }
+.nx-screen-err { text-align: center; color: #ffb4c4; font-size: 13px; padding: 30px 10px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.nx-screen-retry {
+  padding: 7px 4px; font-family: inherit; font-size: 12.5px; cursor: pointer;
+  border: none; background: none; border-bottom: 1px solid rgba(216,30,68,.45); color: #ffc0cd;
+}
+.nx-screen-retry:hover { border-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
+
+
+/* ── 无框滚动列表：边缘渐变淡出 + 3D 透视 ───────────────── */
+.nx-scroll {
+  width: 100%;
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-top: 0;   /* 纵向留白由 JS 按容器高度计算（首尾可滚到正中） */
+  padding-bottom: 0;
+  scrollbar-width: none;
+  perspective: 900px;
+  /* 上下边缘渐变淡出（替代边框） */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 30px, #000 calc(100% - 34px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 30px, #000 calc(100% - 34px), transparent 100%);
+}
+.nx-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* 列表收窄居中；表头与行共用同一宽度上下文，保证列对齐 */
+.nx-scroll, .nx-list-head, .nx-list-note {
+  width: 100%;          /* flex 项上的 margin:auto 会让 align-self:stretch 失效，需显式撑满 */
+  max-width: 880px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+.nx-list-head, .nx-scroll, .nx-list-note { align-self: stretch; }   /* flex 列容器里默认会收缩成内容宽度 */
+.nx-list-head, .nx-scroll { padding-left: 12px; padding-right: 12px; }
+.nx-list-head, .nx-row { grid-template-columns: 54px 1fr 104px 76px 130px 72px; }
+
+.nx-list-head {
+  display: grid;
+  gap: 10px;
+  padding-top: 0;
+  padding-bottom: 8px;
+  font-size: 11.5px;
+  letter-spacing: .5px;
+  color: #7d7d86;
+  border-bottom: 1px solid rgba(216, 30, 68, .18);
+}
+.nx-list-head span:first-child { text-align: center; }
+
+.nx-list { display: flex; flex-direction: column; }
+.nx-row {
+  display: grid;
+  align-items: center;
+  gap: 10px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+  font-size: 13px;
+  color: #ddd6cd;
+  border-bottom: 1px solid rgba(255, 255, 255, .045);
+  transform-origin: center center;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+.nx-row:last-child { border-bottom: none; }
+.nx-row .c-rank { text-align: center; color: var(--nx-gold, #D4AF37); font-weight: 700; }
+.nx-row .c-name { font-weight: 600; text-align: left; }
+.nx-row .c-rating { color: var(--nx-gold-light, #F0E68C); font-weight: 700; }
+.nx-row .c-rate { color: #9a9aa4; }
+.nx-row .c-wld { color: #b9b9c2; }
+.nx-list-note { margin-top: 6px; font-size: 11.5px; color: #6f6f78; text-align: center; }
+
+@media (max-width: 768px) {
+  .nx-list-head, .nx-row { grid-template-columns: 40px 1fr 84px 60px; }
+  .nx-list-head, .nx-scroll { padding-left: 8px; padding-right: 8px; }
+  .nx-list-head { padding-bottom: 6px; }
+  .nx-list-head span:nth-child(5), .nx-list-head span:nth-child(6) { display: none; }
+  .nx-row { font-size: 12px; gap: 6px; padding-top: 9px; padding-bottom: 9px; }
+  .nx-row .c-wld, .nx-row .c-rate { display: none; }
+  .nx-scroll { max-height: 52vh; padding-top: 26px; padding-bottom: 26px; }
+}
+
+
+/* ── 选手条：悬停变黄 + 可点击 ─────────────────────────── */
+.nx-row { cursor: pointer; transition: color .18s, background .22s; }
+.nx-row:hover {
+  background: linear-gradient(90deg, rgba(212,175,55,0) 0, rgba(212,175,55,.10) 14%, rgba(212,175,55,.10) 86%, rgba(212,175,55,0) 100%);
+}
+.nx-row:hover .c-name { color: #fff3c4; }
+.nx-row:hover .c-rank,
+.nx-row:hover .c-rating { color: #ffe9a8; }
+.nx-row:hover .c-wld,
+.nx-row:hover .c-rate { color: #e8d9a8; }
+.nx-row:hover .nx-tier-badge { background: rgba(212,175,55,.26); color: #fff3c4; }
+.nx-row:active { background: rgba(212,175,55,.16); }
+
+
+@media (max-width: 768px) {
+  .nx-modal-cols { grid-template-columns: 1fr; }
+  .nx-col-body { max-height: 34vh; }
+}
+
+
+/* ══ 选手详情：线圈式（无矩形）══════════════════════════
+   点击选手条 → 整屏向点击处收缩消失 → 只剩两个线圈选项
+   ═══════════════════════════════════════════════════════ */
+/* 原界面收缩：以点击位置为原点 */
+.nx-stage, .nx-top, .nx-foot {
+  transition: transform .5s cubic-bezier(.3, .05, .2, 1), opacity .45s ease, filter .45s ease;
+}
+body.nx-zoomed .nx-stage,
+body.nx-zoomed .nx-top,
+body.nx-zoomed .nx-foot {
+  transform-origin: var(--zo-x, 50%) var(--zo-y, 50%);
+  transform: scale(.14);
+  opacity: 0;
+  filter: blur(6px);
+  pointer-events: none;
+}
+
+.nx-pov { position: fixed; inset: 0; z-index: 70; display: flex; align-items: center; justify-content: center; }
+.nx-pov-dim {
+  position: absolute; inset: 0;
+  background: radial-gradient(circle at var(--ox, 50%) var(--oy, 50%), rgba(8, 4, 6, .55), rgba(3, 2, 4, .93) 65%);
+  animation: nxFadeIn .45s ease-out both;
+}
+.nx-pov.is-closing .nx-pov-dim { animation: nxFadeIn .4s ease-in reverse both; }
+@keyframes nxFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.nx-pov-inner {
+  position: relative;
+  width: min(1000px, 94vw);
+  display: flex; flex-direction: column; align-items: center;
+  gap: clamp(14px, 3vh, 34px);
+  padding: 0 8px;
+}
+.nx-pov-title { text-align: center; animation: nxPovTitle .5s cubic-bezier(.22,.9,.28,1.02) both .12s; }
+.nx-pov-title b { font-size: clamp(20px, 2.6vw, 30px); letter-spacing: 2px; color: #f4eee6; }
+.nx-pov-title span { display: block; margin-top: 4px; font-size: 12.5px; color: var(--nx-gold, #D4AF37); letter-spacing: 1px; }
+@keyframes nxPovTitle { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+
+.nx-pov-choices { display: flex; align-items: center; justify-content: center; gap: clamp(36px, 10vw, 150px); }
+.nx-pov-choices .nx-option { --size: clamp(150px, 21vw, 210px); }   /* 与主菜单同尺寸 */
+/* 关掉主菜单那套 optionIn：浮层里的类变化(返回动画/内容态)会让它重播，导致入场动画播两遍 */
+.nx-pov .nx-option { animation: none; animation-delay: 0s; }
+/* 入场只在刚打开时播一次（is-entering 在播完后由 JS 移除），否则返回时会再播一遍 */
+.nx-pov.is-entering .nx-pov-choices .nx-option { animation: nxPovCircle .62s cubic-bezier(.22,.9,.28,1.02) both; animation-delay: calc(.18s + var(--i, 0) * .1s); }
+@keyframes nxPovCircle {
+  from { opacity: 0; transform: scale(.35); filter: blur(10px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+/* 选中某一项后：两个线圈缩小消失 */
+.nx-pov.is-viewing .nx-pov-choices { pointer-events: none; animation: nxPovChoicesOut .34s ease-in both; }
+/* 动画播完后真正移出布局：否则这块空白会把下面的内容顶下去 */
+.nx-pov.is-viewing-done .nx-pov-choices { display: none; }
+/* 内容态整体靠上排：在"选中内容"的当帧就切换（而不是等线圈消失后），避免加载完卡片后整体上跳 */
+.nx-pov.is-viewing { align-items: flex-start; padding-top: clamp(14px, 4.5vh, 48px); }
+@keyframes nxPovChoicesOut { to { opacity: 0; transform: scale(.55); filter: blur(10px); } }
+.nx-pov.is-viewing .nx-pov-title { opacity: .55; transition: opacity .3s; }
+
+.nx-pov-view.is-duels { width: min(640px, 100%); }
+.nx-pov-view:not(.is-duels) {
+  width: min(1240px, 96vw);
+  max-height: none;      /* 卡组一屏全显示：不设限高，靠 JS 等比缩放适配 */
+  overflow: visible;
+}
+.nx-pov-view { width: min(880px, 100%); max-height: 56vh; overflow-y: auto; scrollbar-width: thin; animation: nxPovViewIn .46s cubic-bezier(.22,.9,.28,1.02) both .1s; }
+.nx-pov-view[hidden] { display: none; }
+@keyframes nxPovViewIn { from { opacity: 0; transform: translateY(14px) scale(.985); filter: blur(8px); } to { opacity: 1; transform: none; filter: blur(0); } }
+
+
+@media (max-width: 768px) {
+  .nx-pov-choices { gap: clamp(20px, 6vw, 40px); }
+  .nx-pov-choices .nx-option { --size: clamp(112px, 32vw, 140px); }
+  .nx-pov-choices .nx-opt-sub { display: none; }
+  .nx-pov-view { max-height: 50vh; }
+}
+
+
+/* ── 选手详情内容：对局列表 / 卡组列表（无框，靠发丝线与排版分层）── */
+.nx-duel {
+  display: grid;
+  grid-template-columns: 26px 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 2px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, .05);
+}
+.nx-duel:last-child { border-bottom: none; }
+.nx-duel-tag { text-align: center; font-weight: 700; font-size: 12px; }
+.nx-duel-tag.is-win { color: #ffe9a8; }
+.nx-duel-tag.is-lose { color: #8d8d96; }
+.nx-duel-tag.is-draw { color: #a8e6ff; }
+.nx-duel-opp { color: #ddd6cd; font-weight: 600; text-align: left; }
+.nx-duel-meta { color: #7d7d86; font-size: 11.5px; }
+.nx-duel-time { color: #9a9aa4; font-size: 11.5px; }
+.nx-duel-replay {
+  border: none; background: none; padding: 2px 0; cursor: pointer;
+  color: #ffc0cd; font-family: inherit; font-size: 11.5px; letter-spacing: .5px;
+  border-bottom: 1px dashed rgba(216, 30, 68, .5);
+}
+.nx-duel-replay:hover { color: var(--nx-gold-light, #F0E68C); border-bottom-color: rgba(212, 175, 55, .7); }
+
+.nx-deck-meta { font-size: 11.5px; color: #7d7d86; margin-bottom: 12px; text-align: center; }
+.nx-deck-group { margin-bottom: 16px; }
+.nx-deck-group-title { font-size: 12px; color: #9a9aa4; letter-spacing: 2px; margin-bottom: 8px; }
+.nx-deck-group-title i { font-style: normal; color: var(--nx-gold, #D4AF37); }
+.nx-deck-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); gap: 6px 14px; }
+.nx-deck-card { font-size: 12.5px; color: #ddd6cd; }
+.nx-deck-card:hover { color: #fff3c4; }
+.nx-empty { padding: 30px 4px; text-align: center; font-size: 12.5px; color: #7d7d86; }
+
+
+/* ── 退场动画 ───────────────────────────────────────────── */
+/* 内容退场（返回到两个线圈时） */
+.nx-pov-view.is-leaving { animation: nxPovViewOut .26s ease-in both; }
+@keyframes nxPovViewOut {
+  to { opacity: 0; transform: translateY(-10px) scale(.965); filter: blur(9px); }
+}
+/* 线圈回归 */
+.nx-pov-choices.is-back .nx-option {
+  animation: nxPovCircleBack .5s cubic-bezier(.22, .9, .28, 1.02) both;
+  animation-delay: calc(var(--i, 0) * 80ms);
+}
+@keyframes nxPovCircleBack {
+  from { opacity: 0; transform: scale(.72); filter: blur(9px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+/* 关闭整个线圈层：内容整体收缩消失（舞台同时放大复原） */
+.nx-pov.is-closing .nx-pov-inner { animation: nxPovInnerOut .36s cubic-bezier(.4, 0, .7, .3) both; }
+@keyframes nxPovInnerOut {
+  to { opacity: 0; transform: scale(.82); filter: blur(12px); }
+}
+.nx-pov.is-closing .nx-pov-dim { animation: nxFadeOut .44s ease-in both; }
+@keyframes nxFadeOut { to { opacity: 0; } }
+
+
+/* ── 卡组信息美化（选手详情右侧视图）────────────────────── */
+.nx-pov-view:not(.is-duels) .nx-deck-meta {
+  color: #9a9aa4;
+  letter-spacing: .5px;
+}
+.nx-pov-view .nx-deck-group {
+  margin-bottom: 18px;
+  /* 不再整组淡入：改用卡图逐张入场（见 .nx-deck-tile），避免两套动画打架 */
+}
+@keyframes nxDeckIn {
+  from { opacity: 0; transform: translateY(10px); filter: blur(5px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+.nx-pov-view .nx-deck-group-title {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--nx-gold, #D4AF37);
+  margin-bottom: 4px;
+}
+.nx-pov-view .nx-deck-group-title i {
+  margin-left: auto; font-size: 11px; letter-spacing: 0;
+  color: #e8d9a8; font-weight: 600;
+}
+/* ── 卡组两栏：左主卡组(58%) / 右额外+副(38%)，与老站一致 ── */
+.nx-deck-fit { width: 100%; }
+.nx-deck-cols { display: flex; gap: clamp(10px, 1.6vw, 20px); align-items: flex-start; }
+.nx-deck-col-main { flex: 1 1 58%; min-width: 0; }
+.nx-deck-col-side { flex: 0 0 38%; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
+.nx-pov-view .nx-deck-col-main .nx-deck-cards,
+.nx-pov-view .nx-deck-col-side .nx-deck-cards { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+@media (max-width: 900px) {
+  .nx-deck-cols { flex-direction: column; gap: 8px; }
+  .nx-deck-col-main, .nx-deck-col-side { flex: 1 1 auto; width: 100%; }
+  .nx-pov-view .nx-deck-col-main .nx-deck-cards,
+  .nx-pov-view .nx-deck-col-side .nx-deck-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+}
+
+/* ── 卡组视图：复刻老站布局（紧凑网格 + 底部角标），去掉灰底/边框 ── */
+.nx-pov-view .nx-deck-cards {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 2px;
+  background: none;
+  padding: 0;
+  border: none;
+}
+.nx-deck-tile {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center;
+  min-width: 0;
+  transition: transform .2s cubic-bezier(.22, .9, .28, 1.02), filter .2s;
+}
+.nx-deck-photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 42 / 61;
+  overflow: hidden;
+  border-radius: 2px;
+}
+.nx-deck-img {
+  width: 100%; height: 100%;
+  aspect-ratio: 42 / 61;
+  object-fit: cover;
+  display: block;
+  border-radius: 2px;
+  border: none;                     /* 老站此处有 1px 描边，按要求去掉 */
+  background: rgba(255, 255, 255, .04);
+}
+.nx-deck-tile:hover { transform: translateY(-3px) scale(1.06); filter: drop-shadow(0 6px 16px rgba(216, 30, 68, .45)); }
+.nx-deck-tile:hover .nx-deck-img { box-shadow: 0 0 0 1px rgba(212, 175, 55, .75); }
+.nx-deck-img.is-missing { opacity: .28; }
+
+/* 角标（老站位置：分值左下、DIY 右下；深色底 + 金字，去描边） */
+.nx-deck-score,
+.nx-deck-diy {
+  position: absolute;
+  bottom: 2px;
+  height: 14px; line-height: 14px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-size: 9.5px; font-weight: 700;
+  color: #FFD700;
+  background: rgba(0, 0, 0, .85);
+  pointer-events: none;
+}
+.nx-deck-score { left: 2px; min-width: 15px; text-align: center; }
+.nx-deck-score.is-forbidden { color: #ff9a9a; }
+.nx-deck-diy { right: 2px; font-size: 8.5px; letter-spacing: .3px; }
+
+/* 顶部信息行（对齐老站 deck-info） */
+.nx-deck-info {
+  display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: 18px;
+  margin-bottom: 6px;
+  font-size: 11.5px; color: #9a9aa4;
+}
+.nx-deck-info-item b { color: #e8d9a8; font-weight: 700; }
+.nx-deck-info-warn { color: #ff8fa6; font-weight: 600; }
+
+.nx-deck-fit.is-compact .nx-deck-cards { gap: 2px; }
+
+
+/* 角标样式见上方"复刻老站布局"一节（分值左下 / DIY 右下）*/
+
+/* ── 卡片效果浮层 ─────────────────────────────────────── */
+.nx-card-tip {
+  position: fixed; z-index: 90;
+  display: none;
+  width: min(320px, 84vw);
+  max-height: 62vh;
+  overflow: hidden;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: radial-gradient(120% 100% at 50% 0%, rgba(38, 18, 24, .97), rgba(10, 7, 10, .98) 62%);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .8), inset 0 0 0 1px rgba(216, 30, 68, .2);
+  color: #ddd6cd;
+  font-size: 12.5px;
+  line-height: 1.55;
+  pointer-events: none;
+  animation: nxTipIn .18s ease-out both;
+}
+@keyframes nxTipIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.nct-name { font-size: 14px; font-weight: 700; color: #f4eee6; letter-spacing: .5px; }
+.nct-type { margin-top: 3px; font-size: 11.5px; color: var(--nx-gold, #D4AF37); letter-spacing: 1px; }
+.nct-meta { margin-top: 2px; font-size: 11px; color: #9a9aa4; }
+.nct-stat { margin-top: 4px; font-size: 12px; color: #ffd9a0; font-weight: 600; }
+.nct-score {
+  display: inline-block; margin-top: 6px; padding: 1px 8px; border-radius: 999px;
+  font-size: 11px; color: #1a0d12; background: linear-gradient(135deg, #F0E68C, #D4AF37);
+}
+.nct-desc {
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid rgba(216, 30, 68, .2);
+  white-space: pre-wrap; font-size: 12px; color: #c9c3bb;
+}
+.nct-author { margin-top: 6px; font-size: 10.5px; color: #7d7d86; }
+
+
+/* ══ 卡组动画 ══════════════════════════════════════════════
+   ① 入场：按对角序号 --i（左上 → 右下）依次"贴"上来，整段约 0.5s
+   ② 悬停：边框自左向右展开 → 随后卡名缓入；移出时反向且更快
+   ═══════════════════════════════════════════════════════════ */
+.nx-deck-tile {
+  animation: nxCardPaste .26s cubic-bezier(.2, .85, .3, 1) both;
+  animation-delay: calc(var(--i, 0) * 14ms);
+}
+@keyframes nxCardPaste {
+  from { opacity: 0; transform: translate3d(-7px, -9px, 0) scale(.93); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: none; }
+}
+
+
+
+/* ══ 效果框动画 ════════════════════════════════════════════
+   进入：金色边框自左向右展开 → 随后文字缓入
+   移出：反向回收到左侧，且更快
+   ═══════════════════════════════════════════════════════════ */
+.nx-card-tip { border: none; }
+.nx-card-tip::before {
+  content: '';
+  position: absolute; inset: 0;
+  border-radius: inherit;
+  border: 1px solid rgba(212, 175, 55, .85);
+  box-shadow: 0 0 18px rgba(216, 30, 68, .18);
+  clip-path: inset(0 100% 0 0);
+  pointer-events: none;
+}
+.nx-card-tip.is-in::before { animation: nxTipBorder .26s cubic-bezier(.22, .9, .28, 1) both; }
+@keyframes nxTipBorder { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0); } }
+.nx-card-tip.is-in { animation: none; }
+.nx-card-tip.is-in > * { animation: nxTipText .3s ease .14s both; }
+@keyframes nxTipText {
+  from { opacity: 0; transform: translateY(3px); filter: blur(3px); }
+  to   { opacity: 1; transform: none; filter: blur(0); }
+}
+/* 移出：更快、反向 */
+.nx-card-tip.is-out::before { animation: nxTipBorderOut .1s ease-in both; }
+@keyframes nxTipBorderOut { from { clip-path: inset(0); } to { clip-path: inset(0 100% 0 0); } }
+.nx-card-tip.is-out > * { animation: nxTipTextOut .08s ease-in both; }
+@keyframes nxTipTextOut { to { opacity: 0; transform: translateY(2px); } }
+
+
+/* ══ 天梯界面整体放大 125%（基准值 ×1.25；想调大小只改这一段即可）══
+   仅作用于桌面端，手机端仍用自己的紧凑布局（见各自的 @media）
+   ═══════════════════════════════════════════════════════════════════ */
+@media (min-width: 769px) {
+  /* 外壳与列表宽度同步放大（1080→1350 / 880→1100），否则列表会被外壳卡在 952px */
+  .nx-screen { width: min(1350px, 100%); }
+  .nx-scroll, .nx-list-head, .nx-list-note { max-width: 1100px; }
+  /* 滚动区高度 56vh/520 → 64vh/650，保证放大后可见行数不变少 */
+  .nx-scroll { max-height: min(64vh, 650px); }
+
+  /* 表头 11.5 → 14.5 */
+  .nx-list-head { gap: 13px; padding-bottom: 10px; font-size: 14.5px; letter-spacing: .6px; }
+
+  /* 列宽 ×1.25：54/104/76/130/72 → 68/130/95/163/90 */
+  .nx-list-head, .nx-row { grid-template-columns: 68px 1fr 130px 95px 163px 90px; }
+
+  /* 行：内边距 11 → 14、字号 13 → 16、行高放宽 */
+  .nx-row { padding-top: 14px; padding-bottom: 14px; font-size: 16px; gap: 13px; }
+  .nx-row .c-rank { font-size: 17px; }
+
+  /* 段位徽章 11.5 → 14.5、内边距同步放大 */
+  .nx-tier-badge { padding: 3px 10px; font-size: 14.5px; }
+  .nx-streak { font-size: 13px; margin-left: 9px; }
+
+  /* 顶部：人数 26 → 32、单位 12 → 15 */
+  .nx-ladder-top { margin-bottom: 18px; }
+  .nx-ladder-count { gap: 8px; }
+  .nx-ladder-count b { font-size: 32px; }
+  .nx-ladder-count span { font-size: 15px; }
+
+  /* 表尾说明 */
+  .nx-list-note { margin-top: 8px; font-size: 14.5px; }
+
+  /* 屏幕标题：按原 clamp(18,2.4vw,26) 放大 25% —— 直接写 em 会丢掉 clamp 反而变小 */
+  .nx-screen-titles h2 { font-size: clamp(22px, 3vw, 32px); }
+  .nx-screen-titles p { font-size: 15.5px; }
+}
+
+
+/* ── 卡图加载动画（等卡图全部就绪再渲染卡组）───────────── */
+.nx-deck-loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: clamp(14px, 2.4vh, 26px);
+  min-height: clamp(180px, 28vh, 300px);
+  width: 100%;
+  text-align: center;
+}
+.nx-load-rings { position: relative; width: clamp(64px, 9vh, 92px); aspect-ratio: 1; }
+.nx-load-rings i {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  animation: nxLoadSpin 1.5s linear infinite;
+}
+.nx-load-rings i:nth-child(1) {
+  border-top-color: var(--nx-gold, #D4AF37);
+  border-right-color: rgba(212, 175, 55, .35);
+  animation-duration: 1.15s;
+}
+.nx-load-rings i:nth-child(2) {
+  inset: 13%;
+  border-bottom-color: var(--red, #D81E44);
+  border-left-color: rgba(216, 30, 68, .35);
+  animation-duration: 1.7s; animation-direction: reverse;
+}
+.nx-load-rings i:nth-child(3) {
+  inset: 27%;
+  border-top-color: #ffe9a8;
+  animation-duration: .95s;
+}
+@keyframes nxLoadSpin { to { transform: rotate(360deg); } }
+.nx-load-text {
+  font-size: clamp(12.5px, 1.5vw, 15px);
+  letter-spacing: 1.5px;
+  color: #8d8d96;
+  font-variant-numeric: tabular-nums;
+}
+.nx-load-text b { color: var(--nx-gold-light, #F0E68C); font-weight: 700; }
+
+
+/* ══ 卡组/内容态背景质感（替换纯黑，保持整体暗调，衬托卡面）══
+   全部用渐变与极低透明度实现，不加任何边框
+   ═════════════════════════════════════════════════════════════ */
+.nx-pov-dim {
+  background:
+    radial-gradient(130% 80% at 50% -8%, rgba(216, 30, 68, .13), rgba(216, 30, 68, 0) 58%),
+    radial-gradient(110% 70% at 50% 104%, rgba(212, 175, 55, .085), rgba(212, 175, 55, 0) 60%),
+    radial-gradient(circle at var(--ox, 50%) var(--oy, 50%), rgba(34, 14, 20, .72), rgba(6, 4, 7, .95) 66%);
+}
+/* 极淡网格：只在中间区域可见，四周淡出 */
+.nx-pov-dim::before {
+  content: '';
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, .03) 1px, rgba(255, 255, 255, 0) 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, .03) 1px, rgba(255, 255, 255, 0) 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(circle at 50% 42%, #000 8%, rgba(0, 0, 0, 0) 74%);
+  mask-image: radial-gradient(circle at 50% 42%, #000 8%, rgba(0, 0, 0, 0) 74%);
+  pointer-events: none;
+}
+/* 两团角落微光，避免大片死黑 */
+.nx-pov-dim::after {
+  content: '';
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(circle at 16% 20%, rgba(216, 30, 68, .12), rgba(216, 30, 68, 0) 40%),
+    radial-gradient(circle at 84% 80%, rgba(212, 175, 55, .09), rgba(212, 175, 55, 0) 38%);
+  pointer-events: none;
+}
+/* 内容态：在卡组后面加一层很淡的中心聚光，让卡面更立起来 */
+.nx-pov.is-viewing .nx-pov-inner::before {
+  content: '';
+  position: absolute;
+  left: 50%; top: 2%;
+  width: min(1180px, 96vw); height: 78vh;
+  transform: translateX(-50%);
+  background: radial-gradient(60% 50% at 50% 40%, rgba(255, 236, 200, .045), rgba(255, 236, 200, 0) 70%);
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* ══ 预组：横向 3D 卡flow（滚轮左右切换，中间最近，同屏 5 个）══
+   每套卡组用 3 张卡图叠成小扇形，中间那套额外描金
+   ═══════════════════════════════════════════════════════════ */
+.nx-cf {
+  align-self: stretch;
+  flex: 1 1 auto; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: clamp(10px, 2vh, 22px);
+  width: 100%;
+  overflow: hidden;          /* 两侧卡片被推到屏外时不要撑出横向滚动/右侧空白 */
+  position: relative;
+  touch-action: pan-y;       /* 水平方向交给手势拖动，竖直方向仍可正常滚动 */
+  cursor: grab;
+}
+.nx-cf.is-dragging { cursor: grabbing; }
+.nx-cf-stage {
+  position: relative;
+  width: min(1180px, 96vw);
+  height: clamp(300px, 46vh, 460px);
+  perspective: 1250px;
+  transform-style: preserve-3d;
+}
+.nx-cf-item {
+  position: absolute; left: 50%; top: 50%;
+  width: clamp(140px, 15vw, 196px);
+  margin: 0;                       /* 居中由 JS 的 translate(-50%,-50%) 完成，别用百分比 margin（会按容器宽度算）*/
+  transform-origin: 50% 60%;
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+  padding: 0; border: none; background: none;
+  font-family: inherit; cursor: pointer;
+  transition: transform .5s cubic-bezier(.22, .9, .28, 1.02), opacity .42s ease;
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+/* 3 张卡图的扇形堆叠 */
+.nx-cf-fan { position: relative; width: 100%; aspect-ratio: 42 / 61; }
+.nx-cf-card {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: cover; display: block;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, .04);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .62);
+  transition: box-shadow .3s, transform .3s, filter .3s;
+}
+.nx-cf-c2 { transform: translate(-17px, 7px) rotate(-12deg) scale(.93); filter: brightness(.72); }
+.nx-cf-c1 { transform: translate(17px, 5px) rotate(10deg) scale(.965); filter: brightness(.86); }
+.nx-cf-c0 { transform: none; }
+/* 中间那套：3 张卡摊开成弧形（中间封面明显最高，两侧压低），亮度恢复 */
+.nx-cf-item.is-center .nx-cf-c2 { transform: translate(-86px, 22px) rotate(-19deg) scale(1); filter: brightness(1); }
+.nx-cf-item.is-center .nx-cf-c1 { transform: translate(86px, 22px) rotate(19deg) scale(1); filter: brightness(1); }
+.nx-cf-item.is-center .nx-cf-c0 { transform: translateY(-18px); }
+
+/* 鼠标移上去：整组卡放大一点 */
+.nx-cf-fan { transition: transform .32s cubic-bezier(.22, .9, .28, 1.02); }
+.nx-cf-item:hover .nx-cf-fan { transform: scale(1.07); }
+
+/* 鼠标移上去：整组卡边缘呼吸发光（亮黄色） */
+.nx-cf-item:hover .nx-cf-card { animation: nxCfBreath 1.9s ease-in-out infinite; }
+.nx-cf-item:hover .nx-cf-c2 { animation-delay: .12s; }
+.nx-cf-item:hover .nx-cf-c1 { animation-delay: .24s; }
+@keyframes nxCfBreath {
+  0%, 100% {
+    box-shadow: 0 10px 26px rgba(0, 0, 0, .62),
+                0 0 0 1px rgba(255, 226, 96, .38),
+                0 0 12px rgba(255, 214, 40, .22);
+  }
+  50% {
+    box-shadow: 0 13px 32px rgba(0, 0, 0, .66),
+                0 0 0 1.5px rgba(255, 243, 160, .72),
+                0 0 26px rgba(255, 214, 40, .5),
+                0 0 52px rgba(255, 204, 0, .24);
+  }
+}
+.nx-cf-name {
+  margin-top: 4px;
+  font-size: clamp(13px, 1.35vw, 16px);
+  letter-spacing: 1px; color: #e6e0d8;
+  transition: color .25s, text-shadow .25s;
+}
+.nx-cf-meta { font-size: 11.5px; color: #7d7d86; letter-spacing: .5px; }
+/* 中间那套：最前、最亮、描金 */
+.nx-cf-item.is-center .nx-cf-c0 {
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, .9), 0 20px 46px rgba(0, 0, 0, .72), 0 0 40px rgba(216, 30, 68, .22);
+}
+.nx-cf-item.is-center .nx-cf-name { color: #fff3c4; text-shadow: 0 0 16px rgba(212, 175, 55, .45); }
+.nx-cf-item:hover .nx-cf-c0 { box-shadow: 0 0 0 1px rgba(212, 175, 55, .7), 0 18px 40px rgba(0, 0, 0, .7); }
+.nx-cf-hint {
+  font-size: 12px; letter-spacing: 1.5px; color: #6f6f78;
+}
+.nx-cf-empty {
+  font-size: 13px; letter-spacing: 1px; color: #8d8d96;
+}
+.nx-cf-empty[hidden] { display: none; }
+@media (max-width: 768px) {
+  .nx-cf-stage { height: clamp(200px, 32vh, 280px); perspective: 900px; }
+  .nx-cf-item { width: clamp(104px, 26vw, 140px); }
+  .nx-cf-hint { font-size: 11px; }
+}
+
+
+/* ── 预组顶部：A–Z 索引条 + 搜索 ────────────────────────── */
+.nx-cf-bar {
+  align-self: stretch;
+  width: 100%; max-width: 1180px;
+  margin: 0 auto clamp(8px, 1.6vh, 16px);
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px 18px; flex-wrap: wrap;
+}
+.nx-cf-letters {
+  display: flex; align-items: center; gap: 2px; flex-wrap: wrap;
+  flex: 1 1 auto; min-width: 0;
+}
+.nx-cf-letter {
+  min-width: 20px; height: 22px; padding: 0 3px;
+  border: none; background: none; cursor: pointer;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  color: #8d8d96; letter-spacing: .5px;
+  transition: color .18s, text-shadow .18s, transform .18s;
+}
+.nx-cf-letter:hover { color: #ffe9a8; transform: translateY(-1px); }
+.nx-cf-letter.is-on {
+  color: #fff3c4;
+  text-shadow: 0 0 14px rgba(255, 214, 40, .75);
+  transform: translateY(-1px) scale(1.12);
+}
+.nx-cf-letter.is-empty { color: #4a4a52; cursor: default; }
+.nx-cf-letter.is-empty:hover { color: #4a4a52; transform: none; }
+
+
+@media (max-width: 768px) {
+  .nx-cf-bar { flex-direction: column; align-items: stretch; gap: 8px; }
+  .nx-cf-letters { gap: 0; justify-content: center; }
+  .nx-cf-letter { min-width: 16px; height: 20px; font-size: 11.5px; padding: 0 1px; }
+}
+
+
+/* ══ 预组：折叠式搜索（无边框放大镜）═══════════════════════
+   点放大镜 → 图标向左让位，让出的那段路变成输入框（弹性展开）
+   回车 → 放大镜顺时针转一周并随收起弹性回位
+   ═══════════════════════════════════════════════════════════ */
+.nx-cf-search {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 6px; flex: 0 0 auto;
+}
+.nx-cf-search input {
+  width: 0; padding: 0; border: none; outline: none;
+  background: none;
+  color: #eee7df; font-family: inherit; font-size: 13px;
+  opacity: 0; pointer-events: none;
+  border-radius: 999px;
+  transition: width .46s cubic-bezier(.3, 1.5, .5, 1), opacity .26s ease, padding .46s cubic-bezier(.3, 1.5, .5, 1), background .3s;
+}
+.nx-cf-search.is-open input {
+  width: clamp(150px, 22vw, 230px);
+  padding: 6px 14px;
+  opacity: 1; pointer-events: auto;
+  background: rgba(255, 255, 255, .06);
+}
+.nx-cf-search input::placeholder { color: #6f6f78; }
+.nx-cf-search.is-open input:focus { background: rgba(255, 255, 255, .09); box-shadow: 0 0 0 1px rgba(212, 175, 55, .5); }
+
+/* 放大镜：无边框，只用描边 */
+.nx-cf-lens {
+  flex: 0 0 auto;
+  width: 40px; height: 40px;      /* 加大触点，降低误触（图标本体不变大太多）*/
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: none; padding: 0;
+  cursor: pointer;
+  color: #8d8d96;
+  transition: color .22s, transform .46s cubic-bezier(.3, 1.5, .5, 1);
+}
+.nx-cf-lens svg { width: 21px; height: 21px; display: block; }
+.nx-cf-lens:hover { color: #ffe9a8; }
+.nx-cf-search.is-open .nx-cf-lens { color: #fff3c4; }
+/* 回车：顺时针转一周（带一点弹性过冲） */
+.nx-cf-lens.is-spin { animation: nxLensSpin .72s cubic-bezier(.34, 1.42, .5, 1) both; }
+@keyframes nxLensSpin {
+  0%   { transform: rotate(0deg); }
+  72%  { transform: rotate(378deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 清除（有过滤且已收起时出现） */
+.nx-cf-clear {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  border: none; background: none; padding: 0;
+  font-family: inherit; font-size: 12px; line-height: 1;
+  color: #7d7d86; cursor: pointer;
+  transition: color .2s, transform .2s;
+}
+.nx-cf-clear:hover { color: #ffb4c4; transform: scale(1.15); }
+.nx-cf-clear[hidden] { display: none; }
+
+@media (max-width: 768px) {
+  .nx-cf-search { justify-content: flex-end; }
+  .nx-cf-lens { width: 46px; height: 46px; }
+  .nx-cf-lens svg { width: 23px; height: 23px; }
+  .nx-cf-clear { width: 34px; height: 34px; }
+  .nx-cf-search.is-open input { width: min(58vw, 230px); font-size: 16px; }   /* 16px 避免 iOS 聚焦缩放 */
 }

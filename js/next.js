@@ -966,7 +966,7 @@
         } catch (e) { /* 忽略 */ }
         playSfx('click');
         if (btn) {
-            var old = btn.getAttribute('data-txt') || 'YDK';
+            var old = btn.getAttribute('data-txt') || '下载 YDK';
             btn.textContent = '已下载';
             setTimeout(function () { btn.textContent = old; }, 1400);
         }
@@ -1027,7 +1027,7 @@
                         '<button class="nx-deck-dl" type="button" title="下载卡组 (YDK)">' +
                             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
                                 '<path d="M12 4v11"></path><path d="M7.5 11.5 12 16l4.5-4.5"></path><path d="M5 19h14"></path>' +
-                            '</svg><span data-txt="YDK">YDK</span>' +
+                            '</svg><span data-txt="下载 YDK">下载 YDK</span>' +
                         '</button>' +
                     '</div>' +
                     (meta ? '<div class="nx-deck-meta">' + meta + '</div>' : '') +
