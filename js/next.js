@@ -428,17 +428,21 @@
         // 滚轮按"行"吸附：一格滚轮(≈100)刚好走一个玩家，和居中的滚轮式布局对齐
         var WHEEL_STEP = 100;
         var wheelAcc = 0;
+        var wheelAt = 0;
         function rowStep() {
             var h = items[0] ? items[0].offsetHeight : 0;
             return h > 0 ? h : 40;
         }
         function onWheel(e) {
             e.preventDefault();
+            var now = Date.now();
+            if (now - wheelAt > 140) wheelAcc = 0;   // 手势间隔久则清零，避免连走两行
+            wheelAt = now;
             var max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
             var step = rowStep();
             wheelAcc += e.deltaY;
             var guard = 0;
-            while (Math.abs(wheelAcc) >= WHEEL_STEP && guard++ < 8) {
+            while (Math.abs(wheelAcc) >= WHEEL_STEP && guard++ < 2) {
                 var dir = wheelAcc > 0 ? 1 : -1;
                 target = Math.max(0, Math.min(max, target + dir * step));
                 wheelAcc -= dir * WHEEL_STEP;
