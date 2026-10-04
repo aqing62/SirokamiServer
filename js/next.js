@@ -41,7 +41,7 @@
                 '想让朋友进来，把<b>房间名</b>发给他即可；代码后加 <b>#</b> 再接房间名，例如 <b>T,C#32</b>'
             ],
             cta: [
-                { icon: 'house', label: '打开房间代码', goto: 'room' },
+                { icon: 'house', label: '打开房间代码', screen: 'room' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
@@ -53,7 +53,7 @@
                 '也可以用<b>萌卡平台</b>；服务器地址 <b>ygopro3.cn : 50010</b>'
             ],
             cta: [
-                { icon: 'download', label: '打开下载页', goto: 'download' },
+                { icon: 'download', label: '打开下载页', screen: 'download' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
@@ -65,7 +65,7 @@
                 '淘汰赛对阵公布后再打淘汰轮（对阵未出时页面会显示「待公布」）'
             ],
             cta: [
-                { icon: 'bracket', label: '打开比赛相关', goto: 'tournament' },
+                { icon: 'bracket', label: '打开比赛相关', screen: 'match' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
@@ -89,7 +89,7 @@
                 '分值 <b>-1</b> 就是禁用卡'
             ],
             cta: [
-                { icon: 'layers', label: '打开卡池', goto: 'pool' },
+                { icon: 'layers', label: '打开卡池', screen: 'pool' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
@@ -100,7 +100,7 @@
                 '房间密码可切规则：默认 <b>Genesys-Ext</b>、<b>LF2</b>=OT 合表、<b>NF</b>=无禁限'
             ],
             cta: [
-                { icon: 'list', label: '打开禁限分值', goto: 'banlist' },
+                { icon: 'list', label: '打开禁限分值', screen: 'banlist' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
@@ -111,8 +111,8 @@
                 '也可以直接抄<b>历届八强</b>的卡组'
             ],
             cta: [
-                { icon: 'box', label: '看卡组池', goto: 'preset' },
-                { icon: 'bracket', label: '打开历届八强', goto: 'tournament' },
+                { icon: 'box', label: '看卡组池', screen: 'preset' },
+                { icon: 'bracket', label: '打开历届八强', screen: 'match' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
@@ -145,7 +145,7 @@
                 '点玩家名可以看他的对局记录与回放'
             ],
             cta: [
-                { icon: 'chart', label: '打开排名', goto: 'ranking' },
+                { icon: 'chart', label: '打开排名', screen: 'rank' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
@@ -156,11 +156,65 @@
                 '天梯计分、投稿 DIY 都需要登录；游戏内也可以直接 <b>/login 用户名 密码</b>'
             ],
             cta: [
-                { icon: 'user', label: '打开登录', goto: 'login' },
+                { icon: 'user', label: '打开登录', screen: 'login' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         }
     };
+
+    // ── 功能屏幕（外壳）：每个按钮对应一个屏幕，先占位，后续逐页填内容 ──
+    var SCREENS = {
+        room:     { title: '房间与规则', sub: '房间名 / 密码里的规则代码', goto: 'room',      todo: '静态内容：房间代码表 + 规则说明（无需接口）' },
+        download: { title: '下载与安装', sub: 'MDPro3 客户端 + DIY 卡包',  goto: 'download',  todo: '静态内容：下载入口与安装步骤' },
+        match:    { title: '比赛相关',   sub: '瑞士轮 · 实时对阵 · 历届八强', goto: 'tournament', todo: '数据：/api/tournament?slot=swiss|elim' },
+        pool:     { title: '卡池',       sub: '查卡 / 筛选 / 分值',         goto: 'pool',      todo: '复用卡池数据与筛选（微调 UI）' },
+        banlist:  { title: '卡表',       sub: '禁限分值一览',               goto: 'banlist',   todo: '复用禁限表（微调 UI）' },
+        preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    todo: '数据：编年史卡组池 / 投稿卡组' },
+        popular:  { title: '常用卡',     sub: '使用率统计',                 goto: 'pool',      todo: '数据：/api/ladder/card-stats' },
+        rank:     { title: '天梯排名',   sub: 'TOP50 · 段位 · 积分',         goto: 'ranking',   todo: '数据：/api/ladder' },
+        login:    { title: '登录账号',   sub: '天梯计分 / 投稿需要登录',     goto: 'login',     todo: '复用账号接口（/api/forum/*）' }
+    };
+
+    var screenEl = null;
+
+    function jumpClassic(target) {
+        if (!target) return;
+        location.href = 'index.html?goto=' + encodeURIComponent(target);
+    }
+
+    function goScreen(id) {
+        if (!SCREENS[id]) return;
+        transition(function () {
+            historyStack.push({ screen: id, label: SCREENS[id].title });
+            renderCurrent();
+        });
+    }
+
+    function renderScreen(id) {
+        var s = SCREENS[id];
+        if (!s || !screenEl) return;
+        screenEl.hidden = false;
+        screenEl.innerHTML =
+            '<div class="nx-screen-head">' +
+                '<button class="nx-screen-back" type="button" title="返回">←</button>' +
+                '<div class="nx-screen-titles">' +
+                    '<h2>' + esc(s.title) + '</h2>' +
+                    '<p>' + esc(s.sub) + '</p>' +
+                '</div>' +
+            '</div>' +
+            '<div class="nx-screen-body">' +
+                '<p class="nx-screen-todo">这一页正在新写中</p>' +
+                '<p class="nx-screen-todo-sub">' + esc(s.todo) + '</p>' +
+            '</div>' +
+            '<div class="nx-screen-foot">' +
+                '<button class="nx-screen-classic" type="button">先在经典版打开</button>' +
+                '<span class="nx-screen-hint">点空白处 / Esc 返回</span>' +
+            '</div>';
+        var back = screenEl.querySelector('.nx-screen-back');
+        if (back) back.addEventListener('click', function () { goBack(); });
+        var cl = screenEl.querySelector('.nx-screen-classic');
+        if (cl) cl.addEventListener('click', function () { jumpClassic(s.goto); });
+    }
 
     // ── DOM ──
     var stage = document.getElementById('nxStage');
@@ -637,6 +691,15 @@
     function renderCurrent() {
         var top = historyStack[historyStack.length - 1];
         if (!top) return;
+        if (!screenEl) screenEl = document.getElementById('nxScreen');
+        // 屏幕节点：隐藏问答区，显示功能屏
+        if (top.screen) {
+            stage.classList.add('is-screen');
+            renderScreen(top.screen);
+            return;
+        }
+        stage.classList.remove('is-screen');
+        if (screenEl) screenEl.hidden = true;
         var node = FLOW[top.key];
         if (!node) return;
         if (node.options) renderNode(node, top.key, _deferOptions);
@@ -666,6 +729,8 @@
         if (busy) return;
         if (document.body.classList.contains('nx-boot')) return;   // 开场期间不响应
         if (historyStack.length <= 1) return;                      // 没有上一步
+        var topNode = historyStack[historyStack.length - 1];
+        if (topNode && topNode.screen) return;                     // 功能屏上用返回键/Esc
         var t = ev.target;
         if (t && t.closest && t.closest('button, a, input, select, textarea, label, .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug')) return;
         goBack();
@@ -748,6 +813,8 @@
             b.addEventListener('click', function (ev) {
                 ripple(b, ev);
                 if (c.back) { setTimeout(goBack, 140); return; }
+                // 新屏优先：不再把人送进旧页面
+                if (c.screen) { setTimeout(function () { goScreen(c.screen); }, 140); return; }
                 if (c.goto) {
                     b.querySelector('span:last-child').textContent = '跳转中…';
                     setTimeout(function () { location.href = CTA_GOTO(c.goto); }, 260);

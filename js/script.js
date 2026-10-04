@@ -950,18 +950,4 @@ function initXiaobaiModule() {
 
         draw();
     })();
-
-// ── 新版入口提示气泡：只提示一次，点掉后记住 ──
-document.addEventListener('DOMContentLoaded', function () {
-    var tip = document.getElementById('newUiTip');
-    if (!tip) return;
-    var KEY = 'siro_newui_tip_dismissed';
-    try { if (localStorage.getItem(KEY) === '1') { tip.style.display = 'none'; return; } } catch (e) { /* 忽略 */ }
-    var close = document.getElementById('newUiTipClose');
-    function dismiss() {
-        tip.style.display = 'none';
-        try { localStorage.setItem(KEY, '1'); } catch (e) { /* 忽略 */ }
-    }
-    if (close) close.addEventListener('click', function (ev) { ev.preventDefault(); dismiss(); });
-    setTimeout(function () { if (tip && tip.style.display !== 'none') dismiss(); }, 12000);
-});
+// （新版入口提示气泡已随入口一并移除）
