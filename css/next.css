@@ -420,7 +420,12 @@ body.nx-bg-in .nx-bg { opacity: 1; }
 .nx-top, .nx-foot { transition: opacity .9s ease-in-out; }
 
 /* 问句：打字机开始前先就位 */
-.nx-question { transition: opacity .45s ease-in-out; }
+/* 问句：开场时先出现在屏幕正中，随后滑回常态位置 */
+.nx-question {
+  transition: opacity .45s ease-in-out, transform .58s cubic-bezier(.3, .05, .25, 1);
+  will-change: transform;
+}
+body.nx-q-center .nx-question { transform: translateY(var(--q-dy, 0px)); }
 body.nx-boot.nx-question-in .nx-question { opacity: 1; visibility: visible; }
 
 /* 欢迎大字（固定居中，缓入 → 停留 → 缓出） */
@@ -450,7 +455,7 @@ body.nx-boot.nx-question-in .nx-question { opacity: 1; visibility: visible; }
   text-shadow: 0 0 28px rgba(216, 30, 68, .55), 0 0 70px rgba(216, 30, 68, .3);
 }
 body.nx-boot .nx-welcome {
-  animation: nxWelcomeIn 3s ease-in-out both;
+  animation: nxWelcomeIn 2.6s ease-in-out both;
 }
 @keyframes nxWelcomeIn {
   0%   { opacity: 0; transform: scale(.94); filter: blur(6px); }   /* 远焦 → 合焦（入场） */
@@ -480,7 +485,7 @@ body.nx-skip .nx-welcome { display: none; }
   --dx: calc((var(--li) - 3.5) * 26px);
   --dy: calc(-6px - var(--li) * -0.6px);
   --rt: calc((var(--li) - 3.5) * 0.9deg);
-  animation: nxChSplit 2.95s cubic-bezier(.32, .06, .3, 1) both;
+  animation: nxChSplit 2.5s cubic-bezier(.32, .06, .3, 1) both;
   animation-delay: calc(var(--li) * 16ms);
 }
 @keyframes nxChSplit {
@@ -495,10 +500,10 @@ body.nx-skip .nx-welcome { display: none; }
 }
 /* 小字「欢迎来到」：比大字早一点淡出，让焦点先落在 Sirokami 上 */
 .nx-welcome .nx-w-greet {
-  animation: nxGreetOut 2.9s ease-in-out both;
+  animation: nxGreetOut 2.6s ease-in-out both;
 }
 @keyframes nxGreetOut {
-  0%, 34% { opacity: 1; letter-spacing: .5em; }
-  58%     { opacity: 0; letter-spacing: .8em; }
-  100%    { opacity: 0; letter-spacing: .8em; }
+  0%, 40% { opacity: 1; }
+  72%     { opacity: 0; }
+  100%    { opacity: 0; }
 }
