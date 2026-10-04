@@ -357,11 +357,8 @@ body {
 
 /* 注意：不按系统「减少动态效果」自动关闭动效（很多 Windows 用户默认关闭该项），
    改为右上角「动效 开/关」由用户自行控制 */
-@media (prefers-reduced-motion: reduce) {
-  .nx-orb, .nx-grid, .nx-brand-dot, .nx-option, .nx-cta, .nx-step-row, .nx-back,
-  
-  .nx-question .nx-caret { animation: none; }
-}
+/* 说明：不使用 prefers-reduced-motion 自动关闭动效（大量 Windows 用户系统默认关闭该项，
+   会导致页面看起来是静态的）。改为顶栏「动效 开/关」由用户手动控制，默认开启。 */
 
 
 /* ── 动效开关（顶栏，胶囊）── */
