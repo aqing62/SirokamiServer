@@ -1162,7 +1162,7 @@
                 var d = sorted[+el.getAttribute('data-idx')];
                 if (!d) return;
                 var img = el.querySelector('.nx-preset-img');
-                if (img) wireDeckImage(img, el, (d.main || [])[0] || 0);
+                if (img) wireDeckImage(img, el.querySelector('.nx-preset-cover') || el, (d.main || [])[0] || 0);
                 el.addEventListener('click', function (ev) {
                     ev.stopPropagation();
                     playSfx('click');
