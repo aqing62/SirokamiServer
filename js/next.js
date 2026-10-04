@@ -275,6 +275,7 @@
 
     function renderLadder(body) {
         body.innerHTML = '<div class="nx-loading"><span class="nx-spin"></span>正在读取天梯数据…</div>';
+        if (FX.mock) { paintLadder(body, mockLadderData()); return; }   // 调试：测试选手
         fetch(LADDER_API + '?t=' + Date.now())
             .then(function (r) { return r.json(); })
             .then(function (data) { paintLadder(body, data); })
@@ -286,16 +287,41 @@
             });
     }
 
+    // 测试选手数据（调试面板可切换，用于检查 3D 滚动效果）
+    var MOCK_CUTOFFS = [
+        { name: 'S3 巅峰', minRating: 150 }, { name: 'S3 大师', minRating: 120 },
+        { name: 'S3 钻石', minRating: 90 }, { name: 'S3 黄金', minRating: 60 },
+        { name: 'S3 白银', minRating: 30 }, { name: 'S3 参战者', minRating: 0 }
+    ];
+    var MOCK_NAMES = ['上善若水', '灵蛇', '奈奈川', 'Huager', '莱蒂丝', '卫星闪灵·蓝色喷流灵',
+        '鲁多', '244英雄', 'd3007', '青眼の白龍', '炸金花爱好者', '黑魔导女孩', 'D-HERO 钻石人',
+        '银河眼光子龙', '真红眼黑龙', '电子龙', '沉默魔术师', '不知火', '三金', '不死真红眼',
+        'C5律神小队', '幻影英雄'];
+    function mockLadderData() {
+        var players = MOCK_NAMES.map(function (n, i) {
+            var rating = Math.max(12, 186 - i * 7 - (i % 3) * 4);
+            var tier = MOCK_CUTOFFS.filter(function (c) { return rating >= c.minRating; })[0];
+            var wins = 8 + ((i * 3) % 12), losses = 2 + (i % 7), draws = i % 4 === 0 ? 1 : 0;
+            var total = wins + losses + draws;
+            return {
+                name: n, rating: rating, wins: wins, losses: losses, draws: draws, total: total,
+                streak: i % 5 === 0 ? 3 : (i % 3 === 0 ? 2 : 0),
+                tier: tier ? tier.name : 'S3 参战者',
+                winRate: (wins / total * 100).toFixed(1) + '%'
+            };
+        });
+        return { players: players, total: players.length, tierCutoffs: MOCK_CUTOFFS };
+    }
+
     function paintLadder(body, data) {
         var players = (data && data.players) || [];
         var cuts = (data && data.tierCutoffs) || [];
         var total = (data && data.total) || players.length;
 
-        // 段位门槛（取段位名去掉赛季前缀）
         var cutHtml = cuts.map(function (c, ci) {
             var name = String(c.name || '').replace(/^S\d+\s*/, '');
-            return '<span class="nx-tier-chip nx-reveal ' + tierClass(name) + '" style="--i:' + (ci + 2) + '">' + esc(name) +
-                   '<i>' + c.minRating + '</i></span>';
+            return '<span class="nx-tier-chip nx-reveal ' + tierClass(name) + '" style="--i:' + (ci + 1) + '">' +
+                   esc(name) + '<i>' + c.minRating + '</i></span>';
         }).join('');
 
         var head = '<div class="nx-ladder-top">' +
@@ -311,21 +337,60 @@
 
         var rows = players.map(function (p, i) {
             var tier = String(p.tier || '').replace(/^S\d+\s*/, '');
-            return '<tr class="nx-reveal-fade" style="--i:' + Math.min(i + 14, 34) + '">' +
-                '<td class="c-rank">' + rankMedal(i) + '</td>' +
-                '<td class="c-name">' + esc(p.name) + (p.streak > 1 ? '<span class="nx-streak">' + p.streak + '连胜</span>' : '') + '</td>' +
-                '<td class="c-tier"><span class="nx-tier-badge ' + tierClass(tier) + '">' + esc(tier) + '</span></td>' +
-                '<td class="c-rating">' + p.rating + '</td>' +
-                '<td class="c-wld">' + p.wins + '胜 ' + p.losses + '负' + (p.draws ? ' ' + p.draws + '平' : '') + '</td>' +
-                '<td class="c-rate">' + esc(p.winRate || '-') + '</td>' +
-            '</tr>';
+            return '<div class="nx-row nx-item3d nx-reveal-fade" style="--i:' + Math.min(i, 26) + '">' +
+                '<span class="c-rank">' + rankMedal(i) + '</span>' +
+                '<span class="c-name">' + esc(p.name) +
+                    (p.streak > 1 ? '<span class="nx-streak">' + p.streak + '连胜</span>' : '') + '</span>' +
+                '<span class="c-tier"><span class="nx-tier-badge ' + tierClass(tier) + '">' + esc(tier) + '</span></span>' +
+                '<span class="c-rating">' + p.rating + '</span>' +
+                '<span class="c-wld">' + p.wins + '胜 ' + p.losses + '负' + (p.draws ? ' ' + p.draws + '平' : '') + '</span>' +
+                '<span class="c-rate">' + esc(p.winRate || '-') + '</span>' +
+            '</div>';
         }).join('');
 
         body.innerHTML = head +
-            '<div class="nx-table-wrap nx-reveal" style="--i:1"><table class="nx-table nx-ladder-table">' +
-            '<thead><tr><th>#</th><th>玩家</th><th>段位</th><th>积分</th><th>战绩</th><th>胜率</th></tr></thead>' +
-            '<tbody>' + rows + '</tbody></table></div>' +
-            '<div class="nx-table-note">数据来自天梯服务 · 每场 M# 对局结束后更新</div>';
+            '<div class="nx-scroll nx-reveal" style="--i:1" id="nxLadderScroll">' +
+                '<div class="nx-list">' + rows + '</div>' +
+            '</div>' +
+            '<div class="nx-list-note">数据来自天梯服务 · 每场 M# 对局结束后更新</div>';
+
+        bindScroll3D(document.getElementById('nxLadderScroll'));
+    }
+
+    // ── 滚动 3D：离视口中心越远，越向后倾斜并变暗 ──
+    function bindScroll3D(scroller) {
+        if (!scroller) return;
+        var items = Array.prototype.slice.call(scroller.querySelectorAll('.nx-item3d'));
+        if (!items.length) return;
+        var ticking = false;
+        function apply() {
+            ticking = false;
+            var box = scroller.getBoundingClientRect();
+            var cy = box.top + box.height / 2;
+            var half = box.height / 2;
+            for (var i = 0; i < items.length; i++) {
+                var el = items[i];
+                var r = el.getBoundingClientRect();
+                var d = ((r.top + r.height / 2) - cy) / half;      // -1(上) ~ 1(下)
+                if (d > 1.6) d = 1.6; else if (d < -1.6) d = -1.6;
+                var ad = Math.abs(d);
+                var rot = -d * 22;                                  // 向下 → 上缘后仰
+                var z = -ad * 110;
+                var sc = 1 - ad * 0.07;
+                el.style.transform = 'perspective(900px) rotateX(' + rot.toFixed(2) + 'deg) translateZ(' +
+                    z.toFixed(1) + 'px) scale(' + sc.toFixed(3) + ')';
+                el.style.opacity = (1 - ad * 0.5).toFixed(3);
+                el.style.filter = ad > 0.02 ? 'blur(' + (ad * 1.6).toFixed(2) + 'px)' : 'none';
+            }
+        }
+        scroller.addEventListener('scroll', function () {
+            if (ticking) return;
+            ticking = true;
+            requestAnimationFrame(apply);
+        }, { passive: true });
+        apply();
+        // 内容变化/尺寸变化后重算
+        window.addEventListener('resize', function () { requestAnimationFrame(apply); });
     }
 
     var RENDERERS = { ladder: renderLadder };
@@ -722,7 +787,7 @@
 
     // ── 临时调试开关：磁吸 / 拉拽 / 扭曲 ──
     // 三项效果默认全开；此前"抽搐"的真因是磁吸自激振荡 + 拉拽作用范围过大(已修)，与扭曲无关
-    var FX = { magnet: true, drag: true, wobble: true };
+    var FX = { magnet: true, drag: true, wobble: true, mock: false };
     (function initFxPanel() {
         var KEY = 'siro_next_fx';
         try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
@@ -743,6 +808,14 @@
             var b = ev.target.closest ? ev.target.closest('.nx-dbg-btn') : null;
             if (!b) return;
             var key = b.getAttribute('data-fx');
+            if (key === 'mock') {                      // 测试数据开关
+                FX.mock = !FX.mock;
+                b.classList.toggle('is-on', FX.mock);
+                var bodyEl = document.getElementById('nxScreenBody');
+                var curScreen = historyStack[historyStack.length - 1];
+                if (bodyEl && curScreen && curScreen.screen) renderScreen(curScreen.screen);
+                return;
+            }
             if (key === 'sfx') {                       // 音效开关（单独存）
                 SFX.on = !SFX.on;
                 try { localStorage.setItem('siro_next_sfx', SFX.on ? '1' : '0'); } catch (e) { /* 忽略 */ }

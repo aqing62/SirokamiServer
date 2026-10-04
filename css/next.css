@@ -595,11 +595,8 @@ body.nx-skip .nx-welcome { display: none; }
   display: flex;
   flex-direction: column;
   gap: clamp(10px, 2vh, 20px);
-  padding: clamp(14px, 2.4vh, 26px) clamp(14px, 2vw, 26px);
-  border-radius: 26px;
-  border: 1px solid rgba(216, 30, 68, .28);
-  background: linear-gradient(160deg, rgba(24, 12, 16, .92), rgba(10, 8, 10, .88));
-  box-shadow: 0 24px 60px rgba(0, 0, 0, .55);
+  padding: clamp(10px, 1.8vh, 20px) clamp(6px, 1vw, 14px);
+  /* 无边框、无底板：靠边缘渐变淡出与内容自身呼吸 */
 }
 /* 每次打开都重播（JS 切换 .is-in）：与开场同款「失焦 → 合焦」 */
 .nx-screen.is-in { animation: nxScreenIn .52s cubic-bezier(.22, .9, .28, 1.02) both; }
@@ -640,18 +637,17 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-screen-titles p { margin: 3px 0 0; font-size: 12.5px; color: var(--nx-dim, #8d8d96); letter-spacing: .5px; }
 .nx-screen-body {
   flex: 1 1 auto;
-  min-height: 160px;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  border-radius: 18px;
-  border: 1px dashed rgba(216, 30, 68, .28);
-  background: rgba(0, 0, 0, .25);
+  gap: 10px;
   text-align: center;
-  padding: 24px 16px;
+  padding: 0;
 }
+/* 占位说明仍给一点容器感，免得空落落 */
+.nx-screen-todo { margin-top: 34px; }
+.nx-screen-todo-sub { margin-bottom: 34px; }
 .nx-screen-todo { margin: 0; font-size: 15px; color: #e8e0d6; letter-spacing: 1px; }
 .nx-screen-todo-sub { margin: 0; font-size: 12.5px; color: var(--nx-dim, #8d8d96); }
 .nx-screen-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
@@ -736,3 +732,47 @@ body.nx-skip .nx-welcome { display: none; }
   border: 1px solid rgba(216,30,68,.55); background: rgba(216,30,68,.14); color: #ffc0cd;
 }
 .nx-screen-retry:hover { border-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
+
+
+/* ── 无框滚动列表：边缘渐变淡出 + 3D 透视 ───────────────── */
+.nx-scroll {
+  width: 100%;
+  max-height: min(56vh, 520px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 34px 6px;
+  scrollbar-width: none;
+  perspective: 900px;
+  /* 上下边缘渐变淡出（替代边框） */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 30px, #000 calc(100% - 34px), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 30px, #000 calc(100% - 34px), transparent 100%);
+}
+.nx-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+.nx-list { display: flex; flex-direction: column; }
+.nx-row {
+  display: grid;
+  grid-template-columns: 54px minmax(120px, 1.4fr) 104px 76px 130px 72px;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  font-size: 13px;
+  color: #ddd6cd;
+  border-bottom: 1px solid rgba(255, 255, 255, .045);
+  transform-origin: center center;
+  backface-visibility: hidden;
+  will-change: transform, opacity;
+}
+.nx-row:last-child { border-bottom: none; }
+.nx-row .c-rank { text-align: center; color: var(--nx-gold, #D4AF37); font-weight: 700; }
+.nx-row .c-name { font-weight: 600; text-align: left; }
+.nx-row .c-rating { color: var(--nx-gold-light, #F0E68C); font-weight: 700; }
+.nx-row .c-rate { color: #9a9aa4; }
+.nx-row .c-wld { color: #b9b9c2; }
+.nx-list-note { margin-top: 6px; font-size: 11.5px; color: #6f6f78; text-align: center; }
+
+@media (max-width: 768px) {
+  .nx-row { grid-template-columns: 40px minmax(90px, 1fr) 84px 60px; font-size: 12px; gap: 6px; padding: 9px 8px; }
+  .nx-row .c-wld, .nx-row .c-rate { display: none; }
+  .nx-scroll { max-height: 52vh; padding: 26px 2px; }
+}
