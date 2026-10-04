@@ -505,3 +505,10 @@ body.nx-skip .nx-welcome { display: none; }
 /* 图标容器不再需要 emoji 字号 */
 .nx-option .nx-opt-icon, .nx-cta .nx-cta-icon { display: grid; place-items: center; line-height: 1; }
 .nx-option:hover .nx-icon { stroke-width: 1.9; }
+
+
+/* ── 磁吸位移：用 translate 独立属性（与 hover 的 transform 叠加，互不覆盖）── */
+.nx-option, .nx-cta {
+  translate: var(--mx, 0px) var(--my, 0px);
+  will-change: translate;
+}

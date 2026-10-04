@@ -295,6 +295,101 @@
     var _breathT = 0;    // 呼吸相位累加器（只按运行时间增长）
 
 
+    // ── 磁吸跟随 + 相互规避 ──────────────────────────────────
+    // 按钮被光标"黏住"：靠近时轻微跟手，光标移远（超过 release 距离）才脱离；
+    // 按钮之间保持最小间距，互相推开避免重叠。位移用 translate 属性，不影响 transform。
+    var MAG = { stick: 130, release: 240, maxPull: 38, ease: 0.16, gap: 14, repK: 0.5 };
+    var _magBtns = [];
+    var _magPx = null, _magPy = null;
+    var _magLast = 0;
+
+    function bindMagnet(btn) {
+        btn._mx = 0; btn._my = 0;
+        btn._stuck = false;
+        btn._rx = 0; btn._ry = 0;
+        btn._tx = 0; btn._ty = 0;
+        if (_magBtns.indexOf(btn) === -1) _magBtns.push(btn);
+    }
+
+    function resetMagnet() { _magBtns = []; }
+
+    function magTick(now) {
+        requestAnimationFrame(magTick);
+        if (!_magBtns.length) return;
+        if (document.hidden) { _magLast = 0; return; }
+        if (!_magLast) _magLast = now;
+        var dt = Math.min(0.05, (now - _magLast) / 1000);
+        _magLast = now;
+        var stageRect = stage.getBoundingClientRect();
+
+        // 1) 目标偏移：磁吸（带滞回，靠近才吸、走远才松）
+        for (var i = 0; i < _magBtns.length; i++) {
+            var b = _magBtns[i];
+            b._rx = 0; b._ry = 0;
+            if (!b.parentNode) { b._tx = 0; b._ty = 0; continue; }
+            var cx = stageRect.left + b.offsetLeft + b.offsetWidth / 2 + b._mx;
+            var cy = stageRect.top + b.offsetTop + b.offsetHeight / 2 + b._my;
+            var tx = 0, ty = 0;
+            if (_magPx !== null) {
+                var dx = _magPx - cx, dy = _magPy - cy;
+                var d = Math.sqrt(dx * dx + dy * dy);
+                if (b._stuck) { if (d > MAG.release) b._stuck = false; }
+                else if (d < MAG.stick) b._stuck = true;
+                if (b._stuck) {
+                    // 越近拉得越紧（0.18~0.5），并限制最大位移
+                    var k = 0.5 * Math.min(1, MAG.stick / Math.max(48, d));
+                    tx = dx * k; ty = dy * k;
+                    var m = Math.sqrt(tx * tx + ty * ty);
+                    if (m > MAG.maxPull) { tx = tx / m * MAG.maxPull; ty = ty / m * MAG.maxPull; }
+                }
+            }
+            b._tx = tx; b._ty = ty;
+        }
+
+        // 2) 相互规避：两两检查，重叠就沿连线推开
+        for (var a = 0; a < _magBtns.length; a++) {
+            for (var c = a + 1; c < _magBtns.length; c++) {
+                var A = _magBtns[a], B = _magBtns[c];
+                if (!A.parentNode || !B.parentNode) continue;
+                var ax = stageRect.left + A.offsetLeft + A.offsetWidth / 2 + A._mx + A._tx;
+                var ay = stageRect.top + A.offsetTop + A.offsetHeight / 2 + A._my + A._ty;
+                var bx = stageRect.left + B.offsetLeft + B.offsetWidth / 2 + B._mx + B._tx;
+                var by = stageRect.top + B.offsetTop + B.offsetHeight / 2 + B._my + B._ty;
+                var ux = bx - ax, uy = by - ay;
+                var dd = Math.sqrt(ux * ux + uy * uy) || 0.001;
+                var minD = (A.offsetWidth + B.offsetWidth) / 2 + MAG.gap;
+                if (dd < minD) {
+                    var push = (minD - dd) * MAG.repK;
+                    var nx = ux / dd, ny = uy / dd;
+                    A._rx -= nx * push; A._ry -= ny * push;
+                    B._rx += nx * push; B._ry += ny * push;
+                }
+            }
+        }
+
+        // 3) 平滑趋近目标 + 写回 translate 变量
+        for (var q = 0; q < _magBtns.length; q++) {
+            var o = _magBtns[q];
+            if (!o.parentNode) continue;
+            var goalX = o._tx + o._rx, goalY = o._ty + o._ry;
+            var step = Math.min(1, MAG.ease * (dt * 60));
+            o._mx += (goalX - o._mx) * step;
+            o._my += (goalY - o._my) * step;
+            if (Math.abs(o._mx) < 0.02 && Math.abs(goalX) < 0.02) o._mx = 0;
+            if (Math.abs(o._my) < 0.02 && Math.abs(goalY) < 0.02) o._my = 0;
+            o.style.setProperty('--mx', o._mx.toFixed(2) + 'px');
+            o.style.setProperty('--my', o._my.toFixed(2) + 'px');
+        }
+    }
+
+    // 指针追踪（仅鼠标/笔；触屏不做磁吸）
+    document.addEventListener('pointermove', function (e) {
+        if (e.pointerType === 'touch') return;
+        _magPx = e.clientX; _magPy = e.clientY;
+    }, { passive: true });
+    document.addEventListener('mouseleave', function () { _magPx = null; _magPy = null; });
+    window.addEventListener('blur', function () { _magPx = null; _magPy = null; });
+    requestAnimationFrame(magTick);
     function collectBlobs() {
         _blobs = Array.prototype.slice.call(document.querySelectorAll('.nx-ring path[data-blob-ready]'));
     }
@@ -355,6 +450,9 @@
 
     // 标记可变形路径并启动循环（渲染后调用）
     function startBlobMorph() {
+        resetMagnet();
+        var btns = document.querySelectorAll('.nx-option, .nx-cta');
+        for (var bi = 0; bi < btns.length; bi++) bindMagnet(btns[bi]);
         var list = document.querySelectorAll('.nx-ring path');
         for (var i = 0; i < list.length; i++) list[i].setAttribute('data-blob-ready', '1');
         collectBlobs();
