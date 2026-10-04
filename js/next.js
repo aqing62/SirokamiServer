@@ -361,6 +361,7 @@
     }
 
     var _deferOptions = false;   // 开场期间：等打字机打完再出按钮
+    var _afterTyped = null;      // 打字完成后的自定义收尾（开场：先滑回常态位再出按钮）
 
     function buildOptions(node) {
         optEl.hidden = false;
@@ -390,7 +391,10 @@
         if (deferOptions) {
             optEl.hidden = true;
             optEl.innerHTML = '';
-            typeText(qEl, node.q, function () { buildOptions(node); });
+            typeText(qEl, node.q, function () {
+                if (_afterTyped) { var cb = _afterTyped; _afterTyped = null; cb(function () { buildOptions(node); }); }
+                else buildOptions(node);
+            });
         } else {
             typeText(qEl, node.q);
             buildOptions(node);
@@ -475,27 +479,44 @@
     } catch (e) { /* 忽略 */ }
 
     // 初始渲染
-    // ── 开场序列：黑屏 → 欢迎大字 → 背景渐显 → 问句打字机 → 按钮 ──
+    // ── 开场序列 ──────────────────────────────────────────────
+    // 黑屏 → 欢迎大字(缓入缓出) → Sirokami 逐字散开 → 黑幕渐隐
+    //   + 问句在「原 Sirokami 位置」打字 → 滑回常态位置 → 按钮出现
     (function boot() {
         var body = document.body;
         var animOff = document.documentElement.classList.contains('nx-anim-off');
         function finishNow(skip) {
             if (skip) body.classList.add('nx-skip');
-            body.classList.remove('nx-boot', 'nx-bg-in', 'nx-question-in');
+            body.classList.remove('nx-boot', 'nx-bg-in', 'nx-question-in', 'nx-q-center');
             renderAny('root');
         }
         if (animOff) { finishNow(); return; }   // 关动效时直接进最终状态
+
+        // 量出「屏幕正中」与「问句常态位置」的垂直差，供问句从中心滑回
+        function measureDelta() {
+            var q = document.getElementById('nxQuestion');
+            if (!q) return;
+            var r = q.getBoundingClientRect();
+            var dy = Math.round(window.innerHeight / 2 - (r.top + r.height / 2));
+            body.style.setProperty('--q-dy', dy + 'px');
+        }
+
         var timers = [];
         function clearTimers() { timers.forEach(clearTimeout); timers = []; }
-        // 阶段 1：黑屏 + 欢迎大字（CSS 动画 3s，缓入缓出）
-        // 阶段 2：2.4s 时背景渐变出现
-        timers.push(setTimeout(function () { body.classList.add('nx-bg-in'); }, 2400));
-        // 阶段 3：3.2s 时问句就位并开始打字机（打完后自动出按钮）
+
+        // 阶段 3（2.6s）：黑幕渐隐 + 问句出现在屏幕正中并开始打字
         timers.push(setTimeout(function () {
-            body.classList.add('nx-question-in');
+            measureDelta();
+            body.classList.add('nx-bg-in', 'nx-question-in', 'nx-q-center');
             body.classList.remove('nx-boot');
+            // 打字完成后：先滑回常态位置（0.58s），再出按钮
+            _afterTyped = function (done) {
+                body.classList.remove('nx-q-center');
+                setTimeout(done, 600);
+            };
             renderAny('root', true);
-        }, 3200));
+        }, 2600));
+
         // 任意点击/按键：跳过开场
         function skip() {
             if (!body.classList.contains('nx-boot')) return;
@@ -507,7 +528,6 @@
         document.addEventListener('pointerdown', skip, true);
         document.addEventListener('keydown', skip, true);
     })();
-
     // ── 动效开关：默认开启（不受系统「减少动态效果」影响），可手动关闭并记住 ──
     (function initAnimToggle() {
         var KEY = 'siro_next_anim';
