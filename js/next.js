@@ -1324,9 +1324,12 @@
             var b = _magBtns[i];
             b._rx = 0; b._ry = 0;
             if (!b.parentNode) { b._tx = 0; b._ty = 0; continue; }
-            // 关键：用「原位中心」而不是含偏移的当前中心，避免力←→位置的自反馈振荡
-            var cx = stageRect.left + b.offsetLeft + b.offsetWidth / 2;
-            var cy = stageRect.top + b.offsetTop + b.offsetHeight / 2;
+            // 关键：用「原位中心」而不是含偏移的当前中心，避免力←→位置的自反馈振荡。
+            // 用元素自身的矩形减去当前位移来求原位中心 —— 这样浮层里(固定定位)的线圈也算得对，
+            // 主菜单里 stage+offsetLeft 的旧算法等价于此。
+            var rc = b.getBoundingClientRect();
+            var cx = rc.left + rc.width / 2 - ((b._mx || 0) + (b._tx || 0));
+            var cy = rc.top + rc.height / 2 - ((b._my || 0) + (b._ty || 0));
             var tx = 0, ty = 0;
             var d = 1e9;
             if (_magPx !== null) {
@@ -1356,13 +1359,12 @@
             for (var c = a + 1; c < _magBtns.length; c++) {
                 var A = _magBtns[a], B = _magBtns[c];
                 if (!A.parentNode || !B.parentNode) continue;
-                var ax = stageRect.left + A.offsetLeft + A.offsetWidth / 2 + A._mx + A._tx;
-                var ay = stageRect.top + A.offsetTop + A.offsetHeight / 2 + A._my + A._ty;
-                var bx = stageRect.left + B.offsetLeft + B.offsetWidth / 2 + B._mx + B._tx;
-                var by = stageRect.top + B.offsetTop + B.offsetHeight / 2 + B._my + B._ty;
+                var ar = A.getBoundingClientRect(), br = B.getBoundingClientRect();
+                var ax = ar.left + ar.width / 2, ay = ar.top + ar.height / 2;   // 含位移的当前中心
+                var bx = br.left + br.width / 2, by = br.top + br.height / 2;
                 var ux = bx - ax, uy = by - ay;
                 var dd = Math.sqrt(ux * ux + uy * uy) || 0.001;
-                var minD = (A.offsetWidth + B.offsetWidth) / 2 + MAG.gap;
+                var minD = (ar.width + br.width) / 2 + MAG.gap;
                 if (dd < minD) {
                     var push = (minD - dd) * MAG.repK;
                     var nx = ux / dd, ny = uy / dd;
