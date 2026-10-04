@@ -575,6 +575,7 @@
 
     // ── 卡片效果浮层（与老站一致：名称 / 类型 / 属性种族等级 / 攻守 / 效果文本）──
     var _tipEl = null;
+    var _tipClosed = false;      // 关闭/切视图期间禁止再弹出，防止效果框卡在屏幕上
     function tipEl() {
         if (_tipEl) return _tipEl;
         _tipEl = document.createElement('div');
@@ -584,6 +585,7 @@
     }
     function showCardTip(ev, id) {
         var c = cardInfo(id);
+        if (_tipClosed) return;        // 浮层正在关闭/切视图，不再弹出
         var tip = tipEl();
         if (!c) return;                // 查不到卡片信息时保持现状，避免浮层被杂散事件闪掉
         var isMonster = c.typeInfo && c.typeInfo.baseType === '怪兽';
@@ -619,12 +621,19 @@
         tip.style.left = x + 'px';
         tip.style.top = y + 'px';
     }
-    function hideCardTip() {
-        if (!_tipEl || _tipEl.style.display === 'none') return;
+    // force=true 时立即收起（用于浮层被销毁/切视图，避免来不及收就没了触发 mouseleave 的元素而卡住）
+    function hideCardTip(force) {
+        if (!_tipEl) return;
         var tip = _tipEl;
+        clearTimeout(tip._hideTimer);
+        if (force) {
+            tip.style.display = 'none';
+            tip.classList.remove('is-in', 'is-out');
+            return;
+        }
+        if (tip.style.display === 'none') return;
         tip.classList.remove('is-in');
         tip.classList.add('is-out');                 // 反向且更快：边框回收 + 文字快速淡出
-        clearTimeout(tip._hideTimer);
         tip._hideTimer = setTimeout(function () {
             tip.style.display = 'none';
             tip.classList.remove('is-out');
@@ -685,7 +694,8 @@
     function closePlayerOverlay() {
         var el = povEl();
         if (!el || el.classList.contains('is-closing')) return;
-        hideCardTip();
+        _tipClosed = true;              // 上锁：关闭过程中的杂物事件不再弹效果框
+        hideCardTip(true);              // 立即收起（不等 130ms 淡出，避免卡在屏幕上）
         clearTimeout(el._choicesTimer);
         el.classList.add('is-closing');                  // 线圈/内容整体收缩消失
         document.body.classList.remove('nx-zoomed');     // 同时舞台放大复原
@@ -699,6 +709,7 @@
         var el = povEl();
         if (!el) return;
         if (!el.classList.contains('is-viewing') || el.classList.contains('is-returning')) return;
+        hideCardTip(true);     // 切视图会移除卡片，不会再有 mouseleave，必须主动收起效果框
         playSfx('back');
         var v = document.getElementById('nxPovView');
         el.classList.add('is-returning');
@@ -771,6 +782,7 @@
         document.body.appendChild(el);
         document.body.classList.add('nx-zoomed');
         document.addEventListener('keydown', povKey, true);
+        _tipClosed = false;            // 解锁效果框
         playSfx('click');
         // 入场动画只在"刚打开"时生效一次；播完去掉标记，避免返回时基础规则再次触发放两遍入场
         el.classList.add('is-entering');
@@ -793,6 +805,7 @@
         }
         collectBlobs();
 
+        el.addEventListener('mouseleave', function () { hideCardTip(true); });   // 兜底
         // 点空白：内容态 → 回到两个线圈；线圈态 → 关闭
         el.addEventListener('click', function (ev) {
             ev.stopPropagation();      // 关键：不能穿透到全局"点空白返回"，否则页面会跟着返回一级并重播入场动画
@@ -930,6 +943,7 @@
     // 「选手详情 · 卡组信息」与「预组卡组」共用这一段
     function renderDeckInto(box, deck, meta) {
         if (!box || !deck) return;
+        hideCardTip(true);     // 重渲染前先收掉旧的效果框
         // ① 先播加载动画：等卡图全部就绪再渲染，入场动画才不会"播完了图还没出来"
         showDeckLoading(box);
         var allIds = [].concat(deck.main || [], deck.extra || [], deck.side || []);
@@ -1275,6 +1289,7 @@
         document.body.appendChild(el);
         document.body.classList.add('nx-zoomed');
         document.addEventListener('keydown', povKey, true);
+        _tipClosed = false;            // 解锁效果框
         el.addEventListener('click', function (ev) {
             ev.stopPropagation();                       // 不穿透到全局"点空白返回"
             var t = ev.target;
