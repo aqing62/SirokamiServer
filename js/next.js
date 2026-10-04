@@ -318,15 +318,9 @@
         var cuts = (data && data.tierCutoffs) || [];
         var total = (data && data.total) || players.length;
 
-        var cutHtml = cuts.map(function (c, ci) {
-            var name = String(c.name || '').replace(/^S\d+\s*/, '');
-            return '<span class="nx-tier-chip nx-reveal ' + tierClass(name) + '" style="--i:' + (ci + 2) + '">' +
-                   esc(name) + '<i>' + c.minRating + '</i></span>';
-        }).join('');
 
         var head = '<div class="nx-ladder-top">' +
             '<div class="nx-ladder-count nx-reveal" style="--i:0"><b>' + total + '</b><span>人已上榜</span></div>' +
-            '<div class="nx-ladder-tiers">' + cutHtml + '</div>' +
         '</div>';
 
         if (!players.length) {

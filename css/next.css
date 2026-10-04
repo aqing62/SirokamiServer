@@ -521,8 +521,8 @@ body.nx-skip .nx-welcome { display: none; }
   gap: 6px;
   padding: 6px 8px;
   border-radius: 999px;
-  border: 1px solid rgba(216, 30, 68, .35);
-  background: rgba(10, 8, 10, .72);
+  border: none;
+  background: rgba(10, 8, 10, .55);
   backdrop-filter: blur(4px);
   font-size: 12px;
   opacity: .32;
@@ -533,7 +533,7 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-dbg-btn {
   padding: 4px 10px;
   border-radius: 999px;
-  border: 1px solid rgba(150, 150, 160, .45);
+  border: none;
   background: transparent;
   color: #9a9aa4;
   font-family: inherit;
@@ -541,12 +541,8 @@ body.nx-skip .nx-welcome { display: none; }
   cursor: pointer;
   transition: .18s;
 }
-.nx-dbg-btn.is-on {
-  border-color: rgba(216, 30, 68, .8);
-  background: rgba(216, 30, 68, .18);
-  color: #ffc0cd;
-}
-.nx-dbg-btn:hover { border-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
+.nx-dbg-btn.is-on { background: rgba(216, 30, 68, .22); color: #ffc0cd; }
+.nx-dbg-btn:hover { color: var(--nx-gold-light, #F0E68C); }
 @media (max-width: 560px) {
   .nx-debug { left: 8px; bottom: 8px; gap: 4px; padding: 4px 6px; }
   .nx-dbg-btn { padding: 3px 8px; font-size: 11px; }
@@ -618,10 +614,10 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-screen-head { display: flex; align-items: center; gap: 12px; }
 .nx-screen-back {
   flex: 0 0 auto;
-  width: 42px; height: 42px;
+  width: 44px; height: 44px;
   border-radius: 50%;
-  border: 1px solid rgba(216, 30, 68, .55);
-  background: rgba(216, 30, 68, .12);
+  border: none;
+  background: radial-gradient(circle, rgba(216, 30, 68, .22), rgba(216, 30, 68, 0) 70%);
   color: var(--nx-gold-light, #F0E68C);
   font-size: 18px;
   line-height: 1;
@@ -629,9 +625,8 @@ body.nx-skip .nx-welcome { display: none; }
   transition: transform .3s var(--nx-ease), border-color .25s, background .25s;
 }
 .nx-screen-back:hover {
-  transform: scale(1.1);
-  border-color: var(--nx-gold, #D4AF37);
-  background: rgba(212, 175, 55, .16);
+  transform: scale(1.12);
+  background: radial-gradient(circle, rgba(212, 175, 55, .3), rgba(212, 175, 55, 0) 70%);
 }
 .nx-screen-titles h2 { margin: 0; font-size: clamp(18px, 2.4vw, 26px); letter-spacing: 1px; color: #f2ece4; }
 .nx-screen-titles p { margin: 3px 0 0; font-size: 12.5px; color: var(--nx-dim, #8d8d96); letter-spacing: .5px; }
@@ -652,17 +647,17 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-screen-todo-sub { margin: 0; font-size: 12.5px; color: var(--nx-dim, #8d8d96); }
 .nx-screen-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .nx-screen-classic {
-  padding: 9px 18px;
-  border-radius: 999px;
-  border: 1px solid rgba(216, 30, 68, .55);
-  background: linear-gradient(135deg, rgba(216, 30, 68, .22), rgba(0, 0, 0, .35));
+  padding: 9px 4px;
+  border: none;
+  background: none;
+  border-bottom: 1px solid rgba(216, 30, 68, .45);
   color: #ffc0cd;
   font-family: inherit;
   font-size: 13px;
   cursor: pointer;
   transition: .22s;
 }
-.nx-screen-classic:hover { border-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
+.nx-screen-classic:hover { border-bottom-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
 .nx-screen-hint { font-size: 11.5px; color: #6f6f78; letter-spacing: .5px; }
 
 
@@ -705,17 +700,16 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-table .c-rating { color: var(--nx-gold-light, #F0E68C); font-weight: 700; }
 .nx-table .c-rate { color: #9a9aa4; }
 .nx-streak {
-  margin-left: 6px; padding: 1px 6px; border-radius: 999px;
-  font-size: 10.5px; color: #ffb4c4; background: rgba(216,30,68,.18);
-  border: 1px solid rgba(216,30,68,.35);
+  margin-left: 7px;
+  font-size: 10.5px; color: #ff8fa6; letter-spacing: .5px;
 }
-.nx-tier-badge { padding: 2px 8px; border-radius: 999px; font-size: 11.5px; border: 1px solid; }
-.nx-tier-badge.is-peak, .nx-tier-chip.is-peak { color: #ffe9a8; border-color: rgba(212,175,55,.75); background: rgba(212,175,55,.14); }
-.nx-tier-badge.is-master, .nx-tier-chip.is-master { color: #d9b8ff; border-color: rgba(170,110,255,.6); background: rgba(170,110,255,.12); }
-.nx-tier-badge.is-diamond, .nx-tier-chip.is-diamond { color: #a8e6ff; border-color: rgba(90,200,255,.6); background: rgba(90,200,255,.12); }
-.nx-tier-badge.is-gold, .nx-tier-chip.is-gold { color: #ffd9a0; border-color: rgba(230,160,60,.6); background: rgba(230,160,60,.12); }
-.nx-tier-badge.is-silver, .nx-tier-chip.is-silver { color: #d6dbe3; border-color: rgba(180,190,205,.55); background: rgba(180,190,205,.1); }
-.nx-tier-badge.is-rookie, .nx-tier-chip.is-rookie { color: #b9b9c2; border-color: rgba(150,150,160,.45); background: rgba(150,150,160,.1); }
+.nx-tier-badge { padding: 2px 8px; border-radius: 999px; font-size: 11.5px; border: none; }
+.nx-tier-badge.is-peak { color: #ffe9a8; background: rgba(212,175,55,.16); }
+.nx-tier-badge.is-master { color: #d9b8ff; background: rgba(170,110,255,.14); }
+.nx-tier-badge.is-diamond { color: #a8e6ff; background: rgba(90,200,255,.14); }
+.nx-tier-badge.is-gold { color: #ffd9a0; background: rgba(230,160,60,.14); }
+.nx-tier-badge.is-silver { color: #d6dbe3; background: rgba(180,190,205,.12); }
+.nx-tier-badge.is-rookie { color: #b9b9c2; background: rgba(150,150,160,.12); }
 .nx-table-note { margin-top: 10px; font-size: 11.5px; color: #6f6f78; }
 
 .nx-loading { display: flex; align-items: center; justify-content: center; gap: 10px; color: #9a9aa4; font-size: 13px; padding: 40px 0; }
@@ -728,8 +722,8 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-empty { text-align: center; color: #9a9aa4; font-size: 13px; line-height: 1.9; padding: 34px 10px; }
 .nx-screen-err { text-align: center; color: #ffb4c4; font-size: 13px; padding: 30px 10px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .nx-screen-retry {
-  padding: 7px 18px; border-radius: 999px; font-family: inherit; font-size: 12.5px; cursor: pointer;
-  border: 1px solid rgba(216,30,68,.55); background: rgba(216,30,68,.14); color: #ffc0cd;
+  padding: 7px 4px; font-family: inherit; font-size: 12.5px; cursor: pointer;
+  border: none; background: none; border-bottom: 1px solid rgba(216,30,68,.45); color: #ffc0cd;
 }
 .nx-screen-retry:hover { border-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
 
