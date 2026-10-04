@@ -1213,17 +1213,22 @@
                 });
             });
 
-            // 滚轮：累积到阈值走一格（鼠标一格 ≈ 100）
+            // 滚轮：一格一步。阈值取 100（鼠标一格常是 100 或 120），
+            // 且手势间隔超过 140ms 视为新手势、清零累积量，避免一格走两格。
             var acc = 0;
+            var wheelAt = 0;
             cf.addEventListener('wheel', function (ev) {
                 ev.preventDefault();
+                var now = Date.now();
+                if (now - wheelAt > 140) acc = 0;
+                wheelAt = now;
                 var d = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
                 acc += d;
                 var guard = 0;
-                while (Math.abs(acc) >= 60 && guard++ < 4) {
+                while (Math.abs(acc) >= 100 && guard++ < 2) {
                     var dir = acc > 0 ? 1 : -1;
                     var next = Math.max(0, Math.min(items.length - 1, cur + dir));
-                    acc -= dir * 60;
+                    acc -= dir * 100;
                     if (next !== cur) { cur = next; playSfx('click'); }
                 }
                 paint();
