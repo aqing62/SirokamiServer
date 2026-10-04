@@ -740,8 +740,8 @@ body.nx-skip .nx-welcome { display: none; }
   max-height: min(56vh, 520px);
   overflow-y: auto;
   overflow-x: hidden;
-  padding-top: 34px;
-  padding-bottom: 34px;
+  padding-top: 0;   /* 纵向留白由 JS 按容器高度计算（首尾可滚到正中） */
+  padding-bottom: 0;
   scrollbar-width: none;
   perspective: 900px;
   /* 上下边缘渐变淡出（替代边框） */

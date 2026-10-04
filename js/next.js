@@ -360,14 +360,29 @@
         bindScroll3D(document.getElementById('nxLadderScroll'));
     }
 
-    // ── 滚动 3D：离视口中心越远，越向后倾斜并变暗 ──
+    // ── 滚动 3D（圆润弧形）＋ 惯性缓动滚动 ────────────────────
+    // ① 距离用 sin 映射：中间平缓、两端陡 → 看起来是一条圆弧而不是直线锥（菱形）
+    // ② wheel 事件累加目标值，rAF 里插值逼近 → 滚轮不再生硬
+    // ③ 上下留白 = (容器高 - 行高)/2 → 首尾条目都能滚到正中，看得清
     function bindScroll3D(scroller) {
         if (!scroller) return;
         var items = Array.prototype.slice.call(scroller.querySelectorAll('.nx-item3d'));
         if (!items.length) return;
-        var ticking = false;
-        function apply() {
-            ticking = false;
+
+        var MAX_ROT = 26;    // 最大后仰角
+        var DEPTH = 150;     // 最大后退距离
+        var SCALE = 0.12;    // 最大缩小
+        var FADE = 0.55;     // 最大变暗
+        var BLUR = 1.2;      // 最大虚化
+
+        function setPad() {
+            var rowH = items[0].offsetHeight || 44;
+            var pad = Math.max(0, Math.round((scroller.clientHeight - rowH) / 2));
+            scroller.style.paddingTop = pad + 'px';
+            scroller.style.paddingBottom = pad + 'px';
+        }
+
+        function paint() {
             var box = scroller.getBoundingClientRect();
             var cy = box.top + box.height / 2;
             var half = box.height / 2;
@@ -375,25 +390,58 @@
                 var el = items[i];
                 var r = el.getBoundingClientRect();
                 var d = ((r.top + r.height / 2) - cy) / half;      // -1(上) ~ 1(下)
-                if (d > 1.6) d = 1.6; else if (d < -1.6) d = -1.6;
-                var ad = Math.abs(d);
-                var rot = -d * 22;                                  // 向下 → 上缘后仰
-                var z = -ad * 110;
-                var sc = 1 - ad * 0.07;
-                el.style.transform = 'perspective(900px) rotateX(' + rot.toFixed(2) + 'deg) translateZ(' +
-                    z.toFixed(1) + 'px) scale(' + sc.toFixed(3) + ')';
-                el.style.opacity = (1 - ad * 0.5).toFixed(3);
-                el.style.filter = ad > 0.02 ? 'blur(' + (ad * 1.6).toFixed(2) + 'px)' : 'none';
+                if (d > 1) d = 1; else if (d < -1) d = -1;
+                var k = Math.sin(d * Math.PI / 2);                 // 圆形缓动曲线
+                var ad = Math.abs(k);
+                el.style.transform =
+                    'rotateX(' + (-k * MAX_ROT).toFixed(2) + 'deg) ' +
+                    'translateZ(' + (-ad * DEPTH).toFixed(1) + 'px) ' +
+                    'scale(' + (1 - ad * SCALE).toFixed(3) + ')';
+                el.style.opacity = (1 - ad * FADE).toFixed(3);
+                el.style.filter = ad > 0.03 ? 'blur(' + (ad * BLUR).toFixed(2) + 'px)' : 'none';
             }
         }
+
+        // 惯性缓动滚动
+        var target = scroller.scrollTop;
+        var cur = target;
+        var animating = false;
+        var keep = 0;
+        function loop() {
+            cur += (target - cur) * 0.15;
+            if (Math.abs(target - cur) < 0.4) {
+                cur = target;
+                scroller.scrollTop = cur;
+                animating = false;
+                paint();
+                return;
+            }
+            scroller.scrollTop = cur;
+            paint();
+            requestAnimationFrame(loop);
+        }
+        function kick() { if (!animating) { animating = true; requestAnimationFrame(loop); } }
+
+        scroller.addEventListener('wheel', function (e) {
+            e.preventDefault();
+            var max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
+            target = Math.max(0, Math.min(max, target + e.deltaY * 1.15));
+            kick();
+        }, { passive: false });
+
         scroller.addEventListener('scroll', function () {
-            if (ticking) return;
-            ticking = true;
-            requestAnimationFrame(apply);
+            if (animating) return;              // 程序写入触发的 scroll 忽略
+            cur = target = scroller.scrollTop;  // 键盘/触控板等原生滚动同步
+            paint();
         }, { passive: true });
-        apply();
-        // 内容变化/尺寸变化后重算
-        window.addEventListener('resize', function () { requestAnimationFrame(apply); });
+
+        window.addEventListener('resize', function () {
+            setPad();
+            requestAnimationFrame(paint);
+        });
+
+        setPad();
+        requestAnimationFrame(paint);
     }
 
     var RENDERERS = { ladder: renderLadder };
