@@ -355,8 +355,11 @@
         var scroller = document.getElementById('nxLadderScroll');
         // 点击选手条 → 弹出对战记录 / 卡组
         Array.prototype.forEach.call(scroller.querySelectorAll('.nx-row'), function (r) {
-            r.addEventListener('click', function () {
-                openPlayerModal({ name: r.getAttribute('data-player'), rating: r.getAttribute('data-rating'), tier: r.getAttribute('data-tier') });
+            r.addEventListener('click', function (ev) {
+                openPlayerOverlay(
+                    { name: r.getAttribute('data-player'), rating: r.getAttribute('data-rating'), tier: r.getAttribute('data-tier') },
+                    { x: ev.clientX, y: ev.clientY }
+                );
             });
         });
         bindScroll3D(scroller);
@@ -502,91 +505,160 @@
         return { total: 1, decks: [{ roomName: 'M#1100', time: new Date().toISOString(), winner: '测试', opponent: '对手', score: 2, deck: { main: main, extra: extra, side: side } }] };
     }
 
-    function closePlayerModal() {
-        var el = document.getElementById('nxModal');
-        if (el) el.remove();
+    // ── 选手详情：点击处收缩整屏 → 两个线圈选项 ──────────────
+    var _povPlayer = null;
+    var _povOrigin = { x: 0.5, y: 0.5 };
+    var _povDuels = null;
+    var zoEls = [document.getElementById('nxStage'), document.querySelector('.nx-top'), document.querySelector('.nx-foot')].filter(Boolean);
+
+    function povEl() { return document.getElementById('nxPov'); }
+
+    function closePlayerOverlay() {
+        var el = povEl();
+        if (!el) return;
+        el.classList.add('is-closing');
+        document.body.classList.remove('nx-zoomed');
+        setTimeout(function () { el.remove(); document.removeEventListener('keydown', povKey, true); }, 460);
     }
 
-    function openPlayerModal(p) {
-        closePlayerModal();
-        var wrap = document.createElement('div');
-        wrap.className = 'nx-modal';
-        wrap.id = 'nxModal';
-        wrap.innerHTML =
-            '<div class="nx-modal-panel">' +
-                '<div class="nx-modal-head">' +
-                    '<div class="nx-modal-title">' + esc(p.name) +
-                        '<span>' + esc(p.tier || '') + (p.rating ? ' · ' + esc(p.rating) + ' 分' : '') + '</span>' +
-                    '</div>' +
-                    '<button class="nx-modal-close" type="button" title="关闭">✕</button>' +
+    function povBackToChoices() {
+        var el = povEl();
+        if (!el) return;
+        el.classList.remove('is-viewing');
+        var v = document.getElementById('nxPovView');
+        if (v) v.innerHTML = '';
+        playSfx('back');
+    }
+
+    function povKey(ev) {
+        if (ev.key !== 'Escape') return;
+        ev.stopPropagation();
+        ev.preventDefault();
+        var el = povEl();
+        if (el && el.classList.contains('is-viewing')) povBackToChoices();
+        else closePlayerOverlay();
+    }
+
+    function openPlayerOverlay(p, origin) {
+        closePlayerOverlay();
+        _povPlayer = p;
+        _povOrigin = origin || { x: 0.5, y: 0.5 };
+
+        // 点击点在视口内的归一化位置（遮罩径向渐变中心）
+        var vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+        var nx = Math.max(0, Math.min(1, _povOrigin.x / vw));
+        var ny = Math.max(0, Math.min(1, _povOrigin.y / vh));
+        // 收缩原点：点击点相对舞台的位置
+        var st = stage ? stage.getBoundingClientRect() : null;
+        for (var zi = 0; zi < zoEls.length; zi++) {
+            var zr = zoEls[zi].getBoundingClientRect();
+            zoEls[zi].style.setProperty('--zo-x', (_povOrigin.x - zr.left) + 'px');
+            zoEls[zi].style.setProperty('--zo-y', (_povOrigin.y - zr.top) + 'px');
+        }
+
+        var el = document.createElement('div');
+        el.className = 'nx-pov';
+        el.id = 'nxPov';
+        el.style.setProperty('--ox', (nx * 100).toFixed(1) + '%');
+        el.style.setProperty('--oy', (ny * 100).toFixed(1) + '%');
+        el.innerHTML =
+            '<div class="nx-pov-dim"></div>' +
+            '<div class="nx-pov-inner">' +
+                '<div class="nx-pov-title"><b>' + esc(p.name) + '</b>' +
+                    '<span>' + esc(p.tier || '') + (p.rating ? ' · ' + esc(p.rating) + ' 分' : '') + '</span></div>' +
+                '<div class="nx-pov-choices">' +
+                    '<button class="nx-option nx-pov-opt" type="button" data-view="duels" style="--i:0">' +
+                        ringSvg(false) + '<span class="nx-opt-icon">' + iconSvg('list') + '</span>' +
+                        '<span class="nx-opt-label">对局信息</span><span class="nx-opt-sub">最近对战记录</span></button>' +
+                    '<button class="nx-option nx-pov-opt" type="button" data-view="deck" style="--i:1">' +
+                        ringSvg(true) + '<span class="nx-opt-icon">' + iconSvg('box') + '</span>' +
+                        '<span class="nx-opt-label">卡组信息</span><span class="nx-opt-sub">最近胜局卡组</span></button>' +
                 '</div>' +
-                '<div class="nx-modal-cols">' +
-                    '<section class="nx-modal-col"><h3>对战记录</h3>' +
-                        '<div class="nx-col-body" id="nxDuelList"><div class="nx-loading"><span class="nx-spin"></span>读取中…</div></div>' +
-                    '</section>' +
-                    '<section class="nx-modal-col"><h3>卡组</h3>' +
-                        '<div class="nx-col-body" id="nxDeckBox"><div class="nx-loading"><span class="nx-spin"></span>读取中…</div></div>' +
-                    '</section>' +
-                '</div>' +
+                '<div class="nx-pov-view" id="nxPovView" hidden></div>' +
+                '<button class="nx-pov-back" type="button" hidden>← 返回</button>' +
             '</div>';
-        document.body.appendChild(wrap);
+        document.body.appendChild(el);
+        document.body.classList.add('nx-zoomed');
+        document.addEventListener('keydown', povKey, true);
         playSfx('click');
 
-        // 关闭：点背景 / 关闭键 / Esc（Esc 不穿透到返回）
-        wrap.addEventListener('click', function (ev) { if (ev.target === wrap) closePlayerModal(); });
-        var cl = wrap.querySelector('.nx-modal-close');
-        if (cl) cl.addEventListener('click', closePlayerModal);
-        document.addEventListener('keydown', escClose, true);
-        function escClose(ev) {
-            if (ev.key !== 'Escape') return;
-            ev.stopPropagation();
-            ev.preventDefault();
-            document.removeEventListener('keydown', escClose, true);
-            closePlayerModal();
-        }
-        wrap.addEventListener('nx-modal-closed', function () { document.removeEventListener('keydown', escClose, true); });
-
-        // 左侧：对战记录
-        var duelsP = FX.mock ? Promise.resolve(mockDuels(p.name))
-            : fetch(DUELS_API + '?player=' + encodeURIComponent(p.name) + '&limit=50').then(function (r) { return r.json(); });
-        duelsP.then(function (data) {
-            var box = document.getElementById('nxDuelList');
-            if (!box) return;
-            var list = (data && data.duels) || [];
-            if (!list.length) { box.innerHTML = '<div class="nx-empty-sm">还没有对局记录</div>'; return; }
-            box.innerHTML = list.map(function (d) {
-                var tag = d.draw ? '平' : (d.win ? '胜' : '负');
-                var cls = d.draw ? 'is-draw' : (d.win ? 'is-win' : 'is-lose');
-                return '<div class="nx-duel">' +
-                    '<span class="nx-duel-tag ' + cls + '">' + tag + '</span>' +
-                    '<span class="nx-duel-opp">' + esc(d.opponentName || '未知') + '</span>' +
-                    '<span class="nx-duel-meta">' + esc(d.roomName || '') + '</span>' +
-                    '<span class="nx-duel-time">' + fmtTime(d.time) + '</span>' +
-                    (d.replayCode ? '<button class="nx-duel-replay" type="button" data-code="' + esc(d.replayCode) + '">' + esc(d.replayCode) + '</button>' : '') +
-                '</div>';
-            }).join('');
-            Array.prototype.forEach.call(box.querySelectorAll('.nx-duel-replay'), function (b) {
+        // 线圈按钮：接入现成的悬停收敛 + 形状动画
+        var btns = el.querySelectorAll('.nx-pov-opt');
+        for (var i = 0; i < btns.length; i++) {
+            bindHoverRegular(btns[i]);
+            var paths = btns[i].querySelectorAll('.nx-ring path');
+            for (var k = 0; k < paths.length; k++) paths[k].setAttribute('data-blob-ready', '1');
+            (function (b) {
                 b.addEventListener('click', function () {
-                    var code = b.getAttribute('data-code');
-                    try { navigator.clipboard.writeText(code); } catch (e) { /* 忽略 */ }
-                    var old = b.textContent;
-                    b.textContent = '已复制';
-                    setTimeout(function () { b.textContent = old; }, 1200);
+                    var v = b.getAttribute('data-view');
+                    playSfx('click');
+                    povShowView(v);
                 });
-            });
-        }).catch(function () {
-            var box = document.getElementById('nxDuelList');
-            if (box) box.innerHTML = '<div class="nx-empty-sm">对战记录读取失败</div>';
-        });
+            })(btns[i]);
+        }
+        collectBlobs();
 
-        // 右侧：卡组
+        var back = el.querySelector('.nx-pov-back');
+        if (back) back.addEventListener('click', povBackToChoices);
+        // 点空白（dim 区域）关闭
+        var dim = el.querySelector('.nx-pov-dim');
+        if (dim) dim.addEventListener('click', closePlayerOverlay);
+    }
+
+    // 展示某一项内容（线圈收起 → 内容淡入）
+    function povShowView(kind) {
+        var el = povEl();
+        if (!el) return;
+        var view = document.getElementById('nxPovView');
+        var back = el.querySelector('.nx-pov-back');
+        el.classList.add('is-viewing');
+        if (view) { view.hidden = false; view.innerHTML = '<div class="nx-loading"><span class="nx-spin"></span>读取中…</div>'; }
+        if (back) back.hidden = false;
+
+        var p = _povPlayer || {};
+        if (kind === 'duels') {
+            var duelsP = FX.mock ? Promise.resolve(mockDuels(p.name))
+                : fetch(DUELS_API + '?player=' + encodeURIComponent(p.name) + '&limit=50').then(function (r) { return r.json(); });
+            duelsP.then(function (data) {
+                var box = document.getElementById('nxPovView');
+                if (!box) return;
+                var list = (data && data.duels) || [];
+                if (!list.length) { box.innerHTML = '<div class="nx-empty">还没有对局记录</div>'; return; }
+                box.innerHTML = list.map(function (d) {
+                    var tag = d.draw ? '平' : (d.win ? '胜' : '负');
+                    var cls = d.draw ? 'is-draw' : (d.win ? 'is-win' : 'is-lose');
+                    return '<div class="nx-duel">' +
+                        '<span class="nx-duel-tag ' + cls + '">' + tag + '</span>' +
+                        '<span class="nx-duel-opp">' + esc(d.opponentName || '未知') + '</span>' +
+                        '<span class="nx-duel-meta">' + esc(d.roomName || '') + '</span>' +
+                        '<span class="nx-duel-time">' + fmtTime(d.time) + '</span>' +
+                        (d.replayCode ? '<button class="nx-duel-replay" type="button" data-code="' + esc(d.replayCode) + '">' + esc(d.replayCode) + '</button>' : '') +
+                    '</div>';
+                }).join('');
+                Array.prototype.forEach.call(box.querySelectorAll('.nx-duel-replay'), function (b) {
+                    b.addEventListener('click', function () {
+                        var code = b.getAttribute('data-code');
+                        try { navigator.clipboard.writeText(code); } catch (e) { /* 忽略 */ }
+                        var old = b.textContent;
+                        b.textContent = '已复制';
+                        setTimeout(function () { b.textContent = old; }, 1200);
+                    });
+                });
+            }).catch(function () {
+                var box = document.getElementById('nxPovView');
+                if (box) box.innerHTML = '<div class="nx-empty">对战记录读取失败</div>';
+            });
+            return;
+        }
+
+        // 卡组信息
         var decksP = FX.mock ? Promise.resolve(mockDeck())
             : fetch(DECKS_API + '?player=' + encodeURIComponent(p.name) + '&limit=1').then(function (r) { return r.json(); });
         decksP.then(function (data) {
-            var box = document.getElementById('nxDeckBox');
+            var box = document.getElementById('nxPovView');
             if (!box) return;
             var d = (data && data.decks && data.decks[0]) || null;
-            if (!d || !d.deck) { box.innerHTML = '<div class="nx-empty-sm">还没有可用于展示的卡组</div>'; return; }
+            if (!d || !d.deck) { box.innerHTML = '<div class="nx-empty">还没有可用于展示的卡组</div>'; return; }
             return loadCardMap().then(function () {
                 function group(title, ids) {
                     if (!ids || !ids.length) return '';
@@ -601,8 +673,8 @@
                     group('主卡组', d.deck.main) + group('额外卡组', d.deck.extra) + group('副卡组', d.deck.side);
             });
         }).catch(function () {
-            var box = document.getElementById('nxDeckBox');
-            if (box) box.innerHTML = '<div class="nx-empty-sm">卡组读取失败</div>';
+            var box = document.getElementById('nxPovView');
+            if (box) box.innerHTML = '<div class="nx-empty">卡组读取失败</div>';
         });
     }
 
