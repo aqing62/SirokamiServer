@@ -512,7 +512,7 @@
     function showCardTip(ev, id) {
         var c = cardInfo(id);
         var tip = tipEl();
-        if (!c) { tip.style.display = 'none'; return; }
+        if (!c) return;                // 查不到卡片信息时保持现状，避免浮层被杂散事件闪掉
         var isMonster = c.typeInfo && c.typeInfo.baseType === '怪兽';
         var score = _scoreMap && _scoreMap[id];
         var scoreLine = score
