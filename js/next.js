@@ -647,8 +647,10 @@
         if (v) v.classList.add('is-leaving');            // 内容退场
         setTimeout(function () {
             if (v) { v.classList.remove('is-leaving'); v.hidden = true; v.innerHTML = ''; }
+            var inner = el.querySelector('.nx-pov-inner');
+            if (inner) { inner.style.transition = 'none'; inner.style.transform = 'none'; }
             el.classList.remove('is-viewing', 'is-viewing-done');   // 线圈恢复可见并回到布局
-            var ch = el.querySelector('.nx-pov-choices');
+            var ch = unfreezeChoices(el);
             if (ch) {                                    // 重播线圈回归动画
                 ch.classList.remove('is-back');
                 void ch.offsetWidth;
@@ -741,12 +743,54 @@
         });
     }
 
+    // 把两个线圈"就地冻结"（绝对的当前位置），使其退出时不再占据布局空间
+    function freezeChoices(el) {
+        var ch = el.querySelector('.nx-pov-choices');
+        if (!ch || ch.dataset.frozen === '1') return ch;
+        var cr = ch.getBoundingClientRect();
+        var pr = el.getBoundingClientRect();
+        ch.style.position = 'absolute';
+        ch.style.left = (cr.left - pr.left) + 'px';
+        ch.style.top = (cr.top - pr.top) + 'px';
+        ch.style.width = cr.width + 'px';
+        ch.style.margin = '0';
+        ch.dataset.frozen = '1';
+        return ch;
+    }
+    function unfreezeChoices(el) {
+        var ch = el.querySelector('.nx-pov-choices');
+        if (!ch) return ch;
+        ch.style.cssText = '';
+        ch.dataset.frozen = '';
+        return ch;
+    }
+
     // 展示某一项内容（线圈收起 → 内容淡入）
     function povShowView(kind) {
         var el = povEl();
         if (!el) return;
         var view = document.getElementById('nxPovView');
-        el.classList.add('is-viewing');
+        var inner = el.querySelector('.nx-pov-inner');
+        var first = !el.classList.contains('is-viewing');
+
+        if (first && inner) {
+            // 先在"居中态"记下位置 → 切到顶部对齐后补一个位移，再动画归零：
+            // 这样内容是从中间平滑滑到顶部的，而不是瞬间跳一下（跳完再加载卡片会显得"整体上闪"）
+            var beforeTop = inner.getBoundingClientRect().top;
+            freezeChoices(el);
+            el.classList.add('is-viewing');
+            var afterTop = inner.getBoundingClientRect().top;
+            var dy = beforeTop - afterTop;
+            if (dy > 2) {
+                inner.style.transition = 'none';
+                inner.style.transform = 'translateY(' + dy.toFixed(1) + 'px)';
+                void inner.offsetWidth;
+                inner.style.transition = 'transform .34s cubic-bezier(.22,.9,.28,1)';
+                inner.style.transform = 'translateY(0)';
+            }
+        } else {
+            el.classList.add('is-viewing');
+        }
         clearTimeout(el._choicesTimer);
         el._choicesTimer = setTimeout(function () { el.classList.add('is-viewing-done'); }, 340);
         if (view) {

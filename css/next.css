@@ -857,8 +857,8 @@ body.nx-zoomed .nx-foot {
 .nx-pov.is-viewing .nx-pov-choices { pointer-events: none; animation: nxPovChoicesOut .34s ease-in both; }
 /* 动画播完后真正移出布局：否则这块空白会把下面的内容顶下去 */
 .nx-pov.is-viewing-done .nx-pov-choices { display: none; }
-/* 内容态整体靠上排，避免垂直居中切掉顶部 */
-.nx-pov.is-viewing-done { align-items: flex-start; padding-top: clamp(14px, 4.5vh, 48px); }
+/* 内容态整体靠上排：在"选中内容"的当帧就切换（而不是等线圈消失后），避免加载完卡片后整体上跳 */
+.nx-pov.is-viewing { align-items: flex-start; padding-top: clamp(14px, 4.5vh, 48px); }
 @keyframes nxPovChoicesOut { to { opacity: 0; transform: scale(.55); filter: blur(10px); } }
 .nx-pov.is-viewing .nx-pov-title { opacity: .55; transition: opacity .3s; }
 
