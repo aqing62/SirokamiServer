@@ -248,10 +248,10 @@
 
     // 4 层：半径递减，抖动种子/幅度/旋转速度各不相同
     var RING_LAYERS = [
-        { cls: 'nxb1', r: 51, seed: 0.7, pts: 10, wob: 0.055, spin: 34, dir: '' },
-        { cls: 'nxb2', r: 49, seed: 2.1, pts: 12, wob: 0.072, spin: 46, dir: 'nx-rev' },
-        { cls: 'nxb3', r: 47, seed: 3.9, pts: 11, wob: 0.088, spin: 28, dir: '' },
-        { cls: 'nxb4', r: 45, seed: 5.4, pts: 13, wob: 0.104, spin: 58, dir: 'nx-rev' }
+        { cls: 'nxb1', r: 51, seed: 0.7, pts: 10, wob: 0.055, spin: 12, dir: '' },
+        { cls: 'nxb2', r: 49, seed: 2.1, pts: 12, wob: 0.072, spin: 17, dir: 'nx-rev' },
+        { cls: 'nxb3', r: 47, seed: 3.9, pts: 11, wob: 0.088, spin: 9, dir: '' },
+        { cls: 'nxb4', r: 45, seed: 5.4, pts: 13, wob: 0.104, spin: 21, dir: 'nx-rev' }
     ];
 
     function ringSvg(gold) {
