@@ -1288,8 +1288,26 @@ body.nx-zoomed .nx-foot {
 .nx-cf-c1 { transform: translate(17px, 5px) rotate(10deg) scale(.965); filter: brightness(.86); }
 .nx-cf-c0 { transform: none; }
 /* 中间那套：3 张卡摊开（左右各露一张），亮度恢复 */
-.nx-cf-item.is-center .nx-cf-c2 { transform: translate(-56px, -4px) rotate(-15deg) scale(1); filter: brightness(1); }
-.nx-cf-item.is-center .nx-cf-c1 { transform: translate(56px, -4px) rotate(15deg) scale(1); filter: brightness(1); }
+.nx-cf-item.is-center .nx-cf-c2 { transform: translate(-86px, -6px) rotate(-19deg) scale(1); filter: brightness(1); }
+.nx-cf-item.is-center .nx-cf-c1 { transform: translate(86px, -6px) rotate(19deg) scale(1); filter: brightness(1); }
+
+/* 鼠标移上去：整组卡边缘呼吸发光 */
+.nx-cf-item:hover .nx-cf-card { animation: nxCfBreath 1.9s ease-in-out infinite; }
+.nx-cf-item:hover .nx-cf-c2 { animation-delay: .12s; }
+.nx-cf-item:hover .nx-cf-c1 { animation-delay: .24s; }
+@keyframes nxCfBreath {
+  0%, 100% {
+    box-shadow: 0 10px 26px rgba(0, 0, 0, .62),
+                0 0 0 1px rgba(212, 175, 55, .32),
+                0 0 12px rgba(216, 30, 68, .16);
+  }
+  50% {
+    box-shadow: 0 14px 34px rgba(0, 0, 0, .68),
+                0 0 0 1px rgba(255, 233, 168, .92),
+                0 0 36px rgba(216, 30, 68, .46),
+                0 0 60px rgba(212, 175, 55, .22);
+  }
+}
 .nx-cf-name {
   margin-top: 4px;
   font-size: clamp(13px, 1.35vw, 16px);
