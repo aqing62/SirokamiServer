@@ -1258,7 +1258,8 @@
                             '</button>';
                         }).join('') +
                     '</div>' +
-                    '<div class="nx-cf-hint">滑动 / 滚轮切换 · 点中间打开 · ← → 也可</div>' +
+                    '<div class="nx-cf-hint" id="nxCfHint">滑动 / 滚轮切换 · 点中间打开 · ← → 也可</div>' +
+                    '<div class="nx-cf-empty" id="nxCfEmpty" hidden>没有匹配的卡组</div>' +
                 '</div>';
 
             var cf = document.getElementById('nxCf');
@@ -1276,6 +1277,7 @@
                         el.style.pointerEvents = 'none';
                         el.style.transform = 'translate(-50%, -50%) translate3d(' + (off * SPACING + extraX) + 'px, 0, -520px) scale(.4)';
                         el.style.zIndex = '1';
+                        el.classList.remove('is-center');   // 关键：旧的中心必须清掉，否则会留着一圈金边
                         continue;
                     }
                     var x = off * SPACING + extraX;    // 水平间距（含拖动位移）
@@ -1426,12 +1428,26 @@
                     return (el.getAttribute('data-name') || '').indexOf(q) >= 0 ||
                            (el.getAttribute('data-py') || '').toLowerCase() === q;
                 }) : allItems.slice();
+                // 被排除的必须先藏起来：paint 只处理 items 里的元素，残留的会一直留在屏幕上
+                allItems.forEach(function (el) {
+                    var on = kept.indexOf(el) >= 0;
+                    el.style.display = on ? '' : 'none';
+                    if (!on) {
+                        el.classList.remove('is-center');
+                        el.style.opacity = '0';
+                        el.style.pointerEvents = 'none';
+                    }
+                });
                 // 复用同一批 DOM（事件不丢），按原顺序重新挂载
                 kept.forEach(function (el) { stage.appendChild(el); });
                 items = kept;
                 cur = 0;
                 paint(0);
                 buildLetters();
+                var emptyEl = document.getElementById('nxCfEmpty');
+                if (emptyEl) emptyEl.hidden = kept.length > 0;
+                var hintEl = document.getElementById('nxCfHint');
+                if (hintEl) hintEl.hidden = kept.length === 0;
             }
             if (searchEl) {
                 searchEl.addEventListener('input', applySearch);

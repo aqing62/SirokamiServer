@@ -1334,6 +1334,10 @@ body.nx-zoomed .nx-foot {
 .nx-cf-hint {
   font-size: 12px; letter-spacing: 1.5px; color: #6f6f78;
 }
+.nx-cf-empty {
+  font-size: 13px; letter-spacing: 1px; color: #8d8d96;
+}
+.nx-cf-empty[hidden] { display: none; }
 @media (max-width: 768px) {
   .nx-cf-stage { height: clamp(200px, 32vh, 280px); perspective: 900px; }
   .nx-cf-item { width: clamp(104px, 26vw, 140px); }
