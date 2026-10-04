@@ -1381,6 +1381,29 @@ body.nx-zoomed .nx-foot {
 }
 
 
+/* ── 分组浏览：分组药丸 + 无排名角标的卡图网格 ─────────── */
+.nx-group-chips {
+  align-self: stretch; max-width: 1100px; margin: 0 auto 16px;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.nx-group-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 15px; border: none; border-radius: 999px;
+  background: rgba(255, 255, 255, .05);
+  color: #b9b9c2; font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: .5px;
+  cursor: pointer;
+  transition: background .22s, color .22s, transform .2s, box-shadow .25s;
+}
+.nx-group-chip i { font-style: normal; font-size: 11.5px; color: #7d7d86; }
+.nx-group-chip:hover { color: #fff3c4; background: rgba(212, 175, 55, .14); transform: translateY(-1px); }
+.nx-group-chip.is-on {
+  background: linear-gradient(135deg, #ffe9a8, #d4af37 60%, #b08d24);
+  color: #2a1c08;
+  box-shadow: 0 6px 18px rgba(212, 175, 55, .34), inset 0 0 0 1px rgba(255, 245, 200, .5);
+}
+.nx-group-chip.is-on i { color: rgba(42, 28, 8, .62); }
+.nx-card-tile.is-plain .nx-card-photo { box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
+
 /* ══ 常用卡：榜单切换 + 卡图网格 ═══════════════════════════ */
 .nx-stats-top {
   align-self: stretch; max-width: 1100px; margin: 0 auto 14px;
