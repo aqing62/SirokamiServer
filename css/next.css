@@ -397,3 +397,69 @@ html.nx-anim-off .nx-option .nx-opt-label,
 html.nx-anim-off .nx-option .nx-opt-sub {
   animation: none !important;
 }
+
+
+/* ══ 开场序列 ══════════════════════════════════════════════
+   阶段：黑屏(仅欢迎大字) → 背景渐显 → 问句打字机 → 按钮出现
+   由 body.nx-boot / .nx-bg-in / .nx-question-in 三个类控制
+   ═════════════════════════════════════════════════════════ */
+html, body { background: #000; }
+
+/* 开场时：除了欢迎大字，其它全部隐藏 */
+body.nx-boot .nx-top,
+body.nx-boot .nx-foot,
+body.nx-boot .nx-back,
+body.nx-boot .nx-question,
+body.nx-boot .nx-options,
+body.nx-boot .nx-result { opacity: 0; visibility: hidden; }
+body.nx-boot .nx-bg { opacity: 0; }
+
+/* 背景与外壳的渐显 */
+.nx-bg { transition: opacity 1.15s ease-in-out; }
+body.nx-bg-in .nx-bg { opacity: 1; }
+.nx-top, .nx-foot { transition: opacity .9s ease-in-out; }
+
+/* 问句：打字机开始前先就位 */
+.nx-question { transition: opacity .45s ease-in-out; }
+body.nx-boot.nx-question-in .nx-question { opacity: 1; visibility: visible; }
+
+/* 欢迎大字（固定居中，缓入 → 停留 → 缓出） */
+.nx-welcome {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none;
+  opacity: 0;
+}
+.nx-welcome .nx-w-greet {
+  font-size: clamp(16px, 2.4vw, 26px);
+  letter-spacing: .5em;
+  color: #cfc8bf;
+  text-indent: .5em;
+}
+.nx-welcome .nx-w-name {
+  font-size: clamp(38px, 8vw, 96px);
+  font-weight: 800;
+  letter-spacing: .06em;
+  color: var(--nx-gold-light, #F0E68C);
+  text-shadow: 0 0 28px rgba(216, 30, 68, .55), 0 0 70px rgba(216, 30, 68, .3);
+}
+body.nx-boot .nx-welcome {
+  animation: nxWelcomeIn 3s ease-in-out both;
+}
+@keyframes nxWelcomeIn {
+  0%   { opacity: 0; transform: scale(.94); filter: blur(6px); }
+  26%  { opacity: 1; transform: scale(1);   filter: blur(0); }
+  70%  { opacity: 1; transform: scale(1.005); }
+  100% { opacity: 0; transform: scale(1.03); filter: blur(2px); }
+}
+/* 开场结束后彻底移除欢迎层 */
+body:not(.nx-boot) .nx-welcome { display: none; }
+
+/* 跳过开场：点击/按键后立刻进入最终状态 */
+body.nx-skip .nx-welcome { display: none; }

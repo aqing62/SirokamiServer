@@ -4,9 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>白神服 · 新版引导（原型）</title>
-<link rel="stylesheet" href="css/next.css?v=20261001n">
+<link rel="stylesheet" href="css/next.css?v=20261001p">
 </head>
-<body>
+<body class="nx-boot">
 
 <!-- 背景光晕（纯 CSS，GPU 友好） -->
 <div class="nx-bg">
@@ -32,6 +32,12 @@
 </header>
 
 <!-- 问答舞台 -->
+<!-- 开场：黑屏中的欢迎大字（缓入缓出，播完自动隐藏） -->
+<div class="nx-welcome" id="nxWelcome" aria-hidden="true">
+    <span class="nx-w-greet">欢迎来到</span>
+    <span class="nx-w-name">Sirokami</span>
+</div>
+
 <main class="nx-stage" id="nxStage">
     <h1 class="nx-question" id="nxQuestion"></h1>
     <div class="nx-options" id="nxOptions"></div>
@@ -48,6 +54,6 @@
     <span>原型演示 · 点任意圆形按钮试试，所有功能都会跳到经典版对应页面</span>
 </footer>
 
-<script src="js/next.js?v=20261001n"></script>
+<script src="js/next.js?v=20261001p"></script>
 </body>
 </html>

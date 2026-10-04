@@ -339,7 +339,7 @@
         if (!top) return;
         var node = FLOW[top.key];
         if (!node) return;
-        if (node.options) renderNode(node, top.key);
+        if (node.options) renderNode(node, top.key, _deferOptions);
         else renderResult(node, top.label);
     }
 
@@ -360,16 +360,10 @@
         });
     }
 
-    function renderNode(node, key) {
-        resEl.hidden = true;
-        stepsEl.innerHTML = '';
-        ctaEl.innerHTML = '';
+    var _deferOptions = false;   // 开场期间：等打字机打完再出按钮
+
+    function buildOptions(node) {
         optEl.hidden = false;
-
-        backEl.hidden = historyStack.length <= 1;
-
-        typeText(qEl, node.q);
-
         optEl.innerHTML = '';
         (node.options || []).forEach(function (opt, i) {
             var b = document.createElement('button');
@@ -386,6 +380,21 @@
             optEl.appendChild(b);
         });
         startBlobMorph();
+    }
+
+    function renderNode(node, key, deferOptions) {
+        resEl.hidden = true;
+        stepsEl.innerHTML = '';
+        ctaEl.innerHTML = '';
+        backEl.hidden = historyStack.length <= 1;
+        if (deferOptions) {
+            optEl.hidden = true;
+            optEl.innerHTML = '';
+            typeText(qEl, node.q, function () { buildOptions(node); });
+        } else {
+            typeText(qEl, node.q);
+            buildOptions(node);
+        }
     }
 
     function renderResult(node, label) {
@@ -432,10 +441,12 @@
     backEl.addEventListener('click', goBack);
 
     // 统一入口：写入根节点后渲染
-    function renderAny(key) {
+    function renderAny(key, deferOptions) {
         if (!FLOW[key]) return;
+        _deferOptions = !!deferOptions;
         historyStack = [{ key: key, label: '开始' }];
         renderCurrent();
+        _deferOptions = false;
     }
 
     // ── 新旧版切换滑块 ──
@@ -464,7 +475,38 @@
     } catch (e) { /* 忽略 */ }
 
     // 初始渲染
-    renderAny('root');
+    // ── 开场序列：黑屏 → 欢迎大字 → 背景渐显 → 问句打字机 → 按钮 ──
+    (function boot() {
+        var body = document.body;
+        var animOff = document.documentElement.classList.contains('nx-anim-off');
+        function finishNow(skip) {
+            if (skip) body.classList.add('nx-skip');
+            body.classList.remove('nx-boot', 'nx-bg-in', 'nx-question-in');
+            renderAny('root');
+        }
+        if (animOff) { finishNow(); return; }   // 关动效时直接进最终状态
+        var timers = [];
+        function clearTimers() { timers.forEach(clearTimeout); timers = []; }
+        // 阶段 1：黑屏 + 欢迎大字（CSS 动画 3s，缓入缓出）
+        // 阶段 2：2.4s 时背景渐变出现
+        timers.push(setTimeout(function () { body.classList.add('nx-bg-in'); }, 2400));
+        // 阶段 3：3.2s 时问句就位并开始打字机（打完后自动出按钮）
+        timers.push(setTimeout(function () {
+            body.classList.add('nx-question-in');
+            body.classList.remove('nx-boot');
+            renderAny('root', true);
+        }, 3200));
+        // 任意点击/按键：跳过开场
+        function skip() {
+            if (!body.classList.contains('nx-boot')) return;
+            clearTimers();
+            finishNow(true);
+            document.removeEventListener('pointerdown', skip, true);
+            document.removeEventListener('keydown', skip, true);
+        }
+        document.addEventListener('pointerdown', skip, true);
+        document.addEventListener('keydown', skip, true);
+    })();
 
     // ── 动效开关：默认开启（不受系统「减少动态效果」影响），可手动关闭并记住 ──
     (function initAnimToggle() {
