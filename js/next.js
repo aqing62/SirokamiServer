@@ -425,10 +425,24 @@
         }
         function kick() { if (!animating) { animating = true; requestAnimationFrame(loop); } }
 
+        // 滚轮按"行"吸附：一格滚轮(≈100)刚好走一个玩家，和居中的滚轮式布局对齐
+        var WHEEL_STEP = 100;
+        var wheelAcc = 0;
+        function rowStep() {
+            var h = items[0] ? items[0].offsetHeight : 0;
+            return h > 0 ? h : 40;
+        }
         function onWheel(e) {
             e.preventDefault();
             var max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
-            target = Math.max(0, Math.min(max, target + e.deltaY * 1.15));
+            var step = rowStep();
+            wheelAcc += e.deltaY;
+            var guard = 0;
+            while (Math.abs(wheelAcc) >= WHEEL_STEP && guard++ < 8) {
+                var dir = wheelAcc > 0 ? 1 : -1;
+                target = Math.max(0, Math.min(max, target + dir * step));
+                wheelAcc -= dir * WHEEL_STEP;
+            }
             kick();
         }
         scroller.addEventListener('wheel', onWheel, { passive: false, capture: true });
