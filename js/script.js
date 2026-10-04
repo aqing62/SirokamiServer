@@ -319,6 +319,10 @@ document.addEventListener('DOMContentLoaded', function () {
             cards: 'section-card-pool', pool: 'section-card-pool', deck: 'section-card-pool',
             chronicle: 'section-main', newcards: 'section-card-list',
             forum: 'section-community', xiaobai: 'section-xiaobai',
+            // 新版引导新增
+            room: 'section-main', download: 'section-main',
+            preset: 'section-main', login: 'section-main',
+            banlist: 'section-card-list',
         };
         const sectionId = MAP[target] || 'section-main';
         setTimeout(function () {
@@ -328,6 +332,21 @@ document.addEventListener('DOMContentLoaded', function () {
                 if (t) setTimeout(function () { t.click(); }, 300);
             } else if (target === 'replay' && typeof window.openReplay === 'function') {
                 setTimeout(function () { window.openReplay(''); }, 300);
+            } else if (target === 'room') {
+                // 房间代码：切到「玩法规则 → 房间代码」标签
+                const tab = document.querySelector('.rules-tab[data-tab="tab-roomcode"]');
+                if (tab) setTimeout(function () { tab.click(); }, 300);
+            } else if (target === 'download') {
+                // 下载与卡包：滚动到该区块
+                const el = document.getElementById('sec-download');
+                if (el) setTimeout(function () { try { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) { el.scrollIntoView(); } }, 320);
+            } else if (target === 'preset') {
+                // 现成卡组：打开编年史卡组池弹窗
+                const b = document.getElementById('chronicleDecksOpen');
+                if (b) setTimeout(function () { b.click(); }, 340);
+            } else if (target === 'login') {
+                // 登录：直接弹出登录框
+                if (typeof window.openLoginModal === 'function') setTimeout(function () { window.openLoginModal(); }, 320);
             }
         }, 80);
     })();

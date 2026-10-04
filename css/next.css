@@ -547,3 +547,20 @@ body.nx-skip .nx-welcome { display: none; }
   .nx-debug { left: 8px; bottom: 8px; gap: 4px; padding: 4px 6px; }
   .nx-dbg-btn { padding: 3px 8px; font-size: 11px; }
 }
+
+
+/* ── 2×2 布局（「卡片」节点：卡池 / 卡表 / 预组 / 常用卡）── */
+.nx-options.is-grid {
+  display: grid;
+  grid-template-columns: repeat(2, auto);
+  justify-content: center;
+  align-content: center;
+  justify-items: center;
+  gap: clamp(6px, 1.6vh, 18px) clamp(10px, 3vw, 40px);
+}
+.nx-options.is-grid .nx-option { --size: clamp(104px, 14vw, 166px); }
+@media (max-width: 768px) {
+  .nx-options.is-grid { gap: 4px clamp(6px, 3vw, 20px); }
+  .nx-options.is-grid .nx-option { --size: clamp(92px, 25vw, 118px); }
+  .nx-options.is-grid .nx-option .nx-opt-sub { display: none; }
+}

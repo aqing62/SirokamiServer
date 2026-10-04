@@ -10,213 +10,157 @@
     var CLASSIC = 'index.html';                 // 经典版入口
     var CTA_GOTO = function (g) { return CLASSIC + '?goto=' + encodeURIComponent(g); };
 
-    // ── 问答树：每个节点最多 3 个选项；answer=结果节点 ──
+    // ── 问答树 ──────────────────────────────────────────────
+    // 首屏：上=决斗 / 左=卡片 / 右=战绩
+    // 决斗：上=房间 左=下载 右=比赛     卡片：2×2（卡池/卡表/预组/常用卡）
+    // 战绩：上=天梯 左=登录 右=比赛
     var FLOW = {
         root: {
             q: '你今天想做什么？',
-            hint: '一步一步来，我会带你到对应功能',
             options: [
-                { icon: 'cards', label: '打牌', sub: '进服对局', next: 'play' },
-                { icon: 'layers', label: '组卡', sub: '卡组编辑', next: 'deck' },
-                { icon: 'chart', label: '看战绩', sub: '天梯 / 榜单', next: 'stats' }
+                { icon: 'cards', label: '决斗', sub: '进服对局', next: 'duel' },
+                { icon: 'layers', label: '卡片', sub: '卡池 / 卡表', next: 'card' },
+                { icon: 'chart', label: '战绩', sub: '天梯 / 比赛', next: 'record' }
             ]
         },
 
-        // ── 打牌 ──
-        play: {
-            q: '想怎么打？',
-            hint: '三种模式规则不同，按你的目的选',
+        // ── 决斗 ──
+        duel: {
+            q: '想怎么决斗？',
             options: [
-                { icon: 'bolt', label: '天梯匹配', sub: '计分 / 上分', next: 'r_ladder' },
-                { icon: 'house', label: '和朋友开房', sub: '娱乐 / 不计分', next: 'r_room' },
-                { icon: 'book', label: '编年史', sub: '随机卡组', next: 'r_chronicle' }
-            ]
-        },
-        r_ladder: {
-            q: '打天梯',
-            hint: '这是全服积分赛，赢了加分、输了不扣（投降会扣）',
-            steps: [
-                '进游戏后选 <b>M#</b> 房间（或随机匹配），<b>双方都要登录</b>官网账号',
-                '系统会提示 <b>「天梯对局已生效」</b>，本局胜负计入积分',
-                '胜利 <b>+10</b>、每日首胜 <b>+2</b>；当天第 N 次投降扣 N 分',
-                '打满 <b>5 场定级赛</b> + 遇到 <b>3 名不同对手</b>，才会出现在排行榜'
-            ],
-            cta: [
-                { icon: 'bracket', label: '打开比赛相关', goto: 'tournament' },
-                { icon: 'chart', label: '看我的排名', goto: 'ranking' },
-                { icon: 'undo', label: '重新选', back: true }
+                { icon: 'house', label: '房间', sub: '开房 / 规则', next: 'r_room' },
+                { icon: 'download', label: '下载', sub: '客户端 / 卡包', next: 'r_download' },
+                { icon: 'bracket', label: '比赛', sub: '群赛 / 瑞士轮', next: 'r_match' }
             ]
         },
         r_room: {
-            q: '和朋友开房',
-            hint: '自定义房间，不计天梯分，适合试卡组',
+            q: '房间与规则',
             steps: [
-                '建房时在<b>房间名/密码</b>填规则代码：<b>M</b>=三局两胜、<b>T</b>=双打、<b>LP8000</b>=改基本分',
-                '不填代码就是默认 <b>Genesys-Ext</b> 模式（禁卡表按 G-Ext 分值，卡组总分 ≤100）',
-                '想玩随机卡组就用 <b>C</b>（编年史模式）'
+                '建房时在<b>房间名 / 密码</b>里填规则代码：<b>M</b>=三局两胜、<b>T</b>=双打、<b>NF</b>=无禁限、<b>LP8000</b>=改基本分',
+                '不填代码就是默认 <b>Genesys-Ext</b> 禁卡表（卡组总分 ≤ 100）',
+                '想让朋友进来，把<b>房间名</b>发给他即可；代码后加 <b>#</b> 再接房间名，例如 <b>T,C#32</b>'
             ],
             cta: [
-                { icon: 'house', label: '查房间代码', goto: 'chronicle' },
+                { icon: 'house', label: '打开房间代码', goto: 'room' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
-        r_chronicle: {
-            q: '编年史模式',
-            hint: '双方随机分配卡组，纯拼操作',
+        r_download: {
+            q: '下载客户端',
             steps: [
-                '建房用 <b>C</b> 代码（可组合：<b>T,C#32</b> = 双打编年史）',
-                '服务器随机发卡组，就位后<b>直接开打</b>',
-                '想先看看有哪些卡组可以去经典版「编年史卡组池」翻'
+                '先下 <b>MDPro3 客户端</b>（夸克网盘）',
+                '再下 <b>DIY 卡包 siro.ypk</b>，放进客户端的 <b>expansions</b> 目录（MDPro3 里也可直接填链接下载）',
+                '也可以用<b>萌卡平台</b>；服务器地址 <b>ygopro3.cn : 50010</b>'
             ],
             cta: [
-                { icon: 'book', label: '看卡组池', goto: 'chronicle' },
+                { icon: 'download', label: '打开下载页', goto: 'download' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
-
-        // ── 组卡 ──
-        deck: {
-            q: '组卡这边你想干嘛？',
-            hint: 'G-Ext 卡组总分上限 100 分',
-            options: [
-                { icon: 'build', label: '从零组一套', sub: '组卡模式', next: 'r_build' },
-                { icon: 'gauge', label: '查卡片分值', sub: '禁限分值', next: 'r_score' },
-                { icon: 'copy', label: '抄别人的卡组', sub: '投稿 / 八强', next: 'r_ref' }
-            ]
-        },
-        r_build: {
-            q: '组卡模式',
-            hint: '搜卡 → 点一下看详情 → 再点一下加入卡组',
+        r_match: {
+            q: '比赛相关',
             steps: [
-                '左侧详情区：<b>点第一下看详情，再点一下直接加入</b>（额外怪兽自动进额外卡组）',
-                '<b>🔗 相关卡片</b>：按效果里「」关键词 + 同字段（系列）搜索，找配合更省事',
-                '搜索框支持<b>空格分隔多关键词</b>（如 <code>真红眼 融合</code> = 同时包含两者）',
-                '右侧 <b>⚙ 筛选</b> 按类型/属性/种族/攻守/分值筛选，<b>清空</b>一键还原'
+                '群赛在 <b>M#</b> 房间进行，打完会<b>自动上报</b>到官网「比赛相关」的瑞士轮',
+                '官网「比赛相关」能看<b>实时对阵、排名与历届八强</b>',
+                '淘汰赛对阵公布后再打淘汰轮（对阵未出时页面会显示「待公布」）'
             ],
             cta: [
-                { icon: 'build', label: '打开组卡模式', goto: 'deck' },
-                { icon: 'undo', label: '重新选', back: true }
-            ]
-        },
-        r_score: {
-            q: '卡片分值（禁限分值）',
-            hint: '本服默认 GeneSys-Ext 禁卡表',
-            steps: [
-                '分值越高越强：卡组里所有卡的 G-Ext 分值<b>总和不能超过 100</b>',
-                '标 <b>🚫</b> 的是禁止使用；<b>-1</b> 也表示禁卡',
-                '<b>同名卡分值合并</b>：异画、同名补充卡按原卡计分'
-            ],
-            cta: [
-                { icon: 'gauge', label: '查禁限分值', goto: 'cards' },
-                { icon: 'undo', label: '重新选', back: true }
-            ]
-        },
-        r_ref: {
-            q: '参考别人的卡组',
-            hint: '三个来源，都是实战卡组',
-            steps: [
-                '<b>编年史卡组池</b>：按首字母分组、可搜索，投稿卡组会突出显示',
-                '<b>历届八强</b>：往届比赛的上位卡组（在「比赛相关」右上角）',
-                '<b>天梯胜者卡组</b>：在游戏内用 <code>/winnerdeck 玩家名</code> 查看'
-            ],
-            cta: [
-                { icon: 'book', label: '打开卡组池', goto: 'chronicle' },
+                { icon: 'bracket', label: '打开比赛相关', goto: 'tournament' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
 
-        // ── 看战绩 ──
-        stats: {
-            q: '想看哪方面的战绩？',
-            hint: '榜单/对局/回放都在这里',
+        // ── 卡片（2×2） ──
+        card: {
+            q: '卡片相关',
+            layout: 'grid',
             options: [
-                { icon: 'chart', label: '天梯排名', sub: '段位 / 积分', next: 'r_rank' },
-                { icon: 'play', label: '看回放', sub: '复盘对局', next: 'r_replay' },
-                { icon: 'bracket', label: '比赛相关', sub: '八强 / 对局', next: 'r_tour' }
+                { icon: 'layers', label: '卡池', sub: '查卡 / 分值', next: 'r_pool' },
+                { icon: 'list', label: '卡表', sub: '禁限 / 规则', next: 'r_banlist' },
+                { icon: 'box', label: '预组', sub: '现成卡组', next: 'r_preset' },
+                { icon: 'star', label: '常用卡', sub: '高分 / 泛用', next: 'r_popular' }
+            ]
+        },
+        r_pool: {
+            q: '卡池信息',
+            steps: [
+                '「卡池信息」页可按<b>字段 / 分值 / 关键词</b>筛选，双击卡片直接加入卡组',
+                '相关卡片搜索：用 <b>「」</b> 搜同字段卡，也能按卡名或效果搜',
+                '分值 <b>-1</b> 就是禁用卡'
+            ],
+            cta: [
+                { icon: 'layers', label: '打开卡池', goto: 'pool' },
+                { icon: 'undo', label: '重新选', back: true }
+            ]
+        },
+        r_banlist: {
+            q: '禁限卡表',
+            steps: [
+                '「禁限分值」页列出全部禁限卡与各自分值',
+                '房间密码可切规则：默认 <b>Genesys-Ext</b>、<b>LF2</b>=OT 合表、<b>NF</b>=无禁限'
+            ],
+            cta: [
+                { icon: 'list', label: '打开禁限分值', goto: 'banlist' },
+                { icon: 'undo', label: '重新选', back: true }
+            ]
+        },
+        r_preset: {
+            q: '现成卡组',
+            steps: [
+                '经典版有<b>编年史卡组池</b>：现成卡组按首字母分组，可搜索、可一键定位',
+                '也可以直接抄<b>历届八强</b>的卡组'
+            ],
+            cta: [
+                { icon: 'box', label: '看卡组池', goto: 'preset' },
+                { icon: 'bracket', label: '打开历届八强', goto: 'tournament' },
+                { icon: 'undo', label: '重新选', back: true }
+            ]
+        },
+        r_popular: {
+            q: '常用高分卡',
+            steps: [
+                '组卡器里点<b>「查询高分卡」</b>，会高亮卡组内 8 分及以上的卡',
+                '卡池页可按<b>分值</b>筛选，快速找高分 / 泛用卡'
+            ],
+            cta: [
+                { icon: 'layers', label: '打开卡池', goto: 'pool' },
+                { icon: 'undo', label: '重新选', back: true }
+            ]
+        },
+
+        // ── 战绩 ──
+        record: {
+            q: '看什么战绩？',
+            options: [
+                { icon: 'chart', label: '天梯', sub: '排名 / 积分', next: 'r_rank' },
+                { icon: 'user', label: '登录', sub: '账号 / 计分', next: 'r_login' },
+                { icon: 'bracket', label: '比赛', sub: '对阵 / 八强', next: 'r_match' }
             ]
         },
         r_rank: {
             q: '天梯排名',
-            hint: '当前是 S3 赛季（每赛季一个月，月末结算发称号）',
             steps: [
-                '榜上按积分排序，段位按<b>活跃玩家百分比</b>：巅峰 / 大师 8% / 钻石 18% / 黄金 35% / 白银 60%',
-                '要上榜需<b>打完 5 场定级赛</b> + <b>遇到 3 名不同对手</b>（未满足时 <code>/rating</code> 会提示还差多少）',
-                '积分 ≥150 可开通<b>投稿 DIY 卡</b>资格'
+                '「天梯排名」看全服 TOP50 与段位：巅峰 / 大师 8% / 钻石 18% / 黄金 35% / 白银 60%',
+                '需打完 <b>5 场定级赛</b>且遇到 <b>3 名不同对手</b>才能上榜',
+                '点玩家名可以看他的对局记录与回放'
             ],
             cta: [
-                { icon: 'chart', label: '打开排行榜', goto: 'ranking' },
+                { icon: 'chart', label: '打开排名', goto: 'ranking' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
-        r_replay: {
-            q: '回放',
-            hint: '输入回放码即可复盘，手机端上=画面、下=日志',
+        r_login: {
+            q: '登录账号',
             steps: [
-                '回放码形如 <b>R#3801</b>：在个人对局记录、论坛、比赛页都能看到',
-                '播放器支持 <b>0.5x ~ 4x</b> 变速、逐步前进/后退、拖动进度条跳转',
-                '会自动演出发动/召唤/攻击特效，并标注表示形式变化'
+                '官网右上角点<b>登录账号</b>',
+                '天梯计分、投稿 DIY 都需要登录；游戏内也可以直接 <b>/login 用户名 密码</b>'
             ],
             cta: [
-                { icon: 'play', label: '打开回放播放器', goto: 'replay' },
-                { icon: 'undo', label: '重新选', back: true }
-            ]
-        },
-        r_tour: {
-            q: '比赛相关',
-            hint: '瑞士轮 + 淘汰赛两块，上方滑块切换',
-            steps: [
-                '<b>瑞士轮</b>：当前排名、每轮对阵、晋级线（前 8 名）',
-                '<b>淘汰赛</b>：瑞士轮打完后才会生成对阵图（未生成时显示「待公布」）',
-                '右上角还有 <b>历届八强</b>（往届卡组）和 <b>当前对局</b>（服务器实时房间）'
-            ],
-            cta: [
-                { icon: 'bracket', label: '打开比赛相关', goto: 'tournament' },
+                { icon: 'user', label: '打开登录', goto: 'login' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         }
     };
-
-    // ── DOM ──
-    var stage = document.getElementById('nxStage');
-    var qEl = document.getElementById('nxQuestion');
-    var optEl = document.getElementById('nxOptions');
-    var resEl = document.getElementById('nxResult');
-    var stepsEl = document.getElementById('nxSteps');
-    var ctaEl = document.getElementById('nxCta');
-    var verEl = document.getElementById('nxVersion');
-
-    var historyStack = [];   // 走过的节点（用于返回 + 面包屑）
-    var busy = false;        // 转场锁
-    var typeTimer = null;
-
-    function esc(s) {
-        return String(s).replace(/[&<>"]/g, function (c) {
-            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
-        });
-    }
-    // 允许 <b> / <code> 之类少量标签
-    function rich(s) { return String(s); }
-
-    // 打字机效果
-    function typeText(el, text, done) {
-        clearInterval(typeTimer);
-        el.textContent = '';
-        var caret = document.createElement('i');
-        caret.className = 'nx-caret';
-        el.appendChild(caret);
-        var i = 0;
-        typeTimer = setInterval(function () {
-            i += 1;
-            caret.remove();
-            el.textContent = text.slice(0, i);
-            el.appendChild(caret);
-            if (i >= text.length) {
-                clearInterval(typeTimer);
-                setTimeout(function () { caret.remove(); }, 700);
-                if (done) done();
-            }
-        }, 26);
-    }
 
     // ── 自绘线条图标（无 emoji）：24×24、无填充、1.6px 描边、圆头 ──
     var ICONS = {
@@ -232,6 +176,11 @@
         bracket: '<rect x="3.2" y="4" width="6" height="6" rx="1.4"/><rect x="3.2" y="14" width="6" height="6" rx="1.4"/><rect x="15" y="9" width="5.8" height="6" rx="1.4"/><path d="M9.2 7h3.4a2 2 0 0 1 2 2v3.4"/><path d="M9.2 17h3.4a2 2 0 0 0 2-2v-3.4"/>',
         play:    '<circle cx="12" cy="12" r="8.2"/><path d="M10.4 9.2 15.2 12l-4.8 2.8z"/>',
         undo:    '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20.2 4.2v4.6h-4.6"/>',
+        download:'<path d="M12 3.5v11"/><path d="M7.6 10.4 12 14.8l4.4-4.4"/><path d="M4.5 19.5h15"/>',
+        list:    '<path d="M4 6.5h1.2M8 6.5h12"/><path d="M4 12h1.2M8 12h12"/><path d="M4 17.5h1.2M8 17.5h12"/>',
+        box:     '<path d="M3.6 8.2 12 3.6l8.4 4.6v7.6L12 20.4l-8.4-4.6z"/><path d="M3.6 8.2 12 12.8l8.4-4.6"/><path d="M12 12.8v7.6"/>',
+        star:    '<path d="M12 3.8l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.2-4.1 5.8-.8z"/>',
+        user:    '<circle cx="12" cy="8.4" r="3.6"/><path d="M4.8 20.2a7.2 7.2 0 0 1 14.4 0"/>',
     };
 
     function iconSvg(name) {
@@ -691,6 +640,7 @@
 
     function buildOptions(node) {
         optEl.hidden = false;
+        optEl.classList.toggle('is-grid', node.layout === 'grid');
         optEl.innerHTML = '';
         (node.options || []).forEach(function (opt, i) {
             var b = document.createElement('button');
