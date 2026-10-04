@@ -277,10 +277,10 @@
 
     // 4 层：半径递减，抖动种子/幅度/旋转速度各不相同
     var RING_LAYERS = [
-        { cls: 'nxb1', r: 51, seed: 0.7, pts: 10, wob: 0.055, msp: 0.50, mph: 0.0 },
-        { cls: 'nxb2', r: 49, seed: 2.1, pts: 12, wob: 0.072, msp: -0.66, mph: 1.7 },
-        { cls: 'nxb3', r: 47, seed: 3.9, pts: 11, wob: 0.088, msp: 0.84, mph: 3.1 },
-        { cls: 'nxb4', r: 45, seed: 5.4, pts: 13, wob: 0.104, msp: -1.02, mph: 4.6 }
+        { cls: 'nxb1', r: 51, seed: 0.7, pts: 8, wob: 0.055, msp: 0.50, mph: 0.0 },
+        { cls: 'nxb2', r: 49, seed: 2.1, pts: 9, wob: 0.072, msp: -0.66, mph: 1.7 },
+        { cls: 'nxb3', r: 47, seed: 3.9, pts: 8, wob: 0.088, msp: 0.84, mph: 3.1 },
+        { cls: 'nxb4', r: 45, seed: 5.4, pts: 10, wob: 0.104, msp: -1.02, mph: 4.6 }
     ];
 
     function ringSvg(gold) {
@@ -418,55 +418,6 @@
             }
         }
 
-        // 2.5) 拉拽形变：按钮被拖动/指针扫过 → 沿运动方向甩长（用图层 transform，走合成器）
-        for (var di = 0; di < _magBtns.length; di++) {
-            var db = _magBtns[di];
-            if (!db.parentNode) continue;
-            var dcx = stageRect.left + db.offsetLeft + db.offsetWidth / 2 + (db._mx || 0);
-            var dcy = stageRect.top + db.offsetTop + db.offsetHeight / 2 + (db._my || 0);
-            var tgDx = 0, tgDy = 0;
-            // 驱动 1：按钮自身移动速度
-            if (db._pcx !== undefined) {
-                var odt = Math.max(0.008, dt);
-                var ovx = (dcx - db._pcx) / odt, ovy = (dcy - db._pcy) / odt;
-                db._ovx = (db._ovx || 0) + (ovx - (db._ovx || 0)) * 0.35;
-                db._ovy = (db._ovy || 0) + (ovy - (db._ovy || 0)) * 0.35;
-                var ospd = Math.sqrt(db._ovx * db._ovx + db._ovy * db._ovy);
-                if (ospd > 3) {
-                    var osf = Math.min(1, ospd / MAG.speedRef);
-                    tgDx = (db._ovx / ospd) * osf;
-                    tgDy = (db._ovy / ospd) * osf;
-                }
-            }
-            db._pcx = dcx; db._pcy = dcy;
-            // 驱动 2：指针快速扫过
-            var vsp = Math.sqrt(_magVx * _magVx + _magVy * _magVy);
-            if (vsp > 12) {
-                var pd3 = Math.sqrt((_magPx - dcx) * (_magPx - dcx) + (_magPy - dcy) * (_magPy - dcy)) || 1;
-                var prox3 = Math.max(0, Math.min(1, (MAG.dragR - pd3) / MAG.dragR));
-                var pamt3 = prox3 * Math.min(1, vsp / MAG.ptrSpeedRef);
-                if (pamt3 > Math.sqrt(tgDx * tgDx + tgDy * tgDy)) {
-                    tgDx = (_magVx / vsp) * pamt3;
-                    tgDy = (_magVy / vsp) * pamt3;
-                }
-            }
-            db._dux = (db._dux || 0) + (tgDx - (db._dux || 0)) * MAG.dragEase;
-            db._duy = (db._duy || 0) + (tgDy - (db._duy || 0)) * MAG.dragEase;
-            var dmag = Math.sqrt(db._dux * db._dux + db._duy * db._duy);
-            var tf = '';
-            if (dmag > 0.006) {
-                var e = Math.min(1, dmag) * MAG.dragMax;
-                var aang = Math.atan2(db._duy, db._dux) * 180 / Math.PI;
-                tf = 'rotate(' + aang.toFixed(1) + 'deg) scale(' + (1 + e).toFixed(3) + ',' +
-                     (1 - e * 0.55).toFixed(3) + ') rotate(' + (-aang).toFixed(1) + 'deg)';
-            }
-            if (db._lastTf !== tf) {
-                db._lastTf = tf;
-                var gs = db._ringGroups || [];
-                for (var gk = 0; gk < gs.length; gk++) gs[gk].style.transform = tf;
-            }
-        }
-
         // 3) 平滑趋近目标 + 写回位移
         for (var q = 0; q < _magBtns.length; q++) {
             var o = _magBtns[q];
@@ -506,7 +457,7 @@
         requestAnimationFrame(blobTick);
         var animOff = document.documentElement.classList.contains('nx-anim-off');
         if (animOff || document.hidden) { _blobLast = now; return; }   // 关动效/后台标签页时不做计算
-        if (now - _blobLast < 42) return;                              // 约 24fps（降负载）
+        if (now - _blobLast < 16) return;                              // 跟随屏幕刷新（消除形变步进造成的顿挫）
         _blobLast = now;
         // 逐帧时间差：单帧最大 100ms（切后台/隐藏回来不会一次性补算）
         if (!_tickLast) _tickLast = now;
@@ -528,7 +479,43 @@
             var owner = p._nxBtn;
             var reg = 0;
             if (owner) {
-                // 拉拽形变已改由 magTick 以图层 transform 实现（见 applyDragTransform）
+                // 拉拽：按钮被拖动/指针扫过 → 沿运动方向甩长（路径方案，实测比 SVG transform 快）
+                var pull = 0, pullAng = 0;
+                if (owner._pullStamp !== _pullTick) {
+                    owner._pullStamp = _pullTick;
+                    var tgDx = 0, tgDy = 0;
+                    var ocx = _srect ? (_srect.left + owner.offsetLeft + owner.offsetWidth / 2 + (owner._mx || 0)) : 0;
+                    var ocy = _srect ? (_srect.top + owner.offsetTop + owner.offsetHeight / 2 + (owner._my || 0)) : 0;
+                    // 驱动 1：按钮自身移动速度
+                    if (_srect && owner._pcx !== undefined) {
+                        var odt = Math.max(0.008, dt);
+                        var ovx = (ocx - owner._pcx) / odt, ovy = (ocy - owner._pcy) / odt;
+                        owner._ovx = (owner._ovx || 0) + (ovx - (owner._ovx || 0)) * 0.5;
+                        owner._ovy = (owner._ovy || 0) + (ovy - (owner._ovy || 0)) * 0.5;
+                        var ospd = Math.sqrt(owner._ovx * owner._ovx + owner._ovy * owner._ovy);
+                        if (ospd > 3) {
+                            var osf = Math.min(1, ospd / MAG.speedRef);
+                            tgDx = (owner._ovx / ospd) * osf;
+                            tgDy = (owner._ovy / ospd) * osf;
+                        }
+                    }
+                    if (_srect) { owner._pcx = ocx; owner._pcy = ocy; }
+                    // 驱动 2：指针快速扫过
+                    var vsp = Math.sqrt(_magVx * _magVx + _magVy * _magVy);
+                    if (_srect && vsp > 12) {
+                        var pd3 = Math.sqrt((_magPx - ocx) * (_magPx - ocx) + (_magPy - ocy) * (_magPy - ocy)) || 1;
+                        var prox3 = Math.max(0, Math.min(1, (MAG.dragR - pd3) / MAG.dragR));
+                        var pamt3 = prox3 * Math.min(1, vsp / MAG.ptrSpeedRef);
+                        if (pamt3 > Math.sqrt(tgDx * tgDx + tgDy * tgDy)) {
+                            tgDx = (_magVx / vsp) * pamt3;
+                            tgDy = (_magVy / vsp) * pamt3;
+                        }
+                    }
+                    owner._dux = (owner._dux || 0) + (tgDx - (owner._dux || 0)) * MAG.dragEase;
+                    owner._duy = (owner._duy || 0) + (tgDy - (owner._duy || 0)) * MAG.dragEase;
+                }
+                var pmag = Math.sqrt((owner._dux || 0) * (owner._dux || 0) + (owner._duy || 0) * (owner._duy || 0));
+                if (pmag > 0.001) { pull = Math.min(1, pmag); pullAng = Math.atan2(owner._duy || 0, owner._dux || 0); }
                 if (owner._nxReg === undefined) owner._nxReg = 0;
                 if (owner._nxRegTarget === undefined) owner._nxRegTarget = 0;
                 owner._nxReg += (owner._nxRegTarget - owner._nxReg) * 0.085;
@@ -542,9 +529,9 @@
             // 抖动幅度呼吸 + 按规整度收敛为正圆（只变圆，不回到初始形状）
             var amp = wob * (0.62 + 0.5 * Math.sin(_breathT * 0.5 + mph * 1.3)) * (1 - reg);
             // 形状变化极小时跳过写入（避免无谓的 SVG 重解析/重栅格化）
-            if (!p._lastSig || Math.abs(p._nxPhase - p._lastSig.p) > 0.004 || Math.abs(amp - p._lastSig.a) > 0.0015) {
-                p._lastSig = { p: p._nxPhase, a: amp };
-                p.setAttribute('d', blobPath(r, p._nxPhase, pts, amp, 0, 0));
+            if (!p._lastSig || Math.abs(p._nxPhase - p._lastSig.p) > 0.003 || Math.abs(amp - p._lastSig.a) > 0.0012 || Math.abs(pull - (p._lastSig.u || 0)) > 0.008) {
+                p._lastSig = { p: p._nxPhase, a: amp, u: pull };
+                p.setAttribute('d', blobPath(r, p._nxPhase, pts, amp, pull, pullAng));
             }
         }
     }
