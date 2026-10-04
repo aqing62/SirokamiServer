@@ -507,8 +507,12 @@
 
         // 阶段 3（2.6s）：黑幕渐隐 + 问句出现在屏幕正中并开始打字
         timers.push(setTimeout(function () {
-            body.classList.add('nx-bg-in', 'nx-question-in', 'nx-q-center', 'nx-await-opts');
+            body.classList.add('nx-bg-in', 'nx-question-in', 'nx-q-jump', 'nx-q-center', 'nx-await-opts');
             body.classList.remove('nx-boot');
+            // 就位这一帧不要位移过渡（否则会先出现在上方再滑到中央）；两帧后恢复过渡
+            requestAnimationFrame(function () {
+                requestAnimationFrame(function () { body.classList.remove('nx-q-jump'); });
+            });
             // 先渲染（按钮已进入布局但被隐藏），随后量出「中心 → 常态位」的真实差值
             renderAny('root', true);
             measureDelta();

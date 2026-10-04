@@ -426,6 +426,8 @@ body.nx-bg-in .nx-bg { opacity: 1; }
   will-change: transform;
 }
 body.nx-q-center .nx-question { transform: translateY(var(--q-dy, 0px)); }
+/* 就位瞬间：位移不做过渡（直接出现在中央），但保留淡入 */
+body.nx-q-jump .nx-question { transition: opacity .45s ease-in-out; }
 /* 开场：按钮已进入布局但先隐藏（保证问句最终位置稳定，滑动连贯） */
 body.nx-await-opts .nx-options { visibility: hidden; }
 body.nx-await-opts .nx-option { animation: none !important; }
