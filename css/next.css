@@ -653,3 +653,71 @@ body.nx-skip .nx-welcome { display: none; }
 }
 .nx-screen-classic:hover { border-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
 .nx-screen-hint { font-size: 11.5px; color: #6f6f78; letter-spacing: .5px; }
+
+
+/* ── 天梯排名屏 ─────────────────────────────────────────── */
+.nx-screen-body > .nx-ladder-top,
+.nx-screen-body > .nx-table-wrap,
+.nx-screen-body > .nx-table-note,
+.nx-screen-body > .nx-empty,
+.nx-screen-body > .nx-loading,
+.nx-screen-body > .nx-screen-err { align-self: stretch; width: 100%; }
+
+.nx-ladder-top {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 14px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.nx-ladder-count { display: flex; align-items: baseline; gap: 6px; }
+.nx-ladder-count b { font-size: 26px; color: var(--nx-gold-light, #F0E68C); letter-spacing: 1px; }
+.nx-ladder-count span { font-size: 12px; color: var(--nx-dim, #8d8d96); }
+.nx-ladder-tiers { display: flex; gap: 6px; flex-wrap: wrap; }
+.nx-tier-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 999px;
+  font-size: 11.5px; letter-spacing: .5px;
+  border: 1px solid rgba(150, 150, 160, .35); color: #b9b9c2;
+}
+.nx-tier-chip i { font-style: normal; color: #7d7d86; font-size: 10.5px; }
+
+.nx-table-wrap { overflow: auto; max-height: 46vh; border-radius: 14px; border: 1px solid rgba(216,30,68,.18); }
+.nx-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.nx-table thead th {
+  position: sticky; top: 0; z-index: 1;
+  text-align: left; font-weight: 600; color: #9a9aa4;
+  padding: 9px 12px; background: #171116;
+  border-bottom: 1px solid rgba(216,30,68,.25);
+}
+.nx-table tbody td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.05); color: #ddd6cd; }
+.nx-table tbody tr:hover td { background: rgba(216,30,68,.07); }
+.nx-table .c-rank { width: 54px; color: var(--nx-gold, #D4AF37); font-weight: 700; text-align: center; }
+.nx-table .c-name { font-weight: 600; }
+.nx-table .c-rating { color: var(--nx-gold-light, #F0E68C); font-weight: 700; }
+.nx-table .c-rate { color: #9a9aa4; }
+.nx-streak {
+  margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+  font-size: 10.5px; color: #ffb4c4; background: rgba(216,30,68,.18);
+  border: 1px solid rgba(216,30,68,.35);
+}
+.nx-tier-badge { padding: 2px 8px; border-radius: 999px; font-size: 11.5px; border: 1px solid; }
+.nx-tier-badge.is-peak, .nx-tier-chip.is-peak { color: #ffe9a8; border-color: rgba(212,175,55,.75); background: rgba(212,175,55,.14); }
+.nx-tier-badge.is-master, .nx-tier-chip.is-master { color: #d9b8ff; border-color: rgba(170,110,255,.6); background: rgba(170,110,255,.12); }
+.nx-tier-badge.is-diamond, .nx-tier-chip.is-diamond { color: #a8e6ff; border-color: rgba(90,200,255,.6); background: rgba(90,200,255,.12); }
+.nx-tier-badge.is-gold, .nx-tier-chip.is-gold { color: #ffd9a0; border-color: rgba(230,160,60,.6); background: rgba(230,160,60,.12); }
+.nx-tier-badge.is-silver, .nx-tier-chip.is-silver { color: #d6dbe3; border-color: rgba(180,190,205,.55); background: rgba(180,190,205,.1); }
+.nx-tier-badge.is-rookie, .nx-tier-chip.is-rookie { color: #b9b9c2; border-color: rgba(150,150,160,.45); background: rgba(150,150,160,.1); }
+.nx-table-note { margin-top: 10px; font-size: 11.5px; color: #6f6f78; }
+
+.nx-loading { display: flex; align-items: center; justify-content: center; gap: 10px; color: #9a9aa4; font-size: 13px; padding: 40px 0; }
+.nx-spin {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid rgba(216,30,68,.25); border-top-color: var(--nx-red, #D81E44);
+  animation: nxSpinRot .8s linear infinite;
+}
+@keyframes nxSpinRot { to { transform: rotate(360deg); } }
+.nx-empty { text-align: center; color: #9a9aa4; font-size: 13px; line-height: 1.9; padding: 34px 10px; }
+.nx-screen-err { text-align: center; color: #ffb4c4; font-size: 13px; padding: 30px 10px; display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.nx-screen-retry {
+  padding: 7px 18px; border-radius: 999px; font-family: inherit; font-size: 12.5px; cursor: pointer;
+  border: 1px solid rgba(216,30,68,.55); background: rgba(216,30,68,.14); color: #ffc0cd;
+}
+.nx-screen-retry:hover { border-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }

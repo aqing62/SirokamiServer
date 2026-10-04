@@ -201,7 +201,7 @@
         banlist:  { title: '卡表',       sub: '禁限分值一览',               goto: 'banlist',   todo: '复用禁限表（微调 UI）' },
         preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    todo: '数据：编年史卡组池 / 投稿卡组' },
         popular:  { title: '常用卡',     sub: '使用率统计',                 goto: 'pool',      todo: '数据：/api/ladder/card-stats' },
-        rank:     { title: '天梯排名',   sub: 'TOP50 · 段位 · 积分',         goto: 'ranking',   todo: '数据：/api/ladder' },
+        rank:     { title: '天梯排名',   sub: 'TOP50 · 段位 · 积分',         goto: 'ranking',   render: 'ladder' },
         login:    { title: '登录账号',   sub: '天梯计分 / 投稿需要登录',     goto: 'login',     todo: '复用账号接口（/api/forum/*）' }
     };
 
@@ -232,19 +232,98 @@
                     '<p>' + esc(s.sub) + '</p>' +
                 '</div>' +
             '</div>' +
-            '<div class="nx-screen-body">' +
-                '<p class="nx-screen-todo">这一页正在新写中</p>' +
-                '<p class="nx-screen-todo-sub">' + esc(s.todo) + '</p>' +
-            '</div>' +
+            '<div class="nx-screen-body" id="nxScreenBody"></div>' +
             '<div class="nx-screen-foot">' +
                 '<button class="nx-screen-classic" type="button">先在经典版打开</button>' +
                 '<span class="nx-screen-hint">点空白处 / Esc 返回</span>' +
             '</div>';
+        // 内容：自带渲染器优先，否则显示占位说明
+        var bodyEl = document.getElementById('nxScreenBody');
+        if (bodyEl) {
+            if (s.render && RENDERERS[s.render]) RENDERERS[s.render](bodyEl);
+            else bodyEl.innerHTML = '<p class="nx-screen-todo">这一页正在新写中</p>' +
+                '<p class="nx-screen-todo-sub">' + esc(s.todo || '') + '</p>';
+        }
         var back = screenEl.querySelector('.nx-screen-back');
         if (back) back.addEventListener('click', function () { playSfx('back'); goBack(); });
         var cl = screenEl.querySelector('.nx-screen-classic');
         if (cl) cl.addEventListener('click', function () { jumpClassic(s.goto); });
     }
+
+    // ── 屏幕渲染器 ──────────────────────────────────────────
+    var LADDER_API = 'https://api.ygopro3.cn/api/ladder';
+
+    // 段位徽章配色：按段位名后缀取色
+    function tierClass(tier) {
+        var t = String(tier || '');
+        if (t.indexOf('巅峰') !== -1) return 'is-peak';
+        if (t.indexOf('大师') !== -1) return 'is-master';
+        if (t.indexOf('钻石') !== -1) return 'is-diamond';
+        if (t.indexOf('黄金') !== -1) return 'is-gold';
+        if (t.indexOf('白银') !== -1) return 'is-silver';
+        return 'is-rookie';
+    }
+
+    function rankMedal(i) {
+        return i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : String(i + 1);
+    }
+
+    function renderLadder(body) {
+        body.innerHTML = '<div class="nx-loading"><span class="nx-spin"></span>正在读取天梯数据…</div>';
+        fetch(LADDER_API + '?t=' + Date.now())
+            .then(function (r) { return r.json(); })
+            .then(function (data) { paintLadder(body, data); })
+            .catch(function () {
+                body.innerHTML = '<div class="nx-screen-err">天梯数据读取失败（接口：' + LADDER_API + '）' +
+                    '<button class="nx-screen-retry" type="button">重试</button></div>';
+                var btn = body.querySelector('.nx-screen-retry');
+                if (btn) btn.addEventListener('click', function () { renderLadder(body); });
+            });
+    }
+
+    function paintLadder(body, data) {
+        var players = (data && data.players) || [];
+        var cuts = (data && data.tierCutoffs) || [];
+        var total = (data && data.total) || players.length;
+
+        // 段位门槛（取段位名去掉赛季前缀）
+        var cutHtml = cuts.map(function (c) {
+            var name = String(c.name || '').replace(/^S\d+\s*/, '');
+            return '<span class="nx-tier-chip ' + tierClass(name) + '">' + esc(name) +
+                   '<i>' + c.minRating + '</i></span>';
+        }).join('');
+
+        var head = '<div class="nx-ladder-top">' +
+            '<div class="nx-ladder-count"><b>' + total + '</b><span>人已上榜</span></div>' +
+            '<div class="nx-ladder-tiers">' + cutHtml + '</div>' +
+        '</div>';
+
+        if (!players.length) {
+            body.innerHTML = head +
+                '<div class="nx-empty">本赛季还没有人上榜——打完 <b>5 场定级赛</b> 并遇到 <b>3 名不同对手</b> 就会出现在这里</div>';
+            return;
+        }
+
+        var rows = players.map(function (p, i) {
+            var tier = String(p.tier || '').replace(/^S\d+\s*/, '');
+            return '<tr>' +
+                '<td class="c-rank">' + rankMedal(i) + '</td>' +
+                '<td class="c-name">' + esc(p.name) + (p.streak > 1 ? '<span class="nx-streak">' + p.streak + '连胜</span>' : '') + '</td>' +
+                '<td class="c-tier"><span class="nx-tier-badge ' + tierClass(tier) + '">' + esc(tier) + '</span></td>' +
+                '<td class="c-rating">' + p.rating + '</td>' +
+                '<td class="c-wld">' + p.wins + '胜 ' + p.losses + '负' + (p.draws ? ' ' + p.draws + '平' : '') + '</td>' +
+                '<td class="c-rate">' + esc(p.winRate || '-') + '</td>' +
+            '</tr>';
+        }).join('');
+
+        body.innerHTML = head +
+            '<div class="nx-table-wrap"><table class="nx-table nx-ladder-table">' +
+            '<thead><tr><th>#</th><th>玩家</th><th>段位</th><th>积分</th><th>战绩</th><th>胜率</th></tr></thead>' +
+            '<tbody>' + rows + '</tbody></table></div>' +
+            '<div class="nx-table-note">数据来自天梯服务 · 每场 M# 对局结束后更新</div>';
+    }
+
+    var RENDERERS = { ladder: renderLadder };
 
     // ── DOM ──
     var stage = document.getElementById('nxStage');
