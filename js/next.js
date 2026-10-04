@@ -718,6 +718,7 @@
 
         // 点空白：内容态 → 回到两个线圈；线圈态 → 关闭
         el.addEventListener('click', function (ev) {
+            ev.stopPropagation();      // 关键：不能穿透到全局"点空白返回"，否则页面会跟着返回一级并重播入场动画
             var t = ev.target;
             if (t && t.closest && t.closest('.nx-pov-opt, .nx-duel-replay')) return;   // 交互元素不响应
             if (el.classList.contains('is-viewing')) povBackToChoices();
