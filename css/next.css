@@ -957,7 +957,7 @@ body.nx-zoomed .nx-foot {
   margin-left: auto; font-size: 11px; letter-spacing: 0;
   color: #e8d9a8; font-weight: 600;
 }
-.nx-pov-view .nx-deck-cards { grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 4px 16px; }
+.nx-pov-view .nx-deck-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px 18px; }
 .nx-pov-view .nx-deck-card {
   position: relative;
   padding: 3px 0 3px 10px;

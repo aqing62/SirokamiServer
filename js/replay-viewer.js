@@ -1796,7 +1796,7 @@ function initReplayViewer() {
                     if ((dp === 0 || dp === 1) && p.mainc) deckCount[dp] = p.mainc;
                 });
                 createFieldDOM();
-                log('🃏 对局开始（房间 ' + (meta.roomName || '') + '）');
+                log('对局开始（房间 ' + (meta.roomName || '') + '）');
                 logHtml('VS <b>' + escapeHtml(playerName(0)) + '</b> 对战 <b>' + escapeHtml(playerName(1)) + '</b>');
                 break;
             }
@@ -1866,7 +1866,7 @@ function initReplayViewer() {
                     var side = fieldEl.querySelector(c === 1 ? '.rp-opp' : '.rp-self');
                     if (side) side.classList.toggle('rp-active-side', turnPlayer === c);
                 });
-                log('🔄 ' + playerName(turnPlayer) + ' 的回合');
+                log(playerName(turnPlayer) + ' 的回合', 'rp-log-phase');
                 break;
             }
             case 'NewPhase': {
@@ -2083,7 +2083,7 @@ function initReplayViewer() {
             }
             case 'Summoning': {
                 var sc = f.code;
-                log('⚡ ' + playerName(f.controller !== undefined ? f.controller : 0) + ' 召唤 ' + cardName(sc));
+                log(playerName(f.controller !== undefined ? f.controller : 0) + ' 召唤 ' + cardName(sc));
                 // 召唤通常先有 Move 到手牌→场上，这里仅日志
                 break;
             }
@@ -2091,7 +2091,7 @@ function initReplayViewer() {
                 break;
             }
             case 'SpSummoning': {
-                log('✨ 特殊召唤 ' + cardName(f.code));
+                log('特殊召唤 ' + cardName(f.code));
                 // 召唤演出：融合/同调/超量/连接（来自额外卡组）、灵摆
                 if (!animSuppress && lastLand && lastLand.code === f.code && idx - lastLand.idx <= 6) {
                     var st = summonTypeOf(f.code);
@@ -2108,7 +2108,7 @@ function initReplayViewer() {
                 break;
             }
             case 'Chaining': {
-                log('🔗 连锁发动：' + cardName(f.code), 'rp-log-chain');
+                log('连锁发动：' + cardName(f.code), 'rp-log-chain');
                 // 发效果动画：把卡“放到镜头前”闪一下；若该卡是盖着的(陷阱/魔法)先原地翻面
                 if (!animSuppress && f.code) {
                     var cl0 = f.location;
@@ -2182,7 +2182,7 @@ function initReplayViewer() {
             case 'DamageStepStart': inBattle = true; break;
             case 'DamageStepEnd': inBattle = false; break;
             case 'ChainSolving': log('… 连锁处理中 …', 'rp-log-chain'); break;
-            case 'ChainSolved': log('✓ 连锁处理完毕', 'rp-log-chain'); break;
+            case 'ChainSolved': log('连锁处理完毕', 'rp-log-chain'); break;
             case 'ChainEnd': log('— 连锁结束 —', 'rp-log-chain'); break;
             case 'Damage': {
                 var dpl = f.player;
@@ -2191,9 +2191,9 @@ function initReplayViewer() {
                 hurtFlash(dpl);   // 受伤方瞬间闪红
                 dmgFloat(dpl, f.value, '-');   // -3000 提示
                 if (inBattle) {
-                    log('💥 ' + playerName(dpl) + ' 受到 ' + f.value + ' 战斗伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
+                    log(playerName(dpl) + ' 受到 ' + f.value + ' 战斗伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
                 } else {
-                    log('💥 ' + playerName(dpl) + ' 受到 ' + f.value + ' 点效果伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
+                    log(playerName(dpl) + ' 受到 ' + f.value + ' 点效果伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
                 }
                 break;
             }
@@ -2202,7 +2202,7 @@ function initReplayViewer() {
                 lp[rpl] = Math.min(8000, (lp[rpl] || 8000) + (f.value || 0));
                 renderPlayerHead(rpl);
                 dmgFloat(rpl, f.value, '+');   // +N 提示
-                log('💚 ' + playerName(rpl) + ' 恢复 ' + f.value + ' LP');
+                log(playerName(rpl) + ' 恢复 ' + f.value + ' LP');
                 break;
             }
             case 'PayLpCost': {
@@ -2214,7 +2214,7 @@ function initReplayViewer() {
                     renderPlayerHead(plp);
                     dmgFloat(plp, cost, '-', '#ffb347');       // 橙色 = 支付
                     lastPayLp = { player: plp, idx: idx };
-                    log('💳 ' + playerName(plp) + ' 支付 ' + cost + ' LP（LP ' + lp[plp] + '）', 'rp-log-damage');
+                    log(playerName(plp) + ' 支付 ' + cost + ' LP（LP ' + lp[plp] + '）', 'rp-log-damage');
                 }
                 break;
             }
@@ -2234,7 +2234,7 @@ function initReplayViewer() {
             }
             case 'Win': {
                 var wpl = f.player;
-                log('🏆 ' + playerName(wpl) + ' 获胜！', 'rp-log-win');
+                log(playerName(wpl) + ' 获胜！', 'rp-log-win');
                 break;
             }
             case 'Hint': {
