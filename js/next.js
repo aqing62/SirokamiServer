@@ -1698,18 +1698,22 @@
             .then(function (d) { _groupsCache = (d && d.groups) || []; return _groupsCache; })
             .catch(function () { _groupsCache = []; return _groupsCache; });
     }
-    // 渲染一批卡图瓦片（榜单 / 分组共用）
+    // 渲染一批卡图瓦片（榜单 / 分组 / 卡表共用）
+    // opts.lazy=true 时不预加载，直接进场并交给浏览器懒加载（卡表这种几百张的场景）
     function paintCardTiles(box, ids, opts) {
         opts = opts || {};
         box.innerHTML = '';
-        var loadTxt = document.createElement('div');
-        loadTxt.className = 'nx-deck-loading';
-        loadTxt.innerHTML = '<div class="nx-load-rings"><i></i><i></i><i></i></div><div class="nx-load-text">正在加载卡图 <b>0</b> / ' + ids.length + '</div>';
-        box.appendChild(loadTxt);
-        preloadDeckPics(ids, function (n, t) {
-            var e = loadTxt.querySelector('.nx-load-text');
-            if (e) e.innerHTML = '正在加载卡图 <b>' + n + '</b> / ' + t;
-        }).then(function () {
+        var ready = opts.lazy ? Promise.resolve() : (function () {
+            var loadTxt = document.createElement('div');
+            loadTxt.className = 'nx-deck-loading';
+            loadTxt.innerHTML = '<div class="nx-load-rings"><i></i><i></i><i></i></div><div class="nx-load-text">正在加载卡图 <b>0</b> / ' + ids.length + '</div>';
+            box.appendChild(loadTxt);
+            return preloadDeckPics(ids, function (n, t) {
+                var e = loadTxt.querySelector('.nx-load-text');
+                if (e) e.innerHTML = '正在加载卡图 <b>' + n + '</b> / ' + t;
+            });
+        })();
+        ready.then(function () {
             return loadCardMap();
         }).then(function () {
             box.innerHTML = ids.map(function (x, i) {
@@ -2086,7 +2090,7 @@
             var nameMap = {};
             list.forEach(function (x) { if (x.name) nameMap[x.id] = x.name; });
             paintCardTiles(document.getElementById('nxStatsGrid'),
-                list.map(function (x) { return x.id; }), { plain: true, names: nameMap });
+                list.map(function (x) { return x.id; }), { plain: true, names: nameMap, lazy: true });
             bindStatsTabs(body, renderBanlist);
         });
     }
