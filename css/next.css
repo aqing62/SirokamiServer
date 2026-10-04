@@ -888,3 +888,38 @@ body.nx-zoomed .nx-foot {
   .nx-pov-choices .nx-opt-sub { display: none; }
   .nx-pov-view { max-height: 50vh; }
 }
+
+
+/* ── 选手详情内容：对局列表 / 卡组列表（无框，靠发丝线与排版分层）── */
+.nx-duel {
+  display: grid;
+  grid-template-columns: 26px 1fr auto auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 2px;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(255, 255, 255, .05);
+}
+.nx-duel:last-child { border-bottom: none; }
+.nx-duel-tag { text-align: center; font-weight: 700; font-size: 12px; }
+.nx-duel-tag.is-win { color: #ffe9a8; }
+.nx-duel-tag.is-lose { color: #8d8d96; }
+.nx-duel-tag.is-draw { color: #a8e6ff; }
+.nx-duel-opp { color: #ddd6cd; font-weight: 600; text-align: left; }
+.nx-duel-meta { color: #7d7d86; font-size: 11.5px; }
+.nx-duel-time { color: #9a9aa4; font-size: 11.5px; }
+.nx-duel-replay {
+  border: none; background: none; padding: 2px 0; cursor: pointer;
+  color: #ffc0cd; font-family: inherit; font-size: 11.5px; letter-spacing: .5px;
+  border-bottom: 1px dashed rgba(216, 30, 68, .5);
+}
+.nx-duel-replay:hover { color: var(--nx-gold-light, #F0E68C); border-bottom-color: rgba(212, 175, 55, .7); }
+
+.nx-deck-meta { font-size: 11.5px; color: #7d7d86; margin-bottom: 12px; text-align: center; }
+.nx-deck-group { margin-bottom: 16px; }
+.nx-deck-group-title { font-size: 12px; color: #9a9aa4; letter-spacing: 2px; margin-bottom: 8px; }
+.nx-deck-group-title i { font-style: normal; color: var(--nx-gold, #D4AF37); }
+.nx-deck-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(126px, 1fr)); gap: 6px 14px; }
+.nx-deck-card { font-size: 12.5px; color: #ddd6cd; }
+.nx-deck-card:hover { color: #fff3c4; }
+.nx-empty { padding: 30px 4px; text-align: center; font-size: 12.5px; color: #7d7d86; }
