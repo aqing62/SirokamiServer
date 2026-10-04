@@ -199,7 +199,7 @@
         match:    { title: '比赛相关',   sub: '瑞士轮 · 实时对阵 · 历届八强', goto: 'tournament', todo: '数据：/api/tournament?slot=swiss|elim' },
         pool:     { title: '卡池',       sub: '查卡 / 筛选 / 分值',         goto: 'pool',      todo: '复用卡池数据与筛选（微调 UI）' },
         banlist:  { title: '卡表',       sub: '禁限分值一览',               goto: 'banlist',   todo: '复用禁限表（微调 UI）' },
-        preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    todo: '数据：编年史卡组池 / 投稿卡组' },
+        preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    render: 'preset' },
         popular:  { title: '常用卡',     sub: '使用率统计',                 goto: 'pool',      todo: '数据：/api/ladder/card-stats' },
         rank:     { title: '天梯排名',   sub: 'TOP50 · 段位 · 积分',         goto: 'ranking',   render: 'ladder' },
         login:    { title: '登录账号',   sub: '天梯计分 / 投稿需要登录',     goto: 'login',     todo: '复用账号接口（/api/forum/*）' }
@@ -722,6 +722,7 @@
         ev.stopPropagation();
         ev.preventDefault();
         var el = povEl();
+        if (el && el.dataset.mode === 'deck') { closePlayerOverlay(); return; }   // 预组：只读卡组，直接关
         if (el && el.classList.contains('is-viewing')) povBackToChoices();
         else closePlayerOverlay();
     }
@@ -913,12 +914,24 @@
             if (!box) return;
             var d = (data && data.decks && data.decks[0]) || null;
             if (!d || !d.deck) { box.innerHTML = '<div class="nx-empty">还没有可用于展示的卡组</div>'; return; }
-            // ① 先播加载动画：等卡图全部就绪再渲染卡组，这样入场动画不会"播完了图还没出来"
-            showDeckLoading(box);
-            var allIds = [].concat(d.deck.main || [], d.deck.extra || [], d.deck.side || []);
-            var preload = preloadDeckPics(allIds, function (n, t) { setDeckLoading(box, n, t); });
-            var guard = new Promise(function (r) { setTimeout(r, 12000); });   // 个别图卡住也不至于一直转圈
-            return Promise.race([preload, guard]).then(function () {
+            renderDeckInto(box, d.deck,
+                esc(d.roomName || '') + ' · ' + esc(d.winner || '') + ' vs ' + esc(d.opponent || '') + ' · ' + fmtTime(d.time));
+        }).catch(function () {
+            var box = document.getElementById('nxPovView');
+            if (box) box.innerHTML = '<div class="nx-empty">卡组读取失败</div>';
+        });
+    }
+
+    // 渲染一套卡组：先预加载全部卡图 → 再一屏全显示（含分值/DIY 角标、悬停效果浮层）
+    // 「选手详情 · 卡组信息」与「预组卡组」共用这一段
+    function renderDeckInto(box, deck, meta) {
+        if (!box || !deck) return;
+        // ① 先播加载动画：等卡图全部就绪再渲染，入场动画才不会"播完了图还没出来"
+        showDeckLoading(box);
+        var allIds = [].concat(deck.main || [], deck.extra || [], deck.side || []);
+        var preload = preloadDeckPics(allIds, function (n, t) { setDeckLoading(box, n, t); });
+        var guard = new Promise(function (r) { setTimeout(r, 12000); });   // 个别图卡住也不至于一直转圈
+        return Promise.race([preload, guard]).then(function () {
             return Promise.all([loadCardMap(), loadScoreMap()]).then(function () {
                 // 与老站 sortCards 一致：按卡片 ID 升序（相同卡自然相邻）
                 function sortCards(ids) { return (ids || []).slice().sort(function (a, b) { return a - b; }); }
@@ -952,21 +965,20 @@
                     });
                     return sum;
                 }
-                var total = deckScore(d.deck);
+                var total = deckScore(deck);
                 box.innerHTML =
                     '<div class="nx-deck-info">' +
                         '<span class="nx-deck-info-item">总分 <b>' + total + '</b>/' + _scoreLimit + '</span>' +
                         (total > _scoreLimit ? '<span class="nx-deck-info-warn">超出上限</span>' : '') +
-                        '<span class="nx-deck-info-item">主 <b>' + (d.deck.main || []).length + '</b></span>' +
-                        '<span class="nx-deck-info-item">额外 <b>' + (d.deck.extra || []).length + '</b></span>' +
-                        '<span class="nx-deck-info-item">副 <b>' + (d.deck.side || []).length + '</b></span>' +
+                        '<span class="nx-deck-info-item">主 <b>' + (deck.main || []).length + '</b></span>' +
+                        '<span class="nx-deck-info-item">额外 <b>' + (deck.extra || []).length + '</b></span>' +
+                        '<span class="nx-deck-info-item">副 <b>' + (deck.side || []).length + '</b></span>' +
                     '</div>' +
-                    '<div class="nx-deck-meta">' + esc(d.roomName || '') + ' · ' + esc(d.winner || '') + ' vs ' + esc(d.opponent || '') +
-                        ' · ' + fmtTime(d.time) + '</div>' +
+                    (meta ? '<div class="nx-deck-meta">' + meta + '</div>' : '') +
                     '<div class="nx-deck-fit" id="nxDeckFit">' +
                         '<div class="nx-deck-cols">' +
-                            '<div class="nx-deck-col-main">' + group('主卡组', d.deck.main) + '</div>' +
-                            '<div class="nx-deck-col-side">' + group('额外卡组', d.deck.extra) + group('副卡组', d.deck.side) + '</div>' +
+                            '<div class="nx-deck-col-main">' + group('主卡组', deck.main) + '</div>' +
+                            '<div class="nx-deck-col-side">' + group('额外卡组', deck.extra) + group('副卡组', deck.side) + '</div>' +
                         '</div>' +
                     '</div>';
                 // 卡图逐级兜底（OCG → SuperPre → DIY，DIY 成功打角标）+ 悬停效果浮层
@@ -986,10 +998,6 @@
                     img.addEventListener('error', function () { refitDeckSoon(box); });
                 });
             });
-            });   // ← 结束 Promise.race(...).then( 预加载完成后渲染 )
-        }).catch(function () {
-            var box = document.getElementById('nxPovView');
-            if (box) box.innerHTML = '<div class="nx-empty">卡组读取失败</div>';
         });
     }
 
@@ -1116,7 +1124,81 @@
         if (box && box.querySelector('.nx-deck-fit')) fitDeckScale(box, true);   // 尺寸变化才重排列数
     });
 
-    var RENDERERS = { ladder: renderLadder };
+    // ── 预组卡组（卡片 → 预组）：数据与经典版同一份 decks/chronicle_decks.json ──
+    var CHRONICLE_URL = 'decks/chronicle_decks.json?v=20261006c';
+    var _presetCache = null;
+    function loadChronicleDecks() {
+        if (_presetCache) return Promise.resolve(_presetCache);
+        return fetch(CHRONICLE_URL).then(function (r) { return r.json(); })
+            .then(function (d) { _presetCache = (d && d.decks) || []; return _presetCache; })
+            .catch(function () { _presetCache = []; return _presetCache; });
+    }
+    function renderPreset(body) {
+        body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
+            '<div class="nx-load-text">正在加载预组 <b>0</b></div></div>';
+        loadChronicleDecks().then(function (decks) {
+            if (!decks.length) {
+                body.innerHTML = '<div class="nx-empty">暂无可用的预组卡组</div>';
+                return;
+            }
+            var sorted = decks.slice().sort(function (a, b) {
+                return String(a.name).localeCompare(String(b.name), 'zh-Hans-CN');
+            });
+            body.innerHTML =
+                '<div class="nx-preset-count nx-reveal" style="--i:0"><b>' + sorted.length + '</b><span>套预组</span></div>' +
+                '<div class="nx-preset-grid nx-reveal" style="--i:1">' + sorted.map(function (d, i) {
+                    var cover = (d.main || [])[0] || 0;
+                    var meta = '主 ' + (d.main || []).length +
+                        ((d.extra || []).length ? ' · 额外 ' + d.extra.length : '') +
+                        ((d.side || []).length ? ' · 副 ' + d.side.length : '');
+                    return '<button class="nx-preset" type="button" data-idx="' + i + '">' +
+                        '<span class="nx-preset-cover"><img class="nx-preset-img" src="' + PIC_CHAIN[0] + cover + '.jpg" loading="lazy" alt=""></span>' +
+                        '<span class="nx-preset-name">' + esc(d.name) + '</span>' +
+                        '<span class="nx-preset-meta">' + meta + '</span>' +
+                    '</button>';
+                }).join('') + '</div>';
+
+            Array.prototype.forEach.call(body.querySelectorAll('.nx-preset'), function (el) {
+                var d = sorted[+el.getAttribute('data-idx')];
+                if (!d) return;
+                var img = el.querySelector('.nx-preset-img');
+                if (img) wireDeckImage(img, el, (d.main || [])[0] || 0);
+                el.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    playSfx('click');
+                    openDeckView(d, d.name, '预组卡组', '编年史卡组池 · 主 ' + (d.main || []).length + ' 张');
+                });
+            });
+        });
+    }
+
+    // 只展示一套卡组的浮层（不进两个线圈那一步），供预组使用
+    function openDeckView(deck, name, sub, meta) {
+        closePlayerOverlay();
+        var el = document.createElement('div');
+        el.className = 'nx-pov is-viewing is-viewing-done';
+        el.id = 'nxPov';
+        el.dataset.mode = 'deck';
+        el.innerHTML =
+            '<div class="nx-pov-dim"></div>' +
+            '<div class="nx-pov-inner">' +
+                '<div class="nx-pov-title"><b>' + esc(name) + '</b><span>' + esc(sub || '') + '</span></div>' +
+                '<div class="nx-pov-view" id="nxPovView"></div>' +
+            '</div>';
+        document.body.appendChild(el);
+        document.body.classList.add('nx-zoomed');
+        document.addEventListener('keydown', povKey, true);
+        el.addEventListener('click', function (ev) {
+            ev.stopPropagation();                       // 不穿透到全局"点空白返回"
+            var t = ev.target;
+            if (t && t.closest && t.closest('.nx-deck-tile')) return;   // 点卡面不关闭（要看效果浮层）
+            closePlayerOverlay();
+        });
+        var box = document.getElementById('nxPovView');
+        if (box) renderDeckInto(box, deck, meta || '');
+    }
+
+    var RENDERERS = { ladder: renderLadder, preset: renderPreset };
 
     // ── DOM ──
     var stage = document.getElementById('nxStage');
