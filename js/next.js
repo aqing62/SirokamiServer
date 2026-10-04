@@ -226,7 +226,6 @@
         screenEl.hidden = false;
         screenEl.innerHTML =
             '<div class="nx-screen-head">' +
-                '<button class="nx-screen-back" type="button" title="返回">←</button>' +
                 '<div class="nx-screen-titles">' +
                     '<h2>' + esc(s.title) + '</h2>' +
                     '<p>' + esc(s.sub) + '</p>' +
@@ -244,8 +243,6 @@
             else bodyEl.innerHTML = '<p class="nx-screen-todo">这一页正在新写中</p>' +
                 '<p class="nx-screen-todo-sub">' + esc(s.todo || '') + '</p>';
         }
-        var back = screenEl.querySelector('.nx-screen-back');
-        if (back) back.addEventListener('click', function () { playSfx('back'); goBack(); });
         // 每次打开都重播入场动画（元素本身不会重建，直接加类只会播一次）
         screenEl.classList.remove('is-in');
         void screenEl.offsetWidth;            // 强制重排，重启动画
@@ -530,8 +527,6 @@
         if (!el.classList.contains('is-viewing') || el.classList.contains('is-returning')) return;
         playSfx('back');
         var v = document.getElementById('nxPovView');
-        var back = el.querySelector('.nx-pov-back');
-        if (back) back.hidden = true;
         el.classList.add('is-returning');
         if (v) v.classList.add('is-leaving');            // 内容退场
         setTimeout(function () {
@@ -595,7 +590,6 @@
                         '<span class="nx-opt-label">卡组信息</span><span class="nx-opt-sub">最近胜局卡组</span></button>' +
                 '</div>' +
                 '<div class="nx-pov-view" id="nxPovView" hidden></div>' +
-                '<button class="nx-pov-back" type="button" hidden>← 返回</button>' +
             '</div>';
         document.body.appendChild(el);
         document.body.classList.add('nx-zoomed');
@@ -618,11 +612,13 @@
         }
         collectBlobs();
 
-        var back = el.querySelector('.nx-pov-back');
-        if (back) back.addEventListener('click', povBackToChoices);
-        // 点空白（dim 区域）关闭
-        var dim = el.querySelector('.nx-pov-dim');
-        if (dim) dim.addEventListener('click', closePlayerOverlay);
+        // 点空白：内容态 → 回到两个线圈；线圈态 → 关闭
+        el.addEventListener('click', function (ev) {
+            var t = ev.target;
+            if (t && t.closest && t.closest('.nx-pov-opt, .nx-duel-replay')) return;   // 交互元素不响应
+            if (el.classList.contains('is-viewing')) povBackToChoices();
+            else closePlayerOverlay();
+        });
     }
 
     // 展示某一项内容（线圈收起 → 内容淡入）
@@ -630,14 +626,12 @@
         var el = povEl();
         if (!el) return;
         var view = document.getElementById('nxPovView');
-        var back = el.querySelector('.nx-pov-back');
         el.classList.add('is-viewing');
         if (view) {
             view.hidden = false;
             view.classList.toggle('is-duels', kind === 'duels');   // 对局列表收窄居中
             view.innerHTML = '<div class="nx-loading"><span class="nx-spin"></span>读取中…</div>';
         }
-        if (back) back.hidden = false;
 
         var p = _povPlayer || {};
         if (kind === 'duels') {
@@ -1234,8 +1228,7 @@
         if (busy) return;
         if (document.body.classList.contains('nx-boot')) return;   // 开场期间不响应
         if (historyStack.length <= 1) return;                      // 没有上一步
-        var topNode = historyStack[historyStack.length - 1];
-        if (topNode && topNode.screen) return;                     // 功能屏上用返回键/Esc
+        // 功能屏同样支持点空白返回（已无返回按钮）
         var t = ev.target;
         if (t && t.closest && t.closest('button, a, input, select, textarea, label, .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug')) return;
         playSfx('back');
