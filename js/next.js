@@ -219,17 +219,51 @@
         }, 26);
     }
 
-    // 交错流动线条环：贴近边缘的 1 实线 + 2 斜置椭圆 + 1 虚线圆，交错叠放 + 呼吸
+    // ── 边缘圈：4 个不规则闭合细线圈套叠，形状各异，各自旋转 ──
+    // 用 Catmull-Rom 转三次贝塞尔，生成平滑但不规则的闭合曲线（非椭圆）
+    function blobPath(radius, seed, points, wobble) {
+        var pts = [];
+        for (var i = 0; i < points; i++) {
+            var a = (i / points) * Math.PI * 2;
+            var rr = radius * (1
+                + wobble * Math.sin(a * 3 + seed) * 0.62
+                + wobble * Math.cos(a * 2 + seed * 1.7) * 0.34
+                + wobble * Math.sin(a * 5 + seed * 2.3) * 0.16);
+            pts.push([60 + Math.cos(a) * rr, 60 + Math.sin(a) * rr]);
+        }
+        var d = 'M' + pts[0][0].toFixed(2) + ',' + pts[0][1].toFixed(2);
+        for (var k = 0; k < pts.length; k++) {
+            var p0 = pts[(k - 1 + pts.length) % pts.length];
+            var p1 = pts[k];
+            var p2 = pts[(k + 1) % pts.length];
+            var p3 = pts[(k + 2) % pts.length];
+            var c1x = p1[0] + (p2[0] - p0[0]) / 6, c1y = p1[1] + (p2[1] - p0[1]) / 6;
+            var c2x = p2[0] - (p3[0] - p1[0]) / 6, c2y = p2[1] - (p3[1] - p1[1]) / 6;
+            d += ' C' + c1x.toFixed(2) + ',' + c1y.toFixed(2)
+                + ' ' + c2x.toFixed(2) + ',' + c2y.toFixed(2)
+                + ' ' + p2[0].toFixed(2) + ',' + p2[1].toFixed(2);
+        }
+        return d + 'Z';
+    }
+
+    // 4 层：半径递减，抖动种子/幅度/旋转速度各不相同
+    var RING_LAYERS = [
+        { cls: 'nxb1', r: 57, seed: 0.7, pts: 9,  wob: 0.052, spin: 34, dir: '' },
+        { cls: 'nxb2', r: 49, seed: 2.1, pts: 11, wob: 0.070, spin: 46, dir: 'nx-rev' },
+        { cls: 'nxb3', r: 41, seed: 3.9, pts: 8,  wob: 0.085, spin: 28, dir: '' },
+        { cls: 'nxb4', r: 33, seed: 5.4, pts: 10, wob: 0.100, spin: 58, dir: 'nx-rev' }
+    ];
+
     function ringSvg(gold) {
         var cls = 'nx-ring' + (gold ? ' nx-ring-gold' : '');
-        return '<svg class="' + cls + '" viewBox="0 0 120 120" aria-hidden="true">'
-            + '<g class="nx-rot">'
-            + '<circle class="nxr1" cx="60" cy="60" r="57"></circle>'
-            + '<ellipse class="nxr2" cx="60" cy="60" rx="56" ry="48" transform="rotate(16 60 60)"></ellipse>'
-            + '<ellipse class="nxr4" cx="60" cy="60" rx="52" ry="45" transform="rotate(-29 60 60)"></ellipse>'
-            + '<circle class="nxr3" cx="60" cy="60" r="46"></circle>'
-            + '</g></svg>';
+        var inner = RING_LAYERS.map(function (L) {
+            return '<g class="nx-rot ' + L.dir + '" style="--spin:' + L.spin + 's">'
+                + '<path class="' + L.cls + '" d="' + blobPath(L.r, L.seed, L.pts, L.wob) + '"></path>'
+                + '</g>';
+        }).join('');
+        return '<svg class="' + cls + '" viewBox="0 0 120 120" aria-hidden="true">' + inner + '</svg>';
     }
+
     function ripple(btn, ev) {
         var r = btn.getBoundingClientRect();
         var s = document.createElement('span');
