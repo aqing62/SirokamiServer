@@ -30,8 +30,11 @@ body {
 
 /* ── 背景光晕 ── */
 .nx-bg { position: fixed; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; }
+/* 说明：这里曾用 filter: blur(60px)，但径向渐变本身已足够柔和，模糊会让浏览器每帧重做高斯模糊
+   （实测这是页面掉帧的主因），故移除；浮动只动 transform，可走合成器。 */
 .nx-orb {
-  position: absolute; border-radius: 50%; filter: blur(60px); opacity: .5;
+  position: absolute; border-radius: 50%; opacity: .5;
+  will-change: transform;
   animation: orbFloat 18s ease-in-out infinite;
 }
 .nx-orb-1 { width: 46vmax; height: 46vmax; left: -14vmax; top: -16vmax; background: radial-gradient(circle, rgba(216,30,68,.55), transparent 68%); }
@@ -43,7 +46,7 @@ body {
   66%      { transform: translate3d(-3vmax, 3vmax, 0) scale(.95); }
 }
 .nx-grid {
-  position: absolute; inset: 0; opacity: .16;
+  position: absolute; inset: -64px; opacity: .16; will-change: transform;
   background-image:
     linear-gradient(rgba(216,30,68,.35) 1px, transparent 1px),
     linear-gradient(90deg, rgba(216,30,68,.35) 1px, transparent 1px);
@@ -52,7 +55,7 @@ body {
   -webkit-mask-image: radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
   animation: gridDrift 26s linear infinite;
 }
-@keyframes gridDrift { to { background-position: 64px 64px, 64px 64px; } }
+@keyframes gridDrift { to { transform: translate3d(64px, 64px, 0); } }   /* 位移代替 background-position：可合成、不重绘 */
 
 /* ── 顶栏 ── */
 .nx-top {
