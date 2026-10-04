@@ -529,6 +529,7 @@
             scoreLine +
             '<div class="nct-desc">' + (c.processedDesc || c.desc || '') + '</div>' +
             (c.author ? '<div class="nct-author">' + esc(c.author) + '</div>' : '');
+        clearTimeout(tip._hideTimer);   // 关键：撤销上一次的延迟隐藏，否则它会在这次显示之后才触发把浮层闪掉
         tip.style.display = 'block';
         tip.classList.remove('is-out');
         tip.classList.remove('is-in');
