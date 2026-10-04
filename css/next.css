@@ -856,7 +856,7 @@ body.nx-skip .nx-welcome { display: none; }
 }
 .nx-col-body { overflow-y: auto; max-height: 62vh; padding-right: 4px; scrollbar-width: thin; }
 
-.nx-duel { display: grid; grid-template-columns: 30px 1fr auto auto; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid rgba(255,255,255,.045); font-size: 13px; }
+.nx-duel { display: grid; grid-template-columns: 26px 1fr auto auto auto; align-items: center; gap: 10px; padding: 8px 2px; border-bottom: 1px solid rgba(255,255,255,.045); font-size: 13px; }
 .nx-duel:last-child { border-bottom: none; }
 .nx-duel-tag { text-align: center; font-weight: 700; font-size: 12px; }
 .nx-duel-tag.is-win { color: #ffe9a8; }
@@ -876,7 +876,7 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-deck-group { margin-bottom: 14px; }
 .nx-deck-group-title { font-size: 12px; color: #9a9aa4; letter-spacing: 1px; margin-bottom: 6px; }
 .nx-deck-group-title i { font-style: normal; color: var(--nx-gold, #D4AF37); }
-.nx-deck-cards { display: flex; flex-wrap: wrap; gap: 5px 12px; }
+.nx-deck-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 5px 12px; }
 .nx-deck-card { font-size: 12.5px; color: #ddd6cd; }
 .nx-deck-card:hover { color: #fff3c4; }
 .nx-empty-sm { padding: 24px 4px; text-align: center; font-size: 12.5px; color: #7d7d86; }
