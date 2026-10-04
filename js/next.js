@@ -119,12 +119,12 @@
         r_popular: {
             q: '常用高分卡',
             steps: [
-                '组卡器里点<b>「查询高分卡」</b>，会高亮卡组内 8 分及以上的卡',
-                '卡池页可按<b>分值</b>筛选，快速找高分 / 泛用卡'
+                '天梯统计出的<b>使用率榜 / 胜率榜</b>，以及按用途分好的<b>常用卡分组</b>',
+                '组卡器里点<b>「查询高分卡」</b>，会高亮卡组内 8 分及以上的卡'
             ],
             cta: [
-                { icon: 'layers', label: '打开卡池', goto: 'pool' },
-                { icon: 'undo', label: '重新选', back: true }
+                { icon: 'chart', label: '打开常用卡', screen: 'popular' },
+                { icon: 'layers', label: '打开卡池', goto: 'pool' }
             ]
         },
 
