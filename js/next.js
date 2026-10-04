@@ -1144,31 +1144,108 @@
             var sorted = decks.slice().sort(function (a, b) {
                 return String(a.name).localeCompare(String(b.name), 'zh-Hans-CN');
             });
-            body.innerHTML =
-                '<div class="nx-preset-count nx-reveal" style="--i:0"><b>' + sorted.length + '</b><span>套预组</span></div>' +
-                '<div class="nx-preset-grid nx-reveal" style="--i:1">' + sorted.map(function (d, i) {
-                    var cover = (d.main || [])[0] || 0;
-                    var meta = '主 ' + (d.main || []).length +
-                        ((d.extra || []).length ? ' · 额外 ' + d.extra.length : '') +
-                        ((d.side || []).length ? ' · 副 ' + d.side.length : '');
-                    return '<button class="nx-preset" type="button" data-idx="' + i + '">' +
-                        '<span class="nx-preset-cover"><img class="nx-preset-img" src="' + PIC_CHAIN[0] + cover + '.jpg" loading="lazy" alt=""></span>' +
-                        '<span class="nx-preset-name">' + esc(d.name) + '</span>' +
-                        '<span class="nx-preset-meta">' + meta + '</span>' +
-                    '</button>';
-                }).join('') + '</div>';
 
-            Array.prototype.forEach.call(body.querySelectorAll('.nx-preset'), function (el) {
-                var d = sorted[+el.getAttribute('data-idx')];
-                if (!d) return;
-                var img = el.querySelector('.nx-preset-img');
-                if (img) wireDeckImage(img, el.querySelector('.nx-preset-cover') || el, (d.main || [])[0] || 0);
+            // 横向 3D 卡flow：滚轮左右切换，中间最近，同屏 5 个；每套用 3 张卡图做扇形
+            function fanHtml(d) {
+                var ids = (d.main || []).slice(0, 3);
+                if (!ids.length) ids = [0];
+                var out = '';
+                // 后画的在下层：c2(最远) → c1 → c0(封面)
+                for (var k = 2; k >= 0; k--) {
+                    var cid = ids[k] || ids[0] || 0;
+                    out += '<img class="nx-cf-card nx-cf-c' + k + '" data-cid="' + cid +
+                        '" src="' + PIC_CHAIN[0] + cid + '.jpg" loading="lazy" alt="">';
+                }
+                return out;
+            }
+            body.innerHTML =
+                '<div class="nx-cf" id="nxCf">' +
+                    '<div class="nx-cf-stage" id="nxCfStage">' +
+                        sorted.map(function (d, i) {
+                            var meta = '主 ' + (d.main || []).length +
+                                ((d.extra || []).length ? ' · 额外 ' + d.extra.length : '') +
+                                ((d.side || []).length ? ' · 副 ' + d.side.length : '');
+                            return '<button class="nx-cf-item" type="button" data-idx="' + i + '">' +
+                                '<span class="nx-cf-fan">' + fanHtml(d) + '</span>' +
+                                '<span class="nx-cf-name">' + esc(d.name) + '</span>' +
+                                '<span class="nx-cf-meta">' + meta + '</span>' +
+                            '</button>';
+                        }).join('') +
+                    '</div>' +
+                    '<div class="nx-cf-hint">滚轮左右切换 · 点中间打开 · ← → 也可</div>' +
+                '</div>';
+
+            var cf = document.getElementById('nxCf');
+            var stage = document.getElementById('nxCfStage');
+            var items = Array.prototype.slice.call(stage.querySelectorAll('.nx-cf-item'));
+            var cur = 0;
+
+            function paint() {
+                for (var i = 0; i < items.length; i++) {
+                    var off = i - cur, a = Math.abs(off), el = items[i];
+                    if (a > 2) {                       // 同屏只保留 5 个
+                        el.style.opacity = '0';
+                        el.style.pointerEvents = 'none';
+                        el.style.transform = 'translate3d(' + (off * 250) + 'px, 0, -520px) scale(.4)';
+                        el.style.zIndex = '1';
+                        continue;
+                    }
+                    var x = off * 258;                 // 水平间距
+                    var z = -a * 135;                  // 越远越后退（中间最近）
+                    var ry = -off * 27;                // 侧转（3D）
+                    var sc = 1 - a * 0.17;
+                    el.style.transform = 'translate3d(' + x + 'px, ' + (a * 6) + 'px, ' + z + 'px) rotateY(' + ry + 'deg) scale(' + sc + ')';
+                    el.style.opacity = a === 0 ? '1' : (a === 1 ? '.85' : '.42');
+                    el.style.zIndex = String(100 - a);
+                    el.style.pointerEvents = 'auto';
+                    el.classList.toggle('is-center', a === 0);
+                }
+            }
+            paint();
+
+            // 每套的 3 张卡图：兜底 + 角标
+            items.forEach(function (el, i) {
+                var fan = el.querySelector('.nx-cf-fan');
+                Array.prototype.forEach.call(el.querySelectorAll('.nx-cf-card'), function (img) {
+                    var cid = parseInt(img.getAttribute('data-cid'), 10) || 0;
+                    wireDeckImage(img, fan || el, cid);
+                });
+            });
+
+            // 滚轮：累积到阈值走一格（鼠标一格 ≈ 100）
+            var acc = 0;
+            cf.addEventListener('wheel', function (ev) {
+                ev.preventDefault();
+                var d = Math.abs(ev.deltaX) > Math.abs(ev.deltaY) ? ev.deltaX : ev.deltaY;
+                acc += d;
+                var guard = 0;
+                while (Math.abs(acc) >= 60 && guard++ < 4) {
+                    var dir = acc > 0 ? 1 : -1;
+                    var next = Math.max(0, Math.min(items.length - 1, cur + dir));
+                    acc -= dir * 60;
+                    if (next !== cur) { cur = next; playSfx('click'); }
+                }
+                paint();
+            }, { passive: false });
+
+            // 点击：两侧的移到中间；中间的打开卡组
+            items.forEach(function (el, i) {
                 el.addEventListener('click', function (ev) {
                     ev.stopPropagation();
+                    if (i !== cur) { cur = i; paint(); playSfx('click'); return; }
                     playSfx('click');
+                    var d = sorted[i];
                     openDeckView(d, d.name, '预组卡组', '编年史卡组池 · 主 ' + (d.main || []).length + ' 张');
                 });
             });
+
+            // 键盘左右
+            function onKey(ev) {
+                if (!document.getElementById('nxCf')) { document.removeEventListener('keydown', onKey); return; }
+                if (ev.key === 'ArrowLeft') { cur = Math.max(0, cur - 1); paint(); }
+                else if (ev.key === 'ArrowRight') { cur = Math.min(items.length - 1, cur + 1); paint(); }
+            }
+            document.addEventListener('keydown', onKey);
         });
     }
 
