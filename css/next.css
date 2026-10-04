@@ -851,12 +851,16 @@ body.nx-zoomed .nx-foot {
 }
 /* 选中某一项后：两个线圈缩小消失 */
 .nx-pov.is-viewing .nx-pov-choices { pointer-events: none; animation: nxPovChoicesOut .34s ease-in both; }
+/* 动画播完后真正移出布局：否则这块空白会把下面的内容顶下去 */
+.nx-pov.is-viewing-done .nx-pov-choices { display: none; }
+/* 内容态整体靠上排，避免垂直居中切掉顶部 */
+.nx-pov.is-viewing-done { align-items: flex-start; padding-top: clamp(14px, 4.5vh, 48px); }
 @keyframes nxPovChoicesOut { to { opacity: 0; transform: scale(.55); filter: blur(10px); } }
 .nx-pov.is-viewing .nx-pov-title { opacity: .55; transition: opacity .3s; }
 
 .nx-pov-view.is-duels { width: min(640px, 100%); }
 .nx-pov-view:not(.is-duels) {
-  width: min(1060px, 100%);
+  width: min(1240px, 96vw);
   max-height: none;      /* 卡组一屏全显示：不设限高，靠 JS 等比缩放适配 */
   overflow: visible;
 }

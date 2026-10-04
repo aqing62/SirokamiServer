@@ -593,6 +593,7 @@
         var el = povEl();
         if (!el || el.classList.contains('is-closing')) return;
         hideCardTip();
+        clearTimeout(el._choicesTimer);
         el.classList.add('is-closing');                  // 线圈/内容整体收缩消失
         document.body.classList.remove('nx-zoomed');     // 同时舞台放大复原
         setTimeout(function () {
@@ -611,7 +612,7 @@
         if (v) v.classList.add('is-leaving');            // 内容退场
         setTimeout(function () {
             if (v) { v.classList.remove('is-leaving'); v.hidden = true; v.innerHTML = ''; }
-            el.classList.remove('is-viewing');           // 线圈恢复可见
+            el.classList.remove('is-viewing', 'is-viewing-done');   // 线圈恢复可见并回到布局
             var ch = el.querySelector('.nx-pov-choices');
             if (ch) {                                    // 重播线圈回归动画
                 ch.classList.remove('is-back');
@@ -707,6 +708,8 @@
         if (!el) return;
         var view = document.getElementById('nxPovView');
         el.classList.add('is-viewing');
+        clearTimeout(el._choicesTimer);
+        el._choicesTimer = setTimeout(function () { el.classList.add('is-viewing-done'); }, 340);
         if (view) {
             view.hidden = false;
             view.classList.toggle('is-duels', kind === 'duels');   // 对局列表收窄居中
@@ -758,8 +761,11 @@
             var d = (data && data.decks && data.decks[0]) || null;
             if (!d || !d.deck) { box.innerHTML = '<div class="nx-empty">还没有可用于展示的卡组</div>'; return; }
             return Promise.all([loadCardMap(), loadScoreMap()]).then(function () {
-                function group(title, ids) {
-                    if (!ids || !ids.length) return '';
+                // 与老站 sortCards 一致：按卡片 ID 升序（相同卡自然相邻）
+                function sortCards(ids) { return (ids || []).slice().sort(function (a, b) { return a - b; }); }
+                function group(title, rawIds) {
+                    var ids = sortCards(rawIds);
+                    if (!ids.length) return '';
                     return '<div class="nx-deck-group"><div class="nx-deck-group-title">' + title + ' <i>' + ids.length + '</i></div>' +
                         '<div class="nx-deck-cards">' + ids.map(function (id) {
                             var nm = cardName(id);
