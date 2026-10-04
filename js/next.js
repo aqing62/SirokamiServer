@@ -771,10 +771,11 @@
         el.classList.add('is-entering');
         setTimeout(function () { el.classList.remove('is-entering'); }, 900);
 
-        // 线圈按钮：接入现成的悬停收敛 + 形状动画
+        // 线圈按钮：接入与主菜单一致的悬停收敛 + 磁吸/拖拽
         var btns = el.querySelectorAll('.nx-pov-opt');
         for (var i = 0; i < btns.length; i++) {
             bindHoverRegular(btns[i]);
+            bindMagnet(btns[i]);                 // 磁吸（拖拽形变也依赖它记录指针位置）
             var paths = btns[i].querySelectorAll('.nx-ring path');
             for (var k = 0; k < paths.length; k++) paths[k].setAttribute('data-blob-ready', '1');
             (function (b) {
@@ -797,6 +798,12 @@
         });
     }
 
+    // 解绑磁吸（冻结/退出动画期间不再被指针牵引）
+    function unbindMagnet(btn) {
+        var i = _magBtns.indexOf(btn);
+        if (i >= 0) _magBtns.splice(i, 1);
+        btn.style.translate = '';
+    }
     // 把两个线圈"就地冻结"：移到覆盖层下（覆盖层没有 transform，不会跟着内层上滑），并用绝对定位停在当前视觉位置
     function freezeChoices(el, cr) {
         var ch = el.querySelector('.nx-pov-choices');
@@ -810,6 +817,7 @@
         ch.style.width = cr.width + 'px';
         ch.style.margin = '0';
         ch.dataset.frozen = '1';
+        Array.prototype.forEach.call(ch.querySelectorAll('.nx-option'), unbindMagnet);
         return ch;
     }
     function unfreezeChoices(el) {
@@ -820,6 +828,8 @@
         var inner = el.querySelector('.nx-pov-inner');
         var view = document.getElementById('nxPovView');
         if (inner && ch.parentNode !== inner) inner.insertBefore(ch, view);   // 放回内层（内容视图之前）
+        // 回到布局后重新接上磁吸
+        Array.prototype.forEach.call(ch.querySelectorAll('.nx-option'), function (b) { bindMagnet(b); });
         return ch;
     }
 
