@@ -696,6 +696,9 @@
         document.body.classList.add('nx-zoomed');
         document.addEventListener('keydown', povKey, true);
         playSfx('click');
+        // 入场动画只在"刚打开"时生效一次；播完去掉标记，避免返回时基础规则再次触发放两遍入场
+        el.classList.add('is-entering');
+        setTimeout(function () { el.classList.remove('is-entering'); }, 900);
 
         // 线圈按钮：接入现成的悬停收敛 + 形状动画
         var btns = el.querySelectorAll('.nx-pov-opt');

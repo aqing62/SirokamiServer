@@ -844,7 +844,9 @@ body.nx-zoomed .nx-foot {
 @keyframes nxPovTitle { from { opacity: 0; transform: translateY(10px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
 
 .nx-pov-choices { display: flex; align-items: center; justify-content: center; gap: clamp(36px, 10vw, 150px); }
-.nx-pov-choices .nx-option { --size: clamp(148px, 18vw, 198px); animation: nxPovCircle .62s cubic-bezier(.22,.9,.28,1.02) both; animation-delay: calc(.18s + var(--i, 0) * .1s); }
+.nx-pov-choices .nx-option { --size: clamp(148px, 18vw, 198px); }
+/* 入场只在刚打开时播一次（is-entering 在播完后由 JS 移除），否则返回时会再播一遍 */
+.nx-pov.is-entering .nx-pov-choices .nx-option { animation: nxPovCircle .62s cubic-bezier(.22,.9,.28,1.02) both; animation-delay: calc(.18s + var(--i, 0) * .1s); }
 @keyframes nxPovCircle {
   from { opacity: 0; transform: scale(.35); filter: blur(10px); }
   to   { opacity: 1; transform: none; filter: blur(0); }
