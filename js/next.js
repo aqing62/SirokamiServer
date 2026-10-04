@@ -859,11 +859,12 @@
 
         function bestCols(count, colWidth, avail) {
             if (!count || colWidth <= 0) return 0;
+            var NAME_H = 24;             // 卡名两行的高度，算进去才能让卡名也显示得下
             for (var cols = 4; cols <= 24; cols++) {
                 var real = Math.min(cols, count);
                 var rows = Math.ceil(count / real);
                 var w = (colWidth - (real - 1) * GAP) / real;
-                var total = rows * (w * RATIO) + (rows - 1) * GAP;
+                var total = rows * (w * RATIO + NAME_H) + (rows - 1) * GAP;
                 if (total <= avail) return real;
             }
             return Math.min(24, count);
