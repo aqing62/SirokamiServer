@@ -183,7 +183,6 @@
     var resEl = document.getElementById('nxResult');
     var stepsEl = document.getElementById('nxSteps');
     var ctaEl = document.getElementById('nxCta');
-    var backEl = document.getElementById('nxBack');
     var verEl = document.getElementById('nxVersion');
 
     var historyStack = [];   // 走过的节点（用于返回 + 面包屑）
@@ -671,6 +670,22 @@
         });
     }
 
+    // 点击空白区域返回上一步（点到按钮/链接/滑块等交互元素时不触发）
+    document.addEventListener('click', function (ev) {
+        if (busy) return;
+        if (document.body.classList.contains('nx-boot')) return;   // 开场期间不响应
+        if (historyStack.length <= 1) return;                      // 没有上一步
+        var t = ev.target;
+        if (t && t.closest && t.closest('button, a, input, select, textarea, label, .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug')) return;
+        goBack();
+    });
+    document.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Escape') return;
+        if (document.body.classList.contains('nx-boot')) return;
+        if (ev.target && ev.target.closest && ev.target.closest('input, textarea, select')) return;
+        goBack();
+    });
+
     var _deferOptions = false;   // 开场期间：等打字机打完再出按钮
     var _afterTyped = null;      // 打字完成后的自定义收尾（开场：先滑回常态位再出按钮）
 
@@ -699,7 +714,6 @@
         resEl.hidden = true;
         stepsEl.innerHTML = '';
         ctaEl.innerHTML = '';
-        backEl.hidden = historyStack.length <= 1;
         if (deferOptions) {
             // 关键：按钮先进入布局（保证问句的"最终位置"已确定），仅用类隐藏外观，
             // 这样量出的 --q-dy 才是真正的滑动距离，避免之后布局跳变
@@ -717,7 +731,6 @@
     function renderResult(node, label) {
         optEl.hidden = true;
         optEl.innerHTML = '';
-        backEl.hidden = historyStack.length <= 1;
 
         typeText(qEl, node.q);
 
@@ -753,10 +766,6 @@
         });
         startBlobMorph();
     }
-
-
-
-    backEl.addEventListener('click', goBack);
 
     // 统一入口：写入根节点后渲染
     function renderAny(key, deferOptions) {

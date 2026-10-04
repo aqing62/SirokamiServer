@@ -317,18 +317,7 @@ body {
 }
 
 /* ── 返回（圆形，左下）── */
-.nx-back {
-  position: fixed; z-index: 3;
-  left: 18px; bottom: calc(56px + env(safe-area-inset-bottom, 0px));
-  width: 48px; height: 48px; border-radius: 50%;
-  border: 1px solid rgba(212, 175, 55, .5);
-  background: rgba(10, 8, 10, .82);
-  color: var(--nx-gold-light);
-  font-size: 20px; cursor: pointer;
-  transition: transform .25s var(--nx-ease), box-shadow .25s;
-  animation: optionIn .4s var(--nx-ease) backwards;
-}
-.nx-back:hover { transform: scale(1.12); box-shadow: 0 0 18px rgba(216, 30, 68, .55); }
+/* .nx-back 已移除 */
 
 .nx-foot {
   position: relative; z-index: 2;
@@ -351,7 +340,6 @@ body {
   .nx-cta { --size: clamp(128px, 35vw, 164px); }
   .nx-step-row { border-radius: 18px; padding: 9px 12px; }
   .nx-foot { font-size: 10.5px; }
-  .nx-back { left: 12px; bottom: calc(48px + env(safe-area-inset-bottom, 0px)); width: 44px; height: 44px; }
 }
 
 /* 注意：不按系统「减少动态效果」自动关闭动效（很多 Windows 用户默认关闭该项），
@@ -367,7 +355,6 @@ html.nx-anim-off .nx-brand-dot,
 html.nx-anim-off .nx-option,
 html.nx-anim-off .nx-cta,
 html.nx-anim-off .nx-step-row,
-html.nx-anim-off .nx-back,
 html.nx-anim-off .nx-ring,
 html.nx-anim-off .nx-ring .nx-rot,
 html.nx-anim-off .nx-option .nx-opt-icon,
@@ -386,7 +373,6 @@ html, body { background: #000; }
 /* 开场时：除了欢迎大字，其它全部隐藏 */
 body.nx-boot .nx-top,
 body.nx-boot .nx-foot,
-body.nx-boot .nx-back,
 body.nx-boot .nx-question,
 body.nx-boot .nx-options,
 body.nx-boot .nx-result { opacity: 0; visibility: hidden; }
