@@ -480,10 +480,7 @@
             var mph = parseFloat(p.getAttribute('data-mph')) || 0;
             // 悬停时"规整度"→1（线条收敛为正圆），移开后→0（回到呼吸扭曲），用指数插值过渡
             var owner = p._nxBtn;
-            // 分级刷新：指针附近的按钮 60fps，其余 12fps（大幅降低每帧路径重写量）
-            var due = (owner && owner._near) ? 15 : 80;   // 指针附近 60fps，其余 12fps
-            if (p._lastPaint && now - p._lastPaint < due) continue;
-            p._lastPaint = now;
+            // 每层每帧都重算（不做节流/缓存）
             var reg = 0;
             if (owner) {
                 // 拉拽：按钮被拖动/指针扫过 → 沿运动方向甩长（路径方案，实测比 SVG transform 快）
@@ -535,11 +532,7 @@
             p._nxPhase += msp * (1 - reg * 0.85) * dt;
             // 抖动幅度呼吸 + 按规整度收敛为正圆（只变圆，不回到初始形状）
             var amp = wob * (0.62 + 0.5 * Math.sin(_breathT * 0.5 + mph * 1.3)) * (1 - reg);
-            // 形状变化极小时跳过写入（避免无谓的 SVG 重解析/重栅格化）
-            if (!p._lastSig || Math.abs(p._nxPhase - p._lastSig.p) > 0.003 || Math.abs(amp - p._lastSig.a) > 0.0012 || Math.abs(pull - (p._lastSig.u || 0)) > 0.008) {
-                p._lastSig = { p: p._nxPhase, a: amp, u: pull };
-                p.setAttribute('d', blobPath(r, p._nxPhase, pts, amp, pull, pullAng));
-            }
+            p.setAttribute('d', blobPath(r, p._nxPhase, pts, amp, pull, pullAng));
         }
     }
 
