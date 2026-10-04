@@ -740,7 +740,8 @@ body.nx-skip .nx-welcome { display: none; }
   max-height: min(56vh, 520px);
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 34px 6px;
+  padding-top: 34px;
+  padding-bottom: 34px;
   scrollbar-width: none;
   perspective: 900px;
   /* 上下边缘渐变淡出（替代边框） */
@@ -749,14 +750,21 @@ body.nx-skip .nx-welcome { display: none; }
 }
 .nx-scroll::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
-/* 列表收窄居中，避免列间距过大 */
-.nx-scroll, .nx-list-head, .nx-list-note { max-width: 880px; margin-left: auto; margin-right: auto; }
+/* 列表收窄居中；表头与行共用同一宽度上下文，保证列对齐 */
+.nx-scroll, .nx-list-head, .nx-list-note {
+  max-width: 880px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+}
+.nx-list-head, .nx-scroll { padding-left: 12px; padding-right: 12px; }
+.nx-list-head, .nx-row { grid-template-columns: 54px 1fr 104px 76px 130px 72px; }
 
 .nx-list-head {
   display: grid;
-  grid-template-columns: 54px minmax(120px, 1.4fr) 104px 76px 130px 72px;
   gap: 10px;
-  padding: 0 12px 8px;
+  padding-top: 0;
+  padding-bottom: 8px;
   font-size: 11.5px;
   letter-spacing: .5px;
   color: #7d7d86;
@@ -767,10 +775,10 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-list { display: flex; flex-direction: column; }
 .nx-row {
   display: grid;
-  grid-template-columns: 54px minmax(120px, 1.4fr) 104px 76px 130px 72px;
   align-items: center;
   gap: 10px;
-  padding: 11px 12px;
+  padding-top: 11px;
+  padding-bottom: 11px;
   font-size: 13px;
   color: #ddd6cd;
   border-bottom: 1px solid rgba(255, 255, 255, .045);
@@ -787,9 +795,11 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-list-note { margin-top: 6px; font-size: 11.5px; color: #6f6f78; text-align: center; }
 
 @media (max-width: 768px) {
-  .nx-list-head { grid-template-columns: 40px minmax(90px, 1fr) 84px 60px; padding: 0 8px 6px; }
+  .nx-list-head, .nx-row { grid-template-columns: 40px 1fr 84px 60px; }
+  .nx-list-head, .nx-scroll { padding-left: 8px; padding-right: 8px; }
+  .nx-list-head { padding-bottom: 6px; }
   .nx-list-head span:nth-child(5), .nx-list-head span:nth-child(6) { display: none; }
-  .nx-row { grid-template-columns: 40px minmax(90px, 1fr) 84px 60px; font-size: 12px; gap: 6px; padding: 9px 8px; }
+  .nx-row { font-size: 12px; gap: 6px; padding-top: 9px; padding-bottom: 9px; }
   .nx-row .c-wld, .nx-row .c-rate { display: none; }
-  .nx-scroll { max-height: 52vh; padding: 26px 2px; }
+  .nx-scroll { max-height: 52vh; padding-top: 26px; padding-bottom: 26px; }
 }
