@@ -463,12 +463,80 @@
     var PIC_OCG = 'https://cdn.233.momobako.com/ygopro/pics/';
     var PIC_ALT = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
 
+    var PIC_CHAIN = [PIC_OCG, PIC_ALT, PIC_DIY];   // 与老站一致：OCG → SuperPre → DIY
+    var _scoreMap = null;
+
     function cardInfo(id) { return (_cardMap && _cardMap[String(id)]) || null; }
-    function cardPicUrl(id) {
-        var info = cardInfo(id);
-        var diy = info && info.category === 'DIY';
-        return (diy ? PIC_DIY : PIC_OCG) + id + '.jpg';
+
+    // 禁限分值表（/api/scores）：{ id: {score, forbidden} }
+    function loadScoreMap() {
+        if (_scoreMap) return Promise.resolve(_scoreMap);
+        return fetch('/api/scores?t=' + Date.now())
+            .then(function (r) { return r.json(); })
+            .then(function (d) { _scoreMap = d || {}; return _scoreMap; })
+            .catch(function () { _scoreMap = {}; return _scoreMap; });
     }
+
+    // 卡图：逐级兜底，成功于 DIY 图床时打 DIY 角标
+    function wireDeckImage(img, tile, id) {
+        var step = 0;
+        img.addEventListener('load', function () {
+            if (step === 2 && !tile.querySelector('.nx-deck-diy')) {
+                var b = document.createElement('span');
+                b.className = 'nx-deck-diy';
+                b.textContent = 'DIY';
+                tile.appendChild(b);
+            }
+        });
+        img.addEventListener('error', function () {
+            step++;
+            if (step < PIC_CHAIN.length) img.src = PIC_CHAIN[step] + id + '.jpg';
+            else img.classList.add('is-missing');
+        });
+    }
+
+    // ── 卡片效果浮层（与老站一致：名称 / 类型 / 属性种族等级 / 攻守 / 效果文本）──
+    var _tipEl = null;
+    function tipEl() {
+        if (_tipEl) return _tipEl;
+        _tipEl = document.createElement('div');
+        _tipEl.className = 'nx-card-tip';
+        document.body.appendChild(_tipEl);
+        return _tipEl;
+    }
+    function showCardTip(ev, id) {
+        var c = cardInfo(id);
+        var tip = tipEl();
+        if (!c) { tip.style.display = 'none'; return; }
+        var isMonster = c.typeInfo && c.typeInfo.baseType === '怪兽';
+        var score = _scoreMap && _scoreMap[id];
+        var scoreLine = score
+            ? '<div class="nct-score">' + (score.forbidden ? '禁用卡' : '分值 ' + score.score) + '</div>'
+            : '';
+        tip.innerHTML =
+            '<div class="nct-name">' + esc(c.name || ('#' + id)) + '</div>' +
+            '<div class="nct-type">' + esc((c.typeInfo && c.typeInfo.fullType) || '') + '</div>' +
+            (isMonster
+                ? '<div class="nct-meta">' + esc(c.attrName || '') + ' | ' + esc(c.raceName || '') +
+                  (c.level ? ' | Lv' + c.level : '') + '</div>' +
+                  '<div class="nct-stat">ATK ' + (c.atk < 0 ? '?' : c.atk) + ' / DEF ' + (c.def < 0 ? '?' : c.def) + '</div>'
+                : '') +
+            scoreLine +
+            '<div class="nct-desc">' + (c.processedDesc || c.desc || '') + '</div>' +
+            (c.author ? '<div class="nct-author">' + esc(c.author) + '</div>' : '');
+        tip.style.display = 'block';
+        positionCardTip(ev, tip);
+    }
+    function positionCardTip(ev, tip) {
+        var pad = 14;
+        var x = ev.clientX + pad, y = ev.clientY + 10;
+        var w = tip.offsetWidth, h = tip.offsetHeight;
+        if (x + w > window.innerWidth - 10) x = Math.max(8, ev.clientX - w - pad);
+        if (y + h > window.innerHeight - 10) y = Math.max(8, window.innerHeight - h - 10);
+        tip.style.left = x + 'px';
+        tip.style.top = y + 'px';
+    }
+    function hideCardTip() { if (_tipEl) _tipEl.style.display = 'none'; }
 
     function loadCardMap() {
         if (_cardMap) return Promise.resolve(_cardMap);
@@ -524,6 +592,7 @@
     function closePlayerOverlay() {
         var el = povEl();
         if (!el || el.classList.contains('is-closing')) return;
+        hideCardTip();
         el.classList.add('is-closing');                  // 线圈/内容整体收缩消失
         document.body.classList.remove('nx-zoomed');     // 同时舞台放大复原
         setTimeout(function () {
@@ -688,14 +757,20 @@
             if (!box) return;
             var d = (data && data.decks && data.decks[0]) || null;
             if (!d || !d.deck) { box.innerHTML = '<div class="nx-empty">还没有可用于展示的卡组</div>'; return; }
-            return loadCardMap().then(function () {
+            return Promise.all([loadCardMap(), loadScoreMap()]).then(function () {
                 function group(title, ids) {
                     if (!ids || !ids.length) return '';
                     return '<div class="nx-deck-group"><div class="nx-deck-group-title">' + title + ' <i>' + ids.length + '</i></div>' +
                         '<div class="nx-deck-cards">' + ids.map(function (id) {
                             var nm = cardName(id);
-                            return '<div class="nx-deck-tile" title="' + esc(nm) + '">' +
-                                '<img class="nx-deck-img" src="' + cardPicUrl(id) + '" loading="lazy" alt="">' +
+                            var sc = _scoreMap && _scoreMap[id];
+                            var badge = sc
+                                ? '<span class="nx-deck-score' + (sc.forbidden ? ' is-forbidden' : '') + '">' +
+                                  (sc.forbidden ? '禁' : sc.score) + '</span>'
+                                : '';
+                            return '<div class="nx-deck-tile" data-id="' + id + '">' +
+                                '<img class="nx-deck-img" src="' + PIC_CHAIN[0] + id + '.jpg" loading="lazy" alt="">' +
+                                badge +
                                 '<span class="nx-deck-name">' + esc(nm) + '</span>' +
                             '</div>';
                         }).join('') + '</div></div>';
@@ -709,17 +784,14 @@
                             '<div class="nx-deck-col-side">' + group('额外卡组', d.deck.extra) + group('副卡组', d.deck.side) + '</div>' +
                         '</div>' +
                     '</div>';
-                // 卡图兜底： DIY 失败 → 借 OCG 图 → 备用 CDN → 标记缺失
-                Array.prototype.forEach.call(box.querySelectorAll('.nx-deck-img'), function (img) {
-                    var step = 0;
-                    img.addEventListener('error', function () {
-                        var id = (img.getAttribute('src') || '').match(/\/(\d+)\.jpg/);
-                        id = id ? id[1] : '';
-                        step++;
-                        if (step === 1) img.src = PIC_OCG + id + '.jpg';
-                        else if (step === 2) img.src = PIC_ALT + id + '.jpg';
-                        else img.classList.add('is-missing');
-                    });
+                // 卡图逐级兜底（OCG → SuperPre → DIY，DIY 成功打角标）+ 悬停效果浮层
+                Array.prototype.forEach.call(box.querySelectorAll('.nx-deck-tile'), function (tile) {
+                    var id = tile.getAttribute('data-id');
+                    var img = tile.querySelector('.nx-deck-img');
+                    if (img) wireDeckImage(img, tile, id);
+                    tile.addEventListener('mouseenter', function (ev) { showCardTip(ev, id); });
+                    tile.addEventListener('mousemove', function (ev) { if (_tipEl && _tipEl.style.display === 'block') positionCardTip(ev, _tipEl); });
+                    tile.addEventListener('mouseleave', hideCardTip);
                 });
                 // 一屏全显示：放不下就整体等比缩小（不出现内部滚动条）
                 fitDeckScale(box);

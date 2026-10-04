@@ -1036,3 +1036,58 @@ body.nx-zoomed .nx-foot {
 /* 缩得较狠时（一屏全显示）隐藏卡名，保证卡图更大更清晰 */
 .nx-deck-fit.is-compact .nx-deck-name { display: none; }
 .nx-deck-fit.is-compact .nx-deck-cards { gap: 5px 4px; }
+
+
+/* ── 卡图角标：禁限分值 + DIY ─────────────────────────── */
+.nx-deck-tile { position: relative; }
+.nx-deck-score {
+  position: absolute; top: 3px; left: 3px;
+  min-width: 15px; height: 15px; padding: 0 4px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 5px;
+  font-size: 9.5px; font-weight: 700; line-height: 1;
+  color: #1a0d12;
+  background: linear-gradient(135deg, #F0E68C, #D4AF37);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .55);
+}
+.nx-deck-score.is-forbidden { background: linear-gradient(135deg, #ff8a8a, #D81E44); color: #fff; }
+.nx-deck-diy {
+  position: absolute; top: 3px; right: 3px;
+  padding: 1px 4px; border-radius: 4px;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .5px;
+  color: #ffe9a8; background: rgba(216, 30, 68, .82);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, .5);
+}
+
+/* ── 卡片效果浮层 ─────────────────────────────────────── */
+.nx-card-tip {
+  position: fixed; z-index: 90;
+  display: none;
+  width: min(320px, 84vw);
+  max-height: 62vh;
+  overflow: hidden;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: radial-gradient(120% 100% at 50% 0%, rgba(38, 18, 24, .97), rgba(10, 7, 10, .98) 62%);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, .8), inset 0 0 0 1px rgba(216, 30, 68, .2);
+  color: #ddd6cd;
+  font-size: 12.5px;
+  line-height: 1.55;
+  pointer-events: none;
+  animation: nxTipIn .18s ease-out both;
+}
+@keyframes nxTipIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+.nct-name { font-size: 14px; font-weight: 700; color: #f4eee6; letter-spacing: .5px; }
+.nct-type { margin-top: 3px; font-size: 11.5px; color: var(--nx-gold, #D4AF37); letter-spacing: 1px; }
+.nct-meta { margin-top: 2px; font-size: 11px; color: #9a9aa4; }
+.nct-stat { margin-top: 4px; font-size: 12px; color: #ffd9a0; font-weight: 600; }
+.nct-score {
+  display: inline-block; margin-top: 6px; padding: 1px 8px; border-radius: 999px;
+  font-size: 11px; color: #1a0d12; background: linear-gradient(135deg, #F0E68C, #D4AF37);
+}
+.nct-desc {
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid rgba(216, 30, 68, .2);
+  white-space: pre-wrap; font-size: 12px; color: #c9c3bb;
+}
+.nct-author { margin-top: 6px; font-size: 10.5px; color: #7d7d86; }
