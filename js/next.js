@@ -308,7 +308,7 @@
     // ── 磁吸跟随 + 相互规避 ──────────────────────────────────
     // 按钮被光标"黏住"：靠近时轻微跟手，光标移远（超过 release 距离）才脱离；
     // 按钮之间保持最小间距，互相推开避免重叠。位移用 translate 属性，不影响 transform。
-    var MAG = { stick: 130, attract: 0.55, maxPull: 38, springK: 95, springC: 19, gap: 14, repK: 0.5,
+    var MAG = { stick: 150, attract: 0.6, flat: 0.55, maxPull: 38, springK: 95, springC: 19, gap: 14, repK: 0.5,
                 dragR: 380,      // 指针扫过时的作用半径（辅助触发源）
                 speedRef: 300,   // 按钮自身移动速度(px/s)达到此值即满强度
                 ptrSpeedRef: 700,// 指针扫过速度的满强度阈值
@@ -385,11 +385,14 @@
             if (_magPx !== null) {
                 var dx = _magPx - cx, dy = _magPy - cy;
                 d = Math.sqrt(dx * dx + dy * dy);
-                // 连续衰减（不再用进出阈值开关）：距离越近力越大，超过 stick 距离自然为 0
-                var t = 1 - d / MAG.stick;
-                if (t > 0) {
-                    if (t > 1) t = 1;
-                    var s = t * t * (3 - 2 * t);        // smoothstep：两端导数为 0，不会有急停/急起
+                // 连续力（无进出阈值开关）：内圈满力，到 stick 半径处平滑归零
+                var t = d / MAG.stick;                 // 0=圆心, 1=作用边界
+                if (t < 1) {
+                    var s = 1;
+                    if (t > MAG.flat) {                // 超过 flat 比例后平滑衰减到 0
+                        var u = (t - MAG.flat) / (1 - MAG.flat);
+                        s = 1 - u * u * (3 - 2 * u);
+                    }
                     var k = MAG.attract * s;
                     tx = dx * k; ty = dy * k;
                     var m = Math.sqrt(tx * tx + ty * ty);
