@@ -874,7 +874,14 @@
             var grid = col.querySelector(gridSel);
             if (!grid) return;
             var n = bestCols(count, col.getBoundingClientRect().width, availH);
-            if (n > 0) grid.style.gridTemplateColumns = 'repeat(' + n + ', minmax(0, 1fr))';
+            if (n > 0) {
+                grid.style.gridTemplateColumns = 'repeat(' + n + ', minmax(0, 1fr))';
+                // 对角序号（左上 → 右下），供入场动画错开
+                var tiles = grid.querySelectorAll('.nx-deck-tile');
+                for (var i = 0; i < tiles.length; i++) {
+                    tiles[i].style.setProperty('--i', (Math.floor(i / n) + (i % n)));
+                }
+            }
         }
         var mainCount = fit.querySelectorAll('.nx-deck-col-main .nx-deck-tile').length;
         var extraCount = fit.querySelectorAll('.nx-deck-col-side .nx-deck-group:nth-child(1) .nx-deck-tile').length;

@@ -943,11 +943,8 @@ body.nx-zoomed .nx-foot {
 }
 .nx-pov-view .nx-deck-group {
   margin-bottom: 18px;
-  animation: nxDeckIn .5s cubic-bezier(.22, .9, .28, 1.02) both;
+  /* 不再整组淡入：改用卡图逐张入场（见 .nx-deck-tile），避免两套动画打架 */
 }
-.nx-pov-view .nx-deck-group:nth-child(2) { animation-delay: .08s; }
-.nx-pov-view .nx-deck-group:nth-child(3) { animation-delay: .16s; }
-.nx-pov-view .nx-deck-group:nth-child(4) { animation-delay: .24s; }
 @keyframes nxDeckIn {
   from { opacity: 0; transform: translateY(10px); filter: blur(5px); }
   to   { opacity: 1; transform: none; filter: blur(0); }
@@ -1081,3 +1078,44 @@ body.nx-zoomed .nx-foot {
   white-space: pre-wrap; font-size: 12px; color: #c9c3bb;
 }
 .nct-author { margin-top: 6px; font-size: 10.5px; color: #7d7d86; }
+
+
+/* ══ 卡组动画 ══════════════════════════════════════════════
+   ① 入场：按对角序号 --i（左上 → 右下）依次"贴"上来，整段约 0.5s
+   ② 悬停：边框自左向右展开 → 随后卡名缓入；移出时反向且更快
+   ═══════════════════════════════════════════════════════════ */
+.nx-deck-tile {
+  animation: nxCardPaste .26s cubic-bezier(.2, .85, .3, 1) both;
+  animation-delay: calc(var(--i, 0) * 14ms);
+}
+@keyframes nxCardPaste {
+  from { opacity: 0; transform: translate3d(-7px, -9px, 0) scale(.93); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 边框：默认收在左侧（沿左边缘 100% 裁掉）→ 悬停自左向右展开 */
+.nx-deck-photo::after {
+  content: '';
+  position: absolute; inset: 0;
+  border: 1px solid rgba(212, 175, 55, .95);
+  border-radius: 2px;
+  clip-path: inset(0 100% 0 0);
+  pointer-events: none;
+  transition: clip-path .1s ease-in;                 /* 移出：更快 */
+}
+.nx-deck-tile:hover .nx-deck-photo::after {
+  clip-path: inset(0 0 0 0);
+  transition: clip-path .3s cubic-bezier(.22, .9, .28, 1);   /* 移入：左→右展开 */
+}
+.nx-deck-tile:hover .nx-deck-photo { box-shadow: 0 0 14px rgba(212, 175, 55, .28); }
+
+/* 卡名：默认压暗，边框展开后缓入 */
+.nx-deck-name {
+  opacity: .58;
+  transition: opacity .1s linear;                    /* 移出：更快 */
+}
+.nx-deck-tile:hover .nx-deck-name {
+  opacity: 1;
+  transition: opacity .3s ease .16s;                 /* 等边框展开完再缓入 */
+}
