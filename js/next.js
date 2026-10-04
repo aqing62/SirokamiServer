@@ -833,37 +833,37 @@
         });
     }
 
-    // 卡组一屏全显示：用 zoom 等比缩放，并迭代收敛到"内容底部不超视口"
+    // 卡组一屏全显示：transform 等比缩放（transform 不参与布局，故显式设定外层高度）+ 迭代收敛
+    // 注意：本环境 style.zoom 写入后不改变布局，所以必须用 transform。
     function fitDeckScale(box) {
         var fit = document.getElementById('nxDeckFit');
         if (!fit) return;
 
         fit.style.zoom = '';
-        fit.classList.remove('is-compact');
+        fit.style.transform = 'none';
+        fit.style.transformOrigin = 'top center';
+        box.style.height = '';
+        box.style.overflow = '';
 
-        function fits() {
-            var r = fit.getBoundingClientRect();
-            return r.bottom <= window.innerHeight - 8;
-        }
-        // 第一轮：必要时隐藏卡名（换取更大比例）
-        if (!fits()) {
-            fit.classList.add('is-compact');
-        }
-        // 迭代收敛：按实际渲染高度不断校正 zoom（最多 6 次）
-        for (var i = 0; i < 6; i++) {
-            var r = fit.getBoundingClientRect();
-            var avail = window.innerHeight - r.top - 8;
-            if (r.height <= avail || r.height <= 0) break;
-            var k = (Number(fit.style.zoom) || 1) * (avail / r.height);
+        function contentH() { return fit.scrollHeight || 1; }   // 布局高度，不受 transform 影响
+        function bottom() { return fit.getBoundingClientRect().bottom; }
+
+        // 第一轮：放不下就先隐藏卡名，换取更大比例
+        fit.classList.remove('is-compact');
+        if (bottom() > window.innerHeight - 6) fit.classList.add('is-compact');
+
+        // 迭代：scrollHeight 拿到未缩放高度 → 求比例 → 再按实际底部校正（最多 5 轮）
+        for (var i = 0; i < 5; i++) {
+            var top = fit.getBoundingClientRect().top;
+            var need = contentH();
+            var avail = window.innerHeight - top - 10;
+            var k = avail / need;
             if (k > 1) k = 1;
             if (k < 0.2) k = 0.2;
-            fit.style.zoom = k.toFixed(4);
-        }
-        // 极端情况下仍超屏：直接按剩余比例再压一次
-        var rf = fit.getBoundingClientRect();
-        if (rf.bottom > window.innerHeight - 4 && rf.height > 0) {
-            var k2 = (Number(fit.style.zoom) || 1) * ((window.innerHeight - rf.top - 4) / rf.height);
-            fit.style.zoom = Math.max(0.2, k2).toFixed(4);
+            fit.style.transform = k < 0.999 ? 'scale(' + k.toFixed(4) + ')' : 'none';
+            box.style.height = Math.ceil(need * (k < 0.999 ? k : 1)) + 'px';
+            box.style.overflow = 'hidden';
+            if (bottom() <= window.innerHeight - 6) break;
         }
     }
     function refitDeckSoon(box) {
