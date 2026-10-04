@@ -277,10 +277,10 @@
 
     // 4 层：半径递减，抖动种子/幅度/旋转速度各不相同
     var RING_LAYERS = [
-        { cls: 'nxb1', r: 51, seed: 0.7, pts: 8, wob: 0.055, msp: 0.50, mph: 0.0, fast: 1 },
-        { cls: 'nxb2', r: 49, seed: 2.1, pts: 9, wob: 0.072, msp: -0.66, mph: 1.7, fast: 0 },
-        { cls: 'nxb3', r: 47, seed: 3.9, pts: 8, wob: 0.088, msp: 0.84, mph: 3.1, fast: 1 },
-        { cls: 'nxb4', r: 45, seed: 5.4, pts: 10, wob: 0.104, msp: -1.02, mph: 4.6, fast: 0 }
+        { cls: 'nxb1', r: 51, seed: 0.7, pts: 10, wob: 0.055, msp: 0.50, mph: 0.0, fast: 1 },
+        { cls: 'nxb2', r: 49, seed: 2.1, pts: 12, wob: 0.072, msp: -0.66, mph: 1.7, fast: 0 },
+        { cls: 'nxb3', r: 47, seed: 3.9, pts: 11, wob: 0.088, msp: 0.84, mph: 3.1, fast: 1 },
+        { cls: 'nxb4', r: 45, seed: 5.4, pts: 13, wob: 0.104, msp: -1.02, mph: 4.6, fast: 0 }
     ];
 
     function ringSvg(gold) {
@@ -481,8 +481,7 @@
             // 悬停时"规整度"→1（线条收敛为正圆），移开后→0（回到呼吸扭曲），用指数插值过渡
             var owner = p._nxBtn;
             // 分级刷新：指针附近的按钮 60fps，其余 12fps（大幅降低每帧路径重写量）
-            var isFast = p.getAttribute('data-fast') === '1';
-            var due = !isFast ? 200 : ((owner && owner._near) ? 15 : 80);
+            var due = (owner && owner._near) ? 15 : 80;   // 指针附近 60fps，其余 12fps
             if (p._lastPaint && now - p._lastPaint < due) continue;
             p._lastPaint = now;
             var reg = 0;
