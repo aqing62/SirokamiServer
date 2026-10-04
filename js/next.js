@@ -497,11 +497,65 @@
             .catch(function () { _scoreMap = {}; return _scoreMap; });
     }
 
+    // ── 卡图预加载（带三级兜底）并缓存最终地址 ────────────────
+    var _picCache = {};           // id → 最终可用地址
+    function loadOnePic(id) {
+        if (_picCache[id]) return Promise.resolve(_picCache[id]);
+        return new Promise(function (resolve) {
+            var step = 0;
+            var img = new Image();
+            function tryNext() {
+                if (step >= PIC_CHAIN.length) {
+                    _picCache[id] = PIC_CHAIN[0] + id + '.jpg';   // 都不行 → 交给页面上的兜底逻辑
+                    resolve(_picCache[id]);
+                    return;
+                }
+                img.src = PIC_CHAIN[step] + id + '.jpg';
+            }
+            img.onload = function () {
+                _picCache[id] = PIC_CHAIN[step] + id + '.jpg';
+                resolve(_picCache[id]);
+            };
+            img.onerror = function () { step++; tryNext(); };
+            tryNext();
+        });
+    }
+    function picOf(id) { return _picCache[id] || (PIC_CHAIN[0] + id + '.jpg'); }
+    function isDiyPic(url) { return String(url).indexOf(PIC_DIY) === 0; }
+
+    // 预加载一套卡组用到的所有卡图（去重后并发，带进度回调）
+    function preloadDeckPics(ids, onProgress) {
+        var uniq = [];
+        (ids || []).forEach(function (id) { if (uniq.indexOf(id) < 0) uniq.push(id); });
+        var total = uniq.length, done = 0;
+        if (onProgress) onProgress(0, total);
+        return Promise.all(uniq.map(function (id) {
+            return loadOnePic(id).then(function (u) {
+                done++;
+                if (onProgress) onProgress(done, total);
+                return u;
+            });
+        }));
+    }
+
+    // 加载态：三个同心线圈旋转 + 进度文字
+    function showDeckLoading(box) {
+        box.innerHTML =
+            '<div class="nx-deck-loading">' +
+                '<div class="nx-load-rings"><i></i><i></i><i></i></div>' +
+                '<div class="nx-load-text">正在加载卡图 <b>0</b> / 0</div>' +
+            '</div>';
+    }
+    function setDeckLoading(box, n, total) {
+        var t = box.querySelector('.nx-load-text');
+        if (t) t.innerHTML = '正在加载卡图 <b>' + n + '</b> / ' + total;
+    }
+
     // 卡图：逐级兜底，成功于 DIY 图床时打 DIY 角标
     function wireDeckImage(img, tile, id) {
         var step = 0;
         img.addEventListener('load', function () {
-            if (step === 2 && !tile.querySelector('.nx-deck-diy')) {
+            if (isDiyPic(img.getAttribute('src')) && !tile.querySelector('.nx-deck-diy')) {
                 var b = document.createElement('span');
                 b.className = 'nx-deck-diy';
                 b.textContent = 'DIY';
@@ -843,6 +897,12 @@
             if (!box) return;
             var d = (data && data.decks && data.decks[0]) || null;
             if (!d || !d.deck) { box.innerHTML = '<div class="nx-empty">还没有可用于展示的卡组</div>'; return; }
+            // ① 先播加载动画：等卡图全部就绪再渲染卡组，这样入场动画不会"播完了图还没出来"
+            showDeckLoading(box);
+            var allIds = [].concat(d.deck.main || [], d.deck.extra || [], d.deck.side || []);
+            var preload = preloadDeckPics(allIds, function (n, t) { setDeckLoading(box, n, t); });
+            var guard = new Promise(function (r) { setTimeout(r, 12000); });   // 个别图卡住也不至于一直转圈
+            return Promise.race([preload, guard]).then(function () {
             return Promise.all([loadCardMap(), loadScoreMap()]).then(function () {
                 // 与老站 sortCards 一致：按卡片 ID 升序（相同卡自然相邻）
                 function sortCards(ids) { return (ids || []).slice().sort(function (a, b) { return a - b; }); }
@@ -859,7 +919,7 @@
                                 : '';
                             return '<div class="nx-deck-tile" data-id="' + id + '">' +
                                 '<div class="nx-deck-photo">' +
-                                    '<img class="nx-deck-img" src="' + PIC_CHAIN[0] + id + '.jpg" loading="lazy" alt="">' +
+                                    '<img class="nx-deck-img" src="' + picOf(id) + '" alt="">' +
                                     badge +
                                 '</div>' +
                                 '<span class="nx-deck-name">' + esc(nm) + '</span>' +
@@ -911,6 +971,7 @@
                     img.addEventListener('error', function () { refitDeckSoon(box); });
                 });
             });
+            });   // ← 结束 Promise.race(...).then( 预加载完成后渲染 )
         }).catch(function () {
             var box = document.getElementById('nxPovView');
             if (box) box.innerHTML = '<div class="nx-empty">卡组读取失败</div>';

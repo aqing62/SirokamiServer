@@ -1166,3 +1166,44 @@ body.nx-zoomed .nx-foot {
   .nx-screen-titles h2 { font-size: clamp(22px, 3vw, 32px); }
   .nx-screen-titles p { font-size: 15.5px; }
 }
+
+
+/* ── 卡图加载动画（等卡图全部就绪再渲染卡组）───────────── */
+.nx-deck-loading {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: clamp(14px, 2.4vh, 26px);
+  min-height: clamp(180px, 28vh, 300px);
+  width: 100%;
+  text-align: center;
+}
+.nx-load-rings { position: relative; width: clamp(64px, 9vh, 92px); aspect-ratio: 1; }
+.nx-load-rings i {
+  position: absolute; inset: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  animation: nxLoadSpin 1.5s linear infinite;
+}
+.nx-load-rings i:nth-child(1) {
+  border-top-color: var(--nx-gold, #D4AF37);
+  border-right-color: rgba(212, 175, 55, .35);
+  animation-duration: 1.15s;
+}
+.nx-load-rings i:nth-child(2) {
+  inset: 13%;
+  border-bottom-color: var(--red, #D81E44);
+  border-left-color: rgba(216, 30, 68, .35);
+  animation-duration: 1.7s; animation-direction: reverse;
+}
+.nx-load-rings i:nth-child(3) {
+  inset: 27%;
+  border-top-color: #ffe9a8;
+  animation-duration: .95s;
+}
+@keyframes nxLoadSpin { to { transform: rotate(360deg); } }
+.nx-load-text {
+  font-size: clamp(12.5px, 1.5vw, 15px);
+  letter-spacing: 1.5px;
+  color: #8d8d96;
+  font-variant-numeric: tabular-nums;
+}
+.nx-load-text b { color: var(--nx-gold-light, #F0E68C); font-weight: 700; }
