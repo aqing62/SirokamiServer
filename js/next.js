@@ -197,7 +197,7 @@
         room:     { title: '房间与规则', sub: '房间名 / 密码里的规则代码', goto: 'room',      todo: '静态内容：房间代码表 + 规则说明（无需接口）' },
         download: { title: '下载与安装', sub: 'MDPro3 客户端 + DIY 卡包',  goto: 'download',  todo: '静态内容：下载入口与安装步骤' },
         match:    { title: '比赛相关',   sub: '瑞士轮积分 · 淘汰赛对阵',   goto: 'tournament', render: 'match' },
-        pool:     { title: '卡池',       sub: '查卡 / 筛选 / 分值',         goto: 'pool',      todo: '复用卡池数据与筛选（微调 UI）' },
+        pool:     { title: '卡池',       sub: '全卡检索 · 类型筛选 · 分值角标', goto: 'pool',      render: 'pool' },
         banlist:  { title: '卡表',       sub: '禁限分值一览',               goto: 'banlist',   todo: '复用禁限表（微调 UI）' },
         preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    render: 'preset' },
         popular:  { title: '常用卡',     sub: '使用率 · 胜率统计',           goto: 'pool',      render: 'popular' },
@@ -640,13 +640,15 @@
         }, 130);
     }
 
+    var _cardList = null;      // 原始数组（卡池用）
     function loadCardMap() {
         if (_cardMap) return Promise.resolve(_cardMap);
         return fetch('/api/cards').then(function (r) { return r.json(); }).then(function (cards) {
             _cardMap = {};
-            cards.forEach(function (c) { _cardMap[String(c.id)] = c; });
+            _cardList = cards || [];
+            _cardList.forEach(function (c) { _cardMap[String(c.id)] = c; });
             return _cardMap;
-        }).catch(function () { _cardMap = {}; return _cardMap; });
+        }).catch(function () { _cardMap = {}; _cardList = []; return _cardMap; });
     }
     function cardName(id) {
         var c = _cardMap && _cardMap[String(id)];
@@ -1880,7 +1882,161 @@
         });
     }
 
-    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch };
+    // ── 卡池（卡片 → 卡池）：/api/cards 全量 17k+，分页渲染 + 懒加载 + 名称/类型筛选 ──
+    var POOL_PAGE = 120;
+    function renderPool(body) {
+        var st = body._pool || (body._pool = { q: '', kind: 'all', shown: 0, list: null });
+        body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
+            '<div class="nx-load-text">正在读取卡池 <b>0</b></div></div>';
+        loadCardMap().then(function () {
+            var all = (_cardList || []).slice().sort(function (a, b) { return a.id - b.id; });
+            var kinds = [
+                { k: 'all', label: '全部' },
+                { k: '怪兽', label: '怪兽' },
+                { k: '魔法', label: '魔法' },
+                { k: '陷阱', label: '陷阱' }
+            ];
+            function filtered() {
+                var q = st.q.trim().toLowerCase();
+                return all.filter(function (c) {
+                    if (st.kind !== 'all') {
+                        var bt = (c.typeInfo && c.typeInfo.baseType) || '';
+                        if (bt !== st.kind) return false;
+                    }
+                    if (!q) return true;
+                    return String(c.name || '').toLowerCase().indexOf(q) >= 0 || String(c.id).indexOf(q) >= 0;
+                });
+            }
+            body.innerHTML =
+                '<div class="nx-cf-bar nx-pool-bar">' +
+                    '<div class="nx-pool-kinds">' + kinds.map(function (x) {
+                        return '<button class="nx-stats-tab' + (x.k === st.kind ? ' is-on' : '') + '" type="button" data-kind="' + x.k + '">' + x.label + '</button>';
+                    }).join('') + '</div>' +
+                    '<div class="nx-cf-search' + (st.q ? ' is-open' : '') + '" id="nxPoolSearchWrap">' +
+                        '<button class="nx-cf-lens" id="nxPoolLens" type="button" aria-label="搜索">' +
+                            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">' +
+                                '<circle cx="10.4" cy="10.4" r="6.6"></circle><line x1="15.4" y1="15.4" x2="21" y2="21"></line>' +
+                            '</svg>' +
+                        '</button>' +
+                        '<input id="nxPoolSearch" type="text" placeholder="卡名 / 卡号" autocomplete="off" spellcheck="false" value="' + esc(st.q) + '">' +
+                        '<button class="nx-cf-clear" id="nxPoolClear" type="button" aria-label="清除" hidden>✕</button>' +
+                        '<span class="nx-cf-count" id="nxPoolCount"></span>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="nx-card-grid nx-pool-grid" id="nxPoolGrid"></div>' +
+                '<div class="nx-pool-sentinel" id="nxPoolMore"></div>';
+            var grid = document.getElementById('nxPoolGrid');
+            var sentinel = document.getElementById('nxPoolMore');
+            var wrap = document.getElementById('nxPoolSearchWrap');
+            var input = document.getElementById('nxPoolSearch');
+            var lens = document.getElementById('nxPoolLens');
+            var clearBtn = document.getElementById('nxPoolClear');
+            var countEl = document.getElementById('nxPoolCount');
+            var pending = null;
+
+            function suite() { return filtered(); }
+            function reset() { st.shown = 0; grid.innerHTML = ''; st.list = suite(); addMore(); refreshCount(); }
+            function refreshCount() {
+                if (countEl) countEl.textContent = '已显示 ' + Math.min(st.shown, (st.list || []).length) + ' / ' + ((st.list || []).length);
+                if (clearBtn) clearBtn.hidden = !(st.q.trim()) || (wrap && wrap.classList.contains('is-open'));
+            }
+            function addMore() {
+                if (!st.list) st.list = suite();
+                var from = st.shown, to = Math.min(st.list.length, from + POOL_PAGE);
+                if (from >= to) return;
+                var html = '';
+                for (var i = from; i < to; i++) {
+                    var c = st.list[i];
+                    var sc = _scoreMap && _scoreMap[c.id];
+                    html += '<div class="nx-card-tile is-plain" data-id="' + c.id + '" style="--i:' + Math.min(i - from, 40) + '">' +
+                        '<span class="nx-card-photo"><img class="nx-card-img" src="' + PIC_CHAIN[0] + c.id + '.jpg" loading="lazy" alt=""></span>' +
+                        '<span class="nx-card-name">' + esc(c.name || ('#' + c.id)) + '</span>' +
+                        (sc ? '<span class="nx-deck-score' + (sc.forbidden ? ' is-forbidden' : '') + '">' + (sc.forbidden ? '禁' : sc.score) + '</span>' : '') +
+                    '</div>';
+                }
+                var tmp = document.createElement('div');
+                tmp.innerHTML = html;
+                var added = Array.prototype.slice.call(tmp.children);
+                added.forEach(function (el) { grid.appendChild(el); });
+                st.shown = to;
+                added.forEach(function (tile) {
+                    var id = parseInt(tile.getAttribute('data-id'), 10) || 0;
+                    var img = tile.querySelector('.nx-card-img');
+                    if (img) wireDeckImage(img, tile.querySelector('.nx-card-photo') || tile, id);
+                    tile.addEventListener('mouseenter', function (ev) { showCardTip(ev, id); });
+                    tile.addEventListener('mousemove', function (ev) { if (_tipEl && _tipEl.style.display === 'block') positionCardTip(ev, _tipEl); });
+                    tile.addEventListener('mouseleave', hideCardTip);
+                });
+                refreshCount();
+            }
+            // 滚动到底部自动续页
+            if (window.IntersectionObserver) {
+                var io = new IntersectionObserver(function (es) {
+                    es.forEach(function (e) { if (e.isIntersecting) addMore(); });
+                }, { rootMargin: '320px' });
+                io.observe(sentinel);
+            }
+            // 类型筛选
+            Array.prototype.forEach.call(body.querySelectorAll('.nx-pool-kinds .nx-stats-tab'), function (b) {
+                b.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    var k = b.getAttribute('data-kind');
+                    if (k === st.kind) return;
+                    st.kind = k;
+                    hideCardTip(true);
+                    playSfx('click');
+                    Array.prototype.forEach.call(body.querySelectorAll('.nx-pool-kinds .nx-stats-tab'), function (x) {
+                        x.classList.toggle('is-on', x.getAttribute('data-kind') === k);
+                    });
+                    reset();
+                });
+            });
+            // 折叠式搜索（与预组同款交互）
+            function poolOpen() { return wrap.classList.contains('is-open'); }
+            function poolRefreshClear() { refreshCount(); }
+            function closePoolSearch(spin) {
+                wrap.classList.remove('is-open');
+                if (spin && lens) { lens.classList.remove('is-spin'); void lens.offsetWidth; lens.classList.add('is-spin'); }
+                poolRefreshClear();
+            }
+            function applyPoolSearch() { reset(); }
+            if (lens) {
+                lens.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    if (!poolOpen()) { wrap.classList.add('is-open'); poolRefreshClear(); setTimeout(function () { input.focus(); input.select(); }, 80); return; }
+                    applyPoolSearch(); closePoolSearch(true);
+                });
+            }
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    input.value = ''; st.q = ''; applyPoolSearch(); poolRefreshClear();
+                });
+            }
+            if (input) {
+                var timer = null;
+                input.addEventListener('input', function () {
+                    clearTimeout(timer);
+                    timer = setTimeout(function () { st.q = input.value || ''; applyPoolSearch(); poolRefreshClear(); }, 180);
+                });
+                input.addEventListener('keydown', function (ev) {
+                    ev.stopPropagation();
+                    if (ev.key === 'Enter') { ev.preventDefault(); st.q = input.value || ''; applyPoolSearch(); closePoolSearch(true); }
+                    else if (ev.key === 'Escape') { ev.preventDefault(); st.q = input.value || ''; applyPoolSearch(); closePoolSearch(false); input.blur(); }
+                });
+                input.addEventListener('click', function (ev) { ev.stopPropagation(); });
+                input.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
+            }
+            if (wrap) {
+                ['pointerdown', 'click'].forEach(function (t) {
+                    wrap.addEventListener(t, function () { _nxBarTouchAt = Date.now(); }, true);
+                });
+            }
+            reset();
+        });
+    }
+
+    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool };
 
     // ── DOM ──
     var stage = document.getElementById('nxStage');

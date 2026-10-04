@@ -1404,6 +1404,12 @@ body.nx-zoomed .nx-foot {
 .nx-group-chip.is-on i { color: rgba(42, 28, 8, .62); }
 .nx-card-tile.is-plain .nx-card-photo { box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
 
+/* ══ 卡池：类型筛选 + 折叠搜索 + 分页卡图网格 ═════════════ */
+.nx-pool-bar { margin-bottom: 10px; }
+.nx-pool-kinds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nx-pool-grid { margin-top: 4px; }
+.nx-pool-sentinel { height: 40px; width: 100%; }
+
 /* ══ 比赛：瑞士轮积分榜 + 淘汰赛对阵图 ═════════════════════ */
 .nx-tour-meta {
   align-self: stretch; max-width: 1100px; margin: 0 auto 12px;
