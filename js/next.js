@@ -1186,7 +1186,7 @@
                     if (a > 2) {                       // 同屏只保留 5 个
                         el.style.opacity = '0';
                         el.style.pointerEvents = 'none';
-                        el.style.transform = 'translate3d(' + (off * 250) + 'px, 0, -520px) scale(.4)';
+                        el.style.transform = 'translate(-50%, -50%) translate3d(' + (off * 250) + 'px, 0, -520px) scale(.4)';
                         el.style.zIndex = '1';
                         continue;
                     }
@@ -1194,7 +1194,8 @@
                     var z = -a * 135;                  // 越远越后退（中间最近）
                     var ry = -off * 27;                // 侧转（3D）
                     var sc = 1 - a * 0.17;
-                    el.style.transform = 'translate3d(' + x + 'px, ' + (a * 6) + 'px, ' + z + 'px) rotateY(' + ry + 'deg) scale(' + sc + ')';
+                    // 先按自身尺寸居中（translate -50%,-50%），再做 3D 位姿
+                    el.style.transform = 'translate(-50%, -50%) translate3d(' + x + 'px, ' + (a * 8) + 'px, ' + z + 'px) rotateY(' + ry + 'deg) scale(' + sc + ')';
                     el.style.opacity = a === 0 ? '1' : (a === 1 ? '.85' : '.42');
                     el.style.zIndex = String(100 - a);
                     el.style.pointerEvents = 'auto';

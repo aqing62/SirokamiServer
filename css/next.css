@@ -1257,15 +1257,14 @@ body.nx-zoomed .nx-foot {
 .nx-cf-stage {
   position: relative;
   width: min(1180px, 96vw);
-  height: clamp(260px, 40vh, 380px);
+  height: clamp(300px, 46vh, 460px);
   perspective: 1250px;
   transform-style: preserve-3d;
 }
 .nx-cf-item {
   position: absolute; left: 50%; top: 50%;
   width: clamp(140px, 15vw, 196px);
-  margin-left: calc(clamp(140px, 15vw, 196px) / -2);
-  margin-top: -35%;
+  margin: 0;                       /* 居中由 JS 的 translate(-50%,-50%) 完成，别用百分比 margin（会按容器宽度算）*/
   transform-origin: 50% 60%;
   display: flex; flex-direction: column; align-items: center; gap: 5px;
   padding: 0; border: none; background: none;
@@ -1306,6 +1305,6 @@ body.nx-zoomed .nx-foot {
 }
 @media (max-width: 768px) {
   .nx-cf-stage { height: clamp(200px, 32vh, 280px); perspective: 900px; }
-  .nx-cf-item { width: clamp(104px, 26vw, 140px); margin-left: calc(clamp(104px, 26vw, 140px) / -2); }
+  .nx-cf-item { width: clamp(104px, 26vw, 140px); }
   .nx-cf-hint { font-size: 11px; }
 }
