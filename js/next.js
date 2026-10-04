@@ -1199,16 +1199,18 @@
             var cur = 0;
 
             function paint() {
+                var iw = (items[0] && items[0].offsetWidth) || 196;
+                var SPACING = Math.round(iw * 1.32);     // 间距随卡片宽度自适应（手机端不再把两侧卡推出屏幕）
                 for (var i = 0; i < items.length; i++) {
                     var off = i - cur, a = Math.abs(off), el = items[i];
                     if (a > 2) {                       // 同屏只保留 5 个
                         el.style.opacity = '0';
                         el.style.pointerEvents = 'none';
-                        el.style.transform = 'translate(-50%, -50%) translate3d(' + (off * 250) + 'px, 0, -520px) scale(.4)';
+                        el.style.transform = 'translate(-50%, -50%) translate3d(' + (off * SPACING) + 'px, 0, -520px) scale(.4)';
                         el.style.zIndex = '1';
                         continue;
                     }
-                    var x = off * 258;                 // 水平间距
+                    var x = off * SPACING;             // 水平间距
                     var z = -a * 135;                  // 越远越后退（中间最近）
                     var ry = -off * 27;                // 侧转（3D）
                     var sc = 1 - a * 0.17;

@@ -1253,6 +1253,8 @@ body.nx-zoomed .nx-foot {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   gap: clamp(10px, 2vh, 22px);
   width: 100%;
+  overflow: hidden;          /* 两侧卡片被推到屏外时不要撑出横向滚动/右侧空白 */
+  position: relative;
 }
 .nx-cf-stage {
   position: relative;
