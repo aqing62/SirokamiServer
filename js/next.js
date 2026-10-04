@@ -309,7 +309,7 @@
     // 按钮被光标"黏住"：靠近时轻微跟手，光标移远（超过 release 距离）才脱离；
     // 按钮之间保持最小间距，互相推开避免重叠。位移用 translate 属性，不影响 transform。
     var MAG = { stick: 150, attract: 0.6, flat: 0.55, maxPull: 38, springK: 70, springC: 24, gap: 14, repK: 0.5,
-                dragR: 380,      // 指针扫过时的作用半径（辅助触发源）
+                dragR: 170,      // 指针扫过时的作用半径（约 1.5 倍圆半径，只在靠近图标时触发）
                 speedRef: 300,   // 按钮自身移动速度(px/s)达到此值即满强度
                 ptrSpeedRef: 700,// 指针扫过速度的满强度阈值
                 dragMax: 0.62,   // 最大甩长比例（沿运动方向拉长）
