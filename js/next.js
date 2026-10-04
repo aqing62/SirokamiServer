@@ -1751,6 +1751,14 @@
         (t.participants || []).forEach(function (p) { m[p.id] = p.name || ('#' + p.id); });
         return m;
     }
+    // 小分（challonge 的 tieBreaker 是放大过的整数，常见为千分之一）
+    function fmtTieBreak(v) {
+        if (v == null) return '-';
+        var n = Number(v);
+        if (!isFinite(n)) return '-';
+        if (Math.abs(n) >= 1000) return (n / 1000).toFixed(2);
+        return String(Math.round(n * 100) / 100);
+    }
     function renderMatch(body) {
         var tab = (body.dataset && body.dataset.tab) || 'swiss';
         body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
@@ -1810,7 +1818,7 @@
                         '<span class="c-name">' + esc(p.name || ('#' + p.id)) + '</span>' +
                         '<span class="c-tier"><span class="nx-tour-score">' + (s.score || 0) + '</span></span>' +
                         '<span class="c-wld">' + (s.win || 0) + '胜 ' + (s.lose || 0) + '负' + (s.draw ? ' ' + s.draw + '平' : '') + '</span>' +
-                        '<span class="c-rating">' + (s.tieBreaker != null ? (Math.round(Number(s.tieBreaker) * 100) / 100) : '-') + '</span>' +
+                        '<span class="c-rating">' + fmtTieBreak(s.tieBreaker) + '</span>' +
                         '<span class="c-rate">' + (p.quit ? '退赛' : '') + '</span>' +
                     '</div>';
                 }).join('') +
@@ -1852,7 +1860,8 @@
                                 '</div>';
                             }
                             var done = m.status === 'Finished' || m.status === 'finished';
-                            return '<div class="nx-br-match' + (done ? ' is-done' : '') + '">' +
+                            return '<div class="nx-br-match' + (done ? ' is-done' : '') + (m.isThirdPlaceMatch ? ' is-third' : '') + '">' +
+                                (m.isThirdPlaceMatch ? '<span class="nx-br-tag">三四名</span>' : '') +
                                 side(m.player1Id, m.player1Score, m.winnerId && m.winnerId === m.player1Id) +
                                 side(m.player2Id, m.player2Score, m.winnerId && m.winnerId === m.player2Id) +
                             '</div>';
