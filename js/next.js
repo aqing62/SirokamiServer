@@ -832,33 +832,38 @@
         });
     }
 
-    // 让卡组一屏放得下：用 CSS zoom 等比缩放（zoom 参与布局，父容器高度自动跟随，不会切底）
+    // 卡组一屏全显示：用 zoom 等比缩放，并迭代收敛到"内容底部不超视口"
     function fitDeckScale(box) {
         var fit = document.getElementById('nxDeckFit');
         if (!fit) return;
-        var inner = fit.closest ? fit.closest('.nx-pov-inner') : null;
 
-        fit.style.zoom = '';            // 复位后再量，值才准
-        box.style.height = '';
-        box.style.overflow = '';
+        fit.style.zoom = '';
+        fit.classList.remove('is-compact');
 
-        function solve() {
-            var nd = fit.scrollHeight || 1;
-            var avail = window.innerHeight - fit.getBoundingClientRect().top - 16;   // 从内容顶部到屏幕底部
-            var kk = avail / nd;
-            if (kk > 1) kk = 1;
-            if (kk < 0.2) kk = 0.2;
-            return { need: nd, k: kk };
+        function fits() {
+            var r = fit.getBoundingClientRect();
+            return r.bottom <= window.innerHeight - 8;
         }
-        var r = solve();
-        // 缩得太狠就隐藏卡名换取更大比例
-        if (r.k < 0.88) {
+        // 第一轮：必要时隐藏卡名（换取更大比例）
+        if (!fits()) {
             fit.classList.add('is-compact');
-            r = solve();
-        } else {
-            fit.classList.remove('is-compact');
         }
-        if (r.k < 0.999) fit.style.zoom = r.k.toFixed(4);
+        // 迭代收敛：按实际渲染高度不断校正 zoom（最多 6 次）
+        for (var i = 0; i < 6; i++) {
+            var r = fit.getBoundingClientRect();
+            var avail = window.innerHeight - r.top - 8;
+            if (r.height <= avail || r.height <= 0) break;
+            var k = (Number(fit.style.zoom) || 1) * (avail / r.height);
+            if (k > 1) k = 1;
+            if (k < 0.2) k = 0.2;
+            fit.style.zoom = k.toFixed(4);
+        }
+        // 极端情况下仍超屏：直接按剩余比例再压一次
+        var rf = fit.getBoundingClientRect();
+        if (rf.bottom > window.innerHeight - 4 && rf.height > 0) {
+            var k2 = (Number(fit.style.zoom) || 1) * ((window.innerHeight - rf.top - 4) / rf.height);
+            fit.style.zoom = Math.max(0.2, k2).toFixed(4);
+        }
     }
     function refitDeckSoon(box) {
         clearTimeout(box._fitTimer);
