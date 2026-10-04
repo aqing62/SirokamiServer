@@ -1145,6 +1145,64 @@
         if (box && box.querySelector('.nx-deck-fit')) fitDeckScale(box, true);   // 尺寸变化才重排列数
     });
 
+    // ── 首字母排序／索引：与经典版 chronicle-decks.js 同一套中文拼音规则 ──
+    var PINYIN_MAP = {
+        '白': 'B', '爆': 'B', '饼': 'B', '不': 'B', '超': 'C', '点': 'D', '电': 'D', '二': 'E',
+        '方': 'F', '芳': 'F', '风': 'F', '古': 'G', '光': 'G', '黑': 'H', '坏': 'H', '幻': 'H',
+        '机': 'J', '急': 'J', '军': 'J', '卡': 'K', '克': 'K', '恐': 'K', '雷': 'L', '龙': 'L',
+        '毛': 'M', '魔': 'M', '七': 'Q', '青': 'Q', '三': 'S', '手': 'S', '熟': 'S', '淘': 'T',
+        '通': 'T', '王': 'W', '武': 'W', '新': 'X', '虚': 'X', '玄': 'X', '异': 'Y', '云': 'Y',
+        '泽': 'Z', '真': 'Z', '珠': 'Z', '罪': 'Z'
+    };
+    var PINYIN_ANCHORS = [
+        ['A', '阿'], ['B', '八'], ['C', '擦'], ['D', '搭'], ['E', '蛾'], ['F', '发'], ['G', '嘎'],
+        ['H', '哈'], ['J', '击'], ['K', '喀'], ['L', '拉'], ['M', '妈'], ['N', '拿'], ['O', '噢'],
+        ['P', '啪'], ['Q', '期'], ['R', '然'], ['S', '撒'], ['T', '塌'], ['W', '挖'], ['X', '昔'],
+        ['Y', '压'], ['Z', '匝']
+    ];
+    var _pyCollator = null;
+    try { _pyCollator = new Intl.Collator('zh-Hans-CN'); } catch (e) { _pyCollator = null; }
+    function pinyinInitialOf(ch) {
+        if (PINYIN_MAP[ch]) return PINYIN_MAP[ch];
+        if (!_pyCollator) return 'Z';
+        var best = 'A';
+        for (var i = 0; i < PINYIN_ANCHORS.length; i++) {
+            if (_pyCollator.compare(ch, PINYIN_ANCHORS[i][1]) >= 0) best = PINYIN_ANCHORS[i][0];
+        }
+        return best;
+    }
+    function sortCore(name) {
+        var s = String(name == null ? '' : name);
+        var parts = s.split(/[-－—–_]/);
+        var core = (parts.length > 1 ? parts[parts.length - 1] : parts[0]).trim();
+        return core || s.trim();
+    }
+    function initialKey(name) {
+        var core = sortCore(name);
+        var c = core.charAt(0);
+        if (!c) return '#';
+        if (/[A-Za-z]/.test(c)) return c.toUpperCase();
+        if (/[0-9]/.test(c)) return '#';
+        if (/[\u4e00-\u9fff]/.test(c)) return pinyinInitialOf(c);
+        return '#';
+    }
+    function deckSortRank(name) {
+        var c = sortCore(name).charAt(0);
+        if (!c) return '2';
+        if (/[0-9]/.test(c)) return '1';
+        if (/[A-Za-z]/.test(c) || /[\u4e00-\u9fff]/.test(c)) return '0';
+        return '2';
+    }
+    function compareChronicleDecks(a, b) {
+        var ra = deckSortRank(a.name), rb = deckSortRank(b.name);
+        if (ra !== rb) return ra < rb ? -1 : 1;
+        var ka = initialKey(a.name), kb = initialKey(b.name);
+        if (ka !== kb) return ka < kb ? -1 : 1;
+        var ca = sortCore(a.name), cb = sortCore(b.name);
+        if (_pyCollator) { var r = _pyCollator.compare(ca, cb); if (r) return r; }
+        return String(a.name).localeCompare(String(b.name));
+    }
+
     // ── 预组卡组（卡片 → 预组）：数据与经典版同一份 decks/chronicle_decks.json ──
     var CHRONICLE_URL = 'decks/chronicle_decks.json?v=20261006p';
     var _presetCache = null;
@@ -1162,9 +1220,7 @@
                 body.innerHTML = '<div class="nx-empty">暂无可用的预组卡组</div>';
                 return;
             }
-            var sorted = decks.slice().sort(function (a, b) {
-                return String(a.name).localeCompare(String(b.name), 'zh-Hans-CN');
-            });
+            var sorted = decks.slice().sort(compareChronicleDecks);   // 首字母 A→Z（中文按拼音）
 
             // 横向 3D 卡flow：滚轮左右切换，中间最近，同屏 5 个；每套用 3 张卡图做扇形
             function fanHtml(d) {
@@ -1180,20 +1236,29 @@
                 return out;
             }
             body.innerHTML =
+                '<div class="nx-cf-bar">' +
+                    '<div class="nx-cf-letters" id="nxCfLetters"></div>' +
+                    '<div class="nx-cf-search">' +
+                        '<input id="nxCfSearch" type="text" placeholder="搜索卡组名…" autocomplete="off" spellcheck="false">' +
+                        '<span class="nx-cf-count" id="nxCfCount"></span>' +
+                    '</div>' +
+                '</div>' +
                 '<div class="nx-cf" id="nxCf">' +
                     '<div class="nx-cf-stage" id="nxCfStage">' +
                         sorted.map(function (d, i) {
                             var meta = '主 ' + (d.main || []).length +
                                 ((d.extra || []).length ? ' · 额外 ' + d.extra.length : '') +
                                 ((d.side || []).length ? ' · 副 ' + d.side.length : '');
-                            return '<button class="nx-cf-item" type="button" data-idx="' + i + '">' +
+                            return '<button class="nx-cf-item" type="button" data-di="' + i +
+                                '" data-name="' + esc(String(d.name).toLowerCase()) +
+                                '" data-py="' + initialKey(d.name) + '">' +
                                 '<span class="nx-cf-fan">' + fanHtml(d) + '</span>' +
                                 '<span class="nx-cf-name">' + esc(d.name) + '</span>' +
                                 '<span class="nx-cf-meta">' + meta + '</span>' +
                             '</button>';
                         }).join('') +
                     '</div>' +
-                    '<div class="nx-cf-hint">滚轮左右切换 · 点中间打开 · ← → 也可</div>' +
+                    '<div class="nx-cf-hint">滑动 / 滚轮切换 · 点中间打开 · ← → 也可</div>' +
                 '</div>';
 
             var cf = document.getElementById('nxCf');
@@ -1224,6 +1289,7 @@
                     el.style.pointerEvents = 'auto';
                     el.classList.toggle('is-center', a === 0);
                 }
+                highlightLetter();
             }
             paint();
 
@@ -1297,20 +1363,88 @@
             }, { passive: false });
 
             // 点击：两侧的移到中间；中间的打开卡组
-            items.forEach(function (el, i) {
+            // 注意：搜索过滤后 items 会被重排，所以下标必须动态取，不能闭包捕获
+            items.forEach(function (el) {
                 el.addEventListener('click', function (ev) {
                     ev.stopPropagation();
                     if (suppressClick) { ev.preventDefault(); return; }   // 刚拖动过，不当作点击
-                    if (i !== cur) { cur = i; paint(0); playSfx('click'); return; }
+                    var at = items.indexOf(el);
+                    if (at < 0) return;
+                    if (at !== cur) { cur = at; paint(0); playSfx('click'); return; }
                     playSfx('click');
-                    var d = sorted[i];
+                    var d = sorted[parseInt(el.getAttribute('data-di'), 10)];
+                    if (!d) return;
                     openDeckView(d, d.name, '预组卡组', '编年史卡组池 · 主 ' + (d.main || []).length + ' 张');
                 });
             });
 
-            // 键盘左右
+            // ── 顶部 A–Z 索引条 + 搜索 ─────────────────────────
+            var lettersEl = document.getElementById('nxCfLetters');
+            var searchEl = document.getElementById('nxCfSearch');
+            var countEl = document.getElementById('nxCfCount');
+            var ALPHA = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+            var allItems = items.slice();
+
+            // 高亮当前中间那套卡组的首字母
+            function highlightLetter() {
+                if (!lettersEl) return;
+                var cEl = items[cur];
+                var cP = cEl ? cEl.getAttribute('data-py') : '';
+                Array.prototype.forEach.call(lettersEl.children, function (b) {
+                    b.classList.toggle('is-on', b.getAttribute('data-py') === cP);
+                });
+            }
+
+            function buildLetters() {
+                if (!lettersEl) return;
+                var has = {};
+                items.forEach(function (el) { has[el.getAttribute('data-py')] = 1; });
+                lettersEl.innerHTML = ALPHA.map(function (L) {
+                    return '<button type="button" class="nx-cf-letter' + (has[L] ? '' : ' is-empty') +
+                        '" data-py="' + L + '">' + L + '</button>';
+                }).join('') +
+                (has['#'] ? '<button type="button" class="nx-cf-letter" data-py="#">#</button>' : '');
+                Array.prototype.forEach.call(lettersEl.querySelectorAll('.nx-cf-letter'), function (b) {
+                    b.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        if (b.classList.contains('is-empty')) return;
+                        var L = b.getAttribute('data-py');
+                        for (var i = 0; i < items.length; i++) {
+                            if (items[i].getAttribute('data-py') === L) {
+                                cur = i; paint(0); playSfx('click'); break;
+                            }
+                        }
+                    });
+                });
+                if (countEl) countEl.textContent = items.length + ' / ' + allItems.length;
+                highlightLetter();
+            }
+
+            function applySearch() {
+                var q = (searchEl && searchEl.value || '').trim().toLowerCase();
+                var kept = q ? allItems.filter(function (el) {
+                    return (el.getAttribute('data-name') || '').indexOf(q) >= 0 ||
+                           (el.getAttribute('data-py') || '').toLowerCase() === q;
+                }) : allItems.slice();
+                // 复用同一批 DOM（事件不丢），按原顺序重新挂载
+                kept.forEach(function (el) { stage.appendChild(el); });
+                items = kept;
+                cur = 0;
+                paint(0);
+                buildLetters();
+            }
+            if (searchEl) {
+                searchEl.addEventListener('input', applySearch);
+                searchEl.addEventListener('click', function (ev) { ev.stopPropagation(); });
+                searchEl.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
+            }
+            buildLetters();
+
+            // 键盘左右（在输入框里打字的左右键不拦截）
             function onKey(ev) {
                 if (!document.getElementById('nxCf')) { document.removeEventListener('keydown', onKey); return; }
+                var t = ev.target;
+                if (t && t.closest && t.closest('input, textarea')) return;   // 输入框内不拦截
                 if (ev.key === 'ArrowLeft') { cur = Math.max(0, cur - 1); paint(); }
                 else if (ev.key === 'ArrowRight') { cur = Math.min(items.length - 1, cur + 1); paint(); }
             }
