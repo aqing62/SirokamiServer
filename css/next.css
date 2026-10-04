@@ -422,10 +422,16 @@ body.nx-bg-in .nx-bg { opacity: 1; }
 /* 问句：打字机开始前先就位 */
 /* 问句：开场时先出现在屏幕正中，随后滑回常态位置 */
 .nx-question {
-  transition: opacity .45s ease-in-out, transform .58s cubic-bezier(.3, .05, .25, 1);
+  transition: opacity .45s ease-in-out, transform .78s cubic-bezier(.28, .02, .2, 1);
   will-change: transform;
 }
 body.nx-q-center .nx-question { transform: translateY(var(--q-dy, 0px)); }
+/* 开场：按钮已进入布局但先隐藏（保证问句最终位置稳定，滑动连贯） */
+body.nx-await-opts .nx-options { visibility: hidden; }
+body.nx-await-opts .nx-option { animation: none !important; }
+body.nx-await-opts .nx-option .nx-opt-icon,
+body.nx-await-opts .nx-option .nx-opt-label,
+body.nx-await-opts .nx-option .nx-opt-sub { animation: none !important; }
 body.nx-boot.nx-question-in .nx-question { opacity: 1; visibility: visible; }
 
 /* 欢迎大字（固定居中，缓入 → 停留 → 缓出） */

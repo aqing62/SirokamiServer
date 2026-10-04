@@ -389,11 +389,12 @@
         ctaEl.innerHTML = '';
         backEl.hidden = historyStack.length <= 1;
         if (deferOptions) {
-            optEl.hidden = true;
-            optEl.innerHTML = '';
+            // 关键：按钮先进入布局（保证问句的"最终位置"已确定），仅用类隐藏外观，
+            // 这样量出的 --q-dy 才是真正的滑动距离，避免之后布局跳变
+            document.body.classList.add('nx-await-opts');
+            buildOptions(node);
             typeText(qEl, node.q, function () {
-                if (_afterTyped) { var cb = _afterTyped; _afterTyped = null; cb(function () { buildOptions(node); }); }
-                else buildOptions(node);
+                if (_afterTyped) { var cb = _afterTyped; _afterTyped = null; cb(); }
             });
         } else {
             typeText(qEl, node.q);
@@ -506,18 +507,18 @@
 
         // 阶段 3（2.6s）：黑幕渐隐 + 问句出现在屏幕正中并开始打字
         timers.push(setTimeout(function () {
-            measureDelta();
-            body.classList.add('nx-bg-in', 'nx-question-in', 'nx-q-center');
+            body.classList.add('nx-bg-in', 'nx-question-in', 'nx-q-center', 'nx-await-opts');
             body.classList.remove('nx-boot');
-            // 打字完成后：先滑回常态位置（0.58s），再出按钮
-            _afterTyped = function (done) {
-                // 先在屏幕中央停留一下（让「在中间写出来」看得清），再滑回常态位置
+            // 先渲染（按钮已进入布局但被隐藏），随后量出「中心 → 常态位」的真实差值
+            renderAny('root', true);
+            measureDelta();
+            // 打字完成后：中央停留 → 滑回常态位置 → 放出按钮
+            _afterTyped = function () {
                 setTimeout(function () {
                     body.classList.remove('nx-q-center');
-                    setTimeout(done, 620);
+                    setTimeout(function () { body.classList.remove('nx-await-opts'); }, 700);
                 }, 620);
             };
-            renderAny('root', true);
         }, 2600));
 
         // 任意点击/按键：跳过开场
