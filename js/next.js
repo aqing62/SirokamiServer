@@ -308,7 +308,7 @@
     // ── 磁吸跟随 + 相互规避 ──────────────────────────────────
     // 按钮被光标"黏住"：靠近时轻微跟手，光标移远（超过 release 距离）才脱离；
     // 按钮之间保持最小间距，互相推开避免重叠。位移用 translate 属性，不影响 transform。
-    var MAG = { stick: 130, release: 240, maxPull: 38, ease: 0.16, gap: 14, repK: 0.5,
+    var MAG = { stick: 130, attract: 0.55, maxPull: 38, springK: 95, springC: 19, gap: 14, repK: 0.5,
                 dragR: 380,      // 指针扫过时的作用半径（辅助触发源）
                 speedRef: 300,   // 按钮自身移动速度(px/s)达到此值即满强度
                 ptrSpeedRef: 700,// 指针扫过速度的满强度阈值
@@ -325,7 +325,7 @@
 
     function bindMagnet(btn) {
         btn._mx = 0; btn._my = 0;
-        btn._stuck = false;
+        btn._vx = 0; btn._vy = 0;
         btn._rx = 0; btn._ry = 0;
         btn._tx = 0; btn._ty = 0;
         btn._ringGroups = Array.prototype.slice.call(btn.querySelectorAll('.nx-ring .nx-rot'));
@@ -381,23 +381,23 @@
             var cx = stageRect.left + b.offsetLeft + b.offsetWidth / 2 + b._mx;
             var cy = stageRect.top + b.offsetTop + b.offsetHeight / 2 + b._my;
             var tx = 0, ty = 0;
+            var d = 1e9;
             if (_magPx !== null) {
                 var dx = _magPx - cx, dy = _magPy - cy;
-                var d = Math.sqrt(dx * dx + dy * dy);
-                if (b._stuck) { if (d > MAG.release) b._stuck = false; }
-                else if (d < MAG.stick) b._stuck = true;
-                if (b._stuck) {
-                    // 越近拉得越紧（0.18~0.5），并限制最大位移
-                    var k = 0.5 * Math.min(1, MAG.stick / Math.max(48, d));
+                d = Math.sqrt(dx * dx + dy * dy);
+                // 连续衰减（不再用进出阈值开关）：距离越近力越大，超过 stick 距离自然为 0
+                var t = 1 - d / MAG.stick;
+                if (t > 0) {
+                    if (t > 1) t = 1;
+                    var s = t * t * (3 - 2 * t);        // smoothstep：两端导数为 0，不会有急停/急起
+                    var k = MAG.attract * s;
                     tx = dx * k; ty = dy * k;
                     var m = Math.sqrt(tx * tx + ty * ty);
                     if (m > MAG.maxPull) { tx = tx / m * MAG.maxPull; ty = ty / m * MAG.maxPull; }
                 }
             }
             b._tx = tx; b._ty = ty;
-            // 标记是否处于交互范围（供形变分级刷新）
-            b._near = b._stuck || (_magPx !== null &&
-                Math.sqrt((_magPx - cx) * (_magPx - cx) + (_magPy - cy) * (_magPy - cy)) < MAG.dragR);
+            b._near = _magPx !== null && d < MAG.dragR;
         }
 
         // 2) 相互规避：两两检查，重叠就沿连线推开
@@ -426,11 +426,14 @@
             var o = _magBtns[q];
             if (!o.parentNode) continue;
             var goalX = o._tx + o._rx, goalY = o._ty + o._ry;
-            var step = Math.min(1, MAG.ease * (dt * 60));
-            o._mx += (goalX - o._mx) * step;
-            o._my += (goalY - o._my) * step;
-            if (Math.abs(o._mx) < 0.02 && Math.abs(goalX) < 0.02) o._mx = 0;
-            if (Math.abs(o._my) < 0.02 && Math.abs(goalY) < 0.02) o._my = 0;
+            // 临界阻尼弹簧：a = K*(目标-位置) - C*速度（比一阶趋近更顺，且不会在阈值附近抖）
+            o._vx = (o._vx || 0) + (MAG.springK * (goalX - o._mx) - MAG.springC * (o._vx || 0)) * dt;
+            o._vy = (o._vy || 0) + (MAG.springK * (goalY - o._my) - MAG.springC * (o._vy || 0)) * dt;
+            o._mx += o._vx * dt;
+            o._my += o._vy * dt;
+            // 静止判定：位置与速度都极小就归零，避免长期微抖
+            if (Math.abs(o._mx) < 0.05 && Math.abs(goalX) < 0.05 && Math.abs(o._vx) < 1) { o._mx = 0; o._vx = 0; }
+            if (Math.abs(o._my) < 0.05 && Math.abs(goalY) < 0.05 && Math.abs(o._vy) < 1) { o._my = 0; o._vy = 0; }
             o.style.translate = o._mx.toFixed(2) + 'px ' + o._my.toFixed(2) + 'px';
         }
     }
