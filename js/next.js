@@ -516,7 +516,10 @@
                     var vsp = Math.sqrt(_magVx * _magVx + _magVy * _magVy);
                     if (_srect && vsp > 12) {
                         var pd3 = Math.sqrt((_magPx - ocx) * (_magPx - ocx) + (_magPy - ocy) * (_magPy - ocy)) || 1;
-                        var prox3 = Math.max(0, Math.min(1, (MAG.dragR - pd3) / MAG.dragR));
+                        // 圆内(≤半径)满力，圆外到 dragR 平滑归零 → 靠近才明显、远处完全无感
+                        var innerR = owner.offsetWidth / 2;
+                        var prox3 = pd3 <= innerR ? 1
+                            : Math.max(0, 1 - (pd3 - innerR) / Math.max(1, MAG.dragR - innerR));
                         var pamt3 = prox3 * Math.min(1, vsp / MAG.ptrSpeedRef);
                         if (pamt3 > Math.sqrt(tgDx * tgDx + tgDy * tgDy)) {
                             tgDx = (_magVx / vsp) * pamt3;
