@@ -196,7 +196,7 @@
     var SCREENS = {
         room:     { title: '房间与规则', sub: '房间名 / 密码里的规则代码', goto: 'room',      todo: '静态内容：房间代码表 + 规则说明（无需接口）' },
         download: { title: '下载与安装', sub: 'MDPro3 客户端 + DIY 卡包',  goto: 'download',  todo: '静态内容：下载入口与安装步骤' },
-        match:    { title: '比赛相关',   sub: '瑞士轮 · 实时对阵 · 历届八强', goto: 'tournament', todo: '数据：/api/tournament?slot=swiss|elim' },
+        match:    { title: '比赛相关',   sub: '瑞士轮积分 · 淘汰赛对阵',   goto: 'tournament', render: 'match' },
         pool:     { title: '卡池',       sub: '查卡 / 筛选 / 分值',         goto: 'pool',      todo: '复用卡池数据与筛选（微调 UI）' },
         banlist:  { title: '卡表',       sub: '禁限分值一览',               goto: 'banlist',   todo: '复用禁限表（微调 UI）' },
         preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    render: 'preset' },
@@ -1672,7 +1672,8 @@
             bindStatsTabs(body);
         });
     }
-    function bindStatsTabs(body) {
+    function bindStatsTabs(body, rerender) {
+        var run = rerender || renderPopular;
         Array.prototype.forEach.call(body.querySelectorAll('.nx-stats-tab'), function (b) {
             b.addEventListener('click', function (ev) {
                 ev.stopPropagation();
@@ -1680,7 +1681,7 @@
                 body.dataset.tab = b.getAttribute('data-tab');
                 hideCardTip(true);
                 playSfx('click');
-                renderPopular(body);
+                run(body);
             });
         });
     }
@@ -1735,7 +1736,142 @@
         });
     }
 
-    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular };
+    // ── 比赛（战绩 → 比赛）：/api/tournament?slot=swiss|elim ──
+    var TOUR_API = '/api/tournament';
+    var _tourCache = {};
+    function loadTournament(slot) {
+        if (_tourCache[slot] !== undefined) return Promise.resolve(_tourCache[slot]);
+        return fetch(TOUR_API + '?slot=' + encodeURIComponent(slot) + '&t=' + Date.now())
+            .then(function (r) { return r.json(); })
+            .then(function (d) { _tourCache[slot] = (d && d.data) || null; return _tourCache[slot]; })
+            .catch(function () { _tourCache[slot] = null; return null; });
+    }
+    function tourNameMap(t) {
+        var m = {};
+        (t.participants || []).forEach(function (p) { m[p.id] = p.name || ('#' + p.id); });
+        return m;
+    }
+    function renderMatch(body) {
+        var tab = (body.dataset && body.dataset.tab) || 'swiss';
+        body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
+            '<div class="nx-load-text">正在读取赛事 <b>0</b></div></div>';
+        Promise.all([loadTournament('swiss'), loadTournament('elim')]).then(function (res) {
+            var swiss = res[0], elim = res[1];
+            if (!swiss && !elim) { body.innerHTML = '<div class="nx-empty">暂时读不到赛事数据</div>'; return; }
+            var cur = tab === 'elim' ? (elim || swiss) : (swiss || elim);
+            var names = tourNameMap(cur);
+            var tabs = [
+                { k: 'swiss', label: '瑞士轮', n: swiss ? (swiss.participants || []).length : 0 },
+                { k: 'elim', label: '淘汰赛', n: elim ? (elim.participants || []).length : 0 }
+            ].map(function (x) {
+                return '<button class="nx-stats-tab' + (x.k === tab ? ' is-on' : '') + '" type="button" data-tab="' + x.k + '">' +
+                    x.label + '<i>' + x.n + '</i></button>';
+            }).join('');
+            var statusTxt = { Finished: '已结束', Running: '进行中', Upcoming: '未开始' }[cur.status] || cur.status || '';
+
+            body.innerHTML =
+                '<div class="nx-stats-top nx-reveal" style="--i:0">' +
+                    '<div class="nx-stats-tabs">' + tabs + '</div>' +
+                    '<div class="nx-stats-count">' + esc(cur.name || '赛事') +
+                        (statusTxt ? '<i class="nx-tour-status' + (cur.status === 'Running' ? ' is-live' : '') + '">' + esc(statusTxt) + '</i>' : '') +
+                    '</div>' +
+                '</div>' +
+                '<div id="nxMatchBody"></div>';
+
+            var box = document.getElementById('nxMatchBody');
+            if (tab === 'elim') paintBracket(box, cur, names);
+            else paintSwiss(box, cur, names);
+            bindStatsTabs(body, renderMatch);
+        });
+    }
+    // 瑞士轮积分榜：复刻天梯那套列表（含 3D 滚动与居中吸附）
+    function paintSwiss(box, t, names) {
+        var list = (t.participants || []).slice().sort(function (a, b) {
+            var ra = (a.score && a.score.rank) || 999, rb = (b.score && b.score.rank) || 999;
+            if (ra !== rb) return ra - rb;
+            return ((b.score && b.score.score) || 0) - ((a.score && a.score.score) || 0);
+        });
+        if (!list.length) { box.innerHTML = '<div class="nx-empty">暂无选手</div>'; return; }
+        var rounds = {};
+        (t.matches || []).forEach(function (m) { rounds[m.round] = 1; });
+        var roundCount = Object.keys(rounds).length;
+
+        box.innerHTML =
+            '<div class="nx-tour-meta nx-reveal" style="--i:1">共 <b>' + list.length + '</b> 位选手 · ' +
+                '<b>' + roundCount + '</b> 轮 · ' + (t.matches || []).length + ' 场对局</div>' +
+            '<div class="nx-list-head nx-reveal" style="--i:2">' +
+                '<span>#</span><span>选手</span><span>积分</span><span>战绩</span><span>小分</span><span>状态</span>' +
+            '</div>' +
+            '<div class="nx-scroll nx-reveal" style="--i:3" id="nxSwissScroll"><div class="nx-list">' +
+                list.map(function (p, i) {
+                    var s = p.score || {};
+                    return '<div class="nx-row nx-item3d" data-player="' + esc(p.name || '') + '">' +
+                        '<span class="c-rank">' + (s.rank || (i + 1)) + '</span>' +
+                        '<span class="c-name">' + esc(p.name || ('#' + p.id)) + '</span>' +
+                        '<span class="c-tier"><span class="nx-tour-score">' + (s.score || 0) + '</span></span>' +
+                        '<span class="c-wld">' + (s.win || 0) + '胜 ' + (s.lose || 0) + '负' + (s.draw ? ' ' + s.draw + '平' : '') + '</span>' +
+                        '<span class="c-rating">' + (s.tieBreaker != null ? s.tieBreaker : '-') + '</span>' +
+                        '<span class="c-rate">' + (p.quit ? '退赛' : '') + '</span>' +
+                    '</div>';
+                }).join('') +
+            '</div></div>';
+        bindScroll3D(document.getElementById('nxSwissScroll'));
+        bindTourRows(box);
+    }
+    // 淘汰赛对阵图：按轮次分列，组内按 bracketIndex 排序
+    function paintBracket(box, t, names) {
+        var byRound = {};
+        (t.matches || []).forEach(function (m) {
+            var r = m.round || 1;
+            (byRound[r] = byRound[r] || []).push(m);
+        });
+        var roundKeys = Object.keys(byRound).map(Number).sort(function (a, b) { return a - b; });
+        if (!roundKeys.length) { box.innerHTML = '<div class="nx-empty">暂无对阵</div>'; return; }
+        var total = roundKeys.length;
+        function roundLabel(r) {
+            if (r === total) return '决赛';
+            if (r === total - 1) return '半决赛';
+            return '第 ' + r + ' 轮';
+        }
+        box.innerHTML =
+            '<div class="nx-tour-meta nx-reveal" style="--i:1">共 <b>' + (t.participants || []).length + '</b> 位选手 · ' +
+                '<b>' + roundKeys.length + '</b> 轮 · ' + (t.matches || []).length + ' 场对局</div>' +
+            '<div class="nx-bracket nx-reveal" style="--i:2">' +
+                roundKeys.map(function (r, ri) {
+                    var ms = byRound[r].slice().sort(function (a, b) {
+                        return (a.bracketIndex || 0) - (b.bracketIndex || 0);
+                    });
+                    return '<div class="nx-br-col">' +
+                        '<div class="nx-br-col-title">' + roundLabel(r) + '<i>' + ms.length + ' 场</i></div>' +
+                        ms.map(function (m) {
+                            function side(pid, score, isWinner) {
+                                var nm = pid ? (names[pid] || ('#' + pid)) : null;
+                                return '<div class="nx-br-side' + (isWinner ? ' is-win' : '') + (nm ? '' : ' is-empty') + '">' +
+                                    '<span class="nx-br-name">' + (nm ? esc(nm) : '待定') + '</span>' +
+                                    '<span class="nx-br-score">' + (nm && score != null ? score : '') + '</span>' +
+                                '</div>';
+                            }
+                            var done = m.status === 'Finished' || m.status === 'finished';
+                            return '<div class="nx-br-match' + (done ? ' is-done' : '') + '">' +
+                                side(m.player1Id, m.player1Score, m.winnerId && m.winnerId === m.player1Id) +
+                                side(m.player2Id, m.player2Score, m.winnerId && m.winnerId === m.player2Id) +
+                            '</div>';
+                        }).join('') +
+                    '</div>';
+                }).join('') +
+            '</div>';
+    }
+    function bindTourRows(box) {
+        Array.prototype.forEach.call(box.querySelectorAll('.nx-row[data-player]'), function (r) {
+            r.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                var n = r.getAttribute('data-player');
+                if (n) openPlayerOverlay({ name: n, tier: '赛事选手', rating: '' }, { x: ev.clientX, y: ev.clientY });
+            });
+        });
+    }
+
+    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch };
 
     // ── DOM ──
     var stage = document.getElementById('nxStage');
