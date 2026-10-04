@@ -200,7 +200,7 @@
         pool:     { title: '卡池',       sub: '查卡 / 筛选 / 分值',         goto: 'pool',      todo: '复用卡池数据与筛选（微调 UI）' },
         banlist:  { title: '卡表',       sub: '禁限分值一览',               goto: 'banlist',   todo: '复用禁限表（微调 UI）' },
         preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    render: 'preset' },
-        popular:  { title: '常用卡',     sub: '使用率统计',                 goto: 'pool',      todo: '数据：/api/ladder/card-stats' },
+        popular:  { title: '常用卡',     sub: '使用率 · 胜率统计',           goto: 'pool',      render: 'popular' },
         rank:     { title: '天梯排名',   sub: 'TOP50 · 段位 · 积分',         goto: 'ranking',   render: 'ladder' },
         login:    { title: '登录账号',   sub: '天梯计分 / 投稿需要登录',     goto: 'login',     todo: '复用账号接口（/api/forum/*）' }
     };
@@ -1602,7 +1602,87 @@
         if (box) renderDeckInto(box, deck, meta || '', name || '卡组');
     }
 
-    var RENDERERS = { ladder: renderLadder, preset: renderPreset };
+    // ── 常用卡（卡片 → 常用卡）：/api/ladder/card-stats ──────
+    var CARDSTATS_API = 'https://api.ygopro3.cn/api/ladder/card-stats';
+    var _statsCache = null;
+    function loadCardStats() {
+        if (_statsCache) return Promise.resolve(_statsCache);
+        return fetch(CARDSTATS_API + '?t=' + Date.now())
+            .then(function (r) { return r.json(); })
+            .then(function (d) { _statsCache = d || {}; return _statsCache; })
+            .catch(function () { _statsCache = { totalDuels: 0, topUsed: [], topWinRate: [] }; return _statsCache; });
+    }
+    function renderPopular(body) {
+        var listKey = (body.dataset && body.dataset.tab) || 'used';
+        body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
+            '<div class="nx-load-text">正在统计常用卡 <b>0</b></div></div>';
+        loadCardStats().then(function (d) {
+            var used = d.topUsed || [], win = d.topWinRate || [];
+            var list = listKey === 'win' ? win : used;
+            if (!list.length) { body.innerHTML = '<div class="nx-empty">暂无统计数据</div>'; return; }
+
+            var tabs = [
+                { k: 'used', label: '使用率榜', n: used.length },
+                { k: 'win', label: '胜率榜', n: win.length }
+            ].map(function (t) {
+                return '<button class="nx-stats-tab' + (t.k === listKey ? ' is-on' : '') + '" type="button" data-tab="' + t.k + '">' +
+                    t.label + '<i>' + t.n + '</i></button>';
+            }).join('');
+            body.innerHTML =
+                '<div class="nx-stats-top nx-reveal" style="--i:0">' +
+                    '<div class="nx-stats-tabs">' + tabs + '</div>' +
+                    '<div class="nx-stats-count">统计 <b>' + (d.totalDuels || 0) + '</b> 场对局</div>' +
+                '</div>' +
+                '<div class="nx-card-grid" id="nxStatsGrid"></div>';
+
+            // 先等卡图就绪再渲染，入场动画才不会半路缺图
+            var ids = list.map(function (x) { return x.cardId; });
+            var box = document.getElementById('nxStatsGrid');
+            var loadTxt = document.createElement('div');
+            loadTxt.className = 'nx-deck-loading';
+            loadTxt.innerHTML = '<div class="nx-load-rings"><i></i><i></i><i></i></div><div class="nx-load-text">正在加载卡图 <b>0</b> / ' + ids.length + '</div>';
+            box.appendChild(loadTxt);
+            preloadDeckPics(ids, function (n, t) {
+                var e = loadTxt.querySelector('.nx-load-text');
+                if (e) e.innerHTML = '正在加载卡图 <b>' + n + '</b> / ' + t;
+            }).then(function () {
+                return loadCardMap();
+            }).then(function () {
+                box.innerHTML = list.map(function (x, i) {
+                    var nm = cardName(x.cardId);
+                    var sc = _scoreMap && _scoreMap[x.cardId];
+                    return '<div class="nx-card-tile" data-id="' + x.cardId + '" style="--i:' + i + '">' +
+                        '<span class="nx-card-rank">' + (i + 1) + '</span>' +
+                        '<span class="nx-card-photo"><img class="nx-card-img" src="' + picOf(x.cardId) + '" alt=""></span>' +
+                        '<span class="nx-card-name">' + esc(nm) + '</span>' +
+                        '<span class="nx-card-stats"><i class="is-use">' + esc(x.usageRate || '-') + '</i>' +
+                        '<i class="is-win">' + esc(x.winRate || '-') + '</i></span>' +
+                        (sc ? '<span class="nx-deck-score' + (sc.forbidden ? ' is-forbidden' : '') + '">' + (sc.forbidden ? '禁' : sc.score) + '</span>' : '') +
+                    '</div>';
+                }).join('');
+                Array.prototype.forEach.call(box.querySelectorAll('.nx-card-tile'), function (tile) {
+                    var id = parseInt(tile.getAttribute('data-id'), 10) || 0;
+                    var img = tile.querySelector('.nx-card-img');
+                    if (img) wireDeckImage(img, tile.querySelector('.nx-card-photo') || tile, id);
+                    tile.addEventListener('mouseenter', function (ev) { showCardTip(ev, id); });
+                    tile.addEventListener('mousemove', function (ev) { if (_tipEl && _tipEl.style.display === 'block') positionCardTip(ev, _tipEl); });
+                    tile.addEventListener('mouseleave', hideCardTip);
+                });
+            });
+            Array.prototype.forEach.call(body.querySelectorAll('.nx-stats-tab'), function (b) {
+                b.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    if ((body.dataset.tab || 'used') === b.getAttribute('data-tab')) return;
+                    body.dataset.tab = b.getAttribute('data-tab');
+                    hideCardTip(true);
+                    playSfx('click');
+                    renderPopular(body);
+                });
+            });
+        });
+    }
+
+    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular };
 
     // ── DOM ──
     var stage = document.getElementById('nxStage');
