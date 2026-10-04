@@ -612,7 +612,11 @@
         var view = document.getElementById('nxPovView');
         var back = el.querySelector('.nx-pov-back');
         el.classList.add('is-viewing');
-        if (view) { view.hidden = false; view.innerHTML = '<div class="nx-loading"><span class="nx-spin"></span>读取中…</div>'; }
+        if (view) {
+            view.hidden = false;
+            view.classList.toggle('is-duels', kind === 'duels');   // 对局列表收窄居中
+            view.innerHTML = '<div class="nx-loading"><span class="nx-spin"></span>读取中…</div>';
+        }
         if (back) back.hidden = false;
 
         var p = _povPlayer || {};
