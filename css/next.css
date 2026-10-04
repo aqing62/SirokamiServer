@@ -202,11 +202,8 @@ body {
   animation: nxBubble .7s cubic-bezier(.25, .9, .3, 1.04) backwards;
   animation-delay: calc(var(--i, 0) * 130ms);
 }
-/* 自转改由 JS 逐帧驱动（避免改 animation-duration 造成相位跳变/越转越快） */
-.nx-ring .nx-rot {
-  transform-origin: 60px 60px;
-  will-change: transform;
-}
+/* 旋转已移除：动感全部由线条扭曲提供 */
+.nx-ring .nx-rot { transform: none; }
 .nx-ring path {
   fill: none;
   stroke: rgba(216, 30, 68, 0.62);
