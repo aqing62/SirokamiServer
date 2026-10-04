@@ -204,8 +204,11 @@ body {
   animation: nxBubble .7s cubic-bezier(.25, .9, .3, 1.04) backwards;
   animation-delay: calc(var(--i, 0) * 130ms);
 }
-/* 旋转已移除：动感全部由线条扭曲提供 */
-.nx-ring .nx-rot { transform: none; }
+/* 旋转已移除；拉拽形变通过图层 transform（缩放椭圆）实现，原点固定在圆心 */
+.nx-ring .nx-rot {
+  transform-origin: 60px 60px;
+  will-change: transform;
+}
 .nx-ring path {
   fill: none;
   stroke: rgba(216, 30, 68, 0.62);
@@ -511,7 +514,7 @@ body.nx-skip .nx-welcome { display: none; }
 
 /* ── 磁吸位移：用 translate 独立属性（与 hover 的 transform 叠加，互不覆盖）── */
 .nx-option, .nx-cta {
-  translate: var(--mx, 0px) var(--my, 0px);
+  translate: 0 0;                /* 实际位移由 JS 直接写 style.translate（避免自定义属性触发子树样式重算） */
   will-change: translate;
   backface-visibility: hidden;   /* 提示浏览器走合成层，减少重绘 */
 }
