@@ -248,21 +248,63 @@
 
     // 4 层：半径递减，抖动种子/幅度/旋转速度各不相同
     var RING_LAYERS = [
-        { cls: 'nxb1', r: 51, seed: 0.7, pts: 10, wob: 0.055, spin: 12, dir: '' },
-        { cls: 'nxb2', r: 49, seed: 2.1, pts: 12, wob: 0.072, spin: 17, dir: 'nx-rev' },
-        { cls: 'nxb3', r: 47, seed: 3.9, pts: 11, wob: 0.088, spin: 9, dir: '' },
-        { cls: 'nxb4', r: 45, seed: 5.4, pts: 13, wob: 0.104, spin: 21, dir: 'nx-rev' }
+        { cls: 'nxb1', r: 51, seed: 0.7, pts: 10, wob: 0.055, spin: 12, dir: '', msp: 0.16, mph: 0.0 },
+        { cls: 'nxb2', r: 49, seed: 2.1, pts: 12, wob: 0.072, spin: 17, dir: 'nx-rev', msp: -0.22, mph: 1.7 },
+        { cls: 'nxb3', r: 47, seed: 3.9, pts: 11, wob: 0.088, spin: 9, dir: '', msp: 0.28, mph: 3.1 },
+        { cls: 'nxb4', r: 45, seed: 5.4, pts: 13, wob: 0.104, spin: 21, dir: 'nx-rev', msp: -0.34, mph: 4.6 }
     ];
 
     function ringSvg(gold) {
         var cls = 'nx-ring' + (gold ? ' nx-ring-gold' : '');
         var inner = RING_LAYERS.map(function (L) {
             return '<g class="nx-rot ' + L.dir + '" style="--spin:' + L.spin + 's">'
-                + '<path class="' + L.cls + '" d="' + blobPath(L.r, L.seed, L.pts, L.wob) + '"></path>'
+                + '<path class="' + L.cls + '" d="' + blobPath(L.r, L.seed, L.pts, L.wob) + '"'
+                + ' data-r="' + L.r + '" data-seed="' + L.seed + '" data-pts="' + L.pts + '"'
+                + ' data-wob="' + L.wob + '" data-msp="' + L.msp + '" data-mph="' + L.mph + '"></path>'
                 + '</g>';
         }).join('');
         return '<svg class="' + cls + '" viewBox="0 0 120 120" aria-hidden="true">' + inner + '</svg>';
     }
+
+
+    // ── 活体变形：形状持续改变（抖动相位缓慢游走 + 抖动幅度起伏呼吸） ──
+    var _blobs = [];
+    var _blobLast = 0;
+    var _blobT0 = (window.performance && performance.now()) || Date.now();
+
+    function collectBlobs() {
+        _blobs = Array.prototype.slice.call(document.querySelectorAll('.nx-ring path[data-blob-ready]'));
+    }
+
+    function blobTick(now) {
+        requestAnimationFrame(blobTick);
+        var animOff = document.documentElement.classList.contains('nx-anim-off');
+        if (animOff || document.hidden) { _blobLast = now; return; }   // 关动效/后台标签页时不做计算
+        if (now - _blobLast < 32) return;                              // 约 30fps
+        _blobLast = now;
+        var t = (now - _blobT0) / 1000;
+        for (var i = 0; i < _blobs.length; i++) {
+            var p = _blobs[i];
+            if (!p.parentNode) continue;                               // 已被重绘移除
+            var r = parseFloat(p.getAttribute('data-r'));
+            var pts = parseInt(p.getAttribute('data-pts'), 10);
+            var wob = parseFloat(p.getAttribute('data-wob'));
+            var msp = parseFloat(p.getAttribute('data-msp')) || 0;
+            var mph = parseFloat(p.getAttribute('data-mph')) || 0;
+            // 相位缓慢游走（形状一直在变） + 抖动幅度呼吸（扭曲强弱起伏）
+            var phase = mph + t * msp;
+            var amp = wob * (0.62 + 0.5 * Math.sin(t * 0.5 + mph * 1.3));
+            p.setAttribute('d', blobPath(r, phase, pts, amp));
+        }
+    }
+
+    // 标记可变形路径并启动循环（渲染后调用）
+    function startBlobMorph() {
+        var list = document.querySelectorAll('.nx-ring path');
+        for (var i = 0; i < list.length; i++) list[i].setAttribute('data-blob-ready', '1');
+        collectBlobs();
+    }
+    requestAnimationFrame(blobTick);
 
     function ripple(btn, ev) {
         var r = btn.getBoundingClientRect();
@@ -343,6 +385,7 @@
             });
             optEl.appendChild(b);
         });
+        startBlobMorph();
     }
 
     function renderResult(node, label) {
@@ -381,6 +424,7 @@
             });
             ctaEl.appendChild(b);
         });
+        startBlobMorph();
     }
 
 
