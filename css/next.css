@@ -1373,27 +1373,73 @@ body.nx-zoomed .nx-foot {
 .nx-cf-letter.is-empty { color: #4a4a52; cursor: default; }
 .nx-cf-letter.is-empty:hover { color: #4a4a52; transform: none; }
 
-.nx-cf-search { display: flex; align-items: center; gap: 10px; flex: 0 0 auto; }
-.nx-cf-search input {
-  width: clamp(140px, 22vw, 220px);
-  padding: 6px 12px;
-  border: none; border-radius: 999px;
-  background: rgba(255, 255, 255, .055);
-  color: #eee7df; font-family: inherit; font-size: 13px;
-  outline: none;
-  transition: background .2s, box-shadow .2s;
-}
-.nx-cf-search input::placeholder { color: #6f6f78; }
-.nx-cf-search input:focus {
-  background: rgba(255, 255, 255, .085);
-  box-shadow: 0 0 0 1px rgba(212, 175, 55, .55), 0 0 18px rgba(212, 175, 55, .18);
-}
-.nx-cf-count { font-size: 12px; color: #6f6f78; letter-spacing: .5px; font-variant-numeric: tabular-nums; }
 
 @media (max-width: 768px) {
   .nx-cf-bar { flex-direction: column; align-items: stretch; gap: 8px; }
   .nx-cf-letters { gap: 0; justify-content: center; }
   .nx-cf-letter { min-width: 16px; height: 20px; font-size: 11.5px; padding: 0 1px; }
-  .nx-cf-search { justify-content: center; }
-  .nx-cf-search input { width: 100%; max-width: 260px; }
+}
+
+
+/* ══ 预组：折叠式搜索（无边框放大镜）═══════════════════════
+   点放大镜 → 图标向左让位，让出的那段路变成输入框（弹性展开）
+   回车 → 放大镜顺时针转一周并随收起弹性回位
+   ═══════════════════════════════════════════════════════════ */
+.nx-cf-search {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 6px; flex: 0 0 auto;
+}
+.nx-cf-search input {
+  width: 0; padding: 0; border: none; outline: none;
+  background: none;
+  color: #eee7df; font-family: inherit; font-size: 13px;
+  opacity: 0; pointer-events: none;
+  border-radius: 999px;
+  transition: width .46s cubic-bezier(.3, 1.5, .5, 1), opacity .26s ease, padding .46s cubic-bezier(.3, 1.5, .5, 1), background .3s;
+}
+.nx-cf-search.is-open input {
+  width: clamp(150px, 22vw, 230px);
+  padding: 6px 14px;
+  opacity: 1; pointer-events: auto;
+  background: rgba(255, 255, 255, .06);
+}
+.nx-cf-search input::placeholder { color: #6f6f78; }
+.nx-cf-search.is-open input:focus { background: rgba(255, 255, 255, .09); box-shadow: 0 0 0 1px rgba(212, 175, 55, .5); }
+
+/* 放大镜：无边框，只用描边 */
+.nx-cf-lens {
+  flex: 0 0 auto;
+  width: 30px; height: 30px;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: none; padding: 0;
+  cursor: pointer;
+  color: #8d8d96;
+  transition: color .22s, transform .46s cubic-bezier(.3, 1.5, .5, 1);
+}
+.nx-cf-lens svg { width: 19px; height: 19px; display: block; }
+.nx-cf-lens:hover { color: #ffe9a8; }
+.nx-cf-search.is-open .nx-cf-lens { color: #fff3c4; }
+/* 回车：顺时针转一周（带一点弹性过冲） */
+.nx-cf-lens.is-spin { animation: nxLensSpin .72s cubic-bezier(.34, 1.42, .5, 1) both; }
+@keyframes nxLensSpin {
+  0%   { transform: rotate(0deg); }
+  72%  { transform: rotate(378deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 清除（有过滤且已收起时出现） */
+.nx-cf-clear {
+  flex: 0 0 auto;
+  width: 22px; height: 22px;
+  border: none; background: none; padding: 0;
+  font-family: inherit; font-size: 12px; line-height: 1;
+  color: #7d7d86; cursor: pointer;
+  transition: color .2s, transform .2s;
+}
+.nx-cf-clear:hover { color: #ffb4c4; transform: scale(1.15); }
+.nx-cf-clear[hidden] { display: none; }
+
+@media (max-width: 768px) {
+  .nx-cf-search { justify-content: flex-end; }
+  .nx-cf-search.is-open input { width: min(58vw, 230px); font-size: 16px; }   /* 16px 避免 iOS 聚焦缩放 */
 }

@@ -1238,8 +1238,15 @@
             body.innerHTML =
                 '<div class="nx-cf-bar">' +
                     '<div class="nx-cf-letters" id="nxCfLetters"></div>' +
-                    '<div class="nx-cf-search">' +
-                        '<input id="nxCfSearch" type="text" placeholder="搜索卡组名…" autocomplete="off" spellcheck="false">' +
+                    '<div class="nx-cf-search" id="nxCfSearchWrap">' +
+                        '<input id="nxCfSearch" type="text" placeholder="搜索卡组名 / 首字母" autocomplete="off" spellcheck="false">' +
+                        '<button class="nx-cf-lens" id="nxCfLens" type="button" aria-label="搜索">' +
+                            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">' +
+                                '<circle cx="10.4" cy="10.4" r="6.6"></circle>' +
+                                '<line x1="15.4" y1="15.4" x2="21" y2="21"></line>' +
+                            '</svg>' +
+                        '</button>' +
+                        '<button class="nx-cf-clear" id="nxCfClear" type="button" aria-label="清除搜索" hidden>✕</button>' +
                         '<span class="nx-cf-count" id="nxCfCount"></span>' +
                     '</div>' +
                 '</div>' +
@@ -1449,8 +1456,54 @@
                 var hintEl = document.getElementById('nxCfHint');
                 if (hintEl) hintEl.hidden = kept.length === 0;
             }
+            // ── 折叠式搜索：点放大镜 → 它向左让位、让出的路径变成输入框；回车 → 转一圈并弹性回位 ──
+            var searchWrap = document.getElementById('nxCfSearchWrap');
+            var lensBtn = document.getElementById('nxCfLens');
+            var clearBtn = document.getElementById('nxCfClear');
+            function refreshClear() {
+                if (clearBtn) clearBtn.hidden = !(searchEl && searchEl.value.trim()) || (searchWrap && searchWrap.classList.contains('is-open'));
+            }
+            function openSearch() {
+                if (!searchWrap) return;
+                searchWrap.classList.add('is-open');
+                refreshClear();
+                setTimeout(function () { if (searchEl) { searchEl.focus(); searchEl.select(); } }, 80);
+            }
+            function closeSearch(spin) {
+                if (!searchWrap) return;
+                searchWrap.classList.remove('is-open');
+                if (spin && lensBtn) {                     // 顺时针转一周（带弹性），同时随输入框收起而弹性回位
+                    lensBtn.classList.remove('is-spin');
+                    void lensBtn.offsetWidth;
+                    lensBtn.classList.add('is-spin');
+                }
+                refreshClear();
+            }
+            function submitSearch() { applySearch(); closeSearch(true); }
+
+            if (lensBtn) {
+                lensBtn.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    if (!searchOpen()) { openSearch(); return; }
+                    submitSearch();
+                });
+            }
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    if (searchEl) searchEl.value = '';
+                    applySearch();
+                    refreshClear();
+                });
+            }
+            function searchOpen() { return !!(searchWrap && searchWrap.classList.contains('is-open')); }
             if (searchEl) {
-                searchEl.addEventListener('input', applySearch);
+                searchEl.addEventListener('input', function () { applySearch(); refreshClear(); });   // 边打边过滤，回车才收起并转圈
+                searchEl.addEventListener('keydown', function (ev) {
+                    ev.stopPropagation();                       // 别让 Esc / 方向键穿透到全局
+                    if (ev.key === 'Enter') { ev.preventDefault(); submitSearch(); }
+                    else if (ev.key === 'Escape') { ev.preventDefault(); applySearch(); closeSearch(false); searchEl.blur(); }
+                });
                 searchEl.addEventListener('click', function (ev) { ev.stopPropagation(); });
                 searchEl.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
             }
