@@ -845,6 +845,8 @@ body.nx-zoomed .nx-foot {
 
 .nx-pov-choices { display: flex; align-items: center; justify-content: center; gap: clamp(36px, 10vw, 150px); }
 .nx-pov-choices .nx-option { --size: clamp(148px, 18vw, 198px); }
+/* 关掉主菜单那套 optionIn：浮层里的类变化(返回动画/内容态)会让它重播，导致入场动画播两遍 */
+.nx-pov .nx-option { animation: none; animation-delay: 0s; }
 /* 入场只在刚打开时播一次（is-entering 在播完后由 JS 移除），否则返回时会再播一遍 */
 .nx-pov.is-entering .nx-pov-choices .nx-option { animation: nxPovCircle .62s cubic-bezier(.22,.9,.28,1.02) both; animation-delay: calc(.18s + var(--i, 0) * .1s); }
 @keyframes nxPovCircle {
