@@ -1031,3 +1031,8 @@ body.nx-zoomed .nx-foot {
   .nx-pov-view .nx-deck-col-side .nx-deck-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px 5px; }
   .nx-deck-name { font-size: 9px; }
 }
+
+
+/* 缩得较狠时（一屏全显示）隐藏卡名，保证卡图更大更清晰 */
+.nx-deck-fit.is-compact .nx-deck-name { display: none; }
+.nx-deck-fit.is-compact .nx-deck-cards { gap: 5px 4px; }

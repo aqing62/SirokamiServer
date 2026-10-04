@@ -746,14 +746,25 @@
         box.style.height = '';
         box.style.overflow = '';
 
-        var need = fit.scrollHeight;
-        if (!need) return;
-        var avail = window.innerHeight - 24;                     // 上下各留余量
-        var innerNatural = inner ? inner.scrollHeight : need;
-        var chrome = Math.max(0, innerNatural - need);           // 标题、间距等非内容高度
-        var k = (avail - chrome) / need;
-        if (k > 1) k = 1;
-        if (k < 0.25) k = 0.25;
+        function solve() {
+            var nd = fit.scrollHeight;
+            var inat = inner ? inner.scrollHeight : nd;
+            var ch = Math.max(0, inat - nd);
+            var kk = (window.innerHeight - 24 - ch) / nd;
+            if (kk > 1) kk = 1;
+            if (kk < 0.2) kk = 0.2;
+            return { need: nd, k: kk };
+        }
+        var r1 = solve();
+        // 缩得太狠时隐藏卡名（图仍清楚），再解一次以求更大比例
+        if (r1.k < 0.88) {
+            fit.classList.add('is-compact');
+            r1 = solve();
+        } else {
+            fit.classList.remove('is-compact');
+        }
+        var need = r1.need;
+        var k = r1.k;
 
         if (k < 0.999) {
             fit.style.transformOrigin = 'top center';
