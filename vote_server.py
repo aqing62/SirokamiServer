@@ -501,23 +501,34 @@ def _get_tournament_data(tid: str | None = None) -> dict:
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
 
-    try:
-        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
-            raw = resp.read()
-            data = json.loads(raw)
-            if not isinstance(_tournament_cache, dict):
-                _tournament_cache = {}
-            if not isinstance(_tournament_cache_time, dict):
-                _tournament_cache_time = {}
-            _tournament_cache[tournament_id] = data
-            _tournament_cache_time[tournament_id] = now
-            logger.info(f"比赛数据已刷新 (ID={tournament_id})")
-            return data
-    except urllib.error.HTTPError as e:
-        body = e.read().decode("utf-8", errors="replace")
-        raise Exception(f"上游API返回 {e.code}: {body}")
-    except Exception as e:
-        raise Exception(f"请求上游API失败: {e}")
+    # 上游(api-tabulator)偶发 TLS 握手超时：重试一次；仍失败则回退到旧缓存，保证页面不断档
+    last_err = None
+    for _attempt in range(2):
+        try:
+            with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
+                raw = resp.read()
+                data = json.loads(raw)
+                if not isinstance(_tournament_cache, dict):
+                    _tournament_cache = {}
+                if not isinstance(_tournament_cache_time, dict):
+                    _tournament_cache_time = {}
+                _tournament_cache[tournament_id] = data
+                _tournament_cache_time[tournament_id] = now
+                logger.info(f"比赛数据已刷新 (ID={tournament_id})")
+                return data
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", errors="replace")
+            last_err = Exception(f"上游API返回 {e.code}: {body}")
+            break                      # HTTP 错误重试无意义
+        except Exception as e:
+            last_err = Exception(f"请求上游API失败: {e}")
+            continue                   # 握手/连接类错误重试一次
+
+    if cached is not None:
+        age = int(now - cached_at)
+        logger.warning(f"比赛数据刷新失败，回退到缓存 (ID={tournament_id}, 缓存 {age}s): {last_err}")
+        return cached
+    raise last_err
 
 
 # ── srvpro2 API 代理 ───────────────────────────────────────
