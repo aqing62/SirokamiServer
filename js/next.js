@@ -308,14 +308,14 @@
     // ── 磁吸跟随 + 相互规避 ──────────────────────────────────
     // 按钮被光标"黏住"：靠近时轻微跟手，光标移远（超过 release 距离）才脱离；
     // 按钮之间保持最小间距，互相推开避免重叠。位移用 translate 属性，不影响 transform。
-    var MAG = { stick: 150, attract: 0.6, flat: 0.55, maxPull: 38, springK: 95, springC: 19, gap: 14, repK: 0.5,
+    var MAG = { stick: 150, attract: 0.6, flat: 0.55, maxPull: 38, springK: 70, springC: 24, gap: 14, repK: 0.5,
                 dragR: 380,      // 指针扫过时的作用半径（辅助触发源）
                 speedRef: 300,   // 按钮自身移动速度(px/s)达到此值即满强度
                 ptrSpeedRef: 700,// 指针扫过速度的满强度阈值
                 dragMax: 0.62,   // 最大甩长比例（沿运动方向拉长）
                 dragDecay: 0.94, // 指针停下后的速度衰减（越大拖尾越久）
                 velEase: 0.35,   // 指针速度平滑
-                dragEase: 0.16 };// 形变自身的缓动（产生拖尾滞后）
+                dragEase: 0.10 };// 形变自身的缓动（产生拖尾滞后）
     var _magBtns = [];
     var _magPx = null, _magPy = null;
     var _magLast = 0;
@@ -378,8 +378,9 @@
             var b = _magBtns[i];
             b._rx = 0; b._ry = 0;
             if (!b.parentNode) { b._tx = 0; b._ty = 0; continue; }
-            var cx = stageRect.left + b.offsetLeft + b.offsetWidth / 2 + b._mx;
-            var cy = stageRect.top + b.offsetTop + b.offsetHeight / 2 + b._my;
+            // 关键：用「原位中心」而不是含偏移的当前中心，避免力←→位置的自反馈振荡
+            var cx = stageRect.left + b.offsetLeft + b.offsetWidth / 2;
+            var cy = stageRect.top + b.offsetTop + b.offsetHeight / 2;
             var tx = 0, ty = 0;
             var d = 1e9;
             if (_magPx !== null) {
@@ -500,8 +501,8 @@
                     if (_srect && owner._pcx !== undefined) {
                         var odt = Math.max(0.008, dt);
                         var ovx = (ocx - owner._pcx) / odt, ovy = (ocy - owner._pcy) / odt;
-                        owner._ovx = (owner._ovx || 0) + (ovx - (owner._ovx || 0)) * 0.5;
-                        owner._ovy = (owner._ovy || 0) + (ovy - (owner._ovy || 0)) * 0.5;
+                        owner._ovx = (owner._ovx || 0) + (ovx - (owner._ovx || 0)) * 0.18;
+                        owner._ovy = (owner._ovy || 0) + (ovy - (owner._ovy || 0)) * 0.18;
                         var ospd = Math.sqrt(owner._ovx * owner._ovx + owner._ovy * owner._ovy);
                         if (ospd > 3) {
                             var osf = Math.min(1, ospd / MAG.speedRef);
