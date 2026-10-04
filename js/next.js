@@ -227,6 +227,17 @@
         }).join('<span style="opacity:.5">›</span>');
     }
 
+    // 边缘流动线条环：多层虚线圆（dashoffset 流动 + 反向旋转）
+    function ringSvg(gold) {
+        var cls = 'nx-ring' + (gold ? ' nx-ring-gold' : '');
+        return '<svg class="' + cls + '" viewBox="0 0 120 120" aria-hidden="true">'
+            + '<circle class="nxr1" cx="60" cy="60" r="58"></circle>'
+            + '<circle class="nxr2" cx="60" cy="60" r="53"></circle>'
+            + '<circle class="nxr3" cx="60" cy="60" r="46"></circle>'
+            + '<circle class="nxr4" cx="60" cy="60" r="40"></circle>'
+            + '</svg>';
+    }
+
     function ripple(btn, ev) {
         var r = btn.getBoundingClientRect();
         var s = document.createElement('span');
@@ -298,7 +309,8 @@
             var b = document.createElement('button');
             b.className = 'nx-option';
             b.style.setProperty('--i', i);
-            b.innerHTML = '<span class="nx-opt-icon">' + opt.icon + '</span>'
+            b.innerHTML = ringSvg(false)
+                + '<span class="nx-opt-icon">' + opt.icon + '</span>'
                 + '<span class="nx-opt-label">' + esc(opt.label) + '</span>'
                 + (opt.sub ? '<span class="nx-opt-sub">' + esc(opt.sub) + '</span>' : '');
             b.addEventListener('click', function (ev) {
@@ -330,11 +342,13 @@
         });
 
         ctaEl.innerHTML = '';
+        ctaEl.classList.toggle('nx-tri', (node.cta || []).length === 3);
         (node.cta || []).forEach(function (c, i) {
             var b = document.createElement('button');
             b.className = 'nx-cta' + (c.back ? ' nx-cta-ghost' : '');
             b.style.setProperty('--i', i);
-            b.innerHTML = '<span class="nx-cta-icon">' + c.icon + '</span><span>' + esc(c.label) + '</span>';
+            b.innerHTML = ringSvg(!c.back)
+                + '<span class="nx-cta-icon">' + c.icon + '</span><span>' + esc(c.label) + '</span>';
             b.addEventListener('click', function (ev) {
                 ripple(b, ev);
                 if (c.back) { setTimeout(goBack, 140); return; }
