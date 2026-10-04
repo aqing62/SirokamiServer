@@ -168,6 +168,8 @@ body {
 .nx-result-cta.nx-tri > *:nth-child(1) { grid-area: top; }
 .nx-result-cta.nx-tri > *:nth-child(2) { grid-area: left; }
 .nx-result-cta.nx-tri > *:nth-child(3) { grid-area: right; }
+/* 固定宽度的圆形按钮在跨列区域里默认靠左，需显式居中 */
+.nx-result-cta.nx-tri > * { justify-self: center; align-self: center; }
 
 .nx-option {
   --size: clamp(104px, 15vw, 138px);
