@@ -337,7 +337,7 @@
 
         var rows = players.map(function (p, i) {
             var tier = String(p.tier || '').replace(/^S\d+\s*/, '');
-            return '<div class="nx-row nx-item3d nx-reveal-fade" style="--i:' + Math.min(i, 26) + '">' +
+            return '<div class="nx-row nx-item3d">' +   // 不用入场动画：animation-fill 会盖掉 3D 的 opacity
                 '<span class="c-rank">' + rankMedal(i) + '</span>' +
                 '<span class="c-name">' + esc(p.name) +
                     (p.streak > 1 ? '<span class="nx-streak">' + p.streak + '连胜</span>' : '') + '</span>' +
