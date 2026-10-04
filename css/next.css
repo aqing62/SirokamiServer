@@ -610,6 +610,9 @@ body.nx-skip .nx-welcome { display: none; }
 }
 /* 内容逐条错开浮现（配合 element.style.--i 的延迟） */
 .nx-reveal { animation: nxReveal .5s cubic-bezier(.22, .9, .28, 1.02) both; animation-delay: calc(var(--i, 0) * 32ms); }
+/* 表格行：<tr> 上的 transform/filter 浏览器不生效，改用纯透明度渐变 */
+.nx-reveal-fade { animation: nxRevealFade .42s ease-out both; animation-delay: calc(var(--i, 0) * 26ms); }
+@keyframes nxRevealFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes nxReveal {
   0%   { opacity: 0; transform: translateY(10px); filter: blur(4px); }
   60%  { opacity: 1; filter: blur(0); }
