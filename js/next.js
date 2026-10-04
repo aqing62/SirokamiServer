@@ -536,28 +536,5 @@
         document.addEventListener('pointerdown', skip, true);
         document.addEventListener('keydown', skip, true);
     })();
-    // ── 动效开关：默认开启（不受系统「减少动态效果」影响），可手动关闭并记住 ──
-    (function initAnimToggle() {
-        var KEY = 'siro_next_anim';
-        var root = document.documentElement;
-        function apply(on) {
-            root.classList.toggle('nx-anim-off', !on);
-            var b = document.getElementById('nxAnimToggle');
-            if (b) {
-                b.textContent = on ? '动效 开' : '动效 关';
-                b.classList.toggle('is-off', !on);
-            }
-        }
-        var on = true;
-        try { if (localStorage.getItem(KEY) === '0') on = false; } catch (e) { /* 忽略 */ }
-        apply(on);
-        var btn = document.getElementById('nxAnimToggle');
-        if (btn) {
-            btn.addEventListener('click', function () {
-                on = !on;
-                apply(on);
-                try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) { /* 忽略 */ }
-            });
-        }
-    })();
+
 })();

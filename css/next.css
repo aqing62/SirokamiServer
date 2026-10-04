@@ -355,32 +355,10 @@ body {
 }
 
 /* 注意：不按系统「减少动态效果」自动关闭动效（很多 Windows 用户默认关闭该项），
-   改为右上角「动效 开/关」由用户自行控制 */
+   动效默认开启 */
 /* 说明：不使用 prefers-reduced-motion 自动关闭动效（大量 Windows 用户系统默认关闭该项，
-   会导致页面看起来是静态的）。改为顶栏「动效 开/关」由用户手动控制，默认开启。 */
+   会导致页面看起来是静态的）。动效默认开启。 */
 
-
-/* ── 动效开关（顶栏，胶囊）── */
-.nx-anim-toggle {
-  margin-right: 10px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(216, 30, 68, .6);
-  background: linear-gradient(135deg, rgba(216, 30, 68, .22), rgba(0, 0, 0, .4));
-  color: #ffc0cd;
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: .2s;
-}
-.nx-anim-toggle:hover { border-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
-.nx-anim-toggle.is-off {
-  border-color: rgba(150, 150, 160, .6);
-  background: rgba(40, 40, 45, .5);
-  color: #b9b9c2;
-}
-.nx-top .nx-version { margin-left: 0; }
 
 /* 手动关闭动效时的统一规则（只由 .nx-anim-off 控制） */
 html.nx-anim-off .nx-orb,
