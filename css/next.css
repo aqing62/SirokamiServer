@@ -355,8 +355,49 @@ body {
   .nx-back { left: 12px; bottom: calc(48px + env(safe-area-inset-bottom, 0px)); width: 44px; height: 44px; }
 }
 
+/* 注意：不按系统「减少动态效果」自动关闭动效（很多 Windows 用户默认关闭该项），
+   改为右上角「动效 开/关」由用户自行控制 */
 @media (prefers-reduced-motion: reduce) {
   .nx-orb, .nx-grid, .nx-brand-dot, .nx-option, .nx-cta, .nx-step-row, .nx-back,
-  .nx-ring, .nx-ring .nx-rot, .nx-ring path, .nx-option .nx-opt-icon, .nx-option .nx-opt-label, .nx-option .nx-opt-sub { animation: none !important; }
+  
   .nx-question .nx-caret { animation: none; }
+}
+
+
+/* ── 动效开关（顶栏，胶囊）── */
+.nx-anim-toggle {
+  margin-right: 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(216, 30, 68, .6);
+  background: linear-gradient(135deg, rgba(216, 30, 68, .22), rgba(0, 0, 0, .4));
+  color: #ffc0cd;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: .2s;
+}
+.nx-anim-toggle:hover { border-color: var(--nx-gold, #D4AF37); color: var(--nx-gold-light, #F0E68C); }
+.nx-anim-toggle.is-off {
+  border-color: rgba(150, 150, 160, .6);
+  background: rgba(40, 40, 45, .5);
+  color: #b9b9c2;
+}
+.nx-top .nx-version { margin-left: 0; }
+
+/* 手动关闭动效时的统一规则（只由 .nx-anim-off 控制） */
+html.nx-anim-off .nx-orb,
+html.nx-anim-off .nx-grid,
+html.nx-anim-off .nx-brand-dot,
+html.nx-anim-off .nx-option,
+html.nx-anim-off .nx-cta,
+html.nx-anim-off .nx-step-row,
+html.nx-anim-off .nx-back,
+html.nx-anim-off .nx-ring,
+html.nx-anim-off .nx-ring .nx-rot,
+html.nx-anim-off .nx-option .nx-opt-icon,
+html.nx-anim-off .nx-option .nx-opt-label,
+html.nx-anim-off .nx-option .nx-opt-sub {
+  animation: none !important;
 }

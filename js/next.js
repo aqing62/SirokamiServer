@@ -248,10 +248,10 @@
 
     // 4 层：半径递减，抖动种子/幅度/旋转速度各不相同
     var RING_LAYERS = [
-        { cls: 'nxb1', r: 57, seed: 0.7, pts: 9,  wob: 0.052, spin: 34, dir: '' },
-        { cls: 'nxb2', r: 49, seed: 2.1, pts: 11, wob: 0.070, spin: 46, dir: 'nx-rev' },
-        { cls: 'nxb3', r: 41, seed: 3.9, pts: 8,  wob: 0.085, spin: 28, dir: '' },
-        { cls: 'nxb4', r: 33, seed: 5.4, pts: 10, wob: 0.100, spin: 58, dir: 'nx-rev' }
+        { cls: 'nxb1', r: 51, seed: 0.7, pts: 10, wob: 0.055, spin: 34, dir: '' },
+        { cls: 'nxb2', r: 49, seed: 2.1, pts: 12, wob: 0.072, spin: 46, dir: 'nx-rev' },
+        { cls: 'nxb3', r: 47, seed: 3.9, pts: 11, wob: 0.088, spin: 28, dir: '' },
+        { cls: 'nxb4', r: 45, seed: 5.4, pts: 13, wob: 0.104, spin: 58, dir: 'nx-rev' }
     ];
 
     function ringSvg(gold) {
@@ -421,4 +421,29 @@
 
     // 初始渲染
     renderAny('root');
+
+    // ── 动效开关：默认开启（不受系统「减少动态效果」影响），可手动关闭并记住 ──
+    (function initAnimToggle() {
+        var KEY = 'siro_next_anim';
+        var root = document.documentElement;
+        function apply(on) {
+            root.classList.toggle('nx-anim-off', !on);
+            var b = document.getElementById('nxAnimToggle');
+            if (b) {
+                b.textContent = on ? '动效 开' : '动效 关';
+                b.classList.toggle('is-off', !on);
+            }
+        }
+        var on = true;
+        try { if (localStorage.getItem(KEY) === '0') on = false; } catch (e) { /* 忽略 */ }
+        apply(on);
+        var btn = document.getElementById('nxAnimToggle');
+        if (btn) {
+            btn.addEventListener('click', function () {
+                on = !on;
+                apply(on);
+                try { localStorage.setItem(KEY, on ? '1' : '0'); } catch (e) { /* 忽略 */ }
+            });
+        }
+    })();
 })();
