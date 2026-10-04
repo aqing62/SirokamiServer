@@ -458,6 +458,17 @@
     var DUELS_API = 'https://api.ygopro3.cn/api/ladder/duels';
     var DECKS_API = 'https://api.ygopro3.cn/api/ladder/decks';
     var _cardMap = null;
+    // 卡图地址（与经典版一致：DIY 走本站图床，OCG 走萌卡 CDN，另有备用）
+    var PIC_DIY = 'https://api.ygopro3.cn/pics/siro/';
+    var PIC_OCG = 'https://cdn.233.momobako.com/ygopro/pics/';
+    var PIC_ALT = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
+
+    function cardInfo(id) { return (_cardMap && _cardMap[String(id)]) || null; }
+    function cardPicUrl(id) {
+        var info = cardInfo(id);
+        var diy = info && info.category === 'DIY';
+        return (diy ? PIC_DIY : PIC_OCG) + id + '.jpg';
+    }
 
     function loadCardMap() {
         if (_cardMap) return Promise.resolve(_cardMap);
@@ -682,13 +693,29 @@
                     if (!ids || !ids.length) return '';
                     return '<div class="nx-deck-group"><div class="nx-deck-group-title">' + title + ' <i>' + ids.length + '</i></div>' +
                         '<div class="nx-deck-cards">' + ids.map(function (id) {
-                            return '<span class="nx-deck-card">' + esc(cardName(id)) + '</span>';
+                            var nm = cardName(id);
+                            return '<div class="nx-deck-tile" title="' + esc(nm) + '">' +
+                                '<img class="nx-deck-img" src="' + cardPicUrl(id) + '" loading="lazy" alt="">' +
+                                '<span class="nx-deck-name">' + esc(nm) + '</span>' +
+                            '</div>';
                         }).join('') + '</div></div>';
                 }
                 box.innerHTML =
                     '<div class="nx-deck-meta">' + esc(d.roomName || '') + ' · ' + esc(d.winner || '') + ' vs ' + esc(d.opponent || '') +
                         ' · ' + fmtTime(d.time) + '</div>' +
                     group('主卡组', d.deck.main) + group('额外卡组', d.deck.extra) + group('副卡组', d.deck.side);
+                // 卡图兜底： DIY 失败 → 借 OCG 图 → 备用 CDN → 标记缺失
+                Array.prototype.forEach.call(box.querySelectorAll('.nx-deck-img'), function (img) {
+                    var step = 0;
+                    img.addEventListener('error', function () {
+                        var id = (img.getAttribute('src') || '').match(/\/(\d+)\.jpg/);
+                        id = id ? id[1] : '';
+                        step++;
+                        if (step === 1) img.src = PIC_OCG + id + '.jpg';
+                        else if (step === 2) img.src = PIC_ALT + id + '.jpg';
+                        else img.classList.add('is-missing');
+                    });
+                });
             });
         }).catch(function () {
             var box = document.getElementById('nxPovView');
