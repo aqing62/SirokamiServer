@@ -1446,3 +1446,27 @@ body.nx-zoomed .nx-foot {
   .nx-cf-clear { width: 34px; height: 34px; }
   .nx-cf-search.is-open input { width: min(58vw, 230px); font-size: 16px; }   /* 16px 避免 iOS 聚焦缩放 */
 }
+
+
+/* ── 卡组下载（YDK）：无边框小按钮，放在信息行里 ─────────── */
+.nx-deck-dl {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 8px; margin-left: 4px;
+  border: none; border-radius: 999px;
+  background: rgba(255, 255, 255, .05);
+  color: #b9b9c2; font-family: inherit; font-size: 11.5px; letter-spacing: .5px;
+  cursor: pointer;
+  transition: background .2s, color .2s, transform .2s, box-shadow .2s;
+}
+.nx-deck-dl svg { width: 14px; height: 14px; display: block; }
+.nx-deck-dl:hover {
+  background: rgba(212, 175, 55, .18);
+  color: #fff3c4;
+  box-shadow: 0 0 14px rgba(212, 175, 55, .28);
+  transform: translateY(-1px);
+}
+.nx-deck-dl:active { transform: translateY(0) scale(.97); }
+@media (max-width: 768px) {
+  .nx-deck-dl { font-size: 12px; padding: 5px 10px; }
+  .nx-deck-dl svg { width: 15px; height: 15px; }
+}

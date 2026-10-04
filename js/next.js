@@ -932,16 +932,49 @@
             var d = (data && data.decks && data.decks[0]) || null;
             if (!d || !d.deck) { box.innerHTML = '<div class="nx-empty">还没有可用于展示的卡组</div>'; return; }
             renderDeckInto(box, d.deck,
-                esc(d.roomName || '') + ' · ' + esc(d.winner || '') + ' vs ' + esc(d.opponent || '') + ' · ' + fmtTime(d.time));
+                esc(d.roomName || '') + ' · ' + esc(d.winner || '') + ' vs ' + esc(d.opponent || '') + ' · ' + fmtTime(d.time),
+                (p.name || '卡组') + '-' + (d.roomName || ''));
         }).catch(function () {
             var box = document.getElementById('nxPovView');
             if (box) box.innerHTML = '<div class="nx-empty">卡组读取失败</div>';
         });
     }
 
+    // ── 卡组下载（YDK 文本，格式与经典版 downloadYdk 一致）──
+    var _deckDlAt = 0;
+    function deckToYdk(deck) {
+        var lines = ['#created by Sirokami'];
+        if ((deck.main || []).length) { lines.push('#main'); deck.main.forEach(function (id) { lines.push(String(id)); }); }
+        if ((deck.extra || []).length) { lines.push('#extra'); deck.extra.forEach(function (id) { lines.push(String(id)); }); }
+        if ((deck.side || []).length) { lines.push('!side'); deck.side.forEach(function (id) { lines.push(String(id)); }); }
+        return lines.join('\n');
+    }
+    function downloadDeckYdk(deck, name, btn) {
+        var now = Date.now();
+        if (now - _deckDlAt < 5000) return;          // 与经典版一致：5 秒冷却
+        _deckDlAt = now;
+        try {
+            var blob = new Blob([deckToYdk(deck)], { type: 'text/plain;charset=utf-8' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = (String(name || 'deck').replace(/[\\/:*?"<>|]/g, '_')) + '.ydk';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+        } catch (e) { /* 忽略 */ }
+        playSfx('click');
+        if (btn) {
+            var old = btn.getAttribute('data-txt') || 'YDK';
+            btn.textContent = '已下载';
+            setTimeout(function () { btn.textContent = old; }, 1400);
+        }
+    }
+
     // 渲染一套卡组：先预加载全部卡图 → 再一屏全显示（含分值/DIY 角标、悬停效果浮层）
     // 「选手详情 · 卡组信息」与「预组卡组」共用这一段
-    function renderDeckInto(box, deck, meta) {
+    function renderDeckInto(box, deck, meta, dlName) {
         if (!box || !deck) return;
         hideCardTip(true);     // 重渲染前先收掉旧的效果框
         // ① 先播加载动画：等卡图全部就绪再渲染，入场动画才不会"播完了图还没出来"
@@ -991,6 +1024,11 @@
                         '<span class="nx-deck-info-item">主 <b>' + (deck.main || []).length + '</b></span>' +
                         '<span class="nx-deck-info-item">额外 <b>' + (deck.extra || []).length + '</b></span>' +
                         '<span class="nx-deck-info-item">副 <b>' + (deck.side || []).length + '</b></span>' +
+                        '<button class="nx-deck-dl" type="button" title="下载卡组 (YDK)">' +
+                            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+                                '<path d="M12 4v11"></path><path d="M7.5 11.5 12 16l4.5-4.5"></path><path d="M5 19h14"></path>' +
+                            '</svg><span data-txt="YDK">YDK</span>' +
+                        '</button>' +
                     '</div>' +
                     (meta ? '<div class="nx-deck-meta">' + meta + '</div>' : '') +
                     '<div class="nx-deck-fit" id="nxDeckFit">' +
@@ -999,6 +1037,14 @@
                             '<div class="nx-deck-col-side">' + group('额外卡组', deck.extra) + group('副卡组', deck.side) + '</div>' +
                         '</div>' +
                     '</div>';
+                // 下载 YDK（与经典版同一套格式）
+                var dlBtn = box.querySelector('.nx-deck-dl');
+                if (dlBtn) {
+                    dlBtn.addEventListener('click', function (ev) {
+                        ev.stopPropagation();          // 不穿透到"点空白返回"
+                        downloadDeckYdk(deck, dlName, dlBtn.querySelector('span') || dlBtn);
+                    });
+                }
                 // 卡图逐级兜底（OCG → SuperPre → DIY，DIY 成功打角标）+ 悬停效果浮层
                 Array.prototype.forEach.call(box.querySelectorAll('.nx-deck-tile'), function (tile) {
                     var id = tile.getAttribute('data-id');
@@ -1553,7 +1599,7 @@
             closePlayerOverlay();
         });
         var box = document.getElementById('nxPovView');
-        if (box) renderDeckInto(box, deck, meta || '');
+        if (box) renderDeckInto(box, deck, meta || '', name || '卡组');
     }
 
     var RENDERERS = { ladder: renderLadder, preset: renderPreset };
