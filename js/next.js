@@ -563,8 +563,8 @@
     }
 
     // ── 临时调试开关：磁吸 / 拉拽 / 扭曲 ──
-    // wobble（形状持续扭曲）默认关闭：实测它会造成轻微抽搐感，关掉后手感更稳
-    var FX = { magnet: true, drag: true, wobble: false };
+    // 三项效果默认全开；此前"抽搐"的真因是磁吸自激振荡 + 拉拽作用范围过大(已修)，与扭曲无关
+    var FX = { magnet: true, drag: true, wobble: true };
     (function initFxPanel() {
         var KEY = 'siro_next_fx';
         try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
