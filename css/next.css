@@ -463,3 +463,41 @@ body:not(.nx-boot) .nx-welcome { display: none; }
 
 /* 跳过开场：点击/按键后立刻进入最终状态 */
 body.nx-skip .nx-welcome { display: none; }
+
+
+/* ── 开场退场：Sirokami 逐字分开飘散 ──────────────────────
+   字母各自向外平移 + 轻微上飘与倾斜，并带一点错开延迟，
+   与外层的「失焦淡出」叠加，形成散开的效果 */
+.nx-welcome .nx-w-name {
+  display: inline-flex;
+  align-items: baseline;
+}
+.nx-welcome .nx-w-ch {
+  display: inline-block;
+  font-style: normal;
+  will-change: transform, opacity, filter;
+  /* 每个字母的飘散方向/距离：以中心为轴向外（跨度约 ±77px） */
+  --dx: calc((var(--li) - 3.5) * 22px);
+  --dy: calc(-6px - var(--li) * -0.6px);
+  --rt: calc((var(--li) - 3.5) * 0.9deg);
+  animation: nxChSplit 2.9s ease-in-out both;
+  animation-delay: calc(var(--li) * 20ms);
+}
+@keyframes nxChSplit {
+  0%, 68% { transform: translateX(0) translateY(0) rotate(0deg); opacity: 1; filter: blur(0); }
+  86%     { opacity: .85; filter: blur(1px); }
+  100%    {
+    transform: translateX(var(--dx)) translateY(var(--dy)) rotate(var(--rt));
+    opacity: 0;
+    filter: blur(3px);
+  }
+}
+/* 小字「欢迎来到」：比大字早一点淡出，让焦点先落在 Sirokami 上 */
+.nx-welcome .nx-w-greet {
+  animation: nxGreetOut 2.9s ease-in-out both;
+}
+@keyframes nxGreetOut {
+  0%, 34% { opacity: 1; letter-spacing: .5em; }
+  58%     { opacity: 0; letter-spacing: .8em; }
+  100%    { opacity: 0; letter-spacing: .8em; }
+}
