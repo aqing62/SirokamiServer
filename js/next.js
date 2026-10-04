@@ -797,16 +797,13 @@
         });
     }
 
-    // 把两个线圈"就地冻结"（绝对的当前位置），使其退出时不再占据布局空间
-    // cr：切换对齐之前量到的线圈矩形（用它换算偏移，视觉上才不会跳）
+    // 把两个线圈"就地冻结"：移到覆盖层下（覆盖层没有 transform，不会跟着内层上滑），并用绝对定位停在当前视觉位置
     function freezeChoices(el, cr) {
         var ch = el.querySelector('.nx-pov-choices');
         if (!ch || ch.dataset.frozen === '1') return ch;
         cr = cr || ch.getBoundingClientRect();
-        // 绝对定位的参照是最近的定位祖先（这里是 .nx-pov-inner），且此刻它已经移动过了，
-        // 所以要用"当前"的 host 矩形来换算，才能让线圈停在原来那个视觉位置。
-        var host = ch.offsetParent || el;
-        var hr = host.getBoundingClientRect();
+        el.appendChild(ch);                     // 挂到覆盖层，脱离内层的位移影响
+        var hr = el.getBoundingClientRect();
         ch.style.position = 'absolute';
         ch.style.left = (cr.left - hr.left) + 'px';
         ch.style.top = (cr.top - hr.top) + 'px';
@@ -820,6 +817,9 @@
         if (!ch) return ch;
         ch.style.cssText = '';
         ch.dataset.frozen = '';
+        var inner = el.querySelector('.nx-pov-inner');
+        var view = document.getElementById('nxPovView');
+        if (inner && ch.parentNode !== inner) inner.insertBefore(ch, view);   // 放回内层（内容视图之前）
         return ch;
     }
 
