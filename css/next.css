@@ -453,10 +453,10 @@ body.nx-boot .nx-welcome {
   animation: nxWelcomeIn 3s ease-in-out both;
 }
 @keyframes nxWelcomeIn {
-  0%   { opacity: 0; transform: scale(.94); filter: blur(6px); }
+  0%   { opacity: 0; transform: scale(.94); filter: blur(6px); }   /* 远焦 → 合焦（入场） */
   26%  { opacity: 1; transform: scale(1);   filter: blur(0); }
-  70%  { opacity: 1; transform: scale(1.005); }
-  100% { opacity: 0; transform: scale(1.03); filter: blur(2px); }
+  80%  { opacity: 1; transform: scale(1.004); filter: blur(0); }   /* 停留 */
+  100% { opacity: 0; transform: scale(1.02); filter: blur(0); }    /* 退场：不再叠模糊，让字母散开可见 */
 }
 /* 开场结束后彻底移除欢迎层 */
 body:not(.nx-boot) .nx-welcome { display: none; }
@@ -477,19 +477,20 @@ body.nx-skip .nx-welcome { display: none; }
   font-style: normal;
   will-change: transform, opacity, filter;
   /* 每个字母的飘散方向/距离：以中心为轴向外（跨度约 ±77px） */
-  --dx: calc((var(--li) - 3.5) * 22px);
+  --dx: calc((var(--li) - 3.5) * 26px);
   --dy: calc(-6px - var(--li) * -0.6px);
   --rt: calc((var(--li) - 3.5) * 0.9deg);
-  animation: nxChSplit 2.9s ease-in-out both;
-  animation-delay: calc(var(--li) * 20ms);
+  animation: nxChSplit 2.95s cubic-bezier(.32, .06, .3, 1) both;
+  animation-delay: calc(var(--li) * 16ms);
 }
 @keyframes nxChSplit {
-  0%, 68% { transform: translateX(0) translateY(0) rotate(0deg); opacity: 1; filter: blur(0); }
-  86%     { opacity: .85; filter: blur(1px); }
+  0%, 46% { transform: translateX(0) translateY(0) rotate(0deg); opacity: 1; filter: blur(0); }
+  72%     { transform: translateX(calc(var(--dx) * .55)) translateY(calc(var(--dy) * .55)) rotate(calc(var(--rt) * .55)); opacity: 1; filter: blur(.4px); }
+  92%     { opacity: .9; filter: blur(1.2px); }
   100%    {
     transform: translateX(var(--dx)) translateY(var(--dy)) rotate(var(--rt));
-    opacity: 0;
-    filter: blur(3px);
+    opacity: .18;
+    filter: blur(2px);
   }
 }
 /* 小字「欢迎来到」：比大字早一点淡出，让焦点先落在 Sirokami 上 */
