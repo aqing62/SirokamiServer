@@ -16,9 +16,9 @@
             q: '你今天想做什么？',
             hint: '一步一步来，我会带你到对应功能',
             options: [
-                { icon: '🎴', label: '打牌', sub: '进服对局', next: 'play' },
-                { icon: '🧩', label: '组卡', sub: '卡组编辑', next: 'deck' },
-                { icon: '🏆', label: '看战绩', sub: '天梯 / 榜单', next: 'stats' }
+                { icon: 'cards', label: '打牌', sub: '进服对局', next: 'play' },
+                { icon: 'layers', label: '组卡', sub: '卡组编辑', next: 'deck' },
+                { icon: 'chart', label: '看战绩', sub: '天梯 / 榜单', next: 'stats' }
             ]
         },
 
@@ -27,9 +27,9 @@
             q: '想怎么打？',
             hint: '三种模式规则不同，按你的目的选',
             options: [
-                { icon: '⚡', label: '天梯匹配', sub: '计分 / 上分', next: 'r_ladder' },
-                { icon: '🤝', label: '和朋友开房', sub: '娱乐 / 不计分', next: 'r_room' },
-                { icon: '📜', label: '编年史', sub: '随机卡组', next: 'r_chronicle' }
+                { icon: 'bolt', label: '天梯匹配', sub: '计分 / 上分', next: 'r_ladder' },
+                { icon: 'house', label: '和朋友开房', sub: '娱乐 / 不计分', next: 'r_room' },
+                { icon: 'book', label: '编年史', sub: '随机卡组', next: 'r_chronicle' }
             ]
         },
         r_ladder: {
@@ -42,9 +42,9 @@
                 '打满 <b>5 场定级赛</b> + 遇到 <b>3 名不同对手</b>，才会出现在排行榜'
             ],
             cta: [
-                { icon: '🏟', label: '打开比赛相关', goto: 'tournament' },
-                { icon: '📈', label: '看我的排名', goto: 'ranking' },
-                { icon: '↺', label: '重新选', back: true }
+                { icon: 'bracket', label: '打开比赛相关', goto: 'tournament' },
+                { icon: 'chart', label: '看我的排名', goto: 'ranking' },
+                { icon: 'undo', label: '重新选', back: true }
             ]
         },
         r_room: {
@@ -56,8 +56,8 @@
                 '想玩随机卡组就用 <b>C</b>（编年史模式）'
             ],
             cta: [
-                { icon: '🔑', label: '查房间代码', goto: 'chronicle' },
-                { icon: '↺', label: '重新选', back: true }
+                { icon: 'house', label: '查房间代码', goto: 'chronicle' },
+                { icon: 'undo', label: '重新选', back: true }
             ]
         },
         r_chronicle: {
@@ -69,8 +69,8 @@
                 '想先看看有哪些卡组可以去经典版「编年史卡组池」翻'
             ],
             cta: [
-                { icon: '📚', label: '看卡组池', goto: 'chronicle' },
-                { icon: '↺', label: '重新选', back: true }
+                { icon: 'book', label: '看卡组池', goto: 'chronicle' },
+                { icon: 'undo', label: '重新选', back: true }
             ]
         },
 
@@ -79,9 +79,9 @@
             q: '组卡这边你想干嘛？',
             hint: 'G-Ext 卡组总分上限 100 分',
             options: [
-                { icon: '🛠', label: '从零组一套', sub: '组卡模式', next: 'r_build' },
-                { icon: '⭐', label: '查卡片分值', sub: '禁限分值', next: 'r_score' },
-                { icon: '📦', label: '抄别人的卡组', sub: '投稿 / 八强', next: 'r_ref' }
+                { icon: 'build', label: '从零组一套', sub: '组卡模式', next: 'r_build' },
+                { icon: 'gauge', label: '查卡片分值', sub: '禁限分值', next: 'r_score' },
+                { icon: 'copy', label: '抄别人的卡组', sub: '投稿 / 八强', next: 'r_ref' }
             ]
         },
         r_build: {
@@ -94,8 +94,8 @@
                 '右侧 <b>⚙ 筛选</b> 按类型/属性/种族/攻守/分值筛选，<b>清空</b>一键还原'
             ],
             cta: [
-                { icon: '🛠', label: '打开组卡模式', goto: 'deck' },
-                { icon: '↺', label: '重新选', back: true }
+                { icon: 'build', label: '打开组卡模式', goto: 'deck' },
+                { icon: 'undo', label: '重新选', back: true }
             ]
         },
         r_score: {
@@ -107,8 +107,8 @@
                 '<b>同名卡分值合并</b>：异画、同名补充卡按原卡计分'
             ],
             cta: [
-                { icon: '📊', label: '查禁限分值', goto: 'cards' },
-                { icon: '↺', label: '重新选', back: true }
+                { icon: 'gauge', label: '查禁限分值', goto: 'cards' },
+                { icon: 'undo', label: '重新选', back: true }
             ]
         },
         r_ref: {
@@ -120,8 +120,8 @@
                 '<b>天梯胜者卡组</b>：在游戏内用 <code>/winnerdeck 玩家名</code> 查看'
             ],
             cta: [
-                { icon: '📚', label: '打开卡组池', goto: 'chronicle' },
-                { icon: '↺', label: '重新选', back: true }
+                { icon: 'book', label: '打开卡组池', goto: 'chronicle' },
+                { icon: 'undo', label: '重新选', back: true }
             ]
         },
 
@@ -130,9 +130,9 @@
             q: '想看哪方面的战绩？',
             hint: '榜单/对局/回放都在这里',
             options: [
-                { icon: '📈', label: '天梯排名', sub: '段位 / 积分', next: 'r_rank' },
-                { icon: '🎬', label: '看回放', sub: '复盘对局', next: 'r_replay' },
-                { icon: '🏟', label: '比赛相关', sub: '八强 / 对局', next: 'r_tour' }
+                { icon: 'chart', label: '天梯排名', sub: '段位 / 积分', next: 'r_rank' },
+                { icon: 'play', label: '看回放', sub: '复盘对局', next: 'r_replay' },
+                { icon: 'bracket', label: '比赛相关', sub: '八强 / 对局', next: 'r_tour' }
             ]
         },
         r_rank: {
@@ -144,8 +144,8 @@
                 '积分 ≥150 可开通<b>投稿 DIY 卡</b>资格'
             ],
             cta: [
-                { icon: '📈', label: '打开排行榜', goto: 'ranking' },
-                { icon: '↺', label: '重新选', back: true }
+                { icon: 'chart', label: '打开排行榜', goto: 'ranking' },
+                { icon: 'undo', label: '重新选', back: true }
             ]
         },
         r_replay: {
@@ -157,8 +157,8 @@
                 '会自动演出发动/召唤/攻击特效，并标注表示形式变化'
             ],
             cta: [
-                { icon: '🎬', label: '打开回放播放器', goto: 'replay' },
-                { icon: '↺', label: '重新选', back: true }
+                { icon: 'play', label: '打开回放播放器', goto: 'replay' },
+                { icon: 'undo', label: '重新选', back: true }
             ]
         },
         r_tour: {
@@ -170,8 +170,8 @@
                 '右上角还有 <b>历届八强</b>（往届卡组）和 <b>当前对局</b>（服务器实时房间）'
             ],
             cta: [
-                { icon: '🏟', label: '打开比赛相关', goto: 'tournament' },
-                { icon: '↺', label: '重新选', back: true }
+                { icon: 'bracket', label: '打开比赛相关', goto: 'tournament' },
+                { icon: 'undo', label: '重新选', back: true }
             ]
         }
     };
@@ -217,6 +217,27 @@
                 if (done) done();
             }
         }, 26);
+    }
+
+    // ── 自绘线条图标（无 emoji）：24×24、无填充、1.6px 描边、圆头 ──
+    var ICONS = {
+        cards:   '<rect x="3.5" y="6" width="9" height="13" rx="1.6" transform="rotate(-9 8 12.5)"/><rect x="11.5" y="5" width="9" height="13" rx="1.6" transform="rotate(9 16 11.5)"/>',
+        layers:  '<path d="M12 3.2 20 7.6l-8 4.4-8-4.4z"/><path d="M4 11.6 12 16l8-4.4"/><path d="M4 15.8 12 20.2l8-4.4"/>',
+        chart:   '<path d="M4 20h16"/><path d="M7.5 20V11"/><path d="M12 20V5.5"/><path d="M16.5 20v-6"/>',
+        bolt:    '<path d="M13.2 3 5.5 13.2h4.6l-1 7.8L17.8 10.8h-4.9z"/>',
+        house:   '<path d="M3.6 11.2 12 4.5l8.4 6.7"/><path d="M6 10.4V19.5h12V10.4"/><path d="M10 19.5v-5h4v5"/>',
+        book:    '<path d="M12 6.5v12.8"/><path d="M4 5.2h5.4A2.6 2.6 0 0 1 12 7.8v11.5a2.6 2.6 0 0 0-2.6-2.6H4z"/><path d="M20 5.2h-5.4A2.6 2.6 0 0 0 12 7.8v11.5a2.6 2.6 0 0 1 2.6-2.6H20z"/>',
+        build:   '<rect x="4" y="4" width="16" height="16" rx="3.4"/><path d="M12 8.6v6.8"/><path d="M8.6 12h6.8"/>',
+        gauge:   '<path d="M4.2 17.4a8.4 8.4 0 1 1 15.6 0"/><path d="M12 17.2l4.4-4.8"/><circle cx="12" cy="17.6" r="1.1"/>',
+        copy:    '<rect x="8.4" y="8.4" width="11.2" height="11.2" rx="2.2"/><path d="M15.6 8.4V6.2a2.2 2.2 0 0 0-2.2-2.2H6.2A2.2 2.2 0 0 0 4 6.2v7.2a2.2 2.2 0 0 0 2.2 2.2h2.2"/>',
+        bracket: '<rect x="3.2" y="4" width="6" height="6" rx="1.4"/><rect x="3.2" y="14" width="6" height="6" rx="1.4"/><rect x="15" y="9" width="5.8" height="6" rx="1.4"/><path d="M9.2 7h3.4a2 2 0 0 1 2 2v3.4"/><path d="M9.2 17h3.4a2 2 0 0 0 2-2v-3.4"/>',
+        play:    '<circle cx="12" cy="12" r="8.2"/><path d="M10.4 9.2 15.2 12l-4.8 2.8z"/>',
+        undo:    '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20.2 4.2v4.6h-4.6"/>',
+    };
+
+    function iconSvg(name) {
+        var body = ICONS[name] || ICONS.chart;
+        return '<svg class="nx-icon" viewBox="0 0 24 24" aria-hidden="true">' + body + '</svg>';
     }
 
     // ── 边缘圈：4 个不规则闭合细线圈套叠，形状各异，各自旋转 ──
@@ -394,7 +415,7 @@
             b.className = 'nx-option';
             b.style.setProperty('--i', i);
             b.innerHTML = ringSvg(false)
-                + '<span class="nx-opt-icon">' + opt.icon + '</span>'
+                + '<span class="nx-opt-icon">' + iconSvg(opt.icon) + '</span>'
                 + '<span class="nx-opt-label">' + esc(opt.label) + '</span>'
                 + (opt.sub ? '<span class="nx-opt-sub">' + esc(opt.sub) + '</span>' : '');
             b.addEventListener('click', function (ev) {
@@ -451,7 +472,7 @@
             b.className = 'nx-cta' + (c.back ? ' nx-cta-ghost' : '');
             b.style.setProperty('--i', i);
             b.innerHTML = ringSvg(!c.back)
-                + '<span class="nx-cta-icon">' + c.icon + '</span><span>' + esc(c.label) + '</span>';
+                + '<span class="nx-cta-icon">' + iconSvg(c.icon) + '</span><span>' + esc(c.label) + '</span>';
             b.addEventListener('click', function (ev) {
                 ripple(b, ev);
                 if (c.back) { setTimeout(goBack, 140); return; }

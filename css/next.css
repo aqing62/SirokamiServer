@@ -493,3 +493,20 @@ body.nx-skip .nx-welcome { display: none; }
   72%     { opacity: 0; }
   100%    { opacity: 0; }
 }
+
+
+/* ── 自绘线条图标（按钮内）── */
+.nx-icon {
+  display: block;
+  stroke: currentColor;
+  fill: none;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.nx-option .nx-opt-icon .nx-icon { width: calc(var(--size) * .28); height: calc(var(--size) * .28); }
+.nx-cta .nx-cta-icon .nx-icon { width: calc(var(--size) * .3); height: calc(var(--size) * .3); }
+/* 图标容器不再需要 emoji 字号 */
+.nx-option .nx-opt-icon, .nx-cta .nx-cta-icon { display: grid; place-items: center; line-height: 1; }
+.nx-option:hover .nx-icon { stroke-width: 1.9; }
