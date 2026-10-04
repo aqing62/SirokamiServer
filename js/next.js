@@ -162,6 +162,36 @@
         }
     };
 
+    // ── 音效（从音效包里抽出的三段：点击 ×2 交替、返回 ×1）──
+    var SFX = { on: true, click: [], back: null, idx: 0 };
+    (function initSfx() {
+        try { if (localStorage.getItem('siro_next_sfx') === '0') SFX.on = false; } catch (e) { /* 忽略 */ }
+        try {
+            SFX.click = ['audio/se-click-1.wav', 'audio/se-click-2.wav'].map(function (src) {
+                var a = new Audio(src);
+                a.preload = 'auto';
+                a.volume = 0.45;
+                return a;
+            });
+            SFX.back = new Audio('audio/se-back.wav');
+            SFX.back.preload = 'auto';
+            SFX.back.volume = 0.45;
+        } catch (e) { /* 音频不可用时静默 */ }
+    })();
+
+    function playSfx(kind) {
+        if (!SFX.on) return;
+        var a = null;
+        if (kind === 'back') {
+            a = SFX.back;
+        } else if (SFX.click.length) {
+            SFX.idx = (SFX.idx + 1) % SFX.click.length;   // 两个点击音交替
+            a = SFX.click[SFX.idx];
+        }
+        if (!a) return;
+        try { a.currentTime = 0; var p = a.play(); if (p && p.catch) p.catch(function () {}); } catch (e) { /* 忽略 */ }
+    }
+
     // ── 功能屏幕（外壳）：每个按钮对应一个屏幕，先占位，后续逐页填内容 ──
     var SCREENS = {
         room:     { title: '房间与规则', sub: '房间名 / 密码里的规则代码', goto: 'room',      todo: '静态内容：房间代码表 + 规则说明（无需接口）' },
@@ -211,7 +241,7 @@
                 '<span class="nx-screen-hint">点空白处 / Esc 返回</span>' +
             '</div>';
         var back = screenEl.querySelector('.nx-screen-back');
-        if (back) back.addEventListener('click', function () { goBack(); });
+        if (back) back.addEventListener('click', function () { playSfx('back'); goBack(); });
         var cl = screenEl.querySelector('.nx-screen-classic');
         if (cl) cl.addEventListener('click', function () { jumpClassic(s.goto); });
     }
@@ -619,7 +649,8 @@
         function sync() {
             var btns = panel.querySelectorAll('.nx-dbg-btn');
             for (var i = 0; i < btns.length; i++) {
-                var on = !!FX[btns[i].getAttribute('data-fx')];
+                var key = btns[i].getAttribute('data-fx');
+                var on = key === 'sfx' ? SFX.on : !!FX[key];
                 btns[i].classList.toggle('is-on', on);
             }
             try { localStorage.setItem(KEY, JSON.stringify(FX)); } catch (e) { /* 忽略 */ }
@@ -628,6 +659,13 @@
             var b = ev.target.closest ? ev.target.closest('.nx-dbg-btn') : null;
             if (!b) return;
             var key = b.getAttribute('data-fx');
+            if (key === 'sfx') {                       // 音效开关（单独存）
+                SFX.on = !SFX.on;
+                try { localStorage.setItem('siro_next_sfx', SFX.on ? '1' : '0'); } catch (e) { /* 忽略 */ }
+                b.classList.toggle('is-on', SFX.on);
+                if (SFX.on) playSfx('click');
+                return;
+            }
             FX[key] = !FX[key];
             sync();
         });
@@ -733,12 +771,14 @@
         if (topNode && topNode.screen) return;                     // 功能屏上用返回键/Esc
         var t = ev.target;
         if (t && t.closest && t.closest('button, a, input, select, textarea, label, .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug')) return;
+        playSfx('back');
         goBack();
     });
     document.addEventListener('keydown', function (ev) {
         if (ev.key !== 'Escape') return;
         if (document.body.classList.contains('nx-boot')) return;
         if (ev.target && ev.target.closest && ev.target.closest('input, textarea, select')) return;
+        playSfx('back');
         goBack();
     });
 
@@ -759,6 +799,7 @@
                 + (opt.sub ? '<span class="nx-opt-sub">' + esc(opt.sub) + '</span>' : '');
             b.addEventListener('click', function (ev) {
                 ripple(b, ev);
+                playSfx('click');
                 setTimeout(function () { goTo(opt.next, opt.label); }, 120);
             });
             bindHoverRegular(b);
@@ -812,6 +853,7 @@
                 + '<span class="nx-cta-icon">' + iconSvg(c.icon) + '</span><span>' + esc(c.label) + '</span>';
             b.addEventListener('click', function (ev) {
                 ripple(b, ev);
+                playSfx(c.back ? 'back' : 'click');
                 if (c.back) { setTimeout(goBack, 140); return; }
                 // 新屏优先：不再把人送进旧页面
                 if (c.screen) { setTimeout(function () { goScreen(c.screen); }, 140); return; }
