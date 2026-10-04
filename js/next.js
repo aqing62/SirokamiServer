@@ -703,7 +703,12 @@
                 box.innerHTML =
                     '<div class="nx-deck-meta">' + esc(d.roomName || '') + ' · ' + esc(d.winner || '') + ' vs ' + esc(d.opponent || '') +
                         ' · ' + fmtTime(d.time) + '</div>' +
-                    group('主卡组', d.deck.main) + group('额外卡组', d.deck.extra) + group('副卡组', d.deck.side);
+                    '<div class="nx-deck-fit" id="nxDeckFit">' +
+                        '<div class="nx-deck-cols">' +
+                            '<div class="nx-deck-col-main">' + group('主卡组', d.deck.main) + '</div>' +
+                            '<div class="nx-deck-col-side">' + group('额外卡组', d.deck.extra) + group('副卡组', d.deck.side) + '</div>' +
+                        '</div>' +
+                    '</div>';
                 // 卡图兜底： DIY 失败 → 借 OCG 图 → 备用 CDN → 标记缺失
                 Array.prototype.forEach.call(box.querySelectorAll('.nx-deck-img'), function (img) {
                     var step = 0;
@@ -716,12 +721,36 @@
                         else img.classList.add('is-missing');
                     });
                 });
+                // 一屏全显示：放不下就整体等比缩小（不出现内部滚动条）
+                fitDeckScale(box);
             });
         }).catch(function () {
             var box = document.getElementById('nxPovView');
             if (box) box.innerHTML = '<div class="nx-empty">卡组读取失败</div>';
         });
     }
+
+    // 让卡组一屏放得下：超出可用高度时整体等比缩放（老站式全显示，不用滚动）
+    function fitDeckScale(box) {
+        var fit = document.getElementById('nxDeckFit');
+        if (!fit) return;
+        fit.style.transform = 'none';
+        box.style.height = '';
+        box.style.overflow = '';
+        var avail = Math.max(220, window.innerHeight * 0.66);
+        var need = fit.scrollHeight;
+        if (need > avail) {
+            var k = avail / need;
+            fit.style.transformOrigin = 'top center';
+            fit.style.transform = 'scale(' + k.toFixed(4) + ')';
+            box.style.height = Math.ceil(need * k) + 'px';
+            box.style.overflow = 'hidden';
+        }
+    }
+    window.addEventListener('resize', function () {
+        var box = document.getElementById('nxPovView');
+        if (box && box.querySelector('.nx-deck-fit')) fitDeckScale(box);
+    });
 
     var RENDERERS = { ladder: renderLadder };
 

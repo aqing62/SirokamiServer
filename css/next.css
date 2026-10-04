@@ -855,6 +855,7 @@ body.nx-zoomed .nx-foot {
 .nx-pov.is-viewing .nx-pov-title { opacity: .55; transition: opacity .3s; }
 
 .nx-pov-view.is-duels { width: min(640px, 100%); }
+.nx-pov-view:not(.is-duels) { width: min(1060px, 100%); }
 .nx-pov-view { width: min(880px, 100%); max-height: 56vh; overflow-y: auto; scrollbar-width: thin; animation: nxPovViewIn .46s cubic-bezier(.22,.9,.28,1.02) both .1s; }
 .nx-pov-view[hidden] { display: none; }
 @keyframes nxPovViewIn { from { opacity: 0; transform: translateY(14px) scale(.985); filter: blur(8px); } to { opacity: 1; transform: none; filter: blur(0); } }
@@ -1007,4 +1008,22 @@ body.nx-zoomed .nx-foot {
 @media (max-width: 768px) {
   .nx-pov-view .nx-deck-cards { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 10px 8px; }
   .nx-deck-name { font-size: 10px; }
+}
+
+
+/* ── 卡组：老站式两栏全显示（左主卡组 / 右额外+副，各 8 列，无内部滚动）── */
+.nx-deck-fit { width: 100%; }
+.nx-deck-cols { display: flex; gap: clamp(14px, 2vw, 26px); align-items: flex-start; }
+.nx-deck-col-main { flex: 1 1 58%; min-width: 0; }
+.nx-deck-col-side { flex: 0 0 38%; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.nx-pov-view .nx-deck-col-main .nx-deck-cards,
+.nx-pov-view .nx-deck-col-side .nx-deck-cards { grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px 6px; }
+.nx-deck-tile { gap: 3px; }
+.nx-deck-name { font-size: 9.5px; line-height: 1.25; -webkit-line-clamp: 2; }
+@media (max-width: 900px) {
+  .nx-deck-cols { flex-direction: column; }
+  .nx-deck-col-main, .nx-deck-col-side { flex: 1 1 auto; width: 100%; }
+  .nx-pov-view .nx-deck-col-main .nx-deck-cards,
+  .nx-pov-view .nx-deck-col-side .nx-deck-cards { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px 5px; }
+  .nx-deck-name { font-size: 9px; }
 }
