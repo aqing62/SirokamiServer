@@ -1204,6 +1204,7 @@
     }
 
     // ── 预组卡组（卡片 → 预组）：数据与经典版同一份 decks/chronicle_decks.json ──
+    var _nxBarTouchAt = 0;      // 最近一次触碰预组工具带的时间（防误触用）
     var CHRONICLE_URL = 'decks/chronicle_decks.json?v=20261006p';
     var _presetCache = null;
     function loadChronicleDecks() {
@@ -1460,6 +1461,13 @@
             var searchWrap = document.getElementById('nxCfSearchWrap');
             var lensBtn = document.getElementById('nxCfLens');
             var clearBtn = document.getElementById('nxCfClear');
+            // 工具带（字母 + 搜索）内的任何触碰都记录时间，用于全局返回的防误触判定
+            var barEl = document.querySelector('.nx-cf-bar');
+            if (barEl) {
+                ['pointerdown', 'click'].forEach(function (evt) {
+                    barEl.addEventListener(evt, function () { _nxBarTouchAt = Date.now(); }, true);
+                });
+            }
             function refreshClear() {
                 if (clearBtn) clearBtn.hidden = !(searchEl && searchEl.value.trim()) || (searchWrap && searchWrap.classList.contains('is-open'));
             }
@@ -2078,13 +2086,16 @@
     }
 
     // 点击空白区域返回上一步（点到按钮/链接/滑块等交互元素时不触发）
+    // 防误触：预组顶部那条工具带（字母索引 + 搜索）整体不参与返回，
+    //         并且刚从那条带子上点过（260ms 内）也不算"点空白"，避免放大的触点被误判成返回。
     document.addEventListener('click', function (ev) {
         if (busy) return;
         if (document.body.classList.contains('nx-boot')) return;   // 开场期间不响应
         if (historyStack.length <= 1) return;                      // 没有上一步
         // 功能屏同样支持点空白返回（已无返回按钮）
         var t = ev.target;
-        if (t && t.closest && t.closest('button, a, input, select, textarea, label, .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug, .nx-row, .nx-pov')) return;
+        if (t && t.closest && t.closest('button, a, input, select, textarea, label, .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug, .nx-row, .nx-pov, .nx-cf-bar')) return;
+        if (Date.now() - _nxBarTouchAt < 260) return;               // 刚碰过工具带，视为误触
         playSfx('back');
         goBack();
     });

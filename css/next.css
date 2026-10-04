@@ -1409,14 +1409,14 @@ body.nx-zoomed .nx-foot {
 /* 放大镜：无边框，只用描边 */
 .nx-cf-lens {
   flex: 0 0 auto;
-  width: 30px; height: 30px;
+  width: 40px; height: 40px;      /* 加大触点，降低误触（图标本体不变大太多）*/
   display: flex; align-items: center; justify-content: center;
   border: none; background: none; padding: 0;
   cursor: pointer;
   color: #8d8d96;
   transition: color .22s, transform .46s cubic-bezier(.3, 1.5, .5, 1);
 }
-.nx-cf-lens svg { width: 19px; height: 19px; display: block; }
+.nx-cf-lens svg { width: 21px; height: 21px; display: block; }
 .nx-cf-lens:hover { color: #ffe9a8; }
 .nx-cf-search.is-open .nx-cf-lens { color: #fff3c4; }
 /* 回车：顺时针转一周（带一点弹性过冲） */
@@ -1430,7 +1430,7 @@ body.nx-zoomed .nx-foot {
 /* 清除（有过滤且已收起时出现） */
 .nx-cf-clear {
   flex: 0 0 auto;
-  width: 22px; height: 22px;
+  width: 30px; height: 30px;
   border: none; background: none; padding: 0;
   font-family: inherit; font-size: 12px; line-height: 1;
   color: #7d7d86; cursor: pointer;
@@ -1441,5 +1441,8 @@ body.nx-zoomed .nx-foot {
 
 @media (max-width: 768px) {
   .nx-cf-search { justify-content: flex-end; }
+  .nx-cf-lens { width: 46px; height: 46px; }
+  .nx-cf-lens svg { width: 23px; height: 23px; }
+  .nx-cf-clear { width: 34px; height: 34px; }
   .nx-cf-search.is-open input { width: min(58vw, 230px); font-size: 16px; }   /* 16px 避免 iOS 聚焦缩放 */
 }
