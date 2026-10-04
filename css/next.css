@@ -1303,14 +1303,14 @@ body.nx-zoomed .nx-foot {
 @keyframes nxCfBreath {
   0%, 100% {
     box-shadow: 0 10px 26px rgba(0, 0, 0, .62),
-                0 0 0 1px rgba(255, 226, 96, .6),
-                0 0 20px rgba(255, 214, 40, .4);
+                0 0 0 1px rgba(255, 226, 96, .38),
+                0 0 12px rgba(255, 214, 40, .22);
   }
   50% {
-    box-shadow: 0 14px 34px rgba(0, 0, 0, .68),
-                0 0 0 2px rgba(255, 245, 170, 1),
-                0 0 44px rgba(255, 214, 40, .9),
-                0 0 90px rgba(255, 204, 0, .5);
+    box-shadow: 0 13px 32px rgba(0, 0, 0, .66),
+                0 0 0 1.5px rgba(255, 243, 160, .72),
+                0 0 26px rgba(255, 214, 40, .5),
+                0 0 52px rgba(255, 204, 0, .24);
   }
 }
 .nx-cf-name {
