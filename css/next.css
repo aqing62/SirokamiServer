@@ -1025,29 +1025,10 @@ body.nx-zoomed .nx-foot {
 .nx-deck-info-item b { color: #e8d9a8; font-weight: 700; }
 
 .nx-deck-fit.is-compact .nx-deck-name { display: none; }
-.nx-deck-fit.is-compact .nx-deck-cards { gap: 5px 4px; }
+.nx-deck-fit.is-compact .nx-deck-cards { gap: 2px; }
 
 
-/* ── 卡图角标：禁限分值 + DIY ─────────────────────────── */
-.nx-deck-tile { position: relative; }
-.nx-deck-score {
-  position: absolute; top: 3px; left: 3px;
-  min-width: 15px; height: 15px; padding: 0 4px;
-  display: flex; align-items: center; justify-content: center;
-  border-radius: 5px;
-  font-size: 9.5px; font-weight: 700; line-height: 1;
-  color: #1a0d12;
-  background: linear-gradient(135deg, #F0E68C, #D4AF37);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .55);
-}
-.nx-deck-score.is-forbidden { background: linear-gradient(135deg, #ff8a8a, #D81E44); color: #fff; }
-.nx-deck-diy {
-  position: absolute; top: 3px; right: 3px;
-  padding: 1px 4px; border-radius: 4px;
-  font-size: 8.5px; font-weight: 700; letter-spacing: .5px;
-  color: #ffe9a8; background: rgba(216, 30, 68, .82);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, .5);
-}
+/* 角标样式见上方"复刻老站布局"一节（分值左下 / DIY 右下）*/
 
 /* ── 卡片效果浮层 ─────────────────────────────────────── */
 .nx-card-tip {
