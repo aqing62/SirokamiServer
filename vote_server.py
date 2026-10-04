@@ -483,37 +483,27 @@ def refresh_scores_cache():
     logger.info(f"分数缓存已刷新: {len(scores)} 张, alias {len(aliases)} 条, 同名补充 {filled} 张")
 
 
-def _get_tournament_data(tid: str | None = None) -> dict:
-    """获取比赛数据 (带内存缓存，按比赛ID分别缓存)。"""
+def _fetch_tournament_upstream(tournament_id: str) -> dict:
+    """同步向上游取一次赛事数据（握手类错误重试一次）。"""
     global _tournament_cache, _tournament_cache_time
-    tournament_id = str(tid or TOURNAMENT_ID)
-    now = time.time()
-    cached = _tournament_cache.get(tournament_id) if isinstance(_tournament_cache, dict) else None
-    cached_at = _tournament_cache_time.get(tournament_id, 0) if isinstance(_tournament_cache_time, dict) else 0
-    if cached is not None and (now - cached_at) < TOURNAMENT_CACHE_TTL:
-        return cached
-
     url = f"{TABULATOR_API_URL}/{tournament_id}"
     req = urllib.request.Request(url)
     req.add_header("Authorization", "Bearer " + TABULATOR_API_KEY)
-
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE
 
-    # 上游(api-tabulator)偶发 TLS 握手超时：重试一次；仍失败则回退到旧缓存，保证页面不断档
     last_err = None
     for _attempt in range(2):
         try:
-            with urllib.request.urlopen(req, context=ctx, timeout=15) as resp:
-                raw = resp.read()
-                data = json.loads(raw)
+            with urllib.request.urlopen(req, context=ctx, timeout=8) as resp:
+                data = json.loads(resp.read())
                 if not isinstance(_tournament_cache, dict):
                     _tournament_cache = {}
                 if not isinstance(_tournament_cache_time, dict):
                     _tournament_cache_time = {}
                 _tournament_cache[tournament_id] = data
-                _tournament_cache_time[tournament_id] = now
+                _tournament_cache_time[tournament_id] = time.time()
                 logger.info(f"比赛数据已刷新 (ID={tournament_id})")
                 return data
         except urllib.error.HTTPError as e:
@@ -523,12 +513,62 @@ def _get_tournament_data(tid: str | None = None) -> dict:
         except Exception as e:
             last_err = Exception(f"请求上游API失败: {e}")
             continue                   # 握手/连接类错误重试一次
+    raise last_err
+
+
+_tournament_refreshing: set = set()   # 正在后台刷新的赛事ID（避免重复请求）
+
+
+def _refresh_tournament_async(tournament_id: str):
+    """后台刷新指定赛事，不阻塞请求线程。"""
+    if tournament_id in _tournament_refreshing:
+        return
+    _tournament_refreshing.add(tournament_id)
+
+    def worker():
+        try:
+            _fetch_tournament_upstream(tournament_id)
+        except Exception as e:
+            logger.warning(f"后台刷新比赛数据失败 (ID={tournament_id}): {e}")
+        finally:
+            _tournament_refreshing.discard(tournament_id)
+
+    threading.Thread(target=worker, daemon=True).start()
+
+
+def _start_tournament_refresher(interval: int = 60):
+    """启动后台定时刷新（预热缓存 + 保持数据新鲜）。"""
+    slot_ids = sorted({str(v) for v in TOURNAMENT_SLOTS.values() if v})
+
+    def loop():
+        while True:
+            for tid in slot_ids:
+                try:
+                    _fetch_tournament_upstream(tid)
+                except Exception as e:
+                    logger.warning(f"定时刷新比赛数据失败 (ID={tid}): {e}")
+            time.sleep(interval)
+
+    threading.Thread(target=loop, daemon=True).start()
+    logger.info(f"比赛数据后台刷新已启动（每 {interval}s，ID={slot_ids}）")
+
+
+def _get_tournament_data(tid: str | None = None) -> dict:
+    """获取比赛数据。
+
+    策略：有缓存（哪怕已过期）立即返回，并在后台异步刷新 —— 请求永不阻塞在上游，
+    避免反向代理超时导致 502；只有完全没缓存时才同步取一次。
+    """
+    tournament_id = str(tid or TOURNAMENT_ID)
+    now = time.time()
+    cached = _tournament_cache.get(tournament_id) if isinstance(_tournament_cache, dict) else None
+    cached_at = _tournament_cache_time.get(tournament_id, 0) if isinstance(_tournament_cache_time, dict) else 0
 
     if cached is not None:
-        age = int(now - cached_at)
-        logger.warning(f"比赛数据刷新失败，回退到缓存 (ID={tournament_id}, 缓存 {age}s): {last_err}")
+        if (now - cached_at) >= TOURNAMENT_CACHE_TTL:
+            _refresh_tournament_async(tournament_id)      # 后台刷新，立即用旧数据响应
         return cached
-    raise last_err
+    return _fetch_tournament_upstream(tournament_id)      # 首次：同步取（8s×2 上限）
 
 
 # ── srvpro2 API 代理 ───────────────────────────────────────
@@ -1348,6 +1388,7 @@ if __name__ == "__main__":
     refresh_scores_cache()
     load_archetypes()
     generate_thumbnails()
+    _start_tournament_refresher()
 
     server = ThreadingHTTPServer((HOST, PORT), VoteHandler)
     try:
