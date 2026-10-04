@@ -1287,10 +1287,10 @@ body.nx-zoomed .nx-foot {
 .nx-cf-c2 { transform: translate(-17px, 7px) rotate(-12deg) scale(.93); filter: brightness(.72); }
 .nx-cf-c1 { transform: translate(17px, 5px) rotate(10deg) scale(.965); filter: brightness(.86); }
 .nx-cf-c0 { transform: none; }
-/* 中间那套：3 张卡摊开成弧形（中间的封面最高，两侧稍低），亮度恢复 */
-.nx-cf-item.is-center .nx-cf-c2 { transform: translate(-86px, 10px) rotate(-19deg) scale(1); filter: brightness(1); }
-.nx-cf-item.is-center .nx-cf-c1 { transform: translate(86px, 10px) rotate(19deg) scale(1); filter: brightness(1); }
-.nx-cf-item.is-center .nx-cf-c0 { transform: translateY(-12px); }
+/* 中间那套：3 张卡摊开成弧形（中间封面明显最高，两侧压低），亮度恢复 */
+.nx-cf-item.is-center .nx-cf-c2 { transform: translate(-86px, 22px) rotate(-19deg) scale(1); filter: brightness(1); }
+.nx-cf-item.is-center .nx-cf-c1 { transform: translate(86px, 22px) rotate(19deg) scale(1); filter: brightness(1); }
+.nx-cf-item.is-center .nx-cf-c0 { transform: translateY(-18px); }
 
 /* 鼠标移上去：整组卡放大一点 */
 .nx-cf-fan { transition: transform .32s cubic-bezier(.22, .9, .28, 1.02); }
