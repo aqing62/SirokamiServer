@@ -802,10 +802,12 @@
         var ch = el.querySelector('.nx-pov-choices');
         if (!ch || ch.dataset.frozen === '1') return ch;
         var cr = ch.getBoundingClientRect();
-        var pr = el.getBoundingClientRect();
+        // 绝对定位的参照是最近的定位祖先（这里是 .nx-pov-inner），不能按浮层坐标算，否则整体偏移
+        var host = ch.offsetParent || el;
+        var hr = host.getBoundingClientRect();
         ch.style.position = 'absolute';
-        ch.style.left = (cr.left - pr.left) + 'px';
-        ch.style.top = (cr.top - pr.top) + 'px';
+        ch.style.left = (cr.left - hr.left) + 'px';
+        ch.style.top = (cr.top - hr.top) + 'px';
         ch.style.width = cr.width + 'px';
         ch.style.margin = '0';
         ch.dataset.frozen = '1';
