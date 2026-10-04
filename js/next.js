@@ -737,7 +737,9 @@
         fit.style.transform = 'none';
         box.style.height = '';
         box.style.overflow = '';
-        var avail = Math.max(220, window.innerHeight * 0.66);
+        // 可用高度 = 从内容顶部到屏幕底部（留 34px 余量），随窗口/内容实时计算
+        var top = fit.getBoundingClientRect().top;
+        var avail = Math.max(220, window.innerHeight - top - 34);
         var need = fit.scrollHeight;
         if (need > avail) {
             var k = avail / need;

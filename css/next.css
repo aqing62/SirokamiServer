@@ -855,7 +855,11 @@ body.nx-zoomed .nx-foot {
 .nx-pov.is-viewing .nx-pov-title { opacity: .55; transition: opacity .3s; }
 
 .nx-pov-view.is-duels { width: min(640px, 100%); }
-.nx-pov-view:not(.is-duels) { width: min(1060px, 100%); }
+.nx-pov-view:not(.is-duels) {
+  width: min(1060px, 100%);
+  max-height: none;      /* 卡组一屏全显示：不设限高，靠 JS 等比缩放适配 */
+  overflow: visible;
+}
 .nx-pov-view { width: min(880px, 100%); max-height: 56vh; overflow-y: auto; scrollbar-width: thin; animation: nxPovViewIn .46s cubic-bezier(.22,.9,.28,1.02) both .1s; }
 .nx-pov-view[hidden] { display: none; }
 @keyframes nxPovViewIn { from { opacity: 0; transform: translateY(14px) scale(.985); filter: blur(8px); } to { opacity: 1; transform: none; filter: blur(0); } }
