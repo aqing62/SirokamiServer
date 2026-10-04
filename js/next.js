@@ -798,11 +798,13 @@
     }
 
     // 把两个线圈"就地冻结"（绝对的当前位置），使其退出时不再占据布局空间
-    function freezeChoices(el) {
+    // cr：切换对齐之前量到的线圈矩形（用它换算偏移，视觉上才不会跳）
+    function freezeChoices(el, cr) {
         var ch = el.querySelector('.nx-pov-choices');
         if (!ch || ch.dataset.frozen === '1') return ch;
-        var cr = ch.getBoundingClientRect();
-        // 绝对定位的参照是最近的定位祖先（这里是 .nx-pov-inner），不能按浮层坐标算，否则整体偏移
+        cr = cr || ch.getBoundingClientRect();
+        // 绝对定位的参照是最近的定位祖先（这里是 .nx-pov-inner），且此刻它已经移动过了，
+        // 所以要用"当前"的 host 矩形来换算，才能让线圈停在原来那个视觉位置。
         var host = ch.offsetParent || el;
         var hr = host.getBoundingClientRect();
         ch.style.position = 'absolute';
@@ -832,8 +834,9 @@
         if (first && inner) {
             // 先在"居中态"记下位置 → 切到顶部对齐后补一个位移，再动画归零：
             // 这样内容是从中间平滑滑到顶部的，而不是瞬间跳一下（跳完再加载卡片会显得"整体上闪"）
+            var chEl = el.querySelector('.nx-pov-choices');
+            var crOld = chEl ? chEl.getBoundingClientRect() : null;
             var beforeTop = inner.getBoundingClientRect().top;
-            freezeChoices(el);
             el.classList.add('is-viewing');
             var afterTop = inner.getBoundingClientRect().top;
             var dy = beforeTop - afterTop;
@@ -844,6 +847,7 @@
                 inner.style.transition = 'transform .34s cubic-bezier(.22,.9,.28,1)';
                 inner.style.transform = 'translateY(0)';
             }
+            freezeChoices(el, crOld);   // 放在补偿位移之后算，线圈才会停在原视觉位置
         } else {
             el.classList.add('is-viewing');
         }
