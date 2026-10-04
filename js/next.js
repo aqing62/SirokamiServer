@@ -859,8 +859,8 @@
                     tile.addEventListener('mousemove', function (ev) { if (_tipEl && _tipEl.style.display === 'block') positionCardTip(ev, _tipEl); });
                     tile.addEventListener('mouseleave', hideCardTip);
                 });
-                // 一屏全显示：放不下就整体等比缩小（不出现内部滚动条）
-                fitDeckScale(box);
+                // 一屏全显示：首次渲染就定好列数（同一帧内完成，用户看不到中间态），之后只做缩放微调
+                fitDeckScale(box, true);
                 scheduleDeckFit(box);
                 Array.prototype.forEach.call(box.querySelectorAll('.nx-deck-img'), function (img) {
                     img.addEventListener('load', function () { refitDeckSoon(box); });
@@ -931,7 +931,9 @@
 
     // 卡组一屏全显示：transform 等比缩放（transform 不参与布局，故显式设定外层高度）+ 迭代收敛
     // 注意：本环境 style.zoom 写入后不改变布局，所以必须用 transform。
-    function fitDeckScale(box) {
+    // relayout=true 才重算列数（只在首次渲染与窗口尺寸变化时）；
+    // 入场后的周期性校正只做缩放，否则会中途改列数 → 卡片重排、动画被打断
+    function fitDeckScale(box, relayout) {
         var fit = document.getElementById('nxDeckFit');
         if (!fit) return;
 
@@ -945,16 +947,17 @@
 
         function bottom() { return fit.getBoundingClientRect().bottom; }
 
-        // ② 复位状态下按真实可用高度选列数（尽量不缩放）
-        layoutDeckGrids(box);
-
-        // ③ 还放不下：先牺牲卡名再选一次列数
-        if (bottom() > window.innerHeight - 6) {
-            fit.classList.add('is-compact');
+        // ② 复位状态下按真实可用高度选列数（只在 relayout 时做）
+        if (relayout) {
             layoutDeckGrids(box);
+            // 还放不下：先牺牲卡名再选一次列数
+            if (bottom() > window.innerHeight - 6) {
+                fit.classList.add('is-compact');
+                layoutDeckGrids(box);
+            }
         }
 
-        // ④ 最后仍放不下才等比缩放
+        // ③ 最后仍放不下才等比缩放
         var contentH = function () { return fit.scrollHeight || 1; };
         for (var i = 0; i < 5; i++) {
             if (bottom() <= window.innerHeight - 6) break;
@@ -969,24 +972,28 @@
             box.style.overflow = 'hidden';
         }
     }
+    // 内容尺寸稳定前的多次"仅缩放"校正（不改列数，因此不会打断动画）
+    function scaleOnly(box, times, gap) {
+        if (!box) return;
+        (box._scaleTimers || []).forEach(clearTimeout);
+        box._scaleTimers = (times || [0]).map(function (t, i) {
+            return setTimeout(function () {
+                if (document.body.contains(box)) fitDeckScale(box, false);
+            }, (gap || 0) * i + t);
+        });
+    }
     function refitDeckSoon(box) {
         if (!box) return;
         clearTimeout(box._fitTimer);
-        box._fitTimer = setTimeout(function () { fitDeckScale(box); }, 260);
+        box._fitTimer = setTimeout(function () { fitDeckScale(box, false); }, 260);
     }
-    // 渲染后连续校正：布局/字体/图片会在不同时刻改变高度，多次重算才能收敛
+    // 渲染后只做缩放校正（列数已在首次渲染时定好，绝不在动画期间重排）
     function scheduleDeckFit(box) {
-        if (!box) return;
-        (box._fitTimers || []).forEach(clearTimeout);
-        box._fitTimers = [0, 80, 200, 400, 700, 1100, 1700].map(function (d) {
-            return setTimeout(function () {
-                if (document.body.contains(box)) fitDeckScale(box);
-            }, d);
-        });
+        scaleOnly(box, [0, 140, 420, 900], 0);
     }
     window.addEventListener('resize', function () {
         var box = document.getElementById('nxPovView');
-        if (box && box.querySelector('.nx-deck-fit')) fitDeckScale(box);
+        if (box && box.querySelector('.nx-deck-fit')) fitDeckScale(box, true);   // 尺寸变化才重排列数
     });
 
     var RENDERERS = { ladder: renderLadder };
