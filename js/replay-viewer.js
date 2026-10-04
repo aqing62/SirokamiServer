@@ -2238,7 +2238,7 @@ function initReplayViewer() {
                 break;
             }
             case 'Hint': {
-                if (f.hint) log('💡 ' + f.hint, 'rp-log-hint');
+                if (f.hint) log('提示：' + f.hint, 'rp-log-hint');
                 break;
             }
             case 'ShuffleHand': {
@@ -2595,7 +2595,7 @@ function initReplayViewer() {
 
     function playStepBack() {
         // 雏形不支持回退（状态难回滚），提示
-        log('⚠️ 雏形暂不支持回退，请用进度条重播', 'rp-log-hint');
+        log('暂不支持回退，请用进度条重播', 'rp-log-hint');
     }
 
     function startAuto() {
@@ -2608,7 +2608,7 @@ function initReplayViewer() {
             if (!playing) return;
             if (!playNextVisible()) {
                 stopAuto();
-                log('✅ 回放结束', 'rp-log-win');
+                log('回放结束', 'rp-log-win');
                 return;
             }
             timer = setTimeout(tick, interval);
@@ -2739,7 +2739,7 @@ function initReplayViewer() {
             })
             .catch(function (e) {
                 logBody.innerHTML = '';
-                log('❌ 加载失败：' + e.message, 'rp-log-err');
+                log('加载失败：' + e.message, 'rp-log-err');
                 fieldEl.innerHTML = '<div class="rp-loading-tip" style="color:#ff6b6b;">加载失败：' + escapeHtml(e.message) + '</div>';
             });
     }
