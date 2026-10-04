@@ -422,12 +422,13 @@
         }
         function kick() { if (!animating) { animating = true; requestAnimationFrame(loop); } }
 
-        scroller.addEventListener('wheel', function (e) {
+        function onWheel(e) {
             e.preventDefault();
             var max = Math.max(0, scroller.scrollHeight - scroller.clientHeight);
             target = Math.max(0, Math.min(max, target + e.deltaY * 1.15));
             kick();
-        }, { passive: false });
+        }
+        scroller.addEventListener('wheel', onWheel, { passive: false, capture: true });
 
         scroller.addEventListener('scroll', function () {
             if (animating) return;              // 程序写入触发的 scroll 忽略
@@ -442,6 +443,13 @@
 
         setPad();
         requestAnimationFrame(paint);
+        // 布局/字体/入场动画完成后尺寸才稳定，这里多补几次重绘，避免算出"所有行距离相同"（画面变成统一倾斜）
+        setTimeout(function () { setPad(); paint(); }, 240);
+        setTimeout(paint, 620);
+        if (typeof ResizeObserver === 'function') {
+            var ro = new ResizeObserver(function () { setPad(); paint(); });
+            ro.observe(scroller);
+        }
     }
 
     var RENDERERS = { ladder: renderLadder };
