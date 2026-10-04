@@ -345,8 +345,12 @@ document.addEventListener('DOMContentLoaded', function () {
                 const b = document.getElementById('chronicleDecksOpen');
                 if (b) setTimeout(function () { b.click(); }, 340);
             } else if (target === 'login') {
-                // 登录：直接弹出登录框
-                if (typeof window.openLoginModal === 'function') setTimeout(function () { window.openLoginModal(); }, 320);
+                // 登录：点右上角登录入口（openLoginModal 在闭包内，优先点按钮）
+                setTimeout(function () {
+                    const g = document.getElementById('globalLogin');
+                    if (g) { g.click(); return; }
+                    if (typeof window.openLoginModal === 'function') window.openLoginModal();
+                }, 340);
             }
         }, 80);
     })();
