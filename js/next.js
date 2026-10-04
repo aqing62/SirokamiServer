@@ -254,12 +254,30 @@
         }, 200);
     }
 
+    // 渲染当前节点（按类型自动分流：选项节点 / 结果节点）
+    function renderCurrent() {
+        var top = historyStack[historyStack.length - 1];
+        if (!top) return;
+        var node = FLOW[top.key];
+        if (!node) return;
+        if (node.options) renderNode(node, top.key);
+        else renderResult(node, top.label);
+    }
+
     function goTo(key, label) {
         transition(function () {
             var node = FLOW[key];
             if (!node) return;
-            if (label) historyStack.push({ key: key, label: label });
-            renderNode(node, key);
+            historyStack.push({ key: key, label: label || node.q });
+            renderCurrent();
+        });
+    }
+
+    function goBack() {
+        if (historyStack.length <= 1 || busy) return;
+        transition(function () {
+            historyStack.pop();
+            renderCurrent();
         });
     }
 
@@ -329,31 +347,15 @@
         });
     }
 
-    function goBack() {
-        if (historyStack.length <= 1) return;
-        historyStack.pop();
-        var prev = historyStack[historyStack.length - 1];
-        var node = FLOW[prev.key];
-        transition(function () {
-            if (node && node.options) {
-                historyStack.pop();                 // 重新渲染时再加回去
-                renderNode(node, prev.key);
-                historyStack.push(prev);
-            } else if (node) {
-                historyStack.pop();
-                renderResult(node, prev.label);
-                historyStack.push(prev);
-            }
-        });
-    }
+
 
     backEl.addEventListener('click', goBack);
 
-    // 统一入口：先渲染根节点
-    function renderAny(key, label) {
-        var node = FLOW[key];
-        if (node && node.options) renderNode(node, key);
-        else if (node) renderResult(node, label || node.q);
+    // 统一入口：写入根节点后渲染
+    function renderAny(key) {
+        if (!FLOW[key]) return;
+        historyStack = [{ key: key, label: '开始' }];
+        renderCurrent();
     }
 
     // ── 新旧版切换滑块 ──
