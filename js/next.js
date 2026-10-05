@@ -2923,6 +2923,8 @@
             return;
         }
         stage.classList.remove('is-screen');
+        // 离开功能屏：组卡屏要把移植来的老组卡器整块放回隐藏宿主（连带关掉它的样式）
+        if (screenEl && screenEl.dataset.screen === 'builder' && screenEl.hidden === false && typeof nxBuilderDetach === 'function') nxBuilderDetach();
         if (screenEl) screenEl.hidden = true;
         var node = FLOW[top.key];
         if (!node) return;
