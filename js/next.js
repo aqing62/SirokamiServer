@@ -1886,37 +1886,70 @@
         });
     }
 
-    // ── 卡池（卡片 → 卡池）：/api/cards 全量 17k+，分页渲染 + 懒加载 + 名称/类型筛选 ──
+    // ── 卡池（卡片 → 卡池）：/api/cards 全量 17k+，分页 + 下钻式分类筛选 ──
     var POOL_PAGE = 120;
+    // 分类：怪兽/魔法/陷阱，各自再分子类（子类计数由数据实时统计）
+    var POOL_SUBS = {
+        '怪兽': ['效果', '通常', '超量', '融合', '连接', '调整', '同调', '灵摆', '特殊召唤', '衍生物', '反转', '仪式', '灵魂', '二重', '同盟', '卡通'],
+        '魔法': ['通常', '速攻', '永续', '场地', '装备', '仪式'],
+        '陷阱': ['通常', '永续', '反击']
+    };
+    function poolMatchSub(c, sub) {
+        var ti = c.typeInfo || {};
+        var st = ti.subTypes || [];
+        if (sub === '通常') return st.length === 0;      // 没有子类标签的就是「通常」
+        return st.indexOf(sub) >= 0;
+    }
     function renderPool(body) {
-        var st = body._pool || (body._pool = { q: '', kind: 'all', page: 1, list: null });
+        var st = body._pool || (body._pool = { q: '', kind: 'all', sub: '', page: 1, list: null, lensOpen: false });
         body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
             '<div class="nx-load-text">正在读取卡池 <b>0</b></div></div>';
         loadCardMap().then(function () {
             var all = (_cardList || []).slice().sort(function (a, b) { return a.id - b.id; });
-            var kinds = [
-                { k: 'all', label: '全部' },
-                { k: '怪兽', label: '怪兽' },
-                { k: '魔法', label: '魔法' },
-                { k: '陷阱', label: '陷阱' }
-            ];
+            var kindCount = { 'all': all.length }, subCount = {};
+            all.forEach(function (c) {
+                var b = (c.typeInfo && c.typeInfo.baseType) || '';
+                if (kindCount[b] == null) kindCount[b] = 0;
+                kindCount[b]++;
+                if (!b) return;
+                POOL_SUBS[b].forEach(function (s) { if (poolMatchSub(c, s)) { var k = b + '/' + s; subCount[k] = (subCount[k] || 0) + 1; } });
+            });
+            function matchKind(c) {
+                if (st.kind === 'all') return true;
+                if (((c.typeInfo && c.typeInfo.baseType) || '') !== st.kind) return false;
+                if (st.sub) return poolMatchSub(c, st.sub);
+                return true;
+            }
             function filtered() {
                 var q = st.q.trim().toLowerCase();
                 return all.filter(function (c) {
-                    if (st.kind !== 'all') {
-                        var bt = (c.typeInfo && c.typeInfo.baseType) || '';
-                        if (bt !== st.kind) return false;
-                    }
+                    if (!matchKind(c)) return false;
                     if (!q) return true;
                     return String(c.name || '').toLowerCase().indexOf(q) >= 0 || String(c.id).indexOf(q) >= 0;
                 });
             }
+            // 分类药丸：未选类型时显示「全部 / 怪兽 / 魔法 / 陷阱」；
+            // 选定类型后三个大类让位，改成该类型的子类（点「全部」回到大类）
+            function chipsHtml() {
+                if (st.kind === 'all') {
+                    return ['all', '怪兽', '魔法', '陷阱'].map(function (k) {
+                        return '<button class="nx-stats-tab' + (k === 'all' ? ' is-on' : '') + '" type="button" data-kind="' + k + '">' +
+                            (k === 'all' ? '全部' : k) + '<i>' + (kindCount[k] || 0) + '</i></button>';
+                    }).join('');
+                }
+                var subs = POOL_SUBS[st.kind] || [];
+                return '<button class="nx-stats-tab" type="button" data-kind="all">全部</button>' +
+                    '<button class="nx-stats-tab' + (st.sub ? '' : ' is-on') + '" type="button" data-kind="' + st.kind + '" data-sub="">' +
+                        '全部' + st.kind + '<i>' + (kindCount[st.kind] || 0) + '</i></button>' +
+                    subs.filter(function (s) { return subCount[st.kind + '/' + s]; }).map(function (s) {
+                        return '<button class="nx-stats-tab' + (st.sub === s ? ' is-on' : '') + '" type="button" data-kind="' + st.kind + '" data-sub="' + s + '">' +
+                            s + '<i>' + (subCount[st.kind + '/' + s] || 0) + '</i></button>';
+                    }).join('');
+            }
             body.innerHTML =
                 '<div class="nx-cf-bar nx-pool-bar">' +
-                    '<div class="nx-pool-kinds">' + kinds.map(function (x) {
-                        return '<button class="nx-stats-tab' + (x.k === st.kind ? ' is-on' : '') + '" type="button" data-kind="' + x.k + '">' + x.label + '</button>';
-                    }).join('') + '</div>' +
-                    '<div class="nx-cf-search' + (st.q ? ' is-open' : '') + '" id="nxPoolSearchWrap">' +
+                    '<div class="nx-pool-kinds" id="nxPoolKinds">' + chipsHtml() + '</div>' +
+                    '<div class="nx-cf-search' + (st.lensOpen || st.q ? ' is-open' : '') + '" id="nxPoolSearchWrap">' +
                         '<button class="nx-cf-lens" id="nxPoolLens" type="button" aria-label="搜索">' +
                             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">' +
                                 '<circle cx="10.4" cy="10.4" r="6.6"></circle><line x1="15.4" y1="15.4" x2="21" y2="21"></line>' +
@@ -1950,34 +1983,42 @@
                     onGo: function (p) { st.page = p; paintPage(); }
                 });
             }
-            // 类型筛选
-            Array.prototype.forEach.call(body.querySelectorAll('.nx-pool-kinds .nx-stats-tab'), function (b) {
-                b.addEventListener('click', function (ev) {
-                    ev.stopPropagation();
-                    var k = b.getAttribute('data-kind');
-                    if (k === st.kind) return;
-                    st.kind = k;
-                    hideCardTip(true);
-                    playSfx('click');
-                    Array.prototype.forEach.call(body.querySelectorAll('.nx-pool-kinds .nx-stats-tab'), function (x) {
-                        x.classList.toggle('is-on', x.getAttribute('data-kind') === k);
-                    });
-                    reset(1);
+            // 分类下钻：点大类 → 三个大类让位、显示该类型子类；点子类 → 只筛子类；点「全部」→ 回到大类
+            function onKindClick(ev) {
+                ev.stopPropagation();
+                var b = ev.currentTarget;
+                var k = b.getAttribute('data-kind');
+                var sub = b.getAttribute('data-sub') || '';
+                if (k === st.kind && sub === st.sub) return;
+                st.kind = k;
+                st.sub = sub;
+                hideCardTip(true);
+                playSfx('click');
+                reset(1);
+                // 只重画药丸行，避免整屏重建（输入框焦点也保住）
+                var row = document.getElementById('nxPoolKinds');
+                if (row) { row.innerHTML = chipsHtml(); bindKindChips(); }
+            }
+            function bindKindChips() {
+                Array.prototype.forEach.call(body.querySelectorAll('#nxPoolKinds .nx-stats-tab'), function (b) {
+                    b.addEventListener('click', onKindClick);
                 });
-            });
+            }
+            bindKindChips();
             // 折叠式搜索（与预组同款交互）
             function poolOpen() { return wrap.classList.contains('is-open'); }
             function poolRefreshClear() { refreshCount(st.list); }
             function closePoolSearch(spin) {
                 wrap.classList.remove('is-open');
+                st.lensOpen = false;
                 if (spin && lens) { lens.classList.remove('is-spin'); void lens.offsetWidth; lens.classList.add('is-spin'); }
                 poolRefreshClear();
             }
             if (lens) {
                 lens.addEventListener('click', function (ev) {
                     ev.stopPropagation();
-                    if (!poolOpen()) { wrap.classList.add('is-open'); poolRefreshClear(); setTimeout(function () { input.focus(); input.select(); }, 80); return; }
-                    st.q = input.value || ''; reset(1); closePoolSearch(true);
+                    if (!poolOpen()) { wrap.classList.add('is-open'); st.lensOpen = true; poolRefreshClear(); setTimeout(function () { input.focus(); input.select(); }, 80); return; }
+                    st.q = input.value || ''; st.lensOpen = false; reset(1); closePoolSearch(true);
                 });
             }
             if (clearBtn) {
@@ -2039,6 +2080,7 @@
     function renderBanlist(body) {
         var mode = (body.dataset && body.dataset.mode) || 'g';       // g=G表(分值) / ot=OT表(规制)
         var tab = (body.dataset && body.dataset.tab) || 'forbidden';
+        var bst = body._ban || (body._ban = { page: 1, q: '', lensOpen: false, names: null });
         body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
             '<div class="nx-load-text">正在读取卡表 <b>0</b></div></div>';
 
@@ -2050,6 +2092,87 @@
                 return '<button class="nx-stats-tab' + (x.k === mode ? ' is-on' : '') + '" type="button" data-mode="' + x.k + '">' +
                     x.label + (x.n === '' ? '' : '<i>' + x.n + '</i>') + '</button>';
             }).join('');
+        }
+        // 顶部：表切换 + 搜索（与卡池/预组同款折叠放大镜）
+        function topHtml(gCount, otCount, countHtml) {
+            return '<div class="nx-stats-top nx-reveal" style="--i:0">' +
+                '<div class="nx-stats-tabs">' + modeTabs(gCount, otCount) + '</div>' +
+                '<div class="nx-cf-search' + (bst.lensOpen || bst.q ? ' is-open' : '') + '" id="nxBanSearchWrap">' +
+                    '<button class="nx-cf-lens" id="nxBanLens" type="button" aria-label="搜索">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">' +
+                            '<circle cx="10.4" cy="10.4" r="6.6"></circle><line x1="15.4" y1="15.4" x2="21" y2="21"></line>' +
+                        '</svg>' +
+                    '</button>' +
+                    '<input id="nxBanSearch" type="text" placeholder="卡名 / 卡号" autocomplete="off" spellcheck="false" value="' + esc(bst.q) + '">' +
+                    '<button class="nx-cf-clear" id="nxBanClear" type="button" aria-label="清除" hidden>✕</button>' +
+                    '<span class="nx-cf-count">' + countHtml + '</span>' +
+                '</div>' +
+            '</div>';
+        }
+        // 搜索绑定（重渲染后自动恢复焦点与光标，边打边筛）
+        function bindBanSearch(raw, nameOf) {
+            var wrap = document.getElementById('nxBanSearchWrap');
+            var input = document.getElementById('nxBanSearch');
+            var lens = document.getElementById('nxBanLens');
+            var clearBtn = document.getElementById('nxBanClear');
+            if (!wrap || !input) return;
+            function refreshClear() {
+                if (clearBtn) clearBtn.hidden = !bst.q.trim() || bst.lensOpen;
+            }
+            function doFilter(val) {
+                bst.q = val;
+                bst.page = 1;
+                hideCardTip(true);
+                renderBanlist(body);
+            }
+            if (lens) {
+                lens.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    if (!bst.lensOpen && !bst.q) {
+                        bst.lensOpen = true;
+                        wrap.classList.add('is-open');
+                        refreshClear();
+                        input.focus();
+                        return;
+                    }
+                    bst.lensOpen = false;
+                    lens.classList.remove('is-spin'); void lens.offsetWidth; lens.classList.add('is-spin');
+                    doFilter(input.value || '');
+                });
+            }
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    input.value = '';
+                    doFilter('');
+                });
+            }
+            var timer = null;
+            input.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(function () { doFilter(input.value || ''); }, 220);
+            });
+            input.addEventListener('keydown', function (ev) {
+                ev.stopPropagation();
+                if (ev.key === 'Enter') { ev.preventDefault(); clearTimeout(timer); bst.lensOpen = false; doFilter(input.value || ''); }
+                else if (ev.key === 'Escape') { ev.preventDefault(); clearTimeout(timer); bst.lensOpen = false; doFilter(input.value || ''); input.blur(); }
+            });
+            ['click', 'pointerdown'].forEach(function (t) { input.addEventListener(t, function (ev) { ev.stopPropagation(); }); });
+            ['pointerdown', 'click'].forEach(function (t) { wrap.addEventListener(t, function () { _nxBarTouchAt = Date.now(); }, true); });
+            refreshClear();
+            // 重渲染后把焦点和光标位置接回去
+            if (bst.lensOpen || bst.q) {
+                input.focus();
+                try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) { /* 忽略 */ }
+            }
+        }
+        function byQuery(list, nameOf) {
+            var q = (bst.q || '').trim().toLowerCase();
+            if (!q) return list;
+            return list.filter(function (x) {
+                var nm = nameOf(x) || '';
+                return String(nm).toLowerCase().indexOf(q) >= 0 || String(x.id).indexOf(q) >= 0;
+            });
         }
 
         if (mode === 'g') {
@@ -2066,19 +2189,17 @@
                     return a.id - b.id;
                 });
                 var forb = arr.filter(function (x) { return x.forbidden; }).length;
-                var bst = body._ban || (body._ban = { page: 1 });
+                var shown = byQuery(arr, function (x) { return cardName(x.id); });
                 body.innerHTML =
-                    '<div class="nx-stats-top nx-reveal" style="--i:0">' +
-                        '<div class="nx-stats-tabs">' + modeTabs(arr.length, '') + '</div>' +
-                        '<div class="nx-stats-count">上限 <b>' + lim + '</b> 分 · 禁用 <b>' + forb + '</b> 张</div>' +
-                    '</div>' +
+                    topHtml(arr.length, '', '上限 <b>' + lim + '</b> 分 · 禁用 <b>' + forb + '</b> 张') +
                     '<div class="nx-info-hint nx-reveal" style="--i:1">组卡时按每张卡的分值累计，总分不超过上限；标「禁」的卡不能投入</div>' +
                     '<div id="nxBanGrid"></div>';
-                renderPagedCards(document.getElementById('nxBanGrid'), arr.map(function (x) { return x.id; }), {
+                renderPagedCards(document.getElementById('nxBanGrid'), shown.map(function (x) { return x.id; }), {
                     per: POOL_PAGE,
                     page: bst.page,
                     onGo: function (p) { bst.page = p; renderBanlist(body); }
                 });
+                bindBanSearch(arr, function (x) { return cardName(x.id); });
                 bindBanlistTabs(body);
             });
             return;
@@ -2095,22 +2216,21 @@
             }).join('');
             var total = d.forbidden.length + d.limit.length + d.semi.length;
             var list = d[tab] || [];
-            var bst2 = body._ban || (body._ban = { page: 1 });
-            body.innerHTML =
-                '<div class="nx-stats-top nx-reveal" style="--i:0">' +
-                    '<div class="nx-stats-tabs">' + modeTabs('', total) + '</div>' +
-                    '<div class="nx-stats-count">OT 规制共 <b>' + total + '</b> 张受限卡</div>' +
-                '</div>' +
-                '<div class="nx-stats-tabs nx-stats-sub nx-reveal" style="--i:1">' + tabs + '</div>' +
-                '<div id="nxBanGrid"></div>';
             var nameMap = {};
             list.forEach(function (x) { if (x.name) nameMap[x.id] = x.name; });
-            renderPagedCards(document.getElementById('nxBanGrid'), list.map(function (x) { return x.id; }), {
+            var nameOf = function (x) { return nameMap[x.id] || cardName(x.id); };
+            var shown = byQuery(list, nameOf);
+            body.innerHTML =
+                topHtml('', total, 'OT 规制共 <b>' + total + '</b> 张受限卡') +
+                '<div class="nx-stats-tabs nx-stats-sub nx-reveal" style="--i:1">' + tabs + '</div>' +
+                '<div id="nxBanGrid"></div>';
+            renderPagedCards(document.getElementById('nxBanGrid'), shown.map(function (x) { return x.id; }), {
                 per: POOL_PAGE,
-                page: bst2.page,
+                page: bst.page,
                 names: nameMap,
-                onGo: function (p) { bst2.page = p; renderBanlist(body); }
+                onGo: function (p) { bst.page = p; renderBanlist(body); }
             });
+            bindBanSearch(list, nameOf);
             bindBanlistTabs(body);
         });
     }

@@ -1512,7 +1512,9 @@ body.nx-zoomed .nx-foot {
 
 /* ══ 卡池：类型筛选 + 折叠搜索 + 分页卡图网格 ═════════════ */
 .nx-pool-bar { margin-bottom: 10px; }
-.nx-pool-kinds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nx-pool-kinds { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
+.nx-pool-kinds .nx-stats-tab { padding: 6px 13px; font-size: 12.5px; }
+.nx-pool-kinds .nx-stats-tab i { font-size: 11px; }
 .nx-pool-grid { margin-top: 4px; }
 .nx-pool-sentinel { height: 40px; width: 100%; }
 
