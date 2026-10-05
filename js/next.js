@@ -1727,11 +1727,14 @@
                     : '';
                 return '<div class="nx-card-tile' + (opts.plain ? ' is-plain' : '') + '" data-id="' + id + '" style="--i:' + Math.min(i, 60) + '">' +
                     (opts.plain ? '' : '<span class="nx-card-rank">' + (i + 1) + '</span>') +
-                    '<span class="nx-card-photo"><img class="nx-card-img" src="' + picOf(id) + '" alt=""></span>' +
+                    // 角标要放进卡图容器里：分值左下、DIY 右下（由 wireDeckImage 塞进同一个容器），两者才对得齐
+                    '<span class="nx-card-photo">' +
+                        '<img class="nx-card-img" src="' + picOf(id) + '" alt="">' +
+                        ((sc && (sc.forbidden || (sc.score || 0) > 0))
+                            ? '<span class="nx-deck-score' + (sc.forbidden ? ' is-forbidden' : '') + '">' + (sc.forbidden ? '禁' : sc.score) + '</span>'
+                            : '') +
+                    '</span>' +
                     '<span class="nx-card-name">' + esc(nm) + '</span>' + stat +
-                    ((sc && (sc.forbidden || (sc.score || 0) > 0))
-                        ? '<span class="nx-deck-score' + (sc.forbidden ? ' is-forbidden' : '') + '">' + (sc.forbidden ? '禁' : sc.score) + '</span>'
-                        : '') +
                 '</div>';
             }).join('');
             Array.prototype.forEach.call(box.querySelectorAll('.nx-card-tile'), function (tile) {
