@@ -627,7 +627,7 @@ body.nx-skip .nx-welcome { display: none; }
   /* 卡池/卡表/常用卡这类长内容要能滚 */
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-width: thin;
+  scrollbar-width: none;      /* 不显示滚动条（滚动照旧可用） */
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
@@ -878,7 +878,7 @@ body.nx-zoomed .nx-foot {
   max-height: none;      /* 卡组一屏全显示：不设限高，靠 JS 等比缩放适配 */
   overflow: visible;
 }
-.nx-pov-view { width: min(880px, 100%); max-height: 56vh; overflow-y: auto; scrollbar-width: thin; animation: nxPovViewIn .46s cubic-bezier(.22,.9,.28,1.02) both .1s; }
+.nx-pov-view { width: min(880px, 100%); max-height: 56vh; overflow-y: auto; scrollbar-width: none; animation: nxPovViewIn .46s cubic-bezier(.22,.9,.28,1.02) both .1s; }
 .nx-pov-view[hidden] { display: none; }
 @keyframes nxPovViewIn { from { opacity: 0; transform: translateY(14px) scale(.985); filter: blur(8px); } to { opacity: 1; transform: none; filter: blur(0); } }
 
@@ -1782,3 +1782,9 @@ body.nx-zoomed .nx-foot {
   .nx-deck-dl { font-size: 14px; padding: 9px 20px; gap: 8px; }
   .nx-deck-dl svg { width: 19px; height: 19px; }
 }
+
+
+/* ── 全站隐藏滚动条（滚动本身不受影响：滚轮 / 触摸板 / 触摸滑动 / 键盘都照旧）── */
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
+*::-webkit-scrollbar-track, *::-webkit-scrollbar-thumb { background: transparent !important; }
