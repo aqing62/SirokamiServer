@@ -212,7 +212,7 @@
         download: { title: '下载与安装', sub: 'MDPro3 客户端 · DIY 卡包',   goto: 'download',  render: 'download' },
         match:    { title: '比赛相关',   sub: '瑞士轮积分 · 淘汰赛对阵',   goto: 'tournament', render: 'match' },
         pool:     { title: '卡池',       sub: '全卡检索 · 类型筛选 · 分值角标', goto: 'pool',      render: 'pool' },
-        builder:  { title: '组卡',       sub: '左边搜卡 · 右边成组 · 导出 YDK', goto: 'pool',     render: 'builder' },
+        builder:  { title: '组卡',       sub: '经典版组卡器 · 三栏同款',      goto: 'pool',     render: 'builder' },
         banlist:  { title: '卡表',       sub: '禁止 · 限制 · 准限制',        goto: 'banlist',   render: 'banlist' },
         preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    render: 'preset' },
         popular:  { title: '常用卡',     sub: '使用率 · 胜率统计',           goto: 'pool',      render: 'popular' },
