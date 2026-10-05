@@ -995,7 +995,7 @@
                         '<div class="nx-deck-cards">' + ids.map(function (id) {
                             var nm = cardName(id);
                             var sc = _scoreMap && _scoreMap[id];
-                            var badge = sc
+                            var badge = (sc && (sc.forbidden || (sc.score || 0) > 0))
                                 ? '<span class="nx-deck-score' + (sc.forbidden ? ' is-forbidden' : '') + '">' +
                                   (sc.forbidden ? '禁' : sc.score) + '</span>'
                                 : '';
@@ -1714,7 +1714,8 @@
             });
         })();
         ready.then(function () {
-            return loadCardMap();
+            // 分值/禁限表也一起等：所有卡图瓦片都要带分数角标
+            return Promise.all([loadCardMap(), loadScoreMap()]);
         }).then(function () {
             box.innerHTML = ids.map(function (x, i) {
                 var id = opts.plain ? x : x.cardId;
@@ -1728,7 +1729,9 @@
                     (opts.plain ? '' : '<span class="nx-card-rank">' + (i + 1) + '</span>') +
                     '<span class="nx-card-photo"><img class="nx-card-img" src="' + picOf(id) + '" alt=""></span>' +
                     '<span class="nx-card-name">' + esc(nm) + '</span>' + stat +
-                    (sc ? '<span class="nx-deck-score' + (sc.forbidden ? ' is-forbidden' : '') + '">' + (sc.forbidden ? '禁' : sc.score) + '</span>' : '') +
+                    ((sc && (sc.forbidden || (sc.score || 0) > 0))
+                        ? '<span class="nx-deck-score' + (sc.forbidden ? ' is-forbidden' : '') + '">' + (sc.forbidden ? '禁' : sc.score) + '</span>'
+                        : '') +
                 '</div>';
             }).join('');
             Array.prototype.forEach.call(box.querySelectorAll('.nx-card-tile'), function (tile) {
