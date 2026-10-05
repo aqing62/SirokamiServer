@@ -587,6 +587,7 @@ body.nx-skip .nx-welcome { display: none; }
 .nx-screen {
   width: min(980px, 100%);
   max-width: 100%;
+  max-height: 100%;      /* 让内容区在屏幕高度内滚动，而不是溢出看不见 */
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -623,6 +624,12 @@ body.nx-skip .nx-welcome { display: none; }
   gap: 10px;
   text-align: center;
   padding: 0;
+  /* 卡池/卡表/常用卡这类长内容要能滚 */
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 /* 占位说明仍给一点容器感，免得空落落 */
 .nx-screen-todo { margin-top: 34px; }
@@ -1592,6 +1599,8 @@ body.nx-zoomed .nx-foot {
 }
 .nx-stats-tab.is-on i { color: rgba(42, 28, 8, .62); }
 .nx-stats-count { font-size: 13px; color: #8d8d96; letter-spacing: .5px; }
+.nx-stats-sub { justify-content: center; margin: -4px auto 12px; align-self: stretch; max-width: 1100px; }
+.nx-stats-sub .nx-stats-tab { padding: 5px 13px; font-size: 12.5px; }
 .nx-stats-count b { color: var(--nx-gold-light, #F0E68C); font-size: 17px; }
 
 .nx-card-grid {

@@ -2068,9 +2068,49 @@
         }).catch(function () { _lflistCache = { forbidden: [], limit: [], semi: [] }; return _lflistCache; });
     }
     function renderBanlist(body) {
+        var mode = (body.dataset && body.dataset.mode) || 'g';       // g=G表(分值) / ot=OT表(规制)
         var tab = (body.dataset && body.dataset.tab) || 'forbidden';
         body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
             '<div class="nx-load-text">正在读取卡表 <b>0</b></div></div>';
+
+        function modeTabs(gCount, otCount) {
+            return [
+                { k: 'g', label: 'G 表 · 分值', n: gCount },
+                { k: 'ot', label: 'OT 表 · 规制', n: otCount }
+            ].map(function (x) {
+                return '<button class="nx-stats-tab' + (x.k === mode ? ' is-on' : '') + '" type="button" data-mode="' + x.k + '">' +
+                    x.label + (x.n === '' ? '' : '<i>' + x.n + '</i>') + '</button>';
+            }).join('');
+        }
+
+        if (mode === 'g') {
+            // G 表：/api/scores 的分值表（禁用的排最前）
+            Promise.all([loadScoreMap(), loadCardMap()]).then(function () {
+                var arr = Object.keys(_scoreMap || {}).map(function (k) {
+                    var s = _scoreMap[k] || {};
+                    return { id: parseInt(k, 10), score: s.score || 0, forbidden: !!s.forbidden };
+                }).filter(function (x) { return x.id; });
+                var lim = _scoreLimit || 100;
+                arr.sort(function (a, b) {
+                    if (a.forbidden !== b.forbidden) return a.forbidden ? -1 : 1;
+                    if (b.score !== a.score) return b.score - a.score;
+                    return a.id - b.id;
+                });
+                var forb = arr.filter(function (x) { return x.forbidden; }).length;
+                body.innerHTML =
+                    '<div class="nx-stats-top nx-reveal" style="--i:0">' +
+                        '<div class="nx-stats-tabs">' + modeTabs(arr.length, '') + '</div>' +
+                        '<div class="nx-stats-count">上限 <b>' + lim + '</b> 分 · 禁用 <b>' + forb + '</b> 张</div>' +
+                    '</div>' +
+                    '<div class="nx-info-hint nx-reveal" style="--i:1">组卡时按每张卡的分值累计，总分不超过上限；标「禁」的卡不能投入</div>' +
+                    '<div class="nx-card-grid" id="nxStatsGrid"></div>';
+                paintCardTiles(document.getElementById('nxStatsGrid'),
+                    arr.map(function (x) { return x.id; }), { plain: true, lazy: true });
+                bindBanlistTabs(body);
+            });
+            return;
+        }
+
         loadLflist().then(function (d) {
             var tabs = [
                 { k: 'forbidden', label: '禁止', n: d.forbidden.length },
@@ -2080,18 +2120,37 @@
                 return '<button class="nx-stats-tab' + (x.k === tab ? ' is-on' : '') + '" type="button" data-tab="' + x.k + '">' +
                     x.label + '<i>' + x.n + '</i></button>';
             }).join('');
+            var total = d.forbidden.length + d.limit.length + d.semi.length;
             var list = d[tab] || [];
             body.innerHTML =
                 '<div class="nx-stats-top nx-reveal" style="--i:0">' +
-                    '<div class="nx-stats-tabs">' + tabs + '</div>' +
-                    '<div class="nx-stats-count">共 <b>' + (d.forbidden.length + d.limit.length + d.semi.length) + '</b> 张受限卡</div>' +
+                    '<div class="nx-stats-tabs">' + modeTabs('', total) + '</div>' +
+                    '<div class="nx-stats-count">OT 规制共 <b>' + total + '</b> 张受限卡</div>' +
                 '</div>' +
+                '<div class="nx-stats-tabs nx-stats-sub nx-reveal" style="--i:1">' + tabs + '</div>' +
                 '<div class="nx-card-grid" id="nxStatsGrid"></div>';
             var nameMap = {};
             list.forEach(function (x) { if (x.name) nameMap[x.id] = x.name; });
             paintCardTiles(document.getElementById('nxStatsGrid'),
                 list.map(function (x) { return x.id; }), { plain: true, names: nameMap, lazy: true });
-            bindStatsTabs(body, renderBanlist);
+            bindBanlistTabs(body);
+        });
+    }
+    function bindBanlistTabs(body) {
+        Array.prototype.forEach.call(body.querySelectorAll('.nx-stats-tab'), function (b) {
+            b.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                var mk = b.getAttribute('data-mode');
+                var tk = b.getAttribute('data-tab');
+                if (mk && mk !== ((body.dataset.mode) || 'g')) {
+                    body.dataset.mode = mk;
+                    hideCardTip(true); playSfx('click'); renderBanlist(body); return;
+                }
+                if (tk && tk !== ((body.dataset.tab) || 'forbidden')) {
+                    body.dataset.tab = tk;
+                    hideCardTip(true); playSfx('click'); renderBanlist(body);
+                }
+            });
         });
     }
 
