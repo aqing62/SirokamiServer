@@ -77,8 +77,22 @@
             options: [
                 { icon: 'layers', label: '卡池', sub: '查卡 / 分值', next: 'r_pool' },
                 { icon: 'list', label: '卡表', sub: '禁限 / 规则', next: 'r_banlist' },
+                { icon: 'build', label: '组卡', sub: '自己搭一套', next: 'r_builder' },
                 { icon: 'box', label: '预组', sub: '现成卡组', next: 'r_preset' },
                 { icon: 'star', label: '常用卡', sub: '高分 / 泛用', next: 'r_popular' }
+            ]
+        },
+        r_builder: {
+            q: '自己组卡',
+            steps: [
+                '左边搜卡、右边成组，<b>点卡片</b>直接加入，点组内卡片上的 <b>✕</b> 移除',
+                '融合 / 同调 / 超量 / 连接 会自动归到<b>额外卡组</b>，其余进主卡组',
+                '顶部实时显示<b>主 / 额外 / 副</b>张数与<b>总分</b>（不超过上限），禁用卡不能加入',
+                '组好后可 <b>下载 YDK</b>，直接放进客户端的 deck 目录'
+            ],
+            cta: [
+                { icon: 'build', label: '开始组卡', screen: 'builder' },
+                { icon: 'box', label: '看预组', screen: 'preset' }
             ]
         },
         r_pool: {
@@ -198,6 +212,7 @@
         download: { title: '下载与安装', sub: 'MDPro3 客户端 · DIY 卡包',   goto: 'download',  render: 'download' },
         match:    { title: '比赛相关',   sub: '瑞士轮积分 · 淘汰赛对阵',   goto: 'tournament', render: 'match' },
         pool:     { title: '卡池',       sub: '全卡检索 · 类型筛选 · 分值角标', goto: 'pool',      render: 'pool' },
+        builder:  { title: '组卡',       sub: '左边搜卡 · 右边成组 · 导出 YDK', goto: 'pool',     render: 'builder' },
         banlist:  { title: '卡表',       sub: '禁止 · 限制 · 准限制',        goto: 'banlist',   render: 'banlist' },
         preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    render: 'preset' },
         popular:  { title: '常用卡',     sub: '使用率 · 胜率统计',           goto: 'pool',      render: 'popular' },
@@ -1744,6 +1759,10 @@
                 tile.addEventListener('mouseenter', function (ev) { showCardTip(ev, id); });
                 tile.addEventListener('mousemove', function (ev) { if (_tipEl && _tipEl.style.display === 'block') positionCardTip(ev, _tipEl); });
                 tile.addEventListener('mouseleave', hideCardTip);
+                if (opts.onPick) {                       // 组卡页：点卡片直接加入卡组
+                    tile.classList.add('is-pickable');
+                    tile.addEventListener('click', function (ev) { ev.stopPropagation(); opts.onPick(id); });
+                }
             });
         });
     }
@@ -2346,7 +2365,7 @@
             '<div class="nx-card-grid" id="nxPagedGrid"></div>' +
             (pages > 1 ? pagerHtml(page, pages, ids.length) : '');
         paintCardTiles(document.getElementById('nxPagedGrid'), slice,
-            { plain: true, lazy: true, names: opts.names });
+            { plain: true, lazy: true, names: opts.names, onPick: opts.onPick });
         Array.prototype.forEach.call(host.querySelectorAll('.nx-page-btn'), function (b) {
             b.addEventListener('click', function (ev) {
                 ev.stopPropagation();
@@ -2361,7 +2380,171 @@
         return { page: page, pages: pages };
     }
 
-    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool, banlist: renderBanlist, room: renderRoom, download: renderDownload, login: renderLogin };
+    // ── 组卡（卡片 → 组卡）：左边搜卡、右边成组，实时张数与总分，导出 YDK ──
+    var BUILD_PER = 60;
+    var EXTRA_SUBS = ['融合', '同调', '超量', '连接'];
+    function renderBuilder(body) {
+        var st = body._build || (body._build = { main: [], extra: [], side: [], q: '', kind: 'all', page: 1 });
+        body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
+            '<div class="nx-load-text">正在准备组卡 <b>0</b></div></div>';
+        Promise.all([loadCardMap(), loadScoreMap()]).then(function () {
+            var all = (_cardList || []).slice().sort(function (a, b) { return a.id - b.id; });
+            function info(id) { return _cardMap[String(id)] || null; }
+            function isExtraCard(id) {
+                var c = info(id);
+                var subs = (c && c.typeInfo && c.typeInfo.subTypes) || [];
+                for (var i = 0; i < EXTRA_SUBS.length; i++) if (subs.indexOf(EXTRA_SUBS[i]) >= 0) return true;
+                return false;
+            }
+            function countIn(list, id) { var n = 0; for (var i = 0; i < list.length; i++) if (list[i] === id) n++; return n; }
+            function scoreOf(id) { var s = _scoreMap && _scoreMap[id]; return s && !s.forbidden ? (s.score || 0) : 0; }
+            function isForbidden(id) { var s = _scoreMap && _scoreMap[id]; return !!(s && s.forbidden); }
+            function total() {
+                var t = 0;
+                ['main', 'extra', 'side'].forEach(function (k) { st[k].forEach(function (id) { t += scoreOf(id); }); });
+                return t;
+            }
+            function add(id) {
+                if (isForbidden(id)) { toast('这张卡是禁用卡，不能加入'); return; }
+                var sec = isExtraCard(id) ? 'extra' : 'main';
+                if (sec === 'extra' && st.extra.length >= 15) { toast('额外卡组已满 15 张'); return; }
+                if (countIn(st[sec], id) >= 3) { toast('同一张卡最多 3 张'); return; }
+                st[sec].push(id);
+                var t = total(), lim = _scoreLimit || 100;
+                if (t > lim) toast('总分已超过上限 ' + lim);
+                else toast('已加入 ' + cardName(id) + (sec === 'extra' ? '（额外）' : ''));
+                paint();
+            }
+            function remove(sec, idx) { st[sec].splice(idx, 1); paint(); }
+            function toast(msg) {
+                var el = document.getElementById('nxBuildToast');
+                if (!el) { el = document.createElement('div'); el.id = 'nxBuildToast'; el.className = 'nx-build-toast'; document.body.appendChild(el); }
+                el.textContent = msg;
+                el.classList.add('is-on');
+                clearTimeout(el._t);
+                el._t = setTimeout(function () { el.classList.remove('is-on'); }, 1600);
+            }
+            function groupHtml(sec, title, list) {
+                return '<div class="nx-build-group">' +
+                    '<div class="nx-build-group-title">' + title + '<i>' + list.length + '</i></div>' +
+                    '<div class="nx-build-cards">' + (list.length ? list.map(function (id, i) {
+                        return '<div class="nx-build-card" data-sec="' + sec + '" data-i="' + i + '" title="点击移除 ' + esc(cardName(id)) + '">' +
+                            '<img src="' + picOf(id) + '" loading="lazy" alt="">' +
+                            '<span class="nx-build-x">✕</span>' +
+                        '</div>';
+                    }).join('') : '<div class="nx-build-empty">还没有卡</div>') + '</div>' +
+                '</div>';
+            }
+            function resultIds() {
+                var q = (st.q || '').trim().toLowerCase();
+                return all.filter(function (c) {
+                    var ti = c.typeInfo || {};
+                    if (st.kind !== 'all' && (ti.baseType || '') !== st.kind) return false;
+                    if (!q) return true;
+                    return String(c.name || '').toLowerCase().indexOf(q) >= 0 || String(c.id).indexOf(q) >= 0;
+                }).map(function (c) { return c.id; });
+            }
+            function paint() {
+                var ids = resultIds();
+                var lim = _scoreLimit || 100;
+                var t = total();
+                body.innerHTML =
+                    '<div class="nx-cf-bar nx-build-bar">' +
+                        '<div class="nx-pool-kinds" id="nxBuildKinds">' + ['all', '怪兽', '魔法', '陷阱'].map(function (k) {
+                            return '<button class="nx-stats-tab' + (k === st.kind ? ' is-on' : '') + '" type="button" data-kind="' + k + '">' +
+                                (k === 'all' ? '全部' : k) + '</button>';
+                        }).join('') + '</div>' +
+                        '<div class="nx-cf-search is-open" id="nxBuildSearchWrap">' +
+                            '<button class="nx-cf-lens" type="button" aria-label="搜索">' +
+                                '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">' +
+                                    '<circle cx="10.4" cy="10.4" r="6.6"></circle><line x1="15.4" y1="15.4" x2="21" y2="21"></line>' +
+                                '</svg>' +
+                            '</button>' +
+                            '<input id="nxBuildSearch" type="text" placeholder="卡名 / 卡号" autocomplete="off" spellcheck="false" value="' + esc(st.q) + '">' +
+                            '<span class="nx-cf-count">' + ids.length + ' 张</span>' +
+                        '</div>' +
+                    '</div>' +
+                    '<div class="nx-build-cols">' +
+                        '<div class="nx-build-left" id="nxBuildResults"></div>' +
+                        '<div class="nx-build-right">' +
+                            '<div class="nx-build-sum">' +
+                                '<span>主 <b>' + st.main.length + '</b></span>' +
+                                '<span>额外 <b>' + st.extra.length + '</b></span>' +
+                                '<span>副 <b>' + st.side.length + '</b></span>' +
+                                '<span class="' + (t > lim ? 'is-over' : '') + '">总分 <b>' + t + '</b> / ' + lim + '</span>' +
+                            '</div>' +
+                            groupHtml('main', '主卡组', st.main) +
+                            groupHtml('extra', '额外卡组', st.extra) +
+                            groupHtml('side', '副卡组', st.side) +
+                            '<div class="nx-build-acts">' +
+                                '<button class="nx-deck-dl" id="nxBuildDl" type="button" title="下载这套卡组">' +
+                                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+                                        '<path d="M12 4v11"></path><path d="M7.5 11.5 12 16l4.5-4.5"></path><path d="M5 19h14"></path>' +
+                                    '</svg><span data-txt="下载 YDK">下载 YDK</span>' +
+                                '</button>' +
+                                '<button class="nx-page-btn" id="nxBuildClear" type="button">清空</button>' +
+                            '</div>' +
+                        '</div>' +
+                    '</div>';
+                // 搜索结果：复用分页卡图（点击即加入）
+                renderPagedCards(document.getElementById('nxBuildResults'), ids, {
+                    per: BUILD_PER,
+                    page: st.page,
+                    onPick: add,
+                    onGo: function (p) { st.page = p; paint(); }
+                });
+                // 分类/搜索
+                Array.prototype.forEach.call(body.querySelectorAll('#nxBuildKinds .nx-stats-tab'), function (b) {
+                    b.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        var k = b.getAttribute('data-kind');
+                        if (k === st.kind) return;
+                        st.kind = k; st.page = 1; hideCardTip(true); playSfx('click'); paint();
+                    });
+                });
+                var si = document.getElementById('nxBuildSearch');
+                if (si) {
+                    var timer = null;
+                    si.addEventListener('input', function () {
+                        clearTimeout(timer);
+                        timer = setTimeout(function () { st.q = si.value || ''; st.page = 1; var pos = si.selectionStart; paint(); var n2 = document.getElementById('nxBuildSearch'); if (n2) { n2.focus(); try { n2.setSelectionRange(pos, pos); } catch (e) { } } }, 240);
+                    });
+                    si.addEventListener('keydown', function (ev) { ev.stopPropagation(); if (ev.key === 'Enter') { ev.preventDefault(); st.q = si.value || ''; st.page = 1; paint(); } });
+                    ['click', 'pointerdown'].forEach(function (t2) { si.addEventListener(t2, function (ev) { ev.stopPropagation(); }); });
+                }
+                var wrap = document.getElementById('nxBuildSearchWrap');
+                if (wrap) ['pointerdown', 'click'].forEach(function (t2) { wrap.addEventListener(t2, function () { _nxBarTouchAt = Date.now(); }, true); });
+                // 移除 / 下载 / 清空
+                Array.prototype.forEach.call(body.querySelectorAll('.nx-build-card'), function (el) {
+                    el.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        remove(el.getAttribute('data-sec'), parseInt(el.getAttribute('data-i'), 10) || 0);
+                    });
+                });
+                var dl = document.getElementById('nxBuildDl');
+                if (dl) {
+                    dl.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        var total0 = st.main.length + st.extra.length + st.side.length;
+                        if (!total0) { toast('还没有卡可以下载'); return; }
+                        downloadDeckYdk({ main: st.main, extra: st.extra, side: st.side }, '自组卡组', dl.querySelector('span') || dl);
+                    });
+                }
+                var cl = document.getElementById('nxBuildClear');
+                if (cl) {
+                    cl.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
+                        st.main = []; st.extra = []; st.side = [];
+                        playSfx('back');
+                        paint();
+                    });
+                }
+            }
+            paint();
+        });
+    }
+
+    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool, banlist: renderBanlist, room: renderRoom, download: renderDownload, login: renderLogin, builder: renderBuilder };
 
     // ── DOM ──
     var stage = document.getElementById('nxStage');
