@@ -242,7 +242,7 @@
         var body = document.getElementById('chronicleModalBody');
         body.innerHTML = '<div class="loading-hint">加载中...</div>';
 
-        fetch('decks/chronicle_decks.json?v=202609200225b')
+        fetch('decks/chronicle_decks.json?v=202610050606b')
             .then(function (resp) {
                 if (!resp.ok) throw new Error('HTTP ' + resp.status);
                 return resp.json();
