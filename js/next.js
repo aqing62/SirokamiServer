@@ -2959,14 +2959,17 @@
         if (historyStack.length <= 1) return;                      // 没有上一步
         // 功能屏同样支持点空白返回（已无返回按钮）
         var t = ev.target;
-        // 注意：功能屏里的"信息型"元素（卡片瓦片、对阵块、分页栏、信息行…）都是 div/a 之上还有大片可点区域，
+        // 注意：功能屏里的"信息型/移植型"元素（卡片瓦片、对阵块、分页栏、信息行…）都是 div/a 之上还有大片可点区域，
         // 点它们不该被当成"点空白"，否则点一张卡就会退回上一层。
+        // #dbLayout / #nxBuilderHost 是整块移植过来的经典版组卡器，它内部凡可点处都不参与返回判定。
         if (t && t.closest && t.closest(
             'button, a, input, select, textarea, label,' +
             ' .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug, .nx-row, .nx-pov, .nx-cf-bar,' +
             ' .nx-card-grid, .nx-card-tile, .nx-pager, .nx-info-list, .nx-info-row, .nx-dl-list,' +
             ' .nx-br-match, .nx-bracket, .nx-login-card, .nx-login-row, .nx-stats-top, .nx-stats-tabs,' +
-            ' .nx-tour-meta, .nx-group-chips, .nx-screen-todo'
+            ' .nx-tour-meta, .nx-group-chips, .nx-screen-todo,' +
+            ' #dbLayout, #nxBuilderHost, .deck-builder-panel, .db-panel, .db-card, .db-cards,' +
+            ' .deck-viewer-modal-overlay, .deck-viewer-modal, .card-img-wrapper, .clipboard-toast'
         )) return;
         if (Date.now() - _nxBarTouchAt < 260) return;               // 刚碰过工具带，视为误触
         playSfx('back');
