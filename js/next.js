@@ -1897,8 +1897,10 @@
     function poolMatchSub(c, sub) {
         var ti = c.typeInfo || {};
         var st = ti.subTypes || [];
-        if (sub === '通常') return st.length === 0;      // 没有子类标签的就是「通常」
-        return st.indexOf(sub) >= 0;
+        if (st.indexOf(sub) >= 0) return true;
+        // 魔法/陷阱的「通常」是"没有子类标签"；怪兽的「通常」本身就是一个子类标签（上面已命中）
+        if (sub === '通常' && ti.baseType !== '怪兽' && st.length === 0) return true;
+        return false;
     }
     function renderPool(body) {
         var st = body._pool || (body._pool = { q: '', kind: 'all', sub: '', page: 1, list: null, lensOpen: false });
