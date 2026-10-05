@@ -1422,8 +1422,21 @@ body.nx-zoomed .nx-foot {
 .nx-screen-body .db-layout { margin: 0 auto; width: 100%; }
 .nx-screen-body .deck-builder-panel,
 .nx-screen-body .db-panel { border-radius: 12px; }
+/* 三栏锁进一个固定高度的框里，各栏内部自己滚（老站是靠 flex:1 撑满页面高度，
+   移植过来后父容器是自适应高度，不锁的话右侧卡池会把三栏一起撑长） */
+.nx-screen-body .db-layout {
+  height: clamp(430px, 68vh, 660px);
+  min-height: 0;
+  align-items: stretch;
+}
+/* 老站的卡池限高规则挂在 #section-card-pool.builder-mode 上，这里没那个外层，补上同款 */
+.nx-screen-body .db-grid-wrap { max-height: 100%; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.nx-screen-body .db-col-mid .deck-builder-panel,
+.nx-screen-body .db-col-left .db-panel,
+.nx-screen-body .db-col-right .db-panel { height: 100%; min-height: 0; }
 @media (max-width: 760px) {
-  .nx-screen-body .db-layout { grid-template-columns: 1fr !important; }
+  .nx-screen-body .db-layout { grid-template-columns: 1fr !important; height: auto; }
+  .nx-screen-body .db-grid-wrap { max-height: 420px; }
 }
 
 /* ══ 房间 / 下载 / 登录：信息列表、下载行、账号卡 ═══════════ */
