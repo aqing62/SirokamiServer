@@ -2120,14 +2120,14 @@
                 ev.stopPropagation();
                 var mk = b.getAttribute('data-mode');
                 var tk = b.getAttribute('data-tab');
-                if (mk && mk !== ((body.dataset.mode) || 'g')) {
-                    body.dataset.mode = mk;
-                    hideCardTip(true); playSfx('click'); renderBanlist(body); return;
-                }
-                if (tk && tk !== ((body.dataset.tab) || 'forbidden')) {
-                    body.dataset.tab = tk;
-                    hideCardTip(true); playSfx('click'); renderBanlist(body);
-                }
+                var changed = (mk && mk !== ((body.dataset.mode) || 'g')) || (tk && tk !== ((body.dataset.tab) || 'forbidden'));
+                if (!changed) return;
+                if (mk) body.dataset.mode = mk;
+                if (tk) body.dataset.tab = tk;
+                if (body._ban) body._ban.page = 1;        // 换表/换档都回到第 1 页
+                hideCardTip(true);
+                playSfx('click');
+                renderBanlist(body);
             });
         });
     }
