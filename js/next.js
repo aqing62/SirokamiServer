@@ -1889,7 +1889,7 @@
     // ── 卡池（卡片 → 卡池）：/api/cards 全量 17k+，分页渲染 + 懒加载 + 名称/类型筛选 ──
     var POOL_PAGE = 120;
     function renderPool(body) {
-        var st = body._pool || (body._pool = { q: '', kind: 'all', shown: 0, list: null });
+        var st = body._pool || (body._pool = { q: '', kind: 'all', page: 1, list: null });
         body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
             '<div class="nx-load-text">正在读取卡池 <b>0</b></div></div>';
         loadCardMap().then(function () {
@@ -1927,58 +1927,28 @@
                         '<span class="nx-cf-count" id="nxPoolCount"></span>' +
                     '</div>' +
                 '</div>' +
-                '<div class="nx-card-grid nx-pool-grid" id="nxPoolGrid"></div>' +
-                '<div class="nx-pool-sentinel" id="nxPoolMore"></div>';
+                '<div id="nxPoolGrid"></div>';
             var grid = document.getElementById('nxPoolGrid');
-            var sentinel = document.getElementById('nxPoolMore');
             var wrap = document.getElementById('nxPoolSearchWrap');
             var input = document.getElementById('nxPoolSearch');
             var lens = document.getElementById('nxPoolLens');
             var clearBtn = document.getElementById('nxPoolClear');
             var countEl = document.getElementById('nxPoolCount');
-            var pending = null;
 
             function suite() { return filtered(); }
-            function reset() { st.shown = 0; grid.innerHTML = ''; st.list = suite(); addMore(); refreshCount(); }
-            function refreshCount() {
-                if (countEl) countEl.textContent = '已显示 ' + Math.min(st.shown, (st.list || []).length) + ' / ' + ((st.list || []).length);
+            function reset(toPage) { st.page = toPage || 1; paintPage(); }
+            function refreshCount(list) {
+                if (countEl) countEl.textContent = (list ? list.length : 0) + ' 张';
                 if (clearBtn) clearBtn.hidden = !(st.q.trim()) || (wrap && wrap.classList.contains('is-open'));
             }
-            function addMore() {
-                if (!st.list) st.list = suite();
-                var from = st.shown, to = Math.min(st.list.length, from + POOL_PAGE);
-                if (from >= to) return;
-                var html = '';
-                for (var i = from; i < to; i++) {
-                    var c = st.list[i];
-                    var sc = _scoreMap && _scoreMap[c.id];
-                    html += '<div class="nx-card-tile is-plain" data-id="' + c.id + '" style="--i:' + Math.min(i - from, 40) + '">' +
-                        '<span class="nx-card-photo"><img class="nx-card-img" src="' + PIC_CHAIN[0] + c.id + '.jpg" loading="lazy" alt=""></span>' +
-                        '<span class="nx-card-name">' + esc(c.name || ('#' + c.id)) + '</span>' +
-                        (sc ? '<span class="nx-deck-score' + (sc.forbidden ? ' is-forbidden' : '') + '">' + (sc.forbidden ? '禁' : sc.score) + '</span>' : '') +
-                    '</div>';
-                }
-                var tmp = document.createElement('div');
-                tmp.innerHTML = html;
-                var added = Array.prototype.slice.call(tmp.children);
-                added.forEach(function (el) { grid.appendChild(el); });
-                st.shown = to;
-                added.forEach(function (tile) {
-                    var id = parseInt(tile.getAttribute('data-id'), 10) || 0;
-                    var img = tile.querySelector('.nx-card-img');
-                    if (img) wireDeckImage(img, tile.querySelector('.nx-card-photo') || tile, id);
-                    tile.addEventListener('mouseenter', function (ev) { showCardTip(ev, id); });
-                    tile.addEventListener('mousemove', function (ev) { if (_tipEl && _tipEl.style.display === 'block') positionCardTip(ev, _tipEl); });
-                    tile.addEventListener('mouseleave', hideCardTip);
+            function paintPage() {
+                st.list = suite();
+                refreshCount(st.list);
+                renderPagedCards(grid, st.list.map(function (c) { return c.id; }), {
+                    per: POOL_PAGE,
+                    page: st.page || 1,
+                    onGo: function (p) { st.page = p; paintPage(); }
                 });
-                refreshCount();
-            }
-            // 滚动到底部自动续页
-            if (window.IntersectionObserver) {
-                var io = new IntersectionObserver(function (es) {
-                    es.forEach(function (e) { if (e.isIntersecting) addMore(); });
-                }, { rootMargin: '320px' });
-                io.observe(sentinel);
             }
             // 类型筛选
             Array.prototype.forEach.call(body.querySelectorAll('.nx-pool-kinds .nx-stats-tab'), function (b) {
@@ -1992,41 +1962,40 @@
                     Array.prototype.forEach.call(body.querySelectorAll('.nx-pool-kinds .nx-stats-tab'), function (x) {
                         x.classList.toggle('is-on', x.getAttribute('data-kind') === k);
                     });
-                    reset();
+                    reset(1);
                 });
             });
             // 折叠式搜索（与预组同款交互）
             function poolOpen() { return wrap.classList.contains('is-open'); }
-            function poolRefreshClear() { refreshCount(); }
+            function poolRefreshClear() { refreshCount(st.list); }
             function closePoolSearch(spin) {
                 wrap.classList.remove('is-open');
                 if (spin && lens) { lens.classList.remove('is-spin'); void lens.offsetWidth; lens.classList.add('is-spin'); }
                 poolRefreshClear();
             }
-            function applyPoolSearch() { reset(); }
             if (lens) {
                 lens.addEventListener('click', function (ev) {
                     ev.stopPropagation();
                     if (!poolOpen()) { wrap.classList.add('is-open'); poolRefreshClear(); setTimeout(function () { input.focus(); input.select(); }, 80); return; }
-                    applyPoolSearch(); closePoolSearch(true);
+                    st.q = input.value || ''; reset(1); closePoolSearch(true);
                 });
             }
             if (clearBtn) {
                 clearBtn.addEventListener('click', function (ev) {
                     ev.stopPropagation();
-                    input.value = ''; st.q = ''; applyPoolSearch(); poolRefreshClear();
+                    input.value = ''; st.q = ''; reset(1); poolRefreshClear();
                 });
             }
             if (input) {
                 var timer = null;
                 input.addEventListener('input', function () {
                     clearTimeout(timer);
-                    timer = setTimeout(function () { st.q = input.value || ''; applyPoolSearch(); poolRefreshClear(); }, 180);
+                    timer = setTimeout(function () { st.q = input.value || ''; reset(1); poolRefreshClear(); }, 180);
                 });
                 input.addEventListener('keydown', function (ev) {
                     ev.stopPropagation();
-                    if (ev.key === 'Enter') { ev.preventDefault(); st.q = input.value || ''; applyPoolSearch(); closePoolSearch(true); }
-                    else if (ev.key === 'Escape') { ev.preventDefault(); st.q = input.value || ''; applyPoolSearch(); closePoolSearch(false); input.blur(); }
+                    if (ev.key === 'Enter') { ev.preventDefault(); st.q = input.value || ''; reset(1); closePoolSearch(true); }
+                    else if (ev.key === 'Escape') { ev.preventDefault(); st.q = input.value || ''; reset(1); closePoolSearch(false); input.blur(); }
                 });
                 input.addEventListener('click', function (ev) { ev.stopPropagation(); });
                 input.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
@@ -2036,7 +2005,7 @@
                     wrap.addEventListener(t, function () { _nxBarTouchAt = Date.now(); }, true);
                 });
             }
-            reset();
+            reset(1);
         });
     }
 
@@ -2097,15 +2066,19 @@
                     return a.id - b.id;
                 });
                 var forb = arr.filter(function (x) { return x.forbidden; }).length;
+                var bst = body._ban || (body._ban = { page: 1 });
                 body.innerHTML =
                     '<div class="nx-stats-top nx-reveal" style="--i:0">' +
                         '<div class="nx-stats-tabs">' + modeTabs(arr.length, '') + '</div>' +
                         '<div class="nx-stats-count">上限 <b>' + lim + '</b> 分 · 禁用 <b>' + forb + '</b> 张</div>' +
                     '</div>' +
                     '<div class="nx-info-hint nx-reveal" style="--i:1">组卡时按每张卡的分值累计，总分不超过上限；标「禁」的卡不能投入</div>' +
-                    '<div class="nx-card-grid" id="nxStatsGrid"></div>';
-                paintCardTiles(document.getElementById('nxStatsGrid'),
-                    arr.map(function (x) { return x.id; }), { plain: true, lazy: true });
+                    '<div id="nxBanGrid"></div>';
+                renderPagedCards(document.getElementById('nxBanGrid'), arr.map(function (x) { return x.id; }), {
+                    per: POOL_PAGE,
+                    page: bst.page,
+                    onGo: function (p) { bst.page = p; renderBanlist(body); }
+                });
                 bindBanlistTabs(body);
             });
             return;
@@ -2122,17 +2095,22 @@
             }).join('');
             var total = d.forbidden.length + d.limit.length + d.semi.length;
             var list = d[tab] || [];
+            var bst2 = body._ban || (body._ban = { page: 1 });
             body.innerHTML =
                 '<div class="nx-stats-top nx-reveal" style="--i:0">' +
                     '<div class="nx-stats-tabs">' + modeTabs('', total) + '</div>' +
                     '<div class="nx-stats-count">OT 规制共 <b>' + total + '</b> 张受限卡</div>' +
                 '</div>' +
                 '<div class="nx-stats-tabs nx-stats-sub nx-reveal" style="--i:1">' + tabs + '</div>' +
-                '<div class="nx-card-grid" id="nxStatsGrid"></div>';
+                '<div id="nxBanGrid"></div>';
             var nameMap = {};
             list.forEach(function (x) { if (x.name) nameMap[x.id] = x.name; });
-            paintCardTiles(document.getElementById('nxStatsGrid'),
-                list.map(function (x) { return x.id; }), { plain: true, names: nameMap, lazy: true });
+            renderPagedCards(document.getElementById('nxBanGrid'), list.map(function (x) { return x.id; }), {
+                per: POOL_PAGE,
+                page: bst2.page,
+                names: nameMap,
+                onGo: function (p) { bst2.page = p; renderBanlist(body); }
+            });
             bindBanlistTabs(body);
         });
     }
@@ -2219,6 +2197,40 @@
                     '<div class="nx-info-hint nx-reveal" style="--i:0">还没有登录。<br>登录后可参与天梯计分、投稿卡组与回放。</div>' +
                     '<a class="nx-big-link nx-reveal" style="--i:1" href="index.html?goto=login">打开经典版登录</a>';
             });
+    }
+
+    // 分页外壳：上下各一条翻页栏 + 当页卡图网格（供卡池 / 卡表用，避免一次性塞几千个节点）
+    function pagerHtml(page, pages, total) {
+        return '<div class="nx-pager">' +
+            '<button class="nx-page-btn" type="button" data-page="' + (page - 1) + '"' + (page <= 1 ? ' disabled' : '') + '>‹ 上一页</button>' +
+            '<span class="nx-page-info">第 <b>' + page + '</b> / ' + pages + ' 页 · 共 <b>' + total + '</b> 张</span>' +
+            '<button class="nx-page-btn" type="button" data-page="' + (page + 1) + '"' + (page >= pages ? ' disabled' : '') + '>下一页 ›</button>' +
+        '</div>';
+    }
+    function renderPagedCards(host, ids, opts) {
+        opts = opts || {};
+        var per = opts.per || 120;
+        var pages = Math.max(1, Math.ceil(ids.length / per));
+        var page = Math.min(Math.max(1, opts.page || 1), pages);
+        var slice = ids.slice((page - 1) * per, page * per);
+        host.innerHTML =
+            pagerHtml(page, pages, ids.length) +
+            '<div class="nx-card-grid" id="nxPagedGrid"></div>' +
+            (pages > 1 ? pagerHtml(page, pages, ids.length) : '');
+        paintCardTiles(document.getElementById('nxPagedGrid'), slice,
+            { plain: true, lazy: true, names: opts.names });
+        Array.prototype.forEach.call(host.querySelectorAll('.nx-page-btn'), function (b) {
+            b.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                if (b.disabled) return;
+                var p = parseInt(b.getAttribute('data-page'), 10) || 1;
+                var body = host.closest ? host.closest('.nx-screen-body') : null;
+                if (body) body.scrollTop = 0;          // 翻页后回到顶部
+                playSfx('click');
+                if (opts.onGo) opts.onGo(p);
+            });
+        });
+        return { page: page, pages: pages };
     }
 
     var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool, banlist: renderBanlist, room: renderRoom, download: renderDownload, login: renderLogin };

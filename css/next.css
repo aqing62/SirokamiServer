@@ -1493,6 +1493,23 @@ body.nx-zoomed .nx-foot {
   .nx-dl-row { padding: 12px 14px; }
 }
 
+/* ── 分页栏（卡池 / 卡表）────────────────────────────────── */
+.nx-pager {
+  align-self: stretch; width: 100%; max-width: 1100px; margin: 4px auto 12px;
+  display: flex; align-items: center; justify-content: center; gap: 14px; flex-wrap: wrap;
+}
+.nx-page-btn {
+  padding: 7px 16px; border: none; border-radius: 999px;
+  background: rgba(255, 255, 255, .055);
+  color: #cfc8bf; font-family: inherit; font-size: 13px; font-weight: 600; letter-spacing: .5px;
+  cursor: pointer;
+  transition: background .2s, color .2s, transform .2s, box-shadow .25s;
+}
+.nx-page-btn:hover:not([disabled]) { background: rgba(212, 175, 55, .18); color: #fff3c4; transform: translateY(-1px); box-shadow: 0 0 16px rgba(212, 175, 55, .22); }
+.nx-page-btn[disabled] { color: #55555e; cursor: default; }
+.nx-page-info { font-size: 13px; color: #8d8d96; letter-spacing: .5px; }
+.nx-page-info b { color: var(--nx-gold-light, #F0E68C); font-size: 15px; }
+
 /* ══ 卡池：类型筛选 + 折叠搜索 + 分页卡图网格 ═════════════ */
 .nx-pool-bar { margin-bottom: 10px; }
 .nx-pool-kinds { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
