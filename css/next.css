@@ -631,6 +631,9 @@ body.nx-skip .nx-welcome { display: none; }
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
+/* 内容子项不要被 flex 压缩：否则网格被压扁、溢出量也不计入滚动高度 → 滚不动 */
+.nx-screen-body > * { flex-shrink: 0; }
+.nx-screen-body > .nx-scroll { flex-shrink: 1; }   /* 天梯那种自带滚动的例外 */
 /* 占位说明仍给一点容器感，免得空落落 */
 .nx-screen-todo { margin-top: 34px; }
 .nx-screen-todo-sub { margin-bottom: 34px; }
