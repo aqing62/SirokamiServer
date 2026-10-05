@@ -2893,7 +2893,15 @@
         if (historyStack.length <= 1) return;                      // 没有上一步
         // 功能屏同样支持点空白返回（已无返回按钮）
         var t = ev.target;
-        if (t && t.closest && t.closest('button, a, input, select, textarea, label, .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug, .nx-row, .nx-pov, .nx-cf-bar')) return;
+        // 注意：功能屏里的"信息型"元素（卡片瓦片、对阵块、分页栏、信息行…）都是 div/a 之上还有大片可点区域，
+        // 点它们不该被当成"点空白"，否则点一张卡就会退回上一层。
+        if (t && t.closest && t.closest(
+            'button, a, input, select, textarea, label,' +
+            ' .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug, .nx-row, .nx-pov, .nx-cf-bar,' +
+            ' .nx-card-grid, .nx-card-tile, .nx-pager, .nx-info-list, .nx-info-row, .nx-dl-list,' +
+            ' .nx-br-match, .nx-bracket, .nx-login-card, .nx-login-row, .nx-stats-top, .nx-stats-tabs,' +
+            ' .nx-tour-meta, .nx-group-chips, .nx-screen-todo'
+        )) return;
         if (Date.now() - _nxBarTouchAt < 260) return;               // 刚碰过工具带，视为误触
         playSfx('back');
         goBack();
