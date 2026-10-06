@@ -1418,7 +1418,7 @@ body.nx-zoomed .nx-foot {
 .nx-bg-blue {
   position: absolute; inset: 0;
   opacity: 0;                       /* 默认不可见，body.nx-blue 时淡入 */
-  transition: opacity .55s cubic-bezier(.22, .9, .28, 1.02);
+  transition: opacity 1.15s cubic-bezier(.4, 0, .2, 1);
   pointer-events: none;
   background: linear-gradient(180deg, #070b16, #05070f);   /* 蓝黑底，压住原来的近黑 */
 }
@@ -1431,7 +1431,7 @@ body.nx-zoomed .nx-foot {
     linear-gradient(rgba(86, 140, 255, .32) 1px, transparent 1px),
     linear-gradient(90deg, rgba(86, 140, 255, .32) 1px, transparent 1px);
 }
-body { transition: background-color .55s cubic-bezier(.22, .9, .28, 1.02); }
+body { transition: background-color 1.15s cubic-bezier(.4, 0, .2, 1); }
 body.nx-blue { background-color: #05070f; }
 
 /* ══ 历届八强：对齐预组屏的扇形卡组卡 ═════════════════════ */
