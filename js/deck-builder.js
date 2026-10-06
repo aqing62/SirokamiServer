@@ -156,9 +156,42 @@
             .catch(function () { scoreMap = {}; return scoreMap; });
     }
 
+    // 分值判定（按用户规则）：
+    //   ① 这张卡自己在分值表里有分（或被禁）→ 用自己的，不再看别的
+    //   ② 自己没分 → 找同名卡：先看 alias 链接的那张，再按卡名找同名的最高分
+    //   ③ 都没有 → 没有分（返回原来的空/0 对象）
+    function scoreHasPoint(s) { return !!(s && (s.forbidden || (s.score || 0) > 0)); }
+    var _nameScoreMap = null;
+    function nameScoreMap() {
+        if (_nameScoreMap) return _nameScoreMap;
+        _nameScoreMap = {};
+        if (diyIndex && diyIndex.forEach) {
+            diyIndex.forEach(function (c, id) {
+                var nm = c && c.name;
+                if (!nm) return;
+                var s = scoreMap && scoreMap[id];
+                if (!scoreHasPoint(s)) return;
+                var cur = _nameScoreMap[nm];
+                if (!cur || (s.score || 0) > (cur.score || 0) || (s.forbidden && !cur.forbidden)) _nameScoreMap[nm] = s;
+            });
+        }
+        return _nameScoreMap;
+    }
     function cardScoreOf(id) {
-        var s = scoreMap && scoreMap[id];
-        return s || null;
+        var own = scoreMap && scoreMap[id];
+        if (scoreHasPoint(own)) return own;
+        var info = (diyIndex && diyIndex.get) ? (diyIndex.get(parseInt(id, 10)) || null) : null;
+        var aliasId = info ? parseInt(info.alias, 10) : 0;
+        if (aliasId) {
+            var a = scoreMap && scoreMap[aliasId];
+            if (scoreHasPoint(a)) return a;
+        }
+        var nm = info && info.name;
+        if (nm) {
+            var best = nameScoreMap()[nm];
+            if (best) return best;
+        }
+        return own || null;
     }
 
     // ── 衍生物（Token）识别：组卡界面不展示 ──
@@ -1220,10 +1253,12 @@
             return;
         }
         loadDiyData().then(function () {
-            var list = diySearchList();
-            gridTipEl.textContent = (relatedTerms.length || relatedLabels.length)
-                ? (relatedTipText(list.length) + ' · 点一下看详情，再点一下加入卡组')
-                : ('共 ' + list.length + ' 张 · 点一下看详情，再点一下加入卡组');
+            var list = commonFilter(diySearchList());
+            gridTipEl.textContent = _commonOn
+                ? ('常用卡 · 共 ' + list.length + ' 张（可按「筛选」再收紧）· 点一下看详情，再点一下加入卡组')
+                : ((relatedTerms.length || relatedLabels.length)
+                    ? (relatedTipText(list.length) + ' · 点一下看详情，再点一下加入卡组')
+                    : ('共 ' + list.length + ' 张 · 点一下看详情，再点一下加入卡组'));
             resetGrid(list);
         });
     }
@@ -1697,45 +1732,39 @@
     }
 
     // ── 常用卡（搜卡面板的蓝色按钮）──────────────────────────
-    //  数据取 data/common_cards.json（各分组卡号合集），点一下把网格换成常用卡，再点一下回到原来的搜索结果
-    var COMMON_URL = 'data/common_cards.json?v=20261008s';
-    var _commonIds = null, _commonOn = false;
+    //  只做一个「开关」：打开后所有搜索/筛选结果都会再与常用卡集合求交集，
+    //  所以它和「筛选」「搜索框」是叠加关系，而不是各走一条路。
+    var COMMON_URL = 'data/common_cards.json?v=20261008u';
+    var _commonIds = null, _commonSet = null, _commonOn = false;
     function loadCommonIds() {
         if (_commonIds) return Promise.resolve(_commonIds);
         return fetch(COMMON_URL)
             .then(function (r) { return r.json(); })
             .then(function (d) {
-                var set = {}, order = [];
+                var list = [], set = {};
                 ((d && d.groups) || []).forEach(function (g) {
-                    (g.cards || []).forEach(function (id) { if (!set[id]) { set[id] = 1; order.push(id); } });
+                    (g.cards || []).forEach(function (id) { if (!set[id]) { set[id] = 1; list.push(id); } });
                 });
-                _commonIds = order;
+                _commonIds = list; _commonSet = set;
                 return _commonIds;
             })
-            .catch(function () { _commonIds = []; return _commonIds; });
+            .catch(function () { _commonIds = []; _commonSet = {}; return _commonIds; });
+    }
+    function commonFilter(list) {
+        if (!_commonOn || !_commonSet) return list;
+        return list.filter(function (c) { return !!_commonSet[String(c.id)]; });
     }
     function setCommonBtn(on) {
         var b = document.getElementById('dbCommonBtn');
         if (!b) return;
         b.classList.toggle('is-on', !!on);
-        b.textContent = on ? '★ 常用卡' : '★ 常用卡';
     }
     function showCommonCards() {
-        return loadCommonIds().then(function (ids) {
-            if (!ids.length) { gridTipEl.textContent = '常用卡列表读取失败'; return; }
-            return loadDiyData().then(function () {
-                var list = [], miss = 0;
-                ids.forEach(function (id) {
-                    var c = diyIndex.get(parseInt(id, 10));
-                    if (c) list.push(c); else miss++;
-                });
-                list.sort(compareCardObj);
-                officialMode = false;
-                _commonOn = true;
-                setCommonBtn(true);
-                gridTipEl.textContent = '常用卡 · 共 ' + list.length + ' 张' + (miss ? '（另有 ' + miss + ' 张不在卡库里）' : '') + ' · 点一下看详情，再点一下加入卡组';
-                resetGrid(list);
-            });
+        return loadCommonIds().then(function () {
+            if (!_commonIds.length) { gridTipEl.textContent = '常用卡列表读取失败'; return; }
+            _commonOn = true;
+            setCommonBtn(true);
+            doSearch();
         });
     }
     function exitCommonCards() {

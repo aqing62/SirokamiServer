@@ -595,6 +595,42 @@
     function cardInfo(id) { return (_cardMap && _cardMap[String(id)]) || null; }
 
     // 禁限分值表（/api/scores）：{ id: {score, forbidden} }
+    // ── 分值判定（与组卡器同一套规则）──
+    //   ① 这张卡自己在分值表里有分或被禁 → 用自己的
+    //   ② 自己没分 → 找同名卡：先看 alias 链接的那张，再按卡名找同名的最高分
+    //   ③ 都没有 → 没有分
+    function nxScoreHasPoint(s) { return !!(s && (s.forbidden || (s.score || 0) > 0)); }
+    var _nxNameScore = null;
+    function nxNameScoreMap() {
+        if (_nxNameScore) return _nxNameScore;
+        _nxNameScore = {};
+        (_cardList || []).forEach(function (c) {
+            var nm = c && c.name;
+            if (!nm) return;
+            var s = _scoreMap && _scoreMap[c.id];
+            if (!nxScoreHasPoint(s)) return;
+            var cur = _nxNameScore[nm];
+            if (!cur || (s.score || 0) > (cur.score || 0) || (s.forbidden && !cur.forbidden)) _nxNameScore[nm] = s;
+        });
+        return _nxNameScore;
+    }
+    function nxScoreOf(id) {
+        var own = _scoreMap && _scoreMap[id];
+        if (nxScoreHasPoint(own)) return own;
+        var c = _cardMap && _cardMap[String(id)];
+        var aliasId = c ? parseInt(c.alias, 10) : 0;
+        if (aliasId) {
+            var a = _scoreMap && _scoreMap[aliasId];
+            if (nxScoreHasPoint(a)) return a;
+        }
+        var nm = c && c.name;
+        if (nm) {
+            var best = nxNameScoreMap()[nm];
+            if (best) return best;
+        }
+        return own || null;
+    }
+
     function loadScoreMap() {
         if (_scoreMap) return Promise.resolve(_scoreMap);
         return fetch('/api/scores?t=' + Date.now())
@@ -695,7 +731,7 @@
         var tip = tipEl();
         if (!c) return;                // 查不到卡片信息时保持现状，避免浮层被杂散事件闪掉
         var isMonster = c.typeInfo && c.typeInfo.baseType === '怪兽';
-        var score = _scoreMap && _scoreMap[id];
+        var score = nxScoreOf(id);
         var scoreLine = score
             ? '<div class="nct-score">' + (score.forbidden ? '禁用卡' : '分值 ' + score.score) + '</div>'
             : '';
@@ -1112,7 +1148,7 @@
                     return '<div class="nx-deck-group"><div class="nx-deck-group-title">' + title + ' <i>' + ids.length + '</i></div>' +
                         '<div class="nx-deck-cards">' + ids.map(function (id) {
                             var nm = cardName(id);
-                            var sc = _scoreMap && _scoreMap[id];
+                            var sc = nxScoreOf(id);
                             var badge = (sc && (sc.forbidden || (sc.score || 0) > 0))
                                 ? '<span class="nx-deck-score' + (sc.forbidden ? ' is-forbidden' : '') + '">' +
                                   (sc.forbidden ? '禁' : sc.score) + '</span>'
@@ -1130,7 +1166,7 @@
                     var sum = 0;
                     ['main', 'extra', 'side'].forEach(function (sec) {
                         (dk[sec] || []).forEach(function (cid) {
-                            var s = _scoreMap && _scoreMap[cid];
+                            var s = nxScoreOf(cid);
                             if (s) sum += (s.score || 0);
                         });
                     });
@@ -1838,7 +1874,7 @@
             box.innerHTML = ids.map(function (x, i) {
                 var id = opts.plain ? x : x.cardId;
                 var nm = (opts.names && opts.names[id]) || cardName(id);
-                var sc = _scoreMap && _scoreMap[id];
+                var sc = nxScoreOf(id);
                 var stat = (!opts.plain && x.usageRate)
                     ? '<span class="nx-card-stats"><i class="is-use">' + esc(x.usageRate) + '</i>' +
                       '<i class="is-win">' + esc(x.winRate || '-') + '</i></span>'
@@ -2915,7 +2951,7 @@
         var t = 0;
         ['main', 'extra', 'side'].forEach(function (k) {
             (deck[k] || []).forEach(function (id) {
-                var s = _scoreMap && _scoreMap[id];
+                var s = nxScoreOf(id);
                 if (s && !s.forbidden) t += (s.score || 0);
             });
         });
