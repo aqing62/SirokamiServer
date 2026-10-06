@@ -1895,21 +1895,31 @@ body.nx-blue { background-color: #05070f; }
 .nx-pool-grid { margin-top: 4px; }
 .nx-pool-sentinel { height: 40px; width: 100%; }
 
-/* ══ 比赛：当期八强奖品（3D 跟手倾斜 + 反光）═══════════════ */
-.nx-prize {
-  align-self: stretch; width: 100%; max-width: 1180px; margin: 4px auto 18px;
-  display: flex; align-items: center; justify-content: center;
-  gap: clamp(16px, 3vw, 46px); flex-wrap: wrap;
+/* ══ 比赛：当期八强奖品（右侧栏，3D 跟手倾斜 + 反光）══════ */
+.nx-screen[data-screen="match"] { width: min(1280px, 100%); }
+.nx-match-cols {
+  align-self: stretch; width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 250px;
+  gap: clamp(12px, 1.8vw, 26px);
+  align-items: start;
+  text-align: left;
 }
-.nx-prize-texts { text-align: left; min-width: 190px; }
+.nx-match-main { min-width: 0; }
+.nx-prize-col { min-width: 0; display: flex; justify-content: center; }
+.nx-prize {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  width: 100%;
+}
+.nx-prize-texts { text-align: center; }
 .nx-prize-title {
-  font-size: clamp(17px, 2vw, 22px); font-weight: 800; letter-spacing: 2px;
+  font-size: 15px; font-weight: 800; letter-spacing: 2px;
   color: #fff3c4;
   text-shadow: 0 0 22px rgba(255, 214, 40, .28);
 }
-.nx-prize-sub { font-size: 12.5px; color: #b9a86a; letter-spacing: 1px; margin-top: 6px; }
-.nx-prize-note { font-size: 11.5px; color: #7d7d86; margin-top: 10px; letter-spacing: .5px; }
-.nx-prize-stage { perspective: 900px; padding: 14px; }
+.nx-prize-sub { font-size: 11.5px; color: #b9a86a; letter-spacing: .5px; margin-top: 5px; }
+.nx-prize-note { font-size: 11px; color: #7d7d86; margin-top: 7px; line-height: 1.6; }
+.nx-prize-stage { perspective: 900px; padding: 10px; }
 .nx-prize-card {
   position: relative;
   transform-style: preserve-3d;
@@ -1918,7 +1928,7 @@ body.nx-blue { background-color: #05070f; }
 }
 .nx-prize-card.is-tilting { transition: transform .12s ease-out; }
 .nx-prize-card img {
-  width: min(196px, 44vw); display: block; border-radius: 8px;
+  width: min(196px, 100%); display: block; border-radius: 8px;
   box-shadow: 0 18px 44px rgba(0, 0, 0, .62), 0 0 0 1px rgba(255, 255, 255, .06);
   user-select: none;
 }
@@ -1947,10 +1957,12 @@ body.nx-blue { background-color: #05070f; }
   86%       { left: 120%; opacity: .9; }
   92%, 100% { left: 120%; opacity: 0; }
 }
+@media (max-width: 900px) {
+  .nx-match-cols { grid-template-columns: 1fr; }
+  .nx-prize-col { order: -1; }        /* 窄屏时奖品挪到上面，别挤在下面 */
+}
 @media (max-width: 768px) {
-  .nx-prize { gap: 12px; }
-  .nx-prize-texts { text-align: center; }
-  .nx-prize-title { font-size: 17px; }
+  .nx-prize-card img { width: min(170px, 44vw); }
 }
 
 /* ══ 比赛：瑞士轮积分榜 + 淘汰赛对阵图 ═════════════════════ */

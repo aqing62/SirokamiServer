@@ -1918,8 +1918,10 @@
                         (statusTxt ? '<i class="nx-tour-status' + (cur.status === 'Running' ? ' is-live' : '') + '">' + esc(statusTxt) + '</i>' : '') +
                     '</div>' +
                 '</div>' +
-                prizeHtml(cur) +
-                '<div id="nxMatchBody"></div>';
+                '<div class="nx-match-cols">' +
+                    '<div class="nx-match-main" id="nxMatchBody"></div>' +
+                    '<aside class="nx-prize-col">' + prizeHtml(cur) + '</aside>' +
+                '</div>';
 
             var box = document.getElementById('nxMatchBody');
             if (tab === 'elim') paintBracket(box, cur, names);
@@ -3004,17 +3006,17 @@
     function prizeHtml(cur) {
         if (!PRIZE_IMG) return '';
         return '<div class="nx-prize nx-reveal" style="--i:1">' +
-            '<div class="nx-prize-texts">' +
-                '<div class="nx-prize-title">当期八强奖品</div>' +
-                '<div class="nx-prize-sub">' + esc(cur && cur.name ? cur.name : '当期群赛') + '</div>' +
-                '<div class="nx-prize-note">打进八强即可获得 · 鼠标移上去看看</div>' +
-            '</div>' +
             '<div class="nx-prize-stage" id="nxPrizeStage">' +
                 '<div class="nx-prize-card" id="nxPrizeCard">' +
                     '<img src="' + esc(PRIZE_IMG) + '" alt="' + esc(PRIZE_NAME) + '" draggable="false">' +
                     '<span class="nx-prize-glare"></span>' +
                     '<span class="nx-prize-shine"></span>' +
                 '</div>' +
+            '</div>' +
+            '<div class="nx-prize-texts">' +
+                '<div class="nx-prize-title">当期八强奖品</div>' +
+                '<div class="nx-prize-sub">' + esc(cur && cur.name ? cur.name : '当期群赛') + '</div>' +
+                '<div class="nx-prize-note">打进八强即可获得 · 鼠标移上去看看</div>' +
             '</div>' +
         '</div>';
     }
