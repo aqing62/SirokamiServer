@@ -2428,7 +2428,19 @@
         if (_eightCache) return Promise.resolve(_eightCache);
         return fetch(EIGHT_URL)
             .then(function (r) { return r.json(); })
-            .then(function (d) { _eightCache = (d && d.tournaments) || []; return _eightCache; })
+            .then(function (d) {
+                var list = (d && d.tournaments) || [];
+                // 最新一届排最前（folder 即届次编号，按数字倒序；没有 folder 的按原顺序垫后）
+                list = list.slice().sort(function (a, b) {
+                    var na = parseInt(a.folder, 10), nb = parseInt(b.folder, 10);
+                    if (isNaN(na) && isNaN(nb)) return 0;
+                    if (isNaN(na)) return 1;
+                    if (isNaN(nb)) return -1;
+                    return nb - na;
+                });
+                _eightCache = list;
+                return _eightCache;
+            })
             .catch(function () { _eightCache = []; return _eightCache; });
     }
     function deckScoreOf(deck) {
