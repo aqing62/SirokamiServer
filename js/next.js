@@ -41,8 +41,7 @@
                 '想让朋友进来，把<b>房间名</b>发给他即可；代码后加 <b>#</b> 再接房间名，例如 <b>T,C#32</b>'
             ],
             cta: [
-                { icon: 'house', label: '打开房间代码', screen: 'room' },
-                { icon: 'undo', label: '重新选', back: true }
+                { icon: 'house', label: '打开房间代码', screen: 'room' }
             ]
         },
         r_download: {
@@ -53,8 +52,7 @@
                 '也可以用<b>萌卡平台</b>；服务器地址 <b>ygopro3.cn : 50010</b>'
             ],
             cta: [
-                { icon: 'download', label: '打开下载页', screen: 'download' },
-                { icon: 'undo', label: '重新选', back: true }
+                { icon: 'download', label: '打开下载页', screen: 'download' }
             ]
         },
         r_match: {
@@ -65,8 +63,7 @@
                 '淘汰赛对阵公布后再打淘汰轮（对阵未出时页面会显示「待公布」）'
             ],
             cta: [
-                { icon: 'bracket', label: '打开比赛相关', screen: 'match' },
-                { icon: 'undo', label: '重新选', back: true }
+                { icon: 'bracket', label: '打开比赛相关', screen: 'match' }
             ]
         },
 
@@ -103,8 +100,7 @@
                 '分值 <b>-1</b> 就是禁用卡'
             ],
             cta: [
-                { icon: 'layers', label: '打开卡池', screen: 'pool' },
-                { icon: 'undo', label: '重新选', back: true }
+                { icon: 'layers', label: '打开卡池', screen: 'pool' }
             ]
         },
         r_banlist: {
@@ -114,8 +110,7 @@
                 '房间密码可切规则：默认 <b>Genesys-Ext</b>、<b>LF2</b>=OT 合表、<b>NF</b>=无禁限'
             ],
             cta: [
-                { icon: 'list', label: '打开禁限分值', screen: 'banlist' },
-                { icon: 'undo', label: '重新选', back: true }
+                { icon: 'list', label: '打开禁限分值', screen: 'banlist' }
             ]
         },
         r_preset: {
@@ -126,8 +121,7 @@
             ],
             cta: [
                 { icon: 'box', label: '看卡组池', screen: 'preset' },
-                { icon: 'bracket', label: '打开历届八强', screen: 'eight' },
-                { icon: 'undo', label: '重新选', back: true }
+                { icon: 'bracket', label: '打开历届八强', screen: 'eight' }
             ]
         },
         r_popular: {
@@ -159,8 +153,7 @@
                 '点玩家名可以看他的对局记录与回放'
             ],
             cta: [
-                { icon: 'chart', label: '打开排名', screen: 'rank' },
-                { icon: 'undo', label: '重新选', back: true }
+                { icon: 'chart', label: '打开排名', screen: 'rank' }
             ]
         },
         r_login: {
@@ -170,8 +163,7 @@
                 '天梯计分、投稿 DIY 都需要登录；游戏内也可以直接 <b>/login 用户名 密码</b>'
             ],
             cta: [
-                { icon: 'user', label: '打开登录', screen: 'login' },
-                { icon: 'undo', label: '重新选', back: true }
+                { icon: 'user', label: '打开登录', screen: 'login' }
             ]
         }
     };
