@@ -1277,30 +1277,33 @@ body.db-builder-active .global-login { display: none !important; }
   pointer-events: auto;
 }
 
-
-/* ── 搜卡面板：常用卡按钮（蓝色，放在「筛选」与「清空」之间）── */
-.db-common-btn {
-    flex: 1 1 auto;
-    padding: 6px 10px;
-    border: 1px solid rgba(88, 152, 255, .55);
-    border-radius: 8px;
-    background: linear-gradient(135deg, rgba(58, 118, 255, .28), rgba(24, 60, 160, .34));
-    color: #cfe2ff;
-    font-family: inherit; font-size: 0.82rem; font-weight: 700; letter-spacing: .5px;
-    cursor: pointer;
-    box-shadow: 0 0 12px rgba(58, 118, 255, .18), inset 0 0 0 1px rgba(140, 190, 255, .12);
-    transition: background .2s, color .2s, transform .18s, box-shadow .22s, border-color .2s;
+/* ── 搜卡面板：常用卡按钮（蓝色，放在「筛选」与「清空」之间）──
+   选择器写到 .db-filter-toggle-row 内，压过 .db-filter-toggle/.db-filter-clear 那组共用规则；
+   形状跟同排按钮保持一致（方角、同字号），只把颜色换成蓝色系。 */
+.db-filter-toggle-row .db-common-btn {
+  flex: 1 1 0;
+  min-width: 0;
+  border-radius: 0;                 /* 与「筛选 / 清空」同为方角 */
+  border: 1px solid rgba(88, 152, 255, 0.7);
+  padding: 5px 8px;
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  background: linear-gradient(135deg, rgba(58, 118, 255, 0.30), rgba(24, 60, 160, 0.16));
+  color: #a9ccff;
+  transition: 0.2s;
 }
-.db-common-btn:hover {
-    background: linear-gradient(135deg, rgba(88, 152, 255, .42), rgba(38, 88, 210, .5));
-    border-color: rgba(150, 200, 255, .8);
-    color: #ffffff;
-    transform: translateY(-1px);
-    box-shadow: 0 6px 18px rgba(58, 118, 255, .32), inset 0 0 0 1px rgba(180, 215, 255, .2);
+.db-filter-toggle-row .db-common-btn:hover {
+  background: linear-gradient(135deg, rgba(88, 152, 255, 0.5), rgba(38, 88, 210, 0.3));
+  border-color: rgba(150, 200, 255, 0.85);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(58, 118, 255, 0.4);
 }
-.db-common-btn.is-on {
-    background: linear-gradient(135deg, #8fc0ff, #3a76ff 60%, #2453c4);
-    border-color: rgba(200, 225, 255, .9);
-    color: #06122b;
-    box-shadow: 0 6px 20px rgba(58, 118, 255, .45), inset 0 0 0 1px rgba(230, 242, 255, .6);
+.db-filter-toggle-row .db-common-btn.is-on {
+  background: linear-gradient(135deg, rgba(120, 175, 255, 0.85), rgba(58, 118, 255, 0.6));
+  border-color: rgba(190, 220, 255, 0.95);
+  color: #06122b;
+  box-shadow: 0 0 16px rgba(58, 118, 255, 0.55);
 }
