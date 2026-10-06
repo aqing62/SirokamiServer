@@ -2255,3 +2255,98 @@ body.nx-blue { background-color: #05070f; }
 * { scrollbar-width: none; -ms-overflow-style: none; }
 *::-webkit-scrollbar { width: 0 !important; height: 0 !important; display: none !important; }
 *::-webkit-scrollbar-track, *::-webkit-scrollbar-thumb { background: transparent !important; }
+
+/* ══════════════════════════════════════════════════════════
+   手机端修正（放最后，覆盖上面的桌面规则）
+   ① 卡池 / 卡表：卡图网格不再左右溢出，一行最多 3 张
+   ② 房间与规则：代码编辑器改成竖排分组，不再乱
+   ③ 比赛相关：奖品卡改成紧凑横排，别占一大块
+   ══════════════════════════════════════════════════════════ */
+
+/* ① 卡图网格：一行最多 3 张，minmax(0,1fr) 防止卡图/角标把格子撑宽 */
+@media (max-width: 768px) {
+  .nx-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 10px 8px;
+    max-width: 100%;
+    padding: 0 2px;
+    box-sizing: border-box;
+  }
+  .nx-card-tile { min-width: 0; }
+  .nx-card-photo { max-width: 100%; }
+  .nx-card-img { max-width: 100%; }
+  .nx-card-rank,
+  .nx-card-score,
+  .nx-card-stats { max-width: 100%; overflow: hidden; }
+  .nx-card-stats { font-size: 9.5px; gap: 3px; }
+  .nx-card-stats i { padding: 0 3px; }
+  /* 分页栏在窄屏也收一收，别把内容顶宽 */
+  .nx-pager { flex-wrap: wrap; gap: 6px; }
+  .nx-page-info { font-size: 11px; }
+  /* 卡组视图 / 八强卡组里的卡图网格同样限制（如果用了同一套网格） */
+  .nx-deck-cards { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+}
+
+/* ② 房间与规则：分组竖排、药丸铺满一行并自动换行、生成结果和按钮都收窄 */
+@media (max-width: 768px) {
+  .nx-room-editor { gap: 10px; margin-bottom: 12px; }
+  .nx-room-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  .nx-room-group-title {
+    flex: none;
+    padding-left: 2px;
+    font-size: 11px;
+    letter-spacing: 1.5px;
+  }
+  .nx-room-group .nx-room-chip {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: center;
+    padding: 9px 12px;
+    font-size: 13px;
+  }
+  .nx-room-name { flex: 1 1 auto; min-width: 0; }
+  .nx-room-out { margin-bottom: 10px; }
+  .nx-room-out-label { letter-spacing: 2px; margin-bottom: 6px; }
+  .nx-room-out-code { font-size: 20px; letter-spacing: 1px; line-height: 1.35; }
+  .nx-room-out-code.is-empty { font-size: 13px; }
+  .nx-room-out-acts { flex-direction: column; gap: 8px; }
+  .nx-room-out-acts > * { width: 100%; max-width: 260px; }
+  .nx-room-mean { padding: 12px 14px; border-radius: 12px; }
+  .nx-room-mean-row { font-size: 12px; line-height: 1.75; }
+  /* 数字弹窗也收一收 */
+  .nx-room-dlg-box { padding: 18px 16px; border-radius: 16px; }
+  .nx-room-dlg-desc { font-size: 12px; margin-bottom: 14px; }
+  .nx-room-dlg-acts { gap: 8px; }
+  .nx-room-dlg-acts > * { min-width: 0; }
+}
+
+/* ③ 比赛：奖品卡紧凑横排（小卡在左、档位在右），手机上没有鼠标就不提示倾斜了 */
+@media (max-width: 900px) {
+  .nx-match-cols { gap: 10px; }
+  .nx-prize-col { order: -1; }
+  .nx-prize {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: nowrap;
+    gap: 12px;
+    width: auto;
+  }
+  .nx-prize-stage { padding: 6px; flex: 0 0 auto; }
+  .nx-prize-card { max-width: 104px; }
+  .nx-prize-texts {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+  }
+  .nx-prize-title { font-size: 13px; letter-spacing: 1px; }
+  .nx-prize-sub { font-size: 10.5px; margin-top: 3px; letter-spacing: .3px; }
+  .nx-prize-earn { font-size: 11px; margin-top: 6px; padding-top: 6px; }
+  .nx-prize-tiers { margin-top: 6px; gap: 3px; }
+  .nx-prize-tier { font-size: 11px; }
+  .nx-prize-note { display: none; }
+}
