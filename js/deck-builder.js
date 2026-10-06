@@ -440,7 +440,7 @@
 
     function scoreBadgeText(id) {
         var sc = cardScoreOf(id);
-        if (!sc) return '';
+        if (!scoreHasPoint(sc)) return '';     // 0 分视为没有分，不挂角标
         if (sc.forbidden) return '🚫';
         return String(sc.score);
     }
@@ -1175,7 +1175,8 @@
 
     function cellHtml(c) {
         var sc = cardScoreOf(c.id);
-        var badge = sc
+        // 只有"真的有分"（被判禁 或 分值>0）才挂角标；分值为 0 视为没有分
+        var badge = scoreHasPoint(sc)
             ? (sc.forbidden
                 ? '<span class="db-badge db-badge-fb">🚫</span>'
                 : '<span class="db-badge">' + sc.score + '</span>')
