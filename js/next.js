@@ -2359,10 +2359,10 @@
         { k: 'nf', code: 'NF', label: '无禁限', short: 'NF', desc: '无禁限模式（不套用任何禁卡表）', exclusive: 'rule' }
     ];
     var ROOM_MODE_CODES = [
-        { k: 'm', code: 'M', label: '三局两胜', short: 'M', desc: '三局两胜（BO3）' },
+        { k: 'm', code: 'M', label: '三局两胜', short: 'M', desc: '三局两胜（BO3）', conflictWith: ['c'], why: '编年史是随机卡组单局对战，不能开三局两胜' },
         { k: 't', code: 'T', label: '双打', short: 'T', desc: '双打模式（2v2，需要 4 人）' },
-        { k: 'c', code: 'C', label: '编年史', short: 'C', desc: '编年史模式（随机卡组对战）' },
-        { k: 'ns', code: 'NS', label: '不洗切卡组', short: 'NS', desc: '不洗切卡组' }
+        { k: 'c', code: 'C', label: '编年史', short: 'C', desc: '编年史模式（随机卡组对战）', conflictWith: ['m', 'ns'], why: '编年史不兼容三局两胜与不洗切卡组' },
+        { k: 'ns', code: 'NS', label: '不洗切卡组', short: 'NS', desc: '不洗切卡组', conflictWith: ['c'], why: '编年史每局都要重新洗切随机卡组，不能关掉洗牌' }
     ];
     var ROOM_NUM_CODES = [
         { k: 'lp', prefix: 'LP', label: '基本分', short: 'LP', def: 8000, min: 100, max: 99999, unit: '分',
@@ -2375,7 +2375,7 @@
           title: '设置回合抽卡数', desc: '每回合进入抽卡阶段时抽几张。标准是 1 张；填 2 就是每回合抽 2 张。' }
     ];
     function renderRoom(body) {
-        var st = body._room || (body._room = { rule: 'default', modes: {}, nums: {}, name: '' });
+        var st = body._room || (body._room = { rule: 'default', modes: {}, nums: {}, name: '', notice: '' });
         // 数字代码弹窗的临时状态
         var dlg = null;
 
@@ -2401,6 +2401,8 @@
             ROOM_NUM_CODES.forEach(function (c) {
                 if (st.nums[c.k] != null) out.push(c.title + ' = ' + st.nums[c.k] + ' ' + c.unit);
             });
+            // 编年史的兼容性提醒（常驻提示，选了就说明清楚）
+            if (st.modes.c) out.push('提醒：编年史不兼容「三局两胜」与「不洗切卡组」，同时选中时会自动取消另外两个');
             return out;
         }
 
@@ -2446,6 +2448,7 @@
                     '</div>' +
                 '</div>' +
                 '<div class="nx-room-mean nx-reveal" style="--i:2">' +
+                    (st.notice ? '<div class="nx-room-mean-warn">· ' + esc(st.notice) + '</div>' : '') +
                     (ms.length ? ms.map(function (t) { return '<div class="nx-room-mean-row">· ' + esc(t) + '</div>'; }).join('')
                                : '<div class="nx-room-mean-row">当前没选任何代码，进房就是默认模式</div>') +
                 '</div>' +
@@ -2483,14 +2486,33 @@
                     var rule = ROOM_RULE_CODES.filter(function (x) { return x.k === k; })[0];
                     if (rule) {
                         st.rule = k;
+                        st.notice = '';
                         playSfx('click');
                         paint();
                         return;
                     }
                     var mode = ROOM_MODE_CODES.filter(function (x) { return x.k === k; })[0];
                     if (mode) {
-                        st.modes[k] = !st.modes[k];
+                        var wasOn = !!st.modes[k];
+                        st.modes[k] = !wasOn;
                         if (!st.modes[k]) delete st.modes[k];
+                        st.notice = '';
+                        if (st.modes[k]) {
+                            // 互斥：编年史 与 三局两胜 / 不洗切卡组 不能同时开
+                            var dropped = [];
+                            ROOM_MODE_CODES.forEach(function (o) {
+                                if (o.k === k || !st.modes[o.k]) return;
+                                var bad = (mode.conflictWith || []).indexOf(o.k) >= 0 ||
+                                          (o.conflictWith || []).indexOf(k) >= 0;
+                                if (bad) {
+                                    delete st.modes[o.k];
+                                    dropped.push(o.label);
+                                }
+                            });
+                            if (dropped.length) {
+                                st.notice = '已自动取消「' + dropped.join('」「') + '」：' + (mode.why || (mode.label + '与它们不兼容'));
+                            }
+                        }
                         playSfx('click');
                         paint();
                         return;
@@ -2543,7 +2565,7 @@
             var rs = document.getElementById('nxRoomReset');
             if (rs) rs.addEventListener('click', function (ev) {
                 ev.stopPropagation();
-                st.rule = 'default'; st.modes = {}; st.nums = {}; st.name = '';
+                st.rule = 'default'; st.modes = {}; st.nums = {}; st.name = ''; st.notice = '';
                 playSfx('back');
                 paint();
             });

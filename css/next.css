@@ -1772,6 +1772,14 @@ body.nx-blue { background-color: #05070f; }
   text-align: left;
 }
 .nx-room-mean-row { font-size: 12.5px; line-height: 1.9; color: #b9b9c2; }
+.nx-room-mean-warn {
+  font-size: 12.5px; line-height: 1.9; color: #ffd7e0;
+  padding: 6px 10px; margin-bottom: 8px; border-radius: 10px;
+  background: rgba(216, 30, 68, .16);
+  box-shadow: inset 0 0 0 1px rgba(216, 30, 68, .3);
+  animation: nxRoomWarnIn .28s cubic-bezier(.22, .9, .28, 1.02) both;
+}
+@keyframes nxRoomWarnIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
 /* 数字代码弹窗 */
 .nx-room-dlg {
   position: fixed; inset: 0; z-index: 70;
