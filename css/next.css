@@ -1723,7 +1723,14 @@ body.nx-blue { background-color: #05070f; }
   cursor: pointer;
   transition: background .2s, color .2s, transform .18s cubic-bezier(.22,.9,.28,1.02), box-shadow .22s;
 }
-.nx-room-chip i { font-style: normal; font-size: 12px; opacity: .8; }
+.nx-room-chip i { font-style: normal; font-size: 11px; opacity: .72; letter-spacing: .3px; }
+.nx-room-chip .nx-room-chip-code {
+  padding: 1px 6px; border-radius: 999px;
+  background: rgba(255, 255, 255, .1);
+  font-weight: 700;
+}
+.nx-room-chip.is-on .nx-room-chip-code { background: rgba(42, 28, 8, .16); opacity: .85; }
+.nx-room-chip .nx-room-chip-num { font-size: 12.5px; font-weight: 800; opacity: .9; }
 .nx-room-chip:hover { background: rgba(212, 175, 55, .16); color: #fff3c4; transform: translateY(-2px); }
 .nx-room-chip.is-on {
   background: linear-gradient(135deg, #ffe9a8, #d4af37 60%, #b08d24);

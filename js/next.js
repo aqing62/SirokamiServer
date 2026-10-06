@@ -2350,28 +2350,29 @@
     }
 
     // ── 房间（决斗 → 房间）：房间密码代码「编辑器」──
-    //    点代码即加入/取消；带数字的代码（LP/TM/ST/DR）点开先弹输入框，并说明这个数字的用处；
+    //    按钮一律显示中文（简称作为小字角标保留，老玩家认代码，新玩家看得懂）；
+    //    点带数字的代码（基本分/回合时限/开局手卡/每回合抽卡）先弹输入框，并说明这个数字的用处；
     //    下方实时生成最终密码串，可复制。
     var ROOM_RULE_CODES = [
-        { k: 'default', code: '', label: '默认', title: '（不输入）', desc: 'Genesys-Ext 模式（服务器默认禁卡表）', exclusive: 'rule' },
-        { k: 'lf2', code: 'LF2', label: 'LF2', desc: 'OT 合表模式（官方 OT 禁限表）', exclusive: 'rule' },
-        { k: 'nf', code: 'NF', label: 'NF', desc: '无禁限模式（不套用任何禁卡表）', exclusive: 'rule' }
+        { k: 'default', code: '', label: '默认禁卡表', short: '不填', desc: 'Genesys-Ext 模式（服务器默认禁卡表）', exclusive: 'rule' },
+        { k: 'lf2', code: 'LF2', label: '官方 OT 合表', short: 'LF2', desc: 'OT 合表模式（官方 OT 禁限表）', exclusive: 'rule' },
+        { k: 'nf', code: 'NF', label: '无禁限', short: 'NF', desc: '无禁限模式（不套用任何禁卡表）', exclusive: 'rule' }
     ];
     var ROOM_MODE_CODES = [
-        { k: 'm', code: 'M', label: 'M', desc: '三局两胜（BO3）' },
-        { k: 't', code: 'T', label: 'T', desc: '双打模式（2v2，需要 4 人）' },
-        { k: 'c', code: 'C', label: 'C', desc: '编年史模式（随机卡组对战）' },
-        { k: 'ns', code: 'NS', label: 'NS', desc: '不洗切卡组' }
+        { k: 'm', code: 'M', label: '三局两胜', short: 'M', desc: '三局两胜（BO3）' },
+        { k: 't', code: 'T', label: '双打', short: 'T', desc: '双打模式（2v2，需要 4 人）' },
+        { k: 'c', code: 'C', label: '编年史', short: 'C', desc: '编年史模式（随机卡组对战）' },
+        { k: 'ns', code: 'NS', label: '不洗切卡组', short: 'NS', desc: '不洗切卡组' }
     ];
     var ROOM_NUM_CODES = [
-        { k: 'lp', prefix: 'LP', label: 'LP', def: 8000, min: 100, max: 99999, unit: '分',
-          title: '设置基本分', desc: '这局双方的开局生命值（LP）。不填代码时是 8000 分；填 LP16000 就是 16000 分开局。' },
-        { k: 'tm', prefix: 'TM', label: 'TM', def: 300, min: 10, max: 9999, unit: '秒',
-          title: '设置回合时限', desc: '每个回合的思考时间上限（秒）。不填时用服务器默认值；填 TM120 就是每回合 120 秒。' },
-        { k: 'st', prefix: 'ST', label: 'ST', def: 5, min: 1, max: 40, unit: '张',
-          title: '设置开局手卡数', desc: '开局每人抽多少张手卡。标准是 5 张；填 ST7 就是开局 7 张。' },
-        { k: 'dr', prefix: 'DR', label: 'DR', def: 1, min: 1, max: 10, unit: '张',
-          title: '设置回合抽卡数', desc: '每回合进入抽卡阶段时抽几张。标准是 1 张；填 DR2 就是每回合抽 2 张。' }
+        { k: 'lp', prefix: 'LP', label: '基本分', short: 'LP', def: 8000, min: 100, max: 99999, unit: '分',
+          title: '设置基本分', desc: '这局双方的开局生命值（LP）。不填代码时是 8000 分；填 16000 就是 16000 分开局。' },
+        { k: 'tm', prefix: 'TM', label: '回合时限', short: 'TM', def: 300, min: 10, max: 9999, unit: '秒',
+          title: '设置回合时限', desc: '每个回合的思考时间上限（秒）。不填时用服务器默认值；填 120 就是每回合 120 秒。' },
+        { k: 'st', prefix: 'ST', label: '开局手卡', short: 'ST', def: 5, min: 1, max: 40, unit: '张',
+          title: '设置开局手卡数', desc: '开局每人抽多少张手卡。标准是 5 张；填 7 就是开局 7 张。' },
+        { k: 'dr', prefix: 'DR', label: '每回合抽卡', short: 'DR', def: 1, min: 1, max: 10, unit: '张',
+          title: '设置回合抽卡数', desc: '每回合进入抽卡阶段时抽几张。标准是 1 张；填 2 就是每回合抽 2 张。' }
     ];
     function renderRoom(body) {
         var st = body._room || (body._room = { rule: 'default', modes: {}, nums: {}, name: '' });
@@ -2404,9 +2405,12 @@
         }
 
         function chipHtml(c, on, cls) {
+            // 中文按钮 + 小字简称角标 + 已选数值
+            var badge = c.unit && on ? '<i class="nx-room-chip-num">' + st.nums[c.k] + '</i>'
+                                     : (c.short ? '<i class="nx-room-chip-code">' + esc(c.short) + '</i>' : '');
             return '<button class="nx-room-chip' + (on ? ' is-on' : '') + (cls ? ' ' + cls : '') +
-                '" type="button" data-chip="' + c.k + '">' + esc(c.label) +
-                (c.unit && on ? '<i>' + st.nums[c.k] + '</i>' : '') + '</button>';
+                '" type="button" data-chip="' + c.k + '" title="' + esc(c.desc || c.label) + '">' +
+                esc(c.label) + badge + '</button>';
         }
 
         function paint() {
