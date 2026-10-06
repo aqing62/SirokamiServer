@@ -1691,12 +1691,77 @@
             ydk: buildYdkText,
             setOfficialResults: function (list) { officialResults = list || []; },
             showOfficialDetail: showDetailForOfficial,
+            showCommon: showCommonCards,
+            exitCommon: exitCommonCards,
         };
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
-    } else {
+    // ── 常用卡（搜卡面板的蓝色按钮）──────────────────────────
+    //  数据取 data/common_cards.json（各分组卡号合集），点一下把网格换成常用卡，再点一下回到原来的搜索结果
+    var COMMON_URL = 'data/common_cards.json?v=20261008s';
+    var _commonIds = null, _commonOn = false;
+    function loadCommonIds() {
+        if (_commonIds) return Promise.resolve(_commonIds);
+        return fetch(COMMON_URL)
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                var set = {}, order = [];
+                ((d && d.groups) || []).forEach(function (g) {
+                    (g.cards || []).forEach(function (id) { if (!set[id]) { set[id] = 1; order.push(id); } });
+                });
+                _commonIds = order;
+                return _commonIds;
+            })
+            .catch(function () { _commonIds = []; return _commonIds; });
+    }
+    function setCommonBtn(on) {
+        var b = document.getElementById('dbCommonBtn');
+        if (!b) return;
+        b.classList.toggle('is-on', !!on);
+        b.textContent = on ? '★ 常用卡' : '★ 常用卡';
+    }
+    function showCommonCards() {
+        return loadCommonIds().then(function (ids) {
+            if (!ids.length) { gridTipEl.textContent = '常用卡列表读取失败'; return; }
+            return loadDiyData().then(function () {
+                var list = [], miss = 0;
+                ids.forEach(function (id) {
+                    var c = diyIndex.get(parseInt(id, 10));
+                    if (c) list.push(c); else miss++;
+                });
+                list.sort(compareCardObj);
+                officialMode = false;
+                _commonOn = true;
+                setCommonBtn(true);
+                gridTipEl.textContent = '常用卡 · 共 ' + list.length + ' 张' + (miss ? '（另有 ' + miss + ' 张不在卡库里）' : '') + ' · 点一下看详情，再点一下加入卡组';
+                resetGrid(list);
+            });
+        });
+    }
+    function exitCommonCards() {
+        _commonOn = false;
+        setCommonBtn(false);
+        doSearch();
+    }
+
+    function initCommonBtn() {
+        var b = document.getElementById('dbCommonBtn');
+        if (!b) return;
+        b.addEventListener('click', function () {
+            if (!builderActive) return;
+            if (_commonOn) exitCommonCards();
+            else showCommonCards();
+        });
+    }
+
+    // 启动
+    function boot() {
         init();
+        initCommonBtn();
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+    } else {
+        boot();
     }
 })();
