@@ -4,11 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>白神服 · 新版引导（原型）</title>
-<link rel="stylesheet" href="css/next.css?v=20261007z6">
+<link rel="stylesheet" href="css/next.css?v=20261007z7">
 <!-- 老组卡器样式（media=not all，进入组卡屏时才启用） -->
 <link rel="stylesheet" href="css/card-pool-info.css?v=20261007r" id="nxClassicCssBuilder" media="not all">
 <link rel="stylesheet" href="css/card-list.css?v=20261007r" id="nxClassicCssList" media="not all">
 <link rel="stylesheet" href="css/deck-viewer.css?v=20261007r" id="nxClassicCssDeckView" media="not all">
+<link rel="stylesheet" href="css/replay-viewer.css?v=20261007z7" id="nxCssReplay" media="not all">
 
 </head>
 <body class="nx-boot">
@@ -65,6 +66,48 @@
     <span>原型演示 · 点任意圆形按钮试试；点空白处返回上一步</span>
 </footer>
 
+
+<!-- 回放播放器弹窗（经典版原样移植，页面常驻，openReplay 时弹出） -->
+<div class="rp-modal" id="replayModal" style="display:none;">
+        <div class="rp-modal-box">
+            <div class="rp-modal-head">
+                <div class="replay-title">回放播放器</div>
+                <button class="rp-modal-close" id="replayClose" title="关闭 (Esc)">✕</button>
+            </div>
+
+            <!-- 输入区 -->
+            <div class="replay-input-bar">
+                <input type="text" id="replayInput" placeholder="输入回放码，如 R#3333" autocomplete="off">
+                <button id="replayLoadBtn">▶ 加载回放</button>
+                <span class="replay-meta" id="replayMeta"></span>
+            </div>
+
+            <!-- 播放控制条 -->
+            <div class="replay-controls" id="replayControls" style="display:none;">
+                <button id="rpPlayPause" title="播放/暂停">⏸ 暂停</button>
+                <button id="rpStepBack" title="上一步">⏮</button>
+                <button id="rpStep" title="下一步">⏭</button>
+                <span class="rp-speed-label">速度</span>
+                <button class="rp-speed" data-s="0.5">0.5x</button>
+                <button class="rp-speed active" data-s="1">1x</button>
+                <button class="rp-speed" data-s="2">2x</button>
+                <button class="rp-speed" data-s="4">4x</button>
+                <input type="range" id="rpProgress" min="0" max="100" value="0" style="flex:1;">
+                <span class="rp-progress-text" id="rpProgressText">0 / 0</span>
+            </div>
+
+            <!-- 主体：左场地 70% / 右日志 30% -->
+            <div class="replay-main" id="replayMain" style="display:none;">
+                <div class="replay-field" id="replayField">
+                    <div class="rp-loading-tip" id="rpFieldTip">回放加载中...</div>
+                </div>
+                <div class="replay-log" id="replayLog">
+                    <div class="replay-log-title">对局日志</div>
+                    <div class="replay-log-body" id="replayLogBody"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
 <!-- 临时调试面板：可分别关闭三个效果，用于定位手感问题（定位完可整段删除） -->
 <div class="nx-debug" id="nxDebug">
@@ -196,7 +239,8 @@
 </div>
 </div>
 <script src="js/deck-viewer.js?v=20261007r"></script>
+<script src="js/replay-viewer.js?v=20261007z7"></script>
 <script src="js/deck-builder.js?v=20261007r"></script>
-<script src="js/next.js?v=20261007z5"></script>
+<script src="js/next.js?v=20261007z7"></script>
 </body>
 </html>

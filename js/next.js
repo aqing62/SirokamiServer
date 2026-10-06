@@ -229,6 +229,34 @@
         document.body.classList.toggle('nx-blue', !!on);
     }
 
+    // ── 回放（经典版回放器 replay-viewer.js 原样移植）──
+    //  需要时启用它的样式，然后交给 window.openReplay 播放；返回 false 表示回放器没载入。
+    function nxReplayCss(on) {
+        var el = document.getElementById('nxCssReplay');
+        if (el) el.media = on ? 'all' : 'not all';
+    }
+    function nxReplayOpen(code) {
+        if (!window.openReplay) return false;
+        nxReplayCss(true);
+        try { window.openReplay(code || ''); } catch (e) { return false; }
+        return true;
+    }
+    function nxReplayVisible() {
+        var m = document.getElementById('replayModal');
+        return !!(m && m.style.display !== 'none' && m.offsetParent !== null);
+    }
+    function nxReplayClose() {
+        var m = document.getElementById('replayModal');
+        if (!m) return false;
+        if (m.style.display === 'none') return false;
+        m.style.display = 'none';
+        var c = document.getElementById('replayClose');
+        if (c) c.click();
+        m.style.display = 'none';
+        nxReplayCss(false);
+        return true;
+    }
+
     function jumpClassic(target) {
         if (!target) return;
         location.href = 'index.html?goto=' + encodeURIComponent(target);
@@ -937,8 +965,13 @@
                     '</div>';
                 }).join('');
                 Array.prototype.forEach.call(box.querySelectorAll('.nx-duel-replay'), function (b) {
-                    b.addEventListener('click', function () {
+                    b.addEventListener('click', function (ev) {
+                        ev.stopPropagation();
                         var code = b.getAttribute('data-code');
+                        playSfx('click');
+                        // 走经典版回放器（replay-viewer.js 里 window.openReplay）
+                        if (typeof nxReplayOpen === 'function' && nxReplayOpen(code)) return;
+                        // 回放器没载入时退化为复制回放码
                         try { navigator.clipboard.writeText(code); } catch (e) { /* 忽略 */ }
                         var old = b.textContent;
                         b.textContent = '已复制';
@@ -3095,7 +3128,8 @@
             ' .nx-br-match, .nx-bracket, .nx-login-card, .nx-login-row, .nx-stats-top, .nx-stats-tabs,' +
             ' .nx-tour-meta, .nx-group-chips, .nx-screen-todo,' +
             ' #dbLayout, #nxBuilderHost, .deck-builder-panel, .db-panel, .db-card, .db-cards,' +
-            ' .deck-viewer-modal-overlay, .deck-viewer-modal, .card-img-wrapper, .clipboard-toast'
+            ' .deck-viewer-modal-overlay, .deck-viewer-modal, .card-img-wrapper, .clipboard-toast,' +
+            ' #replayModal, .rp-modal, .rp-modal-box'
         )) return;
         if (Date.now() - _nxBarTouchAt < 260) return;               // 刚碰过工具带，视为误触
         playSfx('back');
@@ -3105,6 +3139,7 @@
         if (ev.key !== 'Escape') return;
         if (document.body.classList.contains('nx-boot')) return;
         if (ev.target && ev.target.closest && ev.target.closest('input, textarea, select')) return;
+        if (nxReplayVisible()) return;          // 回放弹窗开着时 Esc 只关弹窗，不返回上一层
         playSfx('back');
         goBack();
     });
