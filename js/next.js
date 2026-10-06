@@ -2477,7 +2477,9 @@
                     var fan = (d.main || []).slice(0, 3);
                     if (!fan.length) fan = [0];
                     var sc = deckScoreOf(d);
-                    var title = d.displayName || d.deckName || d.player || ('第 ' + (i + 1) + ' 名');
+                    // 大字＝卡组名，小字＝选手名（没有卡组名时大字用选手名）
+                    var big = d.deckName || d.player || d.displayName || ('第 ' + (i + 1) + ' 名');
+                    var small = d.deckName ? (d.player || '') : '';
                     return '<button class="nx-eight-card" type="button" data-hi="' + i + '" style="--i:' + i + '">' +
                         '<span class="nx-eight-fan">' +
                             // 后画的在下层：c2 → c1 → c0（封面）
@@ -2487,8 +2489,8 @@
                             }).join('') +
                         '</span>' +
                         '<span class="nx-eight-rank">' + (i + 1) + '</span>' +
-                        '<span class="nx-eight-name">' + esc(title) + '</span>' +
-                        '<span class="nx-eight-sub">' + esc(d.deckName && d.deckName !== title ? d.deckName : (d.player || '')) + '</span>' +
+                        '<span class="nx-eight-name">' + esc(big) + '</span>' +
+                        (small ? '<span class="nx-eight-sub">' + esc(small) + '</span>' : '') +
                         '<span class="nx-eight-meta">主 ' + (d.main || []).length +
                             ' · 额外 ' + (d.extra || []).length +
                             ((d.side || []).length ? ' · 副 ' + d.side.length : '') +
@@ -2510,7 +2512,7 @@
                     var d = decks[parseInt(card.getAttribute('data-hi'), 10) || 0];
                     if (!d) return;
                     playSfx('click');
-                    var title = d.displayName || d.deckName || d.player || '八强卡组';
+                    var title = d.deckName || d.player || d.displayName || '八强卡组';
                     var sub = [tour.name || '历届八强', d.player, d.deckName].filter(function (x, i, a) { return x && a.indexOf(x) === i; }).join(' · ');
                     openDeckView(d, title, sub, '历届八强 · 主 ' + (d.main || []).length + ' 张');
                 });
