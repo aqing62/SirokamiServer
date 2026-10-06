@@ -1923,6 +1923,8 @@ body.nx-blue { background-color: #05070f; }
 .nx-prize-card {
   position: relative;
   width: 100%; max-width: 206px;
+  aspect-ratio: 398 / 580;          /* 容器本身也锁死卡牌比例，图片没加载时框子也不会变形 */
+  flex: 0 0 auto;
   transform-style: preserve-3d;
   transition: transform .55s cubic-bezier(.22, .9, .28, 1.02);
   will-change: transform;
