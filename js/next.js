@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════
-   新版引导（原型）：问答式调用原站功能
+   新版引导：问答式调用原站功能
    · 每屏最多 3 个圆形按钮
    · 结果页给 1~2 个圆形 CTA，跳到经典版对应功能（?goto=xxx 深链）
    · 右上角滑块可随时切回经典版，老站功能一个都没少
@@ -378,7 +378,6 @@
 
     function renderLadder(body) {
         body.innerHTML = '<div class="nx-loading"><span class="nx-spin"></span>正在读取天梯数据…</div>';
-        if (FX.mock) { paintLadder(body, mockLadderData()); return; }   // 调试：测试选手
         fetch(LADDER_API + '?t=' + Date.now())
             .then(function (r) { return r.json(); })
             .then(function (data) { paintLadder(body, data); })
@@ -388,32 +387,6 @@
                 var btn = body.querySelector('.nx-screen-retry');
                 if (btn) btn.addEventListener('click', function () { renderLadder(body); });
             });
-    }
-
-    // 测试选手数据（调试面板可切换，用于检查 3D 滚动效果）
-    var MOCK_CUTOFFS = [
-        { name: 'S3 巅峰', minRating: 150 }, { name: 'S3 大师', minRating: 120 },
-        { name: 'S3 钻石', minRating: 90 }, { name: 'S3 黄金', minRating: 60 },
-        { name: 'S3 白银', minRating: 30 }, { name: 'S3 参战者', minRating: 0 }
-    ];
-    var MOCK_NAMES = ['上善若水', '灵蛇', '奈奈川', 'Huager', '莱蒂丝', '卫星闪灵·蓝色喷流灵',
-        '鲁多', '244英雄', 'd3007', '青眼の白龍', '炸金花爱好者', '黑魔导女孩', 'D-HERO 钻石人',
-        '银河眼光子龙', '真红眼黑龙', '电子龙', '沉默魔术师', '不知火', '三金', '不死真红眼',
-        'C5律神小队', '幻影英雄'];
-    function mockLadderData() {
-        var players = MOCK_NAMES.map(function (n, i) {
-            var rating = Math.max(12, 186 - i * 7 - (i % 3) * 4);
-            var tier = MOCK_CUTOFFS.filter(function (c) { return rating >= c.minRating; })[0];
-            var wins = 8 + ((i * 3) % 12), losses = 2 + (i % 7), draws = i % 4 === 0 ? 1 : 0;
-            var total = wins + losses + draws;
-            return {
-                name: n, rating: rating, wins: wins, losses: losses, draws: draws, total: total,
-                streak: i % 5 === 0 ? 3 : (i % 3 === 0 ? 2 : 0),
-                tier: tier ? tier.name : 'S3 参战者',
-                winRate: (wins / total * 100).toFixed(1) + '%'
-            };
-        });
-        return { players: players, total: players.length, tierCutoffs: MOCK_CUTOFFS };
     }
 
     function paintLadder(body, data) {
@@ -801,28 +774,6 @@
         return (d.getMonth() + 1) + '-' + p(d.getDate()) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
     }
 
-    // 测试数据模式下造点假的，方便看版式
-    function mockDuels(name) {
-        var out = [];
-        for (var i = 0; i < 8; i++) {
-            out.push({
-                time: new Date(Date.now() - i * 3600e3 * 3).toISOString(),
-                roomName: 'M#' + (1100 + i * 7),
-                opponentName: ['灵蛇', '奈奈川', 'Huager', '莱蒂丝', '鲁多', '244英雄'][i % 6],
-                replayCode: 'R#' + (4200 + i * 13),
-                win: i % 3 !== 1, draw: false, ladder: true
-            });
-        }
-        return { player: name, total: out.length, duels: out };
-    }
-    function mockDeck() {
-        var main = [], extra = [], side = [];
-        for (var i = 0; i < 40; i++) main.push(10000000 + i * 137);
-        for (var j = 0; j < 15; j++) extra.push(20000000 + j * 311);
-        for (var k = 0; k < 15; k++) side.push(30000000 + k * 173);
-        return { total: 1, decks: [{ roomName: 'M#1100', time: new Date().toISOString(), winner: '测试', opponent: '对手', score: 2, deck: { main: main, extra: extra, side: side } }] };
-    }
-
     // ── 选手详情：点击处收缩整屏 → 两个线圈选项 ──────────────
     var _povPlayer = null;
     var _povOrigin = { x: 0.5, y: 0.5 };
@@ -1029,8 +980,7 @@
 
         var p = _povPlayer || {};
         if (kind === 'duels') {
-            var duelsP = FX.mock ? Promise.resolve(mockDuels(p.name))
-                : fetch(DUELS_API + '?player=' + encodeURIComponent(p.name) + '&limit=50').then(function (r) { return r.json(); });
+            var duelsP = fetch(DUELS_API + '?player=' + encodeURIComponent(p.name) + '&limit=50').then(function (r) { return r.json(); });
             duelsP.then(function (data) {
                 var box = document.getElementById('nxPovView');
                 if (!box) return;
@@ -1076,8 +1026,7 @@
         }
 
         // 卡组信息
-        var decksP = FX.mock ? Promise.resolve(mockDeck())
-            : fetch(DECKS_API + '?player=' + encodeURIComponent(p.name) + '&limit=1').then(function (r) { return r.json(); });
+        var decksP = fetch(DECKS_API + '?player=' + encodeURIComponent(p.name) + '&limit=1').then(function (r) { return r.json(); });
         decksP.then(function (data) {
             var box = document.getElementById('nxPovView');
             if (!box) return;
@@ -3498,9 +3447,9 @@
 
     // ── 特效开关（调试面板已移除，这里只保留状态：三项默认全开，可用 localStorage 覆盖）──
     // 三项效果默认全开；此前"抽搐"的真因是磁吸自激振荡 + 拉拽作用范围过大(已修)，与扭曲无关
-    var FX = { magnet: true, drag: true, wobble: true, mock: false };
+    var FX = { magnet: true, drag: true, wobble: true };
     (function initFxState() {
-        var KEY = 'siro_next_fx';
+        var KEY = 'siro_next_fx';   // 特效开关持久化（面板已移除，保留兼容）
         try {
             var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
             if (saved) for (var k in FX) if (typeof saved[k] === 'boolean') FX[k] = saved[k];
@@ -3618,7 +3567,7 @@
         // #dbLayout / #nxBuilderHost 是整块移植过来的经典版组卡器，它内部凡可点处都不参与返回判定。
         if (t && t.closest && t.closest(
             'button, a, input, select, textarea, label,' +
-            ' .nx-option, .nx-cta, .nx-dbg-btn, .nx-version, .nx-debug, .nx-row, .nx-pov, .nx-cf-bar,' +
+            ' .nx-option, .nx-cta, .nx-version, .nx-row, .nx-pov, .nx-cf-bar,' +
             ' .nx-card-grid, .nx-card-tile, .nx-pager, .nx-info-list, .nx-info-row, .nx-dl-list,' +
             ' .nx-br-match, .nx-bracket, .nx-login-card, .nx-login-row, .nx-stats-top, .nx-stats-tabs,' +
             ' .nx-tour-meta, .nx-group-chips, .nx-screen-todo,' +
