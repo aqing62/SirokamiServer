@@ -244,7 +244,9 @@
     }
     function nxReplayVisible() {
         var m = document.getElementById('replayModal');
-        return !!(m && m.style.display !== 'none' && m.offsetParent !== null);
+        if (!m) return false;
+        // 注意：弹窗是 position:fixed，offsetParent 恒为 null，不能用它判断可见性
+        return !!(m.style.display && m.style.display !== 'none') || getComputedStyle(m).display !== 'none';
     }
     function nxReplayClose() {
         var m = document.getElementById('replayModal');
