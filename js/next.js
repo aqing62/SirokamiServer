@@ -126,7 +126,7 @@
             ],
             cta: [
                 { icon: 'box', label: '看卡组池', screen: 'preset' },
-                { icon: 'bracket', label: '打开历届八强', screen: 'match' },
+                { icon: 'bracket', label: '打开历届八强', screen: 'eight' },
                 { icon: 'undo', label: '重新选', back: true }
             ]
         },
@@ -217,6 +217,7 @@
         preset:   { title: '预组卡组',   sub: '现成卡组，直接抄',           goto: 'preset',    render: 'preset' },
         popular:  { title: '常用卡',     sub: '使用率 · 胜率统计',           goto: 'pool',      render: 'popular' },
         rank:     { title: '天梯排名',   sub: 'TOP50 · 段位 · 积分',         goto: 'ranking',   render: 'ladder' },
+        eight:    { title: '历届八强',   sub: '历届赛事八强卡组',           goto: 'tournament', render: 'eight' },
         login:    { title: '登录账号',   sub: '天梯计分 / 投稿需要登录',     goto: 'login',     render: 'login' }
     };
 
@@ -2419,7 +2420,105 @@
         if (layout) layout.style.display = '';
     }
 
-    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool, banlist: renderBanlist, room: renderRoom, download: renderDownload, login: renderLogin, builder: renderBuilder };
+    // ── 历届八强（战绩 → 比赛 → 打开历届八强）：数据 decks/decks_data.json ──
+    //    呈现方式对齐预组屏：扇形卡图 + 玩家/卡组名 + 张数，点开走同一套卡组视图（openDeckView）
+    var EIGHT_URL = 'decks/decks_data.json?v=20261007y';
+    var _eightCache = null;
+    function loadEightDecks() {
+        if (_eightCache) return Promise.resolve(_eightCache);
+        return fetch(EIGHT_URL)
+            .then(function (r) { return r.json(); })
+            .then(function (d) { _eightCache = (d && d.tournaments) || []; return _eightCache; })
+            .catch(function () { _eightCache = []; return _eightCache; });
+    }
+    function deckScoreOf(deck) {
+        var t = 0;
+        ['main', 'extra', 'side'].forEach(function (k) {
+            (deck[k] || []).forEach(function (id) {
+                var s = _scoreMap && _scoreMap[id];
+                if (s && !s.forbidden) t += (s.score || 0);
+            });
+        });
+        return t;
+    }
+    function renderEight(body) {
+        var st = body._eight || (body._eight = { ti: 0 });
+        body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
+            '<div class="nx-load-text">正在读取历届八强 <b>0</b></div></div>';
+        Promise.all([loadEightDecks(), loadScoreMap(), loadCardMap()]).then(function (res) {
+            var tours = res[0] || [];
+            if (!tours.length) { body.innerHTML = '<div class="nx-empty">暂无八强卡组数据</div>'; return; }
+            var ti = Math.max(0, Math.min(tours.length - 1, st.ti || 0));
+            var tour = tours[ti];
+            var decks = tour.decks || [];
+            var lim = _scoreLimit || 100;
+
+            body.innerHTML =
+                '<div class="nx-stats-top nx-reveal" style="--i:0">' +
+                    '<div class="nx-stats-tabs nx-eight-tours">' + tours.map(function (x, i) {
+                        return '<button class="nx-stats-tab' + (i === ti ? ' is-on' : '') + '" type="button" data-ti="' + i + '">' +
+                            esc(x.name || ('第 ' + (i + 1) + ' 届')) + '<i>' + ((x.decks || []).length) + '</i></button>';
+                    }).join('') + '</div>' +
+                    '<div class="nx-stats-count">共 <b>' + decks.length + '</b> 套八强卡组</div>' +
+                '</div>' +
+                '<div class="nx-eight-grid">' + decks.map(function (d, i) {
+                    var fan = (d.main || []).slice(0, 3);
+                    if (!fan.length) fan = [0];
+                    var sc = deckScoreOf(d);
+                    var title = d.displayName || d.deckName || d.player || ('第 ' + (i + 1) + ' 名');
+                    return '<button class="nx-eight-card" type="button" data-hi="' + i + '" style="--i:' + i + '">' +
+                        '<span class="nx-eight-fan">' +
+                            // 后画的在下层：c2 → c1 → c0（封面）
+                            [2, 1, 0].map(function (k) {
+                                var cid = fan[k] || fan[0] || 0;
+                                return '<img class="nx-eight-img nx-eight-c' + k + '" data-cid="' + cid + '" src="' + PIC_CHAIN[0] + cid + '.jpg" loading="lazy" alt="">';
+                            }).join('') +
+                        '</span>' +
+                        '<span class="nx-eight-rank">' + (i + 1) + '</span>' +
+                        '<span class="nx-eight-name">' + esc(title) + '</span>' +
+                        '<span class="nx-eight-sub">' + esc(d.deckName && d.deckName !== title ? d.deckName : (d.player || '')) + '</span>' +
+                        '<span class="nx-eight-meta">主 ' + (d.main || []).length +
+                            ' · 额外 ' + (d.extra || []).length +
+                            ((d.side || []).length ? ' · 副 ' + d.side.length : '') +
+                            ' · <b class="' + (sc > lim ? 'is-over' : '') + '">' + sc + '</b>/' + lim + '</span>' +
+                    '</button>';
+                }).join('') + '</div>';
+
+            // 卡图三级兜底（与预组同款）
+            Array.prototype.forEach.call(body.querySelectorAll('.nx-eight-card'), function (card) {
+                Array.prototype.forEach.call(card.querySelectorAll('.nx-eight-img'), function (img) {
+                    var cid = parseInt(img.getAttribute('data-cid'), 10) || 0;
+                    wireDeckImage(img, card.querySelector('.nx-eight-fan') || card, cid);
+                });
+            });
+            // 点开 → 与预组相同的卡组视图
+            Array.prototype.forEach.call(body.querySelectorAll('.nx-eight-card'), function (card) {
+                card.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    var d = decks[parseInt(card.getAttribute('data-hi'), 10) || 0];
+                    if (!d) return;
+                    playSfx('click');
+                    var title = d.displayName || d.deckName || d.player || '八强卡组';
+                    var sub = [tour.name || '历届八强', d.player, d.deckName].filter(function (x, i, a) { return x && a.indexOf(x) === i; }).join(' · ');
+                    openDeckView(d, title, sub, '历届八强 · 主 ' + (d.main || []).length + ' 张');
+                });
+            });
+            // 换届
+            Array.prototype.forEach.call(body.querySelectorAll('.nx-eight-tours .nx-stats-tab'), function (b) {
+                b.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    var i = parseInt(b.getAttribute('data-ti'), 10) || 0;
+                    if (i === ti) return;
+                    st.ti = i;
+                    hideCardTip(true);
+                    playSfx('click');
+                    renderEight(body);
+                });
+            });
+        });
+    }
+
+    var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool, banlist: renderBanlist, room: renderRoom, download: renderDownload, login: renderLogin, builder: renderBuilder, eight: renderEight };
 
     // ── DOM ──
     var stage = document.getElementById('nxStage');

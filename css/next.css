@@ -1414,6 +1414,68 @@ body.nx-zoomed .nx-foot {
 .nx-group-chip.is-on i { color: rgba(42, 28, 8, .62); }
 .nx-card-tile.is-plain .nx-card-photo { box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
 
+/* ══ 历届八强：对齐预组屏的扇形卡组卡 ═════════════════════ */
+.nx-eight-tours { justify-content: center; }
+.nx-eight-grid {
+  align-self: stretch; width: 100%; max-width: 1180px; margin: 6px auto 0;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: clamp(14px, 2vw, 26px) clamp(10px, 1.6vw, 22px);
+}
+.nx-eight-card {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 14px 8px 10px;
+  border: none; background: none; cursor: pointer;
+  font-family: inherit;
+  border-radius: 14px;
+  animation: nxCardPaste .34s cubic-bezier(.2, .85, .3, 1) both;
+  animation-delay: calc(var(--i, 0) * 32ms);
+  transition: background .22s, transform .22s cubic-bezier(.22, .9, .28, 1.02);
+}
+.nx-eight-card:hover { background: rgba(212, 175, 55, .07); transform: translateY(-3px); }
+.nx-eight-fan { position: relative; display: block; width: 118px; height: 156px; }
+.nx-eight-img {
+  position: absolute; left: 50%; top: 50%; width: 86px;
+  border-radius: 4px; box-shadow: 0 8px 20px rgba(0, 0, 0, .55);
+  transform-origin: 50% 100%;
+}
+/* 扇形：左侧逆时针、右侧顺时针，封面居中最高（与预组卡flow同款关系） */
+.nx-eight-c0 { transform: translate(-50%, -50%) translateY(-8px); z-index: 3; }
+.nx-eight-c1 { transform: translate(-50%, -50%) translate(-34px, 8px) rotate(-13deg); z-index: 2; }
+.nx-eight-c2 { transform: translate(-50%, -50%) translate(34px, 8px) rotate(13deg); z-index: 1; }
+.nx-eight-card:hover .nx-eight-c0 { transform: translate(-50%, -50%) translateY(-14px) scale(1.05); }
+.nx-eight-card:hover .nx-eight-c1 { transform: translate(-50%, -50%) translate(-40px, 6px) rotate(-16deg); }
+.nx-eight-card:hover .nx-eight-c2 { transform: translate(-50%, -50%) translate(40px, 6px) rotate(16deg); }
+.nx-eight-img { transition: transform .24s cubic-bezier(.22, .9, .28, 1.02), box-shadow .24s; }
+.nx-eight-rank {
+  position: absolute; top: 10px; left: 12px;
+  min-width: 20px; height: 20px; padding: 0 6px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; font-size: 11.5px; font-weight: 700; color: #2a1c08;
+  background: linear-gradient(135deg, #ffe9a8, #d4af37);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .5);
+}
+.nx-eight-name {
+  margin-top: 8px;
+  font-size: 14.5px; font-weight: 700; color: #f2ece4; letter-spacing: .5px;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nx-eight-card:hover .nx-eight-name { color: #fff3c4; }
+.nx-eight-sub {
+  font-size: 12px; color: #9a9aa4;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.nx-eight-meta { font-size: 11.5px; color: #7d7d86; letter-spacing: .3px; }
+.nx-eight-meta b { color: var(--nx-gold-light, #F0E68C); }
+.nx-eight-meta b.is-over { color: #ff9a9a; }
+@media (max-width: 768px) {
+  .nx-eight-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+  .nx-eight-fan { width: 96px; height: 128px; }
+  .nx-eight-img { width: 70px; }
+  .nx-eight-c1 { transform: translate(-50%, -50%) translate(-27px, 7px) rotate(-13deg); }
+  .nx-eight-c2 { transform: translate(-50%, -50%) translate(27px, 7px) rotate(13deg); }
+}
+
 /* ── 移植过来的经典版组卡器：套进新屏幕后的少量适配 ── */
 .nx-screen[data-screen="builder"] { width: min(1500px, 100%); }
 /* 组卡模式开关在屏内是多余的（进屏即已开启） */
