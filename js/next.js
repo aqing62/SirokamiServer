@@ -30,7 +30,7 @@
             options: [
                 { icon: 'house', label: '房间', sub: '开房 / 规则', next: 'r_room' },
                 { icon: 'download', label: '下载', sub: '客户端 / 卡包', next: 'r_download' },
-                { icon: 'bracket', label: '比赛', sub: '群赛 / 瑞士轮', next: 'r_match' }
+                { icon: 'bracket', label: '比赛', sub: '实况对阵 / 八强', screen: 'match' }
             ]
         },
         r_room: {
@@ -47,9 +47,10 @@
         r_download: {
             q: '下载客户端',
             steps: [
-                '先下 <b>MDPro3 客户端</b>（夸克网盘）',
-                '再下 <b>DIY 卡包 siro.ypk</b>，放进客户端的 <b>expansions</b> 目录（MDPro3 里也可直接填链接下载）',
-                '也可以用<b>萌卡平台</b>；服务器地址 <b>ygopro3.cn : 50010</b>'
+                '先下 <b>MDPro3 客户端</b>：需将各版本安装包<b>依次</b>下载安装，<b>不要直接安装最新版本</b>',
+                '再下 <b>DIY 卡包 siro.ypk</b>，放到客户端的 <b>expansions</b> 目录（与客户端目录结构一致）',
+                '或者用<b>萌卡平台</b>：自带 <b>ygopro 自动更新</b>，要玩本服环境需再下载 <b>Koishi DLC 扩展</b>',
+                '服务器地址 <b>ygopro3.cn : 50010</b>，进 <b>M#</b> 房或随机天梯房即可开打'
             ],
             cta: [
                 { icon: 'download', label: '打开下载页', screen: 'download' }
@@ -142,7 +143,7 @@
             options: [
                 { icon: 'chart', label: '天梯', sub: '排名 / 积分', next: 'r_rank' },
                 { icon: 'user', label: '登录', sub: '账号 / 计分', next: 'r_login' },
-                { icon: 'bracket', label: '比赛', sub: '对阵 / 八强', next: 'r_match' }
+                { icon: 'bracket', label: '比赛', sub: '实况对阵 / 八强', screen: 'match' }
             ]
         },
         r_rank: {
@@ -3588,6 +3589,11 @@
             b.addEventListener('click', function (ev) {
                 ripple(b, ev);
                 playSfx('click');
+                // 选项也可以直接开功能屏（跳过中间介绍页）
+                if (opt.screen) {
+                    setTimeout(function () { goScreen(opt.screen); }, 120);
+                    return;
+                }
                 setTimeout(function () { goTo(opt.next, opt.label); }, 120);
             });
             bindHoverRegular(b);
