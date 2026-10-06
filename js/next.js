@@ -2359,7 +2359,8 @@
         { k: 'nf', code: 'NF', label: '无禁限', short: 'NF', desc: '无禁限模式（不套用任何禁卡表）', exclusive: 'rule' }
     ];
     var ROOM_MODE_CODES = [
-        { k: 'm', code: 'M', label: '三局两胜', short: 'M', desc: '三局两胜（BO3）', conflictWith: ['c'], why: '编年史是随机卡组单局对战，不能开三局两胜' },
+        { k: 's', code: 'S', label: '单局', short: 'S', desc: '单局模式（只打一局定胜负）', conflictWith: ['m'], why: '单局模式只打一局，与三局两胜不兼容' },
+        { k: 'm', code: 'M', label: '三局两胜', short: 'M', desc: '三局两胜（BO3）', conflictWith: ['c', 's'], why: '三局两胜要打多局，与单局 / 编年史不兼容' },
         { k: 't', code: 'T', label: '双打', short: 'T', desc: '双打模式（2v2，需要 4 人）' },
         { k: 'c', code: 'C', label: '编年史', short: 'C', desc: '编年史模式（随机卡组对战）', conflictWith: ['m', 'ns'], why: '编年史不兼容三局两胜与不洗切卡组' },
         { k: 'ns', code: 'NS', label: '不洗切卡组', short: 'NS', desc: '不洗切卡组', conflictWith: ['c'], why: '编年史每局都要重新洗切随机卡组，不能关掉洗牌' }
