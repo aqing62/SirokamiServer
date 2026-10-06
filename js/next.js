@@ -3024,7 +3024,7 @@
         var stage = document.getElementById('nxPrizeStage');
         var card = document.getElementById('nxPrizeCard');
         if (!stage || !card) return;
-        var MAX = 15;                     // 最大倾斜角度
+        var MAX = 9;                      // 最大倾斜角度（别太大，否则边角会顶出容器）
         var raf = 0, tx = 0, ty = 0, gx = 50, gy = 50;
         function apply() {
             raf = 0;
