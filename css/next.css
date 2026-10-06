@@ -894,7 +894,7 @@ body.nx-zoomed .nx-foot {
 /* ── 选手详情内容：对局列表 / 卡组列表（无框，靠发丝线与排版分层）── */
 .nx-duel {
   display: grid;
-  grid-template-columns: 26px 1fr auto auto auto;
+  grid-template-columns: 26px 1fr auto auto auto auto;
   align-items: center;
   gap: 10px;
   padding: 9px 2px;
@@ -909,12 +909,24 @@ body.nx-zoomed .nx-foot {
 .nx-duel-opp { color: #ddd6cd; font-weight: 600; text-align: left; }
 .nx-duel-meta { color: #7d7d86; font-size: 11.5px; }
 .nx-duel-time { color: #9a9aa4; font-size: 11.5px; }
+.nx-duel-code { color: #6f6f78; font-size: 11px; letter-spacing: .5px; }
+/* 回放按钮：明确写成「回放」，别再让人猜那个回放码能不能点 */
 .nx-duel-replay {
-  border: none; background: none; padding: 2px 0; cursor: pointer;
-  color: #ffc0cd; font-family: inherit; font-size: 11.5px; letter-spacing: .5px;
-  border-bottom: 1px dashed rgba(216, 30, 68, .5);
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 11px 3px 8px; border: none; border-radius: 999px;
+  background: rgba(212, 175, 55, .14);
+  color: #ffe9a8; font-family: inherit; font-size: 11.5px; font-weight: 700; letter-spacing: .5px;
+  cursor: pointer;
+  transition: background .2s, color .2s, transform .18s, box-shadow .22s;
 }
-.nx-duel-replay:hover { color: var(--nx-gold-light, #F0E68C); border-bottom-color: rgba(212, 175, 55, .7); }
+.nx-duel-replay svg { width: 13px; height: 13px; display: block; }
+.nx-duel-replay:hover {
+  background: linear-gradient(135deg, #ffe9a8, #d4af37);
+  color: #2a1c08;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(212, 175, 55, .32);
+}
+.nx-duel-replay:active { transform: translateY(0) scale(.97); }
 
 .nx-deck-meta { font-size: 11.5px; color: #7d7d86; margin-bottom: 12px; text-align: center; }
 .nx-deck-group { margin-bottom: 16px; }
@@ -1433,6 +1445,90 @@ body.nx-zoomed .nx-foot {
 }
 body { transition: background-color 1.15s cubic-bezier(.4, 0, .2, 1); }
 body.nx-blue { background-color: #05070f; }
+
+/* ══ 回放器：按键与新前端风格对齐（只覆盖新版里的弹窗，不影响经典版）══ */
+#replayModal .rp-modal-box { border-radius: 20px; }
+/* 关闭键：圆形幽灵按钮 */
+#replayModal .rp-modal-close {
+  width: 32px; height: 32px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; border-radius: 50%;
+  background: rgba(255, 255, 255, .06);
+  color: #b9b9c2; font-size: 14px; line-height: 1;
+  cursor: pointer;
+  transition: background .2s, color .2s, transform .2s;
+}
+#replayModal .rp-modal-close:hover { background: rgba(216, 30, 68, .3); color: #ffd7e0; transform: rotate(90deg); }
+/* 回放码输入框：无边框圆角，聚焦金色细边 */
+#replayModal #replayInput {
+  border: none; border-radius: 999px;
+  background: rgba(255, 255, 255, .055);
+  color: #eee7df; font-family: inherit; font-size: 13px;
+  padding: 9px 16px;
+  outline: none;
+  transition: background .2s, box-shadow .2s;
+}
+#replayModal #replayInput:focus { background: rgba(255, 255, 255, .085); box-shadow: 0 0 0 1px rgba(212, 175, 55, .5); }
+/* 主按钮：加载回放 = 金色渐变（与下载 YDK 同款） */
+#replayModal #replayLoadBtn {
+  border: none; border-radius: 999px;
+  padding: 9px 20px;
+  background: linear-gradient(135deg, #ffe9a8 0%, #d4af37 55%, #b08d24 100%);
+  color: #2a1c08; font-family: inherit; font-size: 13px; font-weight: 700; letter-spacing: .5px;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(212, 175, 55, .32), inset 0 0 0 1px rgba(255, 245, 200, .5);
+  transition: transform .2s cubic-bezier(.22, .9, .28, 1.02), box-shadow .25s, filter .2s;
+}
+#replayModal #replayLoadBtn:hover { transform: translateY(-1px) scale(1.02); filter: brightness(1.05); box-shadow: 0 10px 24px rgba(212, 175, 55, .42); }
+/* 播放控制：幽灵药丸 */
+#replayModal #rpPlayPause,
+#replayModal #rpStepBack,
+#replayModal #rpStep {
+  border: none; border-radius: 999px;
+  padding: 7px 16px;
+  background: rgba(255, 255, 255, .055);
+  color: #cfc8bf; font-family: inherit; font-size: 12.5px; font-weight: 600; letter-spacing: .3px;
+  cursor: pointer;
+  transition: background .2s, color .2s, transform .18s, box-shadow .22s;
+}
+#replayModal #rpPlayPause:hover,
+#replayModal #rpStepBack:hover,
+#replayModal #rpStep:hover {
+  background: rgba(212, 175, 55, .18); color: #fff3c4;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(212, 175, 55, .18);
+}
+/* 倍速：小药丸，选中为金色渐变 */
+#replayModal .rp-speed {
+  border: none; border-radius: 999px;
+  padding: 5px 12px; min-width: 44px;
+  background: rgba(255, 255, 255, .05);
+  color: #9a9aa4; font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: .3px;
+  cursor: pointer;
+  transition: background .2s, color .2s, transform .18s, box-shadow .22s;
+}
+#replayModal .rp-speed:hover { color: #fff3c4; background: rgba(212, 175, 55, .16); transform: translateY(-1px); }
+#replayModal .rp-speed.active {
+  background: linear-gradient(135deg, #ffe9a8, #d4af37);
+  color: #2a1c08;
+  box-shadow: 0 5px 14px rgba(212, 175, 55, .3);
+}
+#replayModal .rp-speed-label { color: #7d7d86; font-size: 12px; letter-spacing: 1px; }
+#replayModal .rp-progress-text { color: #9a9aa4; font-size: 11.5px; font-variant-numeric: tabular-nums; letter-spacing: .5px; }
+/* 进度条：细金条 */
+#replayModal #rpProgress { -webkit-appearance: none; appearance: none; height: 4px; border-radius: 999px; background: rgba(255, 255, 255, .1); }
+#replayModal #rpProgress::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 13px; height: 13px; border-radius: 50%;
+  background: linear-gradient(135deg, #ffe9a8, #d4af37);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .5);
+  cursor: pointer;
+}
+#replayModal #rpProgress::-moz-range-thumb {
+  width: 13px; height: 13px; border: none; border-radius: 50%;
+  background: #d4af37; cursor: pointer;
+}
+#replayModal .replay-title { letter-spacing: 1.5px; color: #f2ece4; font-weight: 700; }
 
 /* ══ 历届八强：对齐预组屏的扇形卡组卡 ═════════════════════ */
 .nx-eight-tours { justify-content: center; }

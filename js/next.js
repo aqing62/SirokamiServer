@@ -971,7 +971,14 @@
                         '<span class="nx-duel-opp">' + esc(d.opponentName || '未知') + '</span>' +
                         '<span class="nx-duel-meta">' + esc(d.roomName || '') + '</span>' +
                         '<span class="nx-duel-time">' + fmtTime(d.time) + '</span>' +
-                        (d.replayCode ? '<button class="nx-duel-replay" type="button" data-code="' + esc(d.replayCode) + '">' + esc(d.replayCode) + '</button>' : '') +
+                        (d.replayCode
+                            ? '<span class="nx-duel-code" title="回放码 ' + esc(d.replayCode) + '">' + esc(d.replayCode) + '</span>' +
+                              '<button class="nx-duel-replay" type="button" data-code="' + esc(d.replayCode) + '" title="播放这场的回放">' +
+                                  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+                                      '<circle cx="12" cy="12" r="8.4"></circle><path d="M10.4 9 15.4 12l-5 3z" fill="currentColor" stroke="none"></path>' +
+                                  '</svg><span>回放</span>' +
+                              '</button>'
+                            : '') +
                     '</div>';
                 }).join('');
                 Array.prototype.forEach.call(box.querySelectorAll('.nx-duel-replay'), function (b) {
