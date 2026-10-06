@@ -231,9 +231,10 @@
 
     // ── 回放（经典版回放器 replay-viewer.js 原样移植）──
     //  需要时启用它的样式，然后交给 window.openReplay 播放；返回 false 表示回放器没载入。
+    // 回放器样式本身就是常驻启用的（它没有全局选择器），这里只保留一个兜底开关
     function nxReplayCss(on) {
         var el = document.getElementById('nxCssReplay');
-        if (el) el.media = on ? 'all' : 'not all';
+        if (el && on && el.media !== 'all') el.media = 'all';
     }
     function nxReplayOpen(code) {
         if (!window.openReplay) return false;
@@ -249,13 +250,20 @@
         var m = document.getElementById('replayModal');
         if (!m) return false;
         if (m.style.display === 'none') return false;
-        m.style.display = 'none';
         var c = document.getElementById('replayClose');
         if (c) c.click();
         m.style.display = 'none';
         nxReplayCss(false);
         return true;
     }
+    // Esc 关回放：走捕获阶段并截断传播，避免同一次 Esc 又触发"返回上一层"
+    document.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Escape') return;
+        if (!nxReplayVisible()) return;
+        ev.stopPropagation();
+        ev.preventDefault();
+        nxReplayClose();
+    }, true);
 
     function jumpClassic(target) {
         if (!target) return;
