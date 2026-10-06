@@ -156,42 +156,59 @@
             .catch(function () { scoreMap = {}; return scoreMap; });
     }
 
-    // 分值判定（按用户规则）：
-    //   ① 这张卡自己在分值表里有分（或被禁）→ 用自己的，不再看别的
-    //   ② 自己没分 → 找同名卡：先看 alias 链接的那张，再按卡名找同名的最高分
-    //   ③ 都没有 → 没有分（返回原来的空/0 对象）
-    function scoreHasPoint(s) { return !!(s && (s.forbidden || (s.score || 0) > 0)); }
-    var _nameScoreMap = null;
-    function nameScoreMap() {
-        if (_nameScoreMap) return _nameScoreMap;
-        _nameScoreMap = {};
-        if (diyIndex && diyIndex.forEach) {
-            diyIndex.forEach(function (c, id) {
-                var nm = c && c.name;
-                if (!nm) return;
-                var s = scoreMap && scoreMap[id];
-                if (!scoreHasPoint(s)) return;
-                var cur = _nameScoreMap[nm];
-                if (!cur || (s.score || 0) > (cur.score || 0) || (s.forbidden && !cur.forbidden)) _nameScoreMap[nm] = s;
-            });
-        }
-        return _nameScoreMap;
+    // 分值判定（按用户规则，分值以 lflist 的 $genesys 为准）：
+    //   ① lflist 里这张卡自己有 $genesys 分值 → 用自己的
+    //   ② 没有 → 看 alias 链接的那张（同名卡的另一种印法）有没有分 → 有就用它的
+    //   ③ 都没有 → 没有分
+    //   为什么不用 /api/scores：后端会把有分卡的分值也一并发给同名但没分的印法
+    //   （例：「第13人的埋葬者」通常版 32864 会拿到效果版 49811442 的 4 分），
+    //   而 lflist 只为真正有分的卡号记 $genesys，正好是判定依据。
+    var _geneScore = null, _geneFb = null;
+    function loadGeneScores() {
+        if (_geneScore) return Promise.resolve(_geneScore);
+        _geneScore = {}; _geneFb = {};
+        return fetch('lflist.conf?v=20261008w')
+            .then(function (r) { return r.text(); })
+            .then(function (txt) {
+                var section = null;
+                txt.split(/\r?\n/).forEach(function (line) {
+                    var low = line.toLowerCase();
+                    if (low.indexOf('#forbidden') >= 0) { section = 'forbidden'; return; }
+                    if (low.indexOf('#limit') >= 0) { section = 'limit'; return; }
+                    if (low.indexOf('#semi') >= 0) { section = 'semi'; return; }
+                    if (low.indexOf('#no limit') >= 0) { section = null; return; }
+                    if (line.charAt(0) === '#' || line.charAt(0) === '!' || line.charAt(0) === '$') return;
+                    var m = line.match(/^(\d+)\s+\$genesys\s+(\d+)/);
+                    if (!m) return;
+                    var id = parseInt(m[1], 10), v = parseInt(m[2], 10);
+                    if (!id) return;
+                    if (v > 0) _geneScore[id] = v;
+                    else if (section === 'forbidden') _geneFb[id] = 1;
+                });
+                return _geneScore;
+            })
+            .catch(function () { return _geneScore; });
     }
+    function scoreHasPoint(s) { return !!(s && (s.forbidden || (s.score || 0) > 0)); }
     function cardScoreOf(id) {
-        var own = scoreMap && scoreMap[id];
-        if (scoreHasPoint(own)) return own;
-        var info = (diyIndex && diyIndex.get) ? (diyIndex.get(parseInt(id, 10)) || null) : null;
+        var key = parseInt(id, 10);
+        if (!key) return null;
+        var api = scoreMap && scoreMap[key];
+        var apiFb = !!(api && api.forbidden);          // 禁卡标记仍以 /api/scores 为准（可靠）
+        var v = _geneScore ? _geneScore[key] : undefined;
+        if (v > 0) return { score: v, forbidden: apiFb };   // ① 自己 lflist 里有分 → 用自己的
+        if (apiFb) return { score: 0, forbidden: true };
+        // ② 自己没分 → 看 alias 链接的同名印法
+        var info = (diyIndex && diyIndex.get) ? (diyIndex.get(key) || null) : null;
         var aliasId = info ? parseInt(info.alias, 10) : 0;
         if (aliasId) {
-            var a = scoreMap && scoreMap[aliasId];
-            if (scoreHasPoint(a)) return a;
+            var av = _geneScore ? _geneScore[aliasId] : undefined;
+            if (av > 0) {
+                var aa = scoreMap && scoreMap[aliasId];
+                return { score: av, forbidden: !!(aa && aa.forbidden) };
+            }
         }
-        var nm = info && info.name;
-        if (nm) {
-            var best = nameScoreMap()[nm];
-            if (best) return best;
-        }
-        return own || null;
+        return null;                                    // ③ 都没有 → 没有分
     }
 
     // ── 衍生物（Token）识别：组卡界面不展示 ──
@@ -277,8 +294,8 @@
     }
 
     function refreshScore() {
-        if (scoreMap) { updateScoreLabel(); return; }   // 分数已加载：只更新文字，不重绘卡组
-        loadScores().then(function () { updateScoreLabel(); });
+        if (scoreMap && _geneScore) { updateScoreLabel(); return; }   // 分数已加载：只更新文字，不重绘卡组
+        Promise.all([loadScores(), loadGeneScores()]).then(function () { updateScoreLabel(); });
     }
 
     // 单个卡位元素（渲染与增量插入共用）
@@ -1568,8 +1585,8 @@
             if (advPanel) advPanel.style.display = 'none';
             var advToggle = $('dbFilterToggle');
             if (advToggle) advToggle.classList.remove('active');
-            // 开启时预加载分数 + DIY 全量数据
-            loadScores().then(function () {
+            // 开启时预加载分数（lflist $genesys 为准）+ DIY 全量数据
+            Promise.all([loadScores(), loadGeneScores()]).then(function () {
                 renderAll();
                 loadDiyData().then(function () { doSearch(); });
             });
