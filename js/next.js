@@ -3003,6 +3003,13 @@
     // ── 当期八强奖品：3D 跟手倾斜 + 反光（图换季时只改这一行路径）──
     var PRIZE_IMG = 'decks/7/64500136.jpg';
     var PRIZE_NAME = '第七届群赛八强奖品卡';
+    // 奖品档位（改季只改这里）
+    var PRIZE_TIERS = [
+        { who: '冠军', what: '出框 PSER' },
+        { who: '亚军 / 季军', what: 'PSER' },
+        { who: '殿军', what: 'SER' },
+        { who: '八强', what: 'SR' }
+    ];
     function prizeHtml(cur) {
         if (!PRIZE_IMG) return '';
         return '<div class="nx-prize nx-reveal" style="--i:1">' +
@@ -3016,7 +3023,11 @@
             '<div class="nx-prize-texts">' +
                 '<div class="nx-prize-title">当期八强奖品</div>' +
                 '<div class="nx-prize-sub">' + esc(cur && cur.name ? cur.name : '当期群赛') + '</div>' +
-                '<div class="nx-prize-note">打进八强即可获得 · 鼠标移上去看看</div>' +
+                '<div class="nx-prize-earn">打进八强即可获得</div>' +
+                '<div class="nx-prize-tiers">' + PRIZE_TIERS.map(function (t) {
+                    return '<div class="nx-prize-tier"><span>' + esc(t.who) + '</span><b>' + esc(t.what) + '</b></div>';
+                }).join('') + '</div>' +
+                '<div class="nx-prize-note">鼠标移到卡片上看看</div>' +
             '</div>' +
         '</div>';
     }
