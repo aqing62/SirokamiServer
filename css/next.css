@@ -1414,30 +1414,27 @@ body.nx-zoomed .nx-foot {
 .nx-group-chip.is-on i { color: rgba(42, 28, 8, .62); }
 .nx-card-tile.is-plain .nx-card-photo { box-shadow: 0 8px 20px rgba(0, 0, 0, .5); }
 
-/* ══ 历届八强：对齐预组屏的扇形卡组卡 ═════════════════════ */
-/* 蓝色背景板：样子不变只变蓝，入场/退场都走渐变淡入淡出 */
-.nx-screen[data-screen="eight"]::before {
-  content: '';
-  position: absolute; inset: -14px -10px; z-index: -1;
-  border-radius: 24px;
-  background:
-    radial-gradient(120% 90% at 50% 0%, rgba(64, 126, 255, .30), rgba(26, 58, 148, .16) 46%, transparent 74%),
-    radial-gradient(95% 75% at 50% 104%, rgba(0, 186, 255, .18), transparent 72%),
-    linear-gradient(180deg, rgba(18, 34, 78, .58), rgba(8, 14, 36, .38));
-  box-shadow: inset 0 0 0 1px rgba(96, 156, 255, .18), 0 0 70px rgba(38, 88, 220, .20);
+/* ── 蓝黑主题叠层（历届八强屏）：只换颜色不换样子，交叉淡入淡出 ── */
+.nx-bg-blue {
+  position: absolute; inset: 0;
+  opacity: 0;                       /* 默认不可见，body.nx-blue 时淡入 */
+  transition: opacity .55s cubic-bezier(.22, .9, .28, 1.02);
   pointer-events: none;
-  animation: nxEightBgIn .62s cubic-bezier(.22, .9, .28, 1.02) both;
+  background: linear-gradient(180deg, #070b16, #05070f);   /* 蓝黑底，压住原来的近黑 */
 }
-@keyframes nxEightBgIn {
-  0%   { opacity: 0; transform: scale(.985); filter: blur(12px) saturate(.5); }
-  55%  { opacity: 1; filter: blur(2px) saturate(.95); }
-  100% { opacity: 1; transform: none; filter: blur(0) saturate(1); }
+.nx-blue .nx-bg-blue { opacity: 1; }
+.nx-orb-b1 { width: 46vmax; height: 46vmax; left: -14vmax; top: -16vmax; background: radial-gradient(circle, rgba(58, 118, 255, .52), transparent 68%); }
+.nx-orb-b2 { width: 38vmax; height: 38vmax; right: -12vmax; bottom: -14vmax; background: radial-gradient(circle, rgba(0, 176, 255, .32), transparent 70%); animation-delay: -6s; }
+.nx-orb-b3 { width: 30vmax; height: 30vmax; left: 42%; top: 46%; background: radial-gradient(circle, rgba(96, 84, 255, .26), transparent 70%); animation-delay: -11s; }
+.nx-grid-blue {
+  background-image:
+    linear-gradient(rgba(86, 140, 255, .32) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(86, 140, 255, .32) 1px, transparent 1px);
 }
-/* 退场：随整屏一起淡出，并且更快更糊 */
-.nx-stage.nx-leaving .nx-screen[data-screen="eight"]::before {
-  animation: nxEightBgOut .2s ease-in both;
-}
-@keyframes nxEightBgOut { to { opacity: 0; filter: blur(10px) saturate(.6); } }
+body { transition: background-color .55s cubic-bezier(.22, .9, .28, 1.02); }
+body.nx-blue { background-color: #05070f; }
+
+/* ══ 历届八强：对齐预组屏的扇形卡组卡 ═════════════════════ */
 .nx-eight-tours { justify-content: center; }
 .nx-eight-grid {
   align-self: stretch; width: 100%; max-width: 1180px; margin: 6px auto 0;

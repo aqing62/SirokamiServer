@@ -223,6 +223,12 @@
 
     var screenEl = null;
 
+    // 蓝黑主题开关（历届八强屏用）：body 加 .nx-blue，背景叠层与底色一起渐变切换
+    function nxBlueTheme(on) {
+        if (!document.body) return;
+        document.body.classList.toggle('nx-blue', !!on);
+    }
+
     function jumpClassic(target) {
         if (!target) return;
         location.href = 'index.html?goto=' + encodeURIComponent(target);
@@ -241,6 +247,8 @@
         if (!s || !screenEl) return;
         // 离开组卡屏时把老组卡器整块放回隐藏宿主（连带关掉它的样式）
         if (screenEl.dataset.screen === 'builder' && id !== 'builder' && typeof nxBuilderDetach === 'function') nxBuilderDetach();
+        // 蓝黑主题只在历届八强屏生效（背景整体交叉淡入淡出）
+        nxBlueTheme(id === 'eight');
         screenEl.hidden = false;
         screenEl.dataset.screen = id || '';       // 供 CSS 按屏调宽度（组卡那种三栏要更宽）
         screenEl.innerHTML =
@@ -3038,6 +3046,8 @@
         stage.classList.remove('is-screen');
         // 离开功能屏：组卡屏要把移植来的老组卡器整块放回隐藏宿主（连带关掉它的样式）
         if (screenEl && screenEl.dataset.screen === 'builder' && screenEl.hidden === false && typeof nxBuilderDetach === 'function') nxBuilderDetach();
+        // 离开功能屏：蓝黑主题也跟着退场（背景渐变淡回红黑）
+        if (screenEl && screenEl.dataset.screen === 'eight') nxBlueTheme(false);
         if (screenEl) screenEl.hidden = true;
         var node = FLOW[top.key];
         if (!node) return;
