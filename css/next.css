@@ -151,6 +151,35 @@ body {
 .nx-options .nx-option:nth-child(1) { grid-area: top; }
 .nx-options .nx-option:nth-child(2) { grid-area: left; }
 .nx-options .nx-option:nth-child(3) { grid-area: right; }
+
+/* ── 骰子5 布局（卡片相关用）：四角 + 正中 ── */
+.nx-options.is-dice5 {
+  grid-template-columns: repeat(3, minmax(0, auto));
+  grid-template-areas:
+    "d5a .   d5b"
+    ".   d5c ."
+    "d5d .   d5e";
+  gap: clamp(2px, 1.4vh, 16px) clamp(6px, 2.6vw, 34px);
+}
+.nx-options.is-dice5 .nx-option:nth-child(1) { grid-area: d5a; }
+.nx-options.is-dice5 .nx-option:nth-child(2) { grid-area: d5b; }
+.nx-options.is-dice5 .nx-option:nth-child(3) { grid-area: d5c; }   /* 组卡：正中间 */
+.nx-options.is-dice5 .nx-option:nth-child(4) { grid-area: d5d; }
+.nx-options.is-dice5 .nx-option:nth-child(5) { grid-area: d5e; }
+/* 手机端：组卡这版不提供（走经典版），其余四个回到常规两列 */
+@media (max-width: 768px) {
+  .nx-option[data-mobile-hide="1"] { display: none !important; }
+  .nx-options.is-dice5 {
+    grid-template-columns: repeat(2, minmax(0, auto));
+    grid-template-areas:
+      "m1 m2"
+      "m3 m4";
+  }
+  .nx-options.is-dice5 .nx-option:nth-child(1) { grid-area: m1; }
+  .nx-options.is-dice5 .nx-option:nth-child(2) { grid-area: m2; }
+  .nx-options.is-dice5 .nx-option:nth-child(4) { grid-area: m3; }
+  .nx-options.is-dice5 .nx-option:nth-child(5) { grid-area: m4; }
+}
 /* 结果页 3 个 CTA 也用三角 */
 .nx-result-cta.nx-tri {
   display: grid;

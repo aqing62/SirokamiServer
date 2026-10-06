@@ -73,11 +73,11 @@
         // ── 卡片（2×2） ──
         card: {
             q: '卡片相关',
-            layout: 'grid',
+            layout: 'dice5',
             options: [
                 { icon: 'layers', label: '卡池', sub: '查卡 / 分值', next: 'r_pool' },
                 { icon: 'list', label: '卡表', sub: '禁限 / 规则', next: 'r_banlist' },
-                { icon: 'build', label: '组卡', sub: '自己搭一套', next: 'r_builder' },
+                { icon: 'build', label: '组卡', sub: '自己搭一套', next: 'r_builder', mobileHide: true },
                 { icon: 'box', label: '预组', sub: '现成卡组', next: 'r_preset' },
                 { icon: 'star', label: '常用卡', sub: '高分 / 泛用', next: 'r_popular' }
             ]
@@ -3167,11 +3167,14 @@
     function buildOptions(node) {
         optEl.hidden = false;
         optEl.classList.toggle('is-grid', node.layout === 'grid');
+        optEl.classList.toggle('is-dice5', node.layout === 'dice5');   // 骰子5：四角 + 正中
         optEl.innerHTML = '';
         (node.options || []).forEach(function (opt, i) {
             var b = document.createElement('button');
             b.className = 'nx-option';
             b.style.setProperty('--i', i);
+            b.setAttribute('data-label', opt.label || '');
+            if (opt.mobileHide) b.setAttribute('data-mobile-hide', '1');
             b.innerHTML = ringSvg(false)
                 + '<span class="nx-opt-icon">' + iconSvg(opt.icon) + '</span>'
                 + '<span class="nx-opt-label">' + esc(opt.label) + '</span>'
