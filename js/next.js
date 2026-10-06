@@ -1918,11 +1918,13 @@
                         (statusTxt ? '<i class="nx-tour-status' + (cur.status === 'Running' ? ' is-live' : '') + '">' + esc(statusTxt) + '</i>' : '') +
                     '</div>' +
                 '</div>' +
+                prizeHtml(cur) +
                 '<div id="nxMatchBody"></div>';
 
             var box = document.getElementById('nxMatchBody');
             if (tab === 'elim') paintBracket(box, cur, names);
             else paintSwiss(box, cur, names);
+            bindPrizeTilt();
             bindStatsTabs(body, renderMatch);
         });
     }
@@ -2996,6 +2998,57 @@
         });
     }
 
+    // ── 当期八强奖品：3D 跟手倾斜 + 反光（图换季时只改这一行路径）──
+    var PRIZE_IMG = 'decks/7/64500136.jpg';
+    var PRIZE_NAME = '第七届群赛八强奖品卡';
+    function prizeHtml(cur) {
+        if (!PRIZE_IMG) return '';
+        return '<div class="nx-prize nx-reveal" style="--i:1">' +
+            '<div class="nx-prize-texts">' +
+                '<div class="nx-prize-title">当期八强奖品</div>' +
+                '<div class="nx-prize-sub">' + esc(cur && cur.name ? cur.name : '当期群赛') + '</div>' +
+                '<div class="nx-prize-note">打进八强即可获得 · 鼠标移上去看看</div>' +
+            '</div>' +
+            '<div class="nx-prize-stage" id="nxPrizeStage">' +
+                '<div class="nx-prize-card" id="nxPrizeCard">' +
+                    '<img src="' + esc(PRIZE_IMG) + '" alt="' + esc(PRIZE_NAME) + '" draggable="false">' +
+                    '<span class="nx-prize-glare"></span>' +
+                    '<span class="nx-prize-shine"></span>' +
+                '</div>' +
+            '</div>' +
+        '</div>';
+    }
+    function bindPrizeTilt() {
+        var stage = document.getElementById('nxPrizeStage');
+        var card = document.getElementById('nxPrizeCard');
+        if (!stage || !card) return;
+        var MAX = 15;                     // 最大倾斜角度
+        var raf = 0, tx = 0, ty = 0, gx = 50, gy = 50;
+        function apply() {
+            raf = 0;
+            card.style.transform = 'rotateX(' + ty.toFixed(2) + 'deg) rotateY(' + tx.toFixed(2) + 'deg)';
+            card.style.setProperty('--gx', gx.toFixed(1) + '%');
+            card.style.setProperty('--gy', gy.toFixed(1) + '%');
+        }
+        stage.addEventListener('mousemove', function (ev) {
+            var r = stage.getBoundingClientRect();
+            var px = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+            var py = Math.max(0, Math.min(1, (ev.clientY - r.top) / r.height));
+            tx = (px - 0.5) * 2 * MAX;         // 左右
+            ty = (0.5 - py) * 2 * MAX;         // 上下
+            gx = px * 100; gy = py * 100;
+            card.classList.add('is-tilting');
+            if (!raf) raf = requestAnimationFrame(apply);
+        });
+        stage.addEventListener('mouseleave', function () {
+            if (raf) { cancelAnimationFrame(raf); raf = 0; }
+            card.classList.remove('is-tilting');
+            card.style.transform = '';
+            card.style.setProperty('--gx', '50%');
+            card.style.setProperty('--gy', '50%');
+        });
+    }
+
     var RENDERERS = { ladder: renderLadder, preset: renderPreset, popular: renderPopular, match: renderMatch, pool: renderPool, banlist: renderBanlist, room: renderRoom, download: renderDownload, login: renderLogin, builder: renderBuilder, eight: renderEight };
 
     // ── DOM ──
@@ -3391,48 +3444,15 @@
         btn.addEventListener('blur', function () { btn._nxRegTarget = 0; });
     }
 
-    // ── 临时调试开关：磁吸 / 拉拽 / 扭曲 ──
+    // ── 特效开关（调试面板已移除，这里只保留状态：三项默认全开，可用 localStorage 覆盖）──
     // 三项效果默认全开；此前"抽搐"的真因是磁吸自激振荡 + 拉拽作用范围过大(已修)，与扭曲无关
     var FX = { magnet: true, drag: true, wobble: true, mock: false };
-    (function initFxPanel() {
+    (function initFxState() {
         var KEY = 'siro_next_fx';
-        try { var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
+        try {
+            var saved = JSON.parse(localStorage.getItem(KEY) || 'null');
             if (saved) for (var k in FX) if (typeof saved[k] === 'boolean') FX[k] = saved[k];
         } catch (e) { /* 忽略 */ }
-        var panel = document.getElementById('nxDebug');
-        if (!panel) return;
-        function sync() {
-            var btns = panel.querySelectorAll('.nx-dbg-btn');
-            for (var i = 0; i < btns.length; i++) {
-                var key = btns[i].getAttribute('data-fx');
-                var on = key === 'sfx' ? SFX.on : !!FX[key];
-                btns[i].classList.toggle('is-on', on);
-            }
-            try { localStorage.setItem(KEY, JSON.stringify(FX)); } catch (e) { /* 忽略 */ }
-        }
-        panel.addEventListener('click', function (ev) {
-            var b = ev.target.closest ? ev.target.closest('.nx-dbg-btn') : null;
-            if (!b) return;
-            var key = b.getAttribute('data-fx');
-            if (key === 'mock') {                      // 测试数据开关
-                FX.mock = !FX.mock;
-                b.classList.toggle('is-on', FX.mock);
-                var bodyEl = document.getElementById('nxScreenBody');
-                var curScreen = historyStack[historyStack.length - 1];
-                if (bodyEl && curScreen && curScreen.screen) renderScreen(curScreen.screen);
-                return;
-            }
-            if (key === 'sfx') {                       // 音效开关（单独存）
-                SFX.on = !SFX.on;
-                try { localStorage.setItem('siro_next_sfx', SFX.on ? '1' : '0'); } catch (e) { /* 忽略 */ }
-                b.classList.toggle('is-on', SFX.on);
-                if (SFX.on) playSfx('click');
-                return;
-            }
-            FX[key] = !FX[key];
-            sync();
-        });
-        sync();
     })();
 
     // 标记可变形路径并启动循环（渲染后调用）

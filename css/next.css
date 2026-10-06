@@ -549,43 +549,6 @@ body.nx-skip .nx-welcome { display: none; }
 }
 
 
-/* ── 临时调试面板（定位手感问题用，可随时删除）── */
-.nx-debug {
-  position: fixed;
-  left: 14px;
-  bottom: 14px;
-  z-index: 30;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border-radius: 999px;
-  border: none;
-  background: rgba(10, 8, 10, .55);
-  backdrop-filter: blur(4px);
-  font-size: 12px;
-  opacity: .32;
-  transition: opacity .25s;
-}
-.nx-debug:hover { opacity: 1; }
-.nx-debug-title { color: #8d8d96; letter-spacing: 1px; }
-.nx-dbg-btn {
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: none;
-  background: transparent;
-  color: #9a9aa4;
-  font-family: inherit;
-  font-size: 12px;
-  cursor: pointer;
-  transition: .18s;
-}
-.nx-dbg-btn.is-on { background: rgba(216, 30, 68, .22); color: #ffc0cd; }
-.nx-dbg-btn:hover { color: var(--nx-gold-light, #F0E68C); }
-@media (max-width: 560px) {
-  .nx-debug { left: 8px; bottom: 8px; gap: 4px; padding: 4px 6px; }
-  .nx-dbg-btn { padding: 3px 8px; font-size: 11px; }
-}
 
 
 /* ── 2×2 布局（「卡片」节点：卡池 / 卡表 / 预组 / 常用卡）── */
@@ -1931,6 +1894,64 @@ body.nx-blue { background-color: #05070f; }
 .nx-pool-kinds .nx-stats-tab i { font-size: 11px; }
 .nx-pool-grid { margin-top: 4px; }
 .nx-pool-sentinel { height: 40px; width: 100%; }
+
+/* ══ 比赛：当期八强奖品（3D 跟手倾斜 + 反光）═══════════════ */
+.nx-prize {
+  align-self: stretch; width: 100%; max-width: 1180px; margin: 4px auto 18px;
+  display: flex; align-items: center; justify-content: center;
+  gap: clamp(16px, 3vw, 46px); flex-wrap: wrap;
+}
+.nx-prize-texts { text-align: left; min-width: 190px; }
+.nx-prize-title {
+  font-size: clamp(17px, 2vw, 22px); font-weight: 800; letter-spacing: 2px;
+  color: #fff3c4;
+  text-shadow: 0 0 22px rgba(255, 214, 40, .28);
+}
+.nx-prize-sub { font-size: 12.5px; color: #b9a86a; letter-spacing: 1px; margin-top: 6px; }
+.nx-prize-note { font-size: 11.5px; color: #7d7d86; margin-top: 10px; letter-spacing: .5px; }
+.nx-prize-stage { perspective: 900px; padding: 14px; }
+.nx-prize-card {
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform .55s cubic-bezier(.22, .9, .28, 1.02);
+  will-change: transform;
+}
+.nx-prize-card.is-tilting { transition: transform .12s ease-out; }
+.nx-prize-card img {
+  width: min(196px, 44vw); display: block; border-radius: 8px;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .62), 0 0 0 1px rgba(255, 255, 255, .06);
+  user-select: none;
+}
+/* 反光：跟着鼠标位置走的镜面高光 */
+.nx-prize-glare {
+  position: absolute; inset: 0; border-radius: 8px; pointer-events: none;
+  background: radial-gradient(circle at var(--gx, 50%) var(--gy, 50%),
+              rgba(255, 255, 255, .52) 0%, rgba(255, 255, 255, .16) 24%, rgba(255, 255, 255, .04) 42%, transparent 62%);
+  mix-blend-mode: screen;
+  opacity: 0; transition: opacity .25s;
+}
+.nx-prize-card.is-tilting .nx-prize-glare { opacity: 1; }
+/* 一道斜向扫光，静止时缓慢掠过 */
+.nx-prize-shine { position: absolute; inset: 0; border-radius: 8px; pointer-events: none; overflow: hidden; }
+.nx-prize-shine::after {
+  content: ''; position: absolute; top: -60%; left: -70%;
+  width: 55%; height: 220%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .5), transparent);
+  transform: rotate(18deg);
+  filter: blur(2px);
+  animation: nxPrizeShine 5.2s ease-in-out infinite;
+}
+@keyframes nxPrizeShine {
+  0%, 62%   { left: -70%; opacity: 0; }
+  68%       { opacity: .9; }
+  86%       { left: 120%; opacity: .9; }
+  92%, 100% { left: 120%; opacity: 0; }
+}
+@media (max-width: 768px) {
+  .nx-prize { gap: 12px; }
+  .nx-prize-texts { text-align: center; }
+  .nx-prize-title { font-size: 17px; }
+}
 
 /* ══ 比赛：瑞士轮积分榜 + 淘汰赛对阵图 ═════════════════════ */
 .nx-tour-meta {
