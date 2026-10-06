@@ -221,6 +221,31 @@
         document.body.classList.toggle('nx-blue', !!on);
     }
 
+    // ── 复制文本：优先 Clipboard API，失败时退回 textarea 方案（并返回是否真的成功）──
+    function nxCopyText(text) {
+        try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).catch(function () { nxCopyFallback(text); });
+                return true;
+            }
+        } catch (e) { /* 落到兜底 */ }
+        return nxCopyFallback(text);
+    }
+    function nxCopyFallback(text) {
+        try {
+            var ta = document.createElement('textarea');
+            ta.value = text;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.select();
+            var ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            return !!ok;
+        } catch (e) { return false; }
+    }
+
     // ── 顶栏服务器地址：点一下复制 ──
     (function initBrandAddr() {
         var el = document.getElementById('nxBrandAddr');
@@ -228,10 +253,10 @@
         var raw = el.textContent.trim();
         el.addEventListener('click', function (ev) {
             ev.stopPropagation();
-            try { navigator.clipboard.writeText(raw); } catch (e) { /* 忽略 */ }
+            var ok = nxCopyText(raw);
             playSfx('click');
-            el.textContent = '已复制 ✓';
-            setTimeout(function () { el.textContent = raw; }, 1400);
+            el.textContent = ok ? '已复制 ✓' : raw;
+            if (ok) setTimeout(function () { el.textContent = raw; }, 1400);
         });
         el.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
     })();
@@ -2566,9 +2591,9 @@
                 ev.stopPropagation();
                 var t = codeText();
                 if (!t) return;
-                try { navigator.clipboard.writeText(t); } catch (e) { /* 忽略 */ }
+                var okc = nxCopyText(t);
                 var sp = cp.querySelector('span');
-                if (sp) { sp.textContent = '已复制'; setTimeout(function () { sp.textContent = '复制密码'; }, 1200); }
+                if (sp && okc) { sp.textContent = '已复制'; setTimeout(function () { sp.textContent = '复制密码'; }, 1200); }
             });
             var rs = document.getElementById('nxRoomReset');
             if (rs) rs.addEventListener('click', function (ev) {
