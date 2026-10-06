@@ -258,9 +258,17 @@
         nxReplayCss(false);
         return true;
     }
-    // Esc 关回放：走捕获阶段并截断传播，避免同一次 Esc 又触发"返回上一层"
+    // Esc 关回放 / 关房间数字弹窗：走捕获阶段并截断传播，避免同一次 Esc 又触发"返回上一层"
     document.addEventListener('keydown', function (ev) {
         if (ev.key !== 'Escape') return;
+        var roomDlg = document.getElementById('nxRoomDlg');
+        if (roomDlg) {
+            var cancel = document.getElementById('nxRoomDlgCancel');
+            if (cancel) cancel.click();
+            ev.stopPropagation();
+            ev.preventDefault();
+            return;
+        }
         if (!nxReplayVisible()) return;
         ev.stopPropagation();
         ev.preventDefault();
@@ -2341,28 +2349,246 @@
         });
     }
 
-    // ── 房间（决斗 → 房间）：房间密码代码一览 ────────────────
-    var ROOM_CODES = [
-        ['（不输入）', 'Genesys-Ext 模式（默认）'],
-        ['LF2', 'OT 合表模式'],
-        ['NF', '无禁限模式'],
-        ['M', '三局两胜 BO3'],
-        ['T', '双打模式'],
-        ['C', '编年史模式（随机卡组）'],
-        ['LP8000', '设置基本分（LP+数字）'],
-        ['TM300', '设置回合时限（秒）'],
-        ['ST5', '设置开局手卡数'],
-        ['DR1', '设置回合抽卡数'],
-        ['NS', '不洗切卡组']
+    // ── 房间（决斗 → 房间）：房间密码代码「编辑器」──
+    //    点代码即加入/取消；带数字的代码（LP/TM/ST/DR）点开先弹输入框，并说明这个数字的用处；
+    //    下方实时生成最终密码串，可复制。
+    var ROOM_RULE_CODES = [
+        { k: 'default', code: '', label: '默认', title: '（不输入）', desc: 'Genesys-Ext 模式（服务器默认禁卡表）', exclusive: 'rule' },
+        { k: 'lf2', code: 'LF2', label: 'LF2', desc: 'OT 合表模式（官方 OT 禁限表）', exclusive: 'rule' },
+        { k: 'nf', code: 'NF', label: 'NF', desc: '无禁限模式（不套用任何禁卡表）', exclusive: 'rule' }
+    ];
+    var ROOM_MODE_CODES = [
+        { k: 'm', code: 'M', label: 'M', desc: '三局两胜（BO3）' },
+        { k: 't', code: 'T', label: 'T', desc: '双打模式（2v2，需要 4 人）' },
+        { k: 'c', code: 'C', label: 'C', desc: '编年史模式（随机卡组对战）' },
+        { k: 'ns', code: 'NS', label: 'NS', desc: '不洗切卡组' }
+    ];
+    var ROOM_NUM_CODES = [
+        { k: 'lp', prefix: 'LP', label: 'LP', def: 8000, min: 100, max: 99999, unit: '分',
+          title: '设置基本分', desc: '这局双方的开局生命值（LP）。不填代码时是 8000 分；填 LP16000 就是 16000 分开局。' },
+        { k: 'tm', prefix: 'TM', label: 'TM', def: 300, min: 10, max: 9999, unit: '秒',
+          title: '设置回合时限', desc: '每个回合的思考时间上限（秒）。不填时用服务器默认值；填 TM120 就是每回合 120 秒。' },
+        { k: 'st', prefix: 'ST', label: 'ST', def: 5, min: 1, max: 40, unit: '张',
+          title: '设置开局手卡数', desc: '开局每人抽多少张手卡。标准是 5 张；填 ST7 就是开局 7 张。' },
+        { k: 'dr', prefix: 'DR', label: 'DR', def: 1, min: 1, max: 10, unit: '张',
+          title: '设置回合抽卡数', desc: '每回合进入抽卡阶段时抽几张。标准是 1 张；填 DR2 就是每回合抽 2 张。' }
     ];
     function renderRoom(body) {
-        body.innerHTML =
-            '<div class="nx-info-hint nx-reveal" style="--i:0">在房间密码里填下面的代码即可切换规则，' +
-                '多个代码用 <b>,</b> 组合，代码后加 <b>#</b> 再接房间名</div>' +
-            '<div class="nx-info-list nx-reveal" style="--i:1">' + ROOM_CODES.map(function (x) {
-                return '<div class="nx-info-row"><code>' + esc(x[0]) + '</code><span>' + esc(x[1]) + '</span></div>';
-            }).join('') + '</div>' +
-            '<div class="nx-info-hint nx-reveal" style="--i:2">例：<b>T,C#32</b> = 双打编年史房间，房间名 <b>32</b></div>';
+        var st = body._room || (body._room = { rule: 'default', modes: {}, nums: {}, name: '' });
+        // 数字代码弹窗的临时状态
+        var dlg = null;
+
+        function parts() {
+            var out = [];
+            var rule = ROOM_RULE_CODES.filter(function (x) { return x.k === st.rule; })[0];
+            if (rule && rule.code) out.push(rule.code);
+            ROOM_MODE_CODES.forEach(function (c) { if (st.modes[c.k]) out.push(c.code); });
+            ROOM_NUM_CODES.forEach(function (c) { if (st.nums[c.k] != null) out.push(c.prefix + st.nums[c.k]); });
+            return out;
+        }
+        function codeText() {
+            var body0 = parts().join(',');
+            var nm = (st.name || '').trim();
+            if (nm) return (body0 ? body0 : '') + '#' + nm;
+            return body0;
+        }
+        function meanings() {
+            var out = [];
+            var rule = ROOM_RULE_CODES.filter(function (x) { return x.k === st.rule; })[0];
+            if (rule) out.push(rule.desc);
+            ROOM_MODE_CODES.forEach(function (c) { if (st.modes[c.k]) out.push(c.desc); });
+            ROOM_NUM_CODES.forEach(function (c) {
+                if (st.nums[c.k] != null) out.push(c.title + ' = ' + st.nums[c.k] + ' ' + c.unit);
+            });
+            return out;
+        }
+
+        function chipHtml(c, on, cls) {
+            return '<button class="nx-room-chip' + (on ? ' is-on' : '') + (cls ? ' ' + cls : '') +
+                '" type="button" data-chip="' + c.k + '">' + esc(c.label) +
+                (c.unit && on ? '<i>' + st.nums[c.k] + '</i>' : '') + '</button>';
+        }
+
+        function paint() {
+            var code = codeText();
+            var ms = meanings();
+            body.innerHTML =
+                '<div class="nx-room-editor nx-reveal" style="--i:0">' +
+                    '<div class="nx-room-group">' +
+                        '<span class="nx-room-group-title">规则</span>' +
+                        ROOM_RULE_CODES.map(function (c) { return chipHtml(c, st.rule === c.k); }).join('') +
+                    '</div>' +
+                    '<div class="nx-room-group">' +
+                        '<span class="nx-room-group-title">模式</span>' +
+                        ROOM_MODE_CODES.map(function (c) { return chipHtml(c, !!st.modes[c.k]); }).join('') +
+                    '</div>' +
+                    '<div class="nx-room-group">' +
+                        '<span class="nx-room-group-title">数值</span>' +
+                        ROOM_NUM_CODES.map(function (c) { return chipHtml(c, st.nums[c.k] != null); }).join('') +
+                    '</div>' +
+                    '<div class="nx-room-group">' +
+                        '<span class="nx-room-group-title">房间名</span>' +
+                        '<input class="nx-room-name" id="nxRoomName" type="text" maxlength="24" placeholder="可留空，会拼成 #房间名" value="' + esc(st.name || '') + '">' +
+                    '</div>' +
+                '</div>' +
+                '<div class="nx-room-out nx-reveal" style="--i:1">' +
+                    '<div class="nx-room-out-label">生成结果</div>' +
+                    '<div class="nx-room-out-code' + (code ? '' : ' is-empty') + '" id="nxRoomCode">' + esc(code || '（不输入 = 默认 Genesys-Ext 房间）') + '</div>' +
+                    '<div class="nx-room-out-acts">' +
+                        '<button class="nx-deck-dl" id="nxRoomCopy" type="button"' + (code ? '' : ' disabled') + '>' +
+                            '<span data-txt="复制密码">复制密码</span>' +
+                        '</button>' +
+                        '<button class="nx-page-btn" id="nxRoomReset" type="button">清空</button>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="nx-room-mean nx-reveal" style="--i:2">' +
+                    (ms.length ? ms.map(function (t) { return '<div class="nx-room-mean-row">· ' + esc(t) + '</div>'; }).join('')
+                               : '<div class="nx-room-mean-row">当前没选任何代码，进房就是默认模式</div>') +
+                '</div>' +
+                (dlg ? roomDialogHtml(dlg) : '');
+
+            bind();
+        }
+
+        function roomDialogHtml(d) {
+            return '<div class="nx-room-dlg" id="nxRoomDlg">' +
+                '<div class="nx-room-dlg-box">' +
+                    '<div class="nx-room-dlg-title">' + esc(d.title) + '</div>' +
+                    '<div class="nx-room-dlg-desc">' + esc(d.desc) + '</div>' +
+                    '<div class="nx-room-dlg-row">' +
+                        '<span class="nx-room-dlg-prefix">' + esc(d.prefix) + '</span>' +
+                        '<input class="nx-room-dlg-input" id="nxRoomDlgInput" type="number" inputmode="numeric" min="' + d.min + '" max="' + d.max + '" value="' + d.value + '">' +
+                        '<span class="nx-room-dlg-unit">' + esc(d.unit) + '</span>' +
+                    '</div>' +
+                    '<div class="nx-room-dlg-range">可填 ' + d.min + ' ~ ' + d.max + '，默认 ' + d.def + ' ' + d.unit + '</div>' +
+                    '<div class="nx-room-dlg-acts">' +
+                        '<button class="nx-deck-dl" id="nxRoomDlgOk" type="button"><span data-txt="确定">确定</span></button>' +
+                        (d.removable ? '<button class="nx-page-btn is-danger" id="nxRoomDlgDel" type="button">取消这个代码</button>' : '') +
+                        '<button class="nx-page-btn" id="nxRoomDlgCancel" type="button">返回</button>' +
+                    '</div>' +
+                '</div>' +
+            '</div>';
+        }
+
+        function bind() {
+            // 规则（互斥）
+            Array.prototype.forEach.call(body.querySelectorAll('[data-chip]'), function (b) {
+                b.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    var k = b.getAttribute('data-chip');
+                    var rule = ROOM_RULE_CODES.filter(function (x) { return x.k === k; })[0];
+                    if (rule) {
+                        st.rule = k;
+                        playSfx('click');
+                        paint();
+                        return;
+                    }
+                    var mode = ROOM_MODE_CODES.filter(function (x) { return x.k === k; })[0];
+                    if (mode) {
+                        st.modes[k] = !st.modes[k];
+                        if (!st.modes[k]) delete st.modes[k];
+                        playSfx('click');
+                        paint();
+                        return;
+                    }
+                    var num = ROOM_NUM_CODES.filter(function (x) { return x.k === k; })[0];
+                    if (num) {
+                        // 带数字的：先弹输入框（并说明这个数字的用处）
+                        dlg = {
+                            k: num.k, prefix: num.prefix, title: num.title, desc: num.desc,
+                            min: num.min, max: num.max, def: num.def, unit: num.unit,
+                            value: st.nums[num.k] != null ? st.nums[num.k] : num.def,
+                            removable: st.nums[num.k] != null
+                        };
+                        playSfx('click');
+                        paint();
+                        setTimeout(function () {
+                            var i = document.getElementById('nxRoomDlgInput');
+                            if (i) { i.focus(); i.select(); }
+                        }, 60);
+                    }
+                });
+            });
+            // 房间名
+            var nm = document.getElementById('nxRoomName');
+            if (nm) {
+                nm.addEventListener('input', function () {
+                    st.name = nm.value;
+                    var codeEl = document.getElementById('nxRoomCode');
+                    if (codeEl) {
+                        var t = codeText();
+                        codeEl.textContent = t || '（不输入 = 默认 Genesys-Ext 房间）';
+                        codeEl.classList.toggle('is-empty', !t);
+                    }
+                    var cp = document.getElementById('nxRoomCopy');
+                    if (cp) cp.disabled = !codeText();
+                });
+                ['click', 'pointerdown'].forEach(function (t) { nm.addEventListener(t, function (ev) { ev.stopPropagation(); }); });
+                nm.addEventListener('keydown', function (ev) { ev.stopPropagation(); });
+            }
+            // 复制 / 清空
+            var cp = document.getElementById('nxRoomCopy');
+            if (cp) cp.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                var t = codeText();
+                if (!t) return;
+                try { navigator.clipboard.writeText(t); } catch (e) { /* 忽略 */ }
+                var sp = cp.querySelector('span');
+                if (sp) { sp.textContent = '已复制'; setTimeout(function () { sp.textContent = '复制密码'; }, 1200); }
+            });
+            var rs = document.getElementById('nxRoomReset');
+            if (rs) rs.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                st.rule = 'default'; st.modes = {}; st.nums = {}; st.name = '';
+                playSfx('back');
+                paint();
+            });
+            // 弹窗
+            var ok = document.getElementById('nxRoomDlgOk');
+            if (ok) ok.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                var i = document.getElementById('nxRoomDlgInput');
+                var v = parseInt((i && i.value) || '', 10);
+                if (isNaN(v)) v = dlg.def;
+                v = Math.max(dlg.min, Math.min(dlg.max, v));
+                st.nums[dlg.k] = v;
+                dlg = null;
+                playSfx('click');
+                paint();
+            });
+            var del = document.getElementById('nxRoomDlgDel');
+            if (del) del.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                delete st.nums[dlg.k];
+                dlg = null;
+                playSfx('back');
+                paint();
+            });
+            var cancel = document.getElementById('nxRoomDlgCancel');
+            if (cancel) cancel.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                dlg = null;
+                playSfx('back');
+                paint();
+            });
+            var box = document.getElementById('nxRoomDlg');
+            if (box) {
+                box.addEventListener('click', function (ev) {
+                    ev.stopPropagation();
+                    if (ev.target === box) { dlg = null; paint(); }
+                });
+                var inp = document.getElementById('nxRoomDlgInput');
+                if (inp) {
+                    inp.addEventListener('keydown', function (ev) {
+                        ev.stopPropagation();
+                        if (ev.key === 'Enter') { ev.preventDefault(); ok.click(); }
+                        else if (ev.key === 'Escape') { ev.preventDefault(); dlg = null; paint(); }
+                    });
+                    ['click', 'pointerdown'].forEach(function (t) { inp.addEventListener(t, function (ev) { ev.stopPropagation(); }); });
+                }
+            }
+        }
+        paint();
     }
 
     // ── 下载（决斗 → 下载）：客户端 / 卡包 / 平台 ─────────────
@@ -3262,7 +3488,8 @@
             ' .nx-tour-meta, .nx-group-chips, .nx-screen-todo,' +
             ' #dbLayout, #nxBuilderHost, .deck-builder-panel, .db-panel, .db-card, .db-cards,' +
             ' .deck-viewer-modal-overlay, .deck-viewer-modal, .card-img-wrapper, .clipboard-toast,' +
-            ' #replayModal, .rp-modal, .rp-modal-box'
+            ' #replayModal, .rp-modal, .rp-modal-box,' +
+            ' .nx-room-editor, .nx-room-out, .nx-room-mean, .nx-room-dlg, .nx-room-dlg-box'
         )) return;
         if (Date.now() - _nxBarTouchAt < 260) return;               // 刚碰过工具带，视为误触
         playSfx('back');

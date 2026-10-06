@@ -1704,6 +1704,104 @@ body.nx-blue { background-color: #05070f; }
 .nx-login-acts { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 4px; }
 .nx-login-acts .nx-page-btn { text-decoration: none; font-size: 13px; padding: 8px 18px; }
 
+/* ══ 房间密码编辑器 ═══════════════════════════════════════ */
+.nx-room-editor {
+  align-self: stretch; width: 100%; max-width: 860px; margin: 0 auto 16px;
+  display: flex; flex-direction: column; gap: 12px;
+  text-align: left;
+}
+.nx-room-group { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.nx-room-group-title {
+  flex: 0 0 46px;
+  font-size: 12px; letter-spacing: 2px; color: #b9a86a;
+}
+.nx-room-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border: none; border-radius: 999px;
+  background: rgba(255, 255, 255, .055);
+  color: #cfc8bf; font-family: inherit; font-size: 13.5px; font-weight: 700; letter-spacing: .5px;
+  cursor: pointer;
+  transition: background .2s, color .2s, transform .18s cubic-bezier(.22,.9,.28,1.02), box-shadow .22s;
+}
+.nx-room-chip i { font-style: normal; font-size: 12px; opacity: .8; }
+.nx-room-chip:hover { background: rgba(212, 175, 55, .16); color: #fff3c4; transform: translateY(-2px); }
+.nx-room-chip.is-on {
+  background: linear-gradient(135deg, #ffe9a8, #d4af37 60%, #b08d24);
+  color: #2a1c08;
+  box-shadow: 0 6px 18px rgba(212, 175, 55, .32), inset 0 0 0 1px rgba(255, 245, 200, .5);
+}
+.nx-room-name {
+  flex: 1 1 200px; min-width: 160px;
+  padding: 8px 16px; border: none; border-radius: 999px;
+  background: rgba(255, 255, 255, .055);
+  color: #eee7df; font-family: inherit; font-size: 13px; letter-spacing: .5px;
+  outline: none;
+  transition: background .2s, box-shadow .2s;
+}
+.nx-room-name::placeholder { color: #6f6f78; }
+.nx-room-name:focus { background: rgba(255, 255, 255, .085); box-shadow: 0 0 0 1px rgba(212, 175, 55, .5); }
+.nx-room-out {
+  align-self: stretch; width: 100%; max-width: 860px; margin: 0 auto 12px;
+  text-align: center;
+}
+.nx-room-out-label { font-size: 11.5px; letter-spacing: 3px; color: #7d7d86; margin-bottom: 8px; }
+.nx-room-out-code {
+  font-size: clamp(20px, 3vw, 30px); font-weight: 800; letter-spacing: 2px;
+  color: #fff3c4;
+  text-shadow: 0 0 24px rgba(255, 214, 40, .3);
+  word-break: break-all;
+  min-height: 1.4em;
+  transition: color .2s;
+}
+.nx-room-out-code.is-empty { font-size: 14px; font-weight: 400; letter-spacing: .5px; color: #6f6f78; text-shadow: none; }
+.nx-room-out-acts { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 12px; }
+.nx-room-out-acts .nx-deck-dl { animation: none; margin-left: 0; }
+.nx-room-out-acts .nx-deck-dl[disabled] { filter: grayscale(.6) brightness(.8); cursor: default; }
+.nx-room-mean {
+  align-self: stretch; width: 100%; max-width: 860px; margin: 0 auto;
+  padding: 14px 18px; border-radius: 14px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .04), rgba(255, 255, 255, .012));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05);
+  text-align: left;
+}
+.nx-room-mean-row { font-size: 12.5px; line-height: 1.9; color: #b9b9c2; }
+/* 数字代码弹窗 */
+.nx-room-dlg {
+  position: fixed; inset: 0; z-index: 70;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, .62);
+  backdrop-filter: blur(3px);
+  animation: nxRoomDlgIn .2s ease-out both;
+}
+@keyframes nxRoomDlgIn { from { opacity: 0; } to { opacity: 1; } }
+.nx-room-dlg-box {
+  width: min(420px, calc(100vw - 40px));
+  padding: 22px 24px; border-radius: 20px;
+  background: linear-gradient(160deg, rgba(32, 28, 30, .98), rgba(14, 12, 14, .99));
+  box-shadow: inset 0 0 0 1px rgba(212, 175, 55, .22), 0 24px 60px rgba(0, 0, 0, .6);
+  animation: nxRoomDlgBoxIn .28s cubic-bezier(.22, .9, .28, 1.02) both;
+  text-align: left;
+}
+@keyframes nxRoomDlgBoxIn { from { opacity: 0; transform: translateY(14px) scale(.97); } to { opacity: 1; transform: none; } }
+.nx-room-dlg-title { font-size: 15px; font-weight: 700; color: #fff3c4; letter-spacing: .5px; margin-bottom: 8px; }
+.nx-room-dlg-desc { font-size: 12.5px; line-height: 1.8; color: #b9b9c2; margin-bottom: 16px; }
+.nx-room-dlg-row { display: flex; align-items: center; gap: 10px; justify-content: center; margin-bottom: 8px; }
+.nx-room-dlg-prefix { font-size: 18px; font-weight: 800; color: #ffe9a8; letter-spacing: 1px; }
+.nx-room-dlg-input {
+  width: 130px; padding: 10px 14px;
+  border: none; border-radius: 999px;
+  background: rgba(255, 255, 255, .07);
+  color: #fff3c4; font-family: inherit; font-size: 18px; font-weight: 700; text-align: center;
+  outline: none;
+  transition: background .2s, box-shadow .2s;
+}
+.nx-room-dlg-input:focus { background: rgba(255, 255, 255, .1); box-shadow: 0 0 0 1px rgba(212, 175, 55, .6); }
+.nx-room-dlg-unit { font-size: 13px; color: #9a9aa4; }
+.nx-room-dlg-range { font-size: 11.5px; color: #7d7d86; text-align: center; margin-bottom: 18px; }
+.nx-room-dlg-acts { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.nx-room-dlg-acts .nx-deck-dl { animation: none; margin-left: 0; }
+.nx-room-dlg-acts .nx-page-btn.is-danger:hover { background: rgba(216, 30, 68, .26); color: #ffd7e0; }
+
 /* ══ 房间 / 下载 / 登录：信息列表、下载行、账号卡 ═══════════ */
 .nx-info-hint {
   align-self: stretch; max-width: 900px; margin: 0 auto 14px;
