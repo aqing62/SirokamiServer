@@ -595,52 +595,48 @@
     function cardInfo(id) { return (_cardMap && _cardMap[String(id)]) || null; }
 
     // 禁限分值表（/api/scores）：{ id: {score, forbidden} }
-    // ── 分值判定（与组卡器同一套规则）──
-    //   ① 这张卡自己在分值表里有分或被禁 → 用自己的
-    //   ② 自己没分 → 找同名卡：先看 alias 链接的那张，再按卡名找同名的最高分
+    // ── 分值判定（与组卡器同一套规则，分值以 lflist 的 $genesys 为准）──
+    //   ① 自己 lflist 里有分 → 用自己的（禁卡标记取 /api/scores）
+    //   ② 没分 → 看 alias 链接的同名印法有没有分
     //   ③ 都没有 → 没有分
+    //   不用 /api/scores 的分值：后端会把有分卡的分值也发给同名但没分的印法
+    //   （例：「第13人的埋葬者」通常版会拿到效果版的 4 分）
+    var _geneScoreMap = {};
     function nxScoreHasPoint(s) { return !!(s && (s.forbidden || (s.score || 0) > 0)); }
-    var _nxNameScore = null;
-    function nxNameScoreMap() {
-        if (_nxNameScore) return _nxNameScore;
-        _nxNameScore = {};
-        (_cardList || []).forEach(function (c) {
-            var nm = c && c.name;
-            if (!nm) return;
-            var s = _scoreMap && _scoreMap[c.id];
-            if (!nxScoreHasPoint(s)) return;
-            var cur = _nxNameScore[nm];
-            if (!cur || (s.score || 0) > (cur.score || 0) || (s.forbidden && !cur.forbidden)) _nxNameScore[nm] = s;
-        });
-        return _nxNameScore;
-    }
     function nxScoreOf(id) {
-        var own = _scoreMap && _scoreMap[id];
-        if (nxScoreHasPoint(own)) return own;
-        var c = _cardMap && _cardMap[String(id)];
+        var key = parseInt(id, 10);
+        if (!key) return null;
+        var api = _scoreMap && _scoreMap[key];
+        var apiFb = !!(api && api.forbidden);
+        var v = _geneScoreMap[key];
+        if (v > 0) return { score: v, forbidden: apiFb };
+        if (apiFb) return { score: 0, forbidden: true };
+        var c = _cardMap && _cardMap[String(key)];
         var aliasId = c ? parseInt(c.alias, 10) : 0;
         if (aliasId) {
-            var a = _scoreMap && _scoreMap[aliasId];
-            if (nxScoreHasPoint(a)) return a;
+            var av = _geneScoreMap[aliasId];
+            if (av > 0) {
+                var aa = _scoreMap && _scoreMap[aliasId];
+                return { score: av, forbidden: !!(aa && aa.forbidden) };
+            }
         }
-        var nm = c && c.name;
-        if (nm) {
-            var best = nxNameScoreMap()[nm];
-            if (best) return best;
-        }
-        return own || null;
+        return null;
     }
 
     function loadScoreMap() {
         if (_scoreMap) return Promise.resolve(_scoreMap);
-        return fetch('/api/scores?t=' + Date.now())
-            .then(function (r) {
-                var lim = parseInt(r.headers.get('X-GExt-Limit'), 10);   // 卡组总分上限，与老站一致
-                if (!isNaN(lim) && lim > 0) _scoreLimit = lim;
-                return r.json();
-            })
-            .then(function (d) { _scoreMap = d || {}; return _scoreMap; })
-            .catch(function () { _scoreMap = {}; return _scoreMap; });
+        return Promise.all([
+            fetch('/api/scores?t=' + Date.now())
+                .then(function (r) {
+                    var lim = parseInt(r.headers.get('X-GExt-Limit'), 10);   // 卡组总分上限，与老站一致
+                    if (!isNaN(lim) && lim > 0) _scoreLimit = lim;
+                    return r.json();
+                })
+                .then(function (d) { _scoreMap = d || {}; return _scoreMap; })
+                .catch(function () { _scoreMap = {}; return _scoreMap; }),
+            // 分值判定要以 lflist 的 $genesys 为准，所以这里一并把它读进来（此前只有卡表屏才读）
+            loadLflist().catch(function () { return null; })
+        ]).then(function () { return _scoreMap; });
     }
 
     // ── 卡图预加载（带三级兜底）并缓存最终地址 ────────────────
@@ -2229,6 +2225,13 @@
             var out = { forbidden: [], limit: [], semi: [] };
             var cur = null;
             (txt || '').split(/\r?\n/).forEach(function (line) {
+                // 顺便收集 $genesys 分值：这是"这张卡真正有分"的唯一依据
+                var gm = line.match(/^(\d+)\s+\$genesys\s+(\d+)/);
+                if (gm) {
+                    var gid = parseInt(gm[1], 10), gv = parseInt(gm[2], 10);
+                    if (gid && gv > 0) _geneScoreMap[gid] = gv;
+                    return;
+                }
                 var low = line.toLowerCase();
                 if (low.indexOf('#forbidden') >= 0) { cur = 'forbidden'; return; }
                 if (low.indexOf('#limit') >= 0) { cur = 'limit'; return; }
