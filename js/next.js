@@ -2422,7 +2422,7 @@
 
     // ── 历届八强（战绩 → 比赛 → 打开历届八强）：数据 decks/decks_data.json ──
     //    呈现方式对齐预组屏：扇形卡图 + 玩家/卡组名 + 张数，点开走同一套卡组视图（openDeckView）
-    var EIGHT_URL = 'decks/decks_data.json?v=20261007y';
+    var EIGHT_URL = 'decks/decks_data.json?v=20261007z2';
     var _eightCache = null;
     function loadEightDecks() {
         if (_eightCache) return Promise.resolve(_eightCache);
