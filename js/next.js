@@ -221,6 +221,21 @@
         document.body.classList.toggle('nx-blue', !!on);
     }
 
+    // ── 顶栏服务器地址：点一下复制 ──
+    (function initBrandAddr() {
+        var el = document.getElementById('nxBrandAddr');
+        if (!el) return;
+        var raw = el.textContent.trim();
+        el.addEventListener('click', function (ev) {
+            ev.stopPropagation();
+            try { navigator.clipboard.writeText(raw); } catch (e) { /* 忽略 */ }
+            playSfx('click');
+            el.textContent = '已复制 ✓';
+            setTimeout(function () { el.textContent = raw; }, 1400);
+        });
+        el.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
+    })();
+
     // ── 回放（经典版回放器 replay-viewer.js 原样移植）──
     //  需要时启用它的样式，然后交给 window.openReplay 播放；返回 false 表示回放器没载入。
     // 回放器样式本身就是常驻启用的（它没有全局选择器），这里只保留一个兜底开关
@@ -2612,20 +2627,24 @@
 
     // ── 下载（决斗 → 下载）：客户端 / 卡包 / 平台 ─────────────
     var DOWNLOADS = [
-        { t: 'MDPro3 客户端', h: '夸克网盘', u: 'https://pan.quark.cn/s/ca2e4e7a8c63#/list/share', i: 'download' },
-        { t: 'DIY 卡包', h: 'siro.ypk（右键可复制链接）', u: 'https://api.ygopro3.cn/file/siro.ypk', i: 'box' },
-        { t: '萌卡平台', h: 'mycard.world', u: 'https://mycard.world/', i: 'globe' }
+        { t: 'MDPro3 客户端', h: '需将各版本安装包<b>依次</b>下载安装，<b>不要直接安装最新版本</b>',
+          u: 'https://pan.quark.cn/s/ca2e4e7a8c63#/list/share', i: 'download' },
+        { t: 'DIY 卡包', h: 'siro.ypk · 下载后放到客户端的 <b>expansions</b> 目录（与客户端目录结构一致）',
+          u: 'https://api.ygopro3.cn/file/siro.ypk', i: 'box' },
+        { t: '萌卡平台', h: '自带 <b>ygopro 自动更新</b>；要玩本服环境需再下载 <b>Koishi DLC 扩展</b>',
+          u: 'https://mycard.world/', i: 'globe' }
     ];
     function renderDownload(body) {
         body.innerHTML =
             '<div class="nx-dl-list nx-reveal" style="--i:0">' + DOWNLOADS.map(function (d) {
                 return '<a class="nx-dl-row" href="' + esc(d.u) + '" target="_blank" rel="noopener">' +
                     '<span class="nx-dl-icon">' + iconSvg(d.i) + '</span>' +
-                    '<span class="nx-dl-texts"><b>' + esc(d.t) + '</b><i>' + esc(d.h) + '</i></span>' +
+                    '<span class="nx-dl-texts"><b>' + esc(d.t) + '</b><i>' + d.h + '</i></span>' +
                     '<span class="nx-dl-go">→</span>' +
                 '</a>';
             }).join('') + '</div>' +
-            '<div class="nx-info-hint nx-reveal" style="--i:1">卡包放在客户端的 <b>expansions</b> 目录，重启后生效</div>';
+            '<div class="nx-info-hint nx-reveal" style="--i:1">装好后用服务器地址 <b>ygopro3.cn:50010</b> 进游戏，' +
+                '进 <b>M#</b> 房或随机天梯房即可开打</div>';
     }
 
     // ── 登录（战绩 → 登录）：走经典版同一套接口 /api/forum/* ──
