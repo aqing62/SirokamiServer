@@ -1646,6 +1646,64 @@ body.nx-blue { background-color: #05070f; }
   .nx-screen-body .db-grid-wrap { max-height: 420px; }
 }
 
+/* ══ 登录：表单 + 注册方式提示 + 已登录资料 ═══════════════ */
+.nx-login-form {
+  align-self: stretch; width: 100%; max-width: 420px; margin: 4px auto 18px;
+  display: flex; flex-direction: column; align-items: stretch; gap: 10px;
+}
+.nx-login-field input {
+  width: 100%; padding: 12px 18px;
+  border: none; border-radius: 999px;
+  background: rgba(255, 255, 255, .055);
+  color: #eee7df; font-family: inherit; font-size: 14px;
+  outline: none; text-align: center; letter-spacing: .5px;
+  transition: background .2s, box-shadow .25s;
+}
+.nx-login-field input::placeholder { color: #6f6f78; }
+.nx-login-field input:focus { background: rgba(255, 255, 255, .085); box-shadow: 0 0 0 1px rgba(212, 175, 55, .55), 0 0 22px rgba(212, 175, 55, .16); }
+.nx-login-btn { justify-content: center; padding: 12px 24px; font-size: 14px; margin-left: 0; }
+.nx-login-btn[disabled] { filter: grayscale(.35) brightness(.9); cursor: default; }
+.nx-login-err {
+  padding: 9px 16px; border-radius: 999px;
+  font-size: 12.5px; text-align: center; letter-spacing: .3px;
+  color: #ffd7e0; background: rgba(216, 30, 68, .22);
+  box-shadow: inset 0 0 0 1px rgba(216, 30, 68, .35);
+}
+.nx-login-err[hidden] { display: none; }
+.nx-login-tips {
+  align-self: stretch; width: 100%; max-width: 560px; margin: 0 auto;
+  padding: 16px 20px; border-radius: 16px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, .045), rgba(255, 255, 255, .012));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .05);
+  text-align: left;
+}
+.nx-login-tip-title {
+  font-size: 12px; letter-spacing: 2px; color: #b9a86a;
+  padding-bottom: 8px; margin-bottom: 10px;
+  border-bottom: 1px solid rgba(212, 175, 55, .18);
+}
+.nx-login-tip-row { font-size: 12.5px; line-height: 1.85; color: #b9b9c2; margin-bottom: 6px; }
+.nx-login-tip-row:last-child { margin-bottom: 0; }
+.nx-login-tip-row b { color: #fff3c4; }
+.nx-login-tip-row code {
+  padding: 2px 9px; border-radius: 999px;
+  font-family: inherit; font-size: 12px; font-weight: 700; letter-spacing: .3px;
+  color: #ffe9a8; background: rgba(212, 175, 55, .14);
+}
+/* 已登录 */
+.nx-login-me { display: flex; align-items: center; justify-content: center; gap: 16px; margin: 6px auto 16px; }
+.nx-login-avatar {
+  width: 68px; height: 68px; border-radius: 50%; object-fit: cover;
+  background: rgba(255, 255, 255, .06);
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, .45), 0 8px 22px rgba(0, 0, 0, .45);
+}
+.nx-login-me-texts { text-align: left; }
+.nx-login-me-name { font-size: 19px; font-weight: 700; color: #fff3c4; letter-spacing: .5px; }
+.nx-login-me-acct { font-size: 12.5px; color: #8d8d96; margin-top: 4px; }
+.nx-login-row b.is-ok { color: #a8e6ff; }
+.nx-login-acts { display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 4px; }
+.nx-login-acts .nx-page-btn { text-decoration: none; font-size: 13px; padding: 8px 18px; }
+
 /* ══ 房间 / 下载 / 登录：信息列表、下载行、账号卡 ═══════════ */
 .nx-info-hint {
   align-self: stretch; max-width: 900px; margin: 0 auto 14px;

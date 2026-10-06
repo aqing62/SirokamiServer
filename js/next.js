@@ -2383,29 +2383,145 @@
             '<div class="nx-info-hint nx-reveal" style="--i:1">卡包放在客户端的 <b>expansions</b> 目录，重启后生效</div>';
     }
 
-    // ── 登录（战绩 → 登录）：读取当前账号状态 ─────────────────
+    // ── 登录（战绩 → 登录）：走经典版同一套接口 /api/forum/* ──
+    //    登录：POST /api/forum/login {username,password}
+    //    资料：GET /api/forum/profile?username=&pass=   头像：/api/forum/avatar/<账号>
+    //    账号不落盘（与经典版一致，只存在当前页面内存里）
+    var _loginAuth = null;      // { username, password }
+
     function renderLogin(body) {
+        if (_loginAuth) { paintLoginProfile(body, _loginAuth); return; }
         body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
             '<div class="nx-load-text">正在读取账号 <b>0</b></div></div>';
-        fetch('/api/forum/profile?t=' + Date.now(), { credentials: 'same-origin' })
-            .then(function (r) { return r.ok ? r.json() : null; })
-            .then(function (p) {
-                var u = (p && (p.user || p.profile || p.data)) || p || null;
-                var name = u && (u.username || u.name || u.nickname);
-                if (!name) throw new Error('未登录');
-                body.innerHTML =
-                    '<div class="nx-login-card nx-reveal" style="--i:0">' +
-                        '<div class="nx-login-row"><span>账号</span><b>' + esc(name) + '</b></div>' +
-                        (u.rating != null ? '<div class="nx-login-row"><span>积分</span><b>' + esc(u.rating) + '</b></div>' : '') +
-                        (u.tier ? '<div class="nx-login-row"><span>段位</span><b>' + esc(u.tier) + '</b></div>' : '') +
-                    '</div>' +
-                    '<div class="nx-info-hint nx-reveal" style="--i:1">天梯计分、投稿卡组都会记在这个账号下</div>';
-            })
-            .catch(function () {
-                body.innerHTML =
-                    '<div class="nx-info-hint nx-reveal" style="--i:0">还没有登录。<br>登录后可参与天梯计分、投稿卡组与回放。</div>' +
-                    '<a class="nx-big-link nx-reveal" style="--i:1" href="index.html?goto=login">打开经典版登录</a>';
+        paintLoginForm(body, '');
+    }
+
+    function paintLoginForm(body, errMsg) {
+        body.innerHTML =
+            '<div class="nx-login-form nx-reveal" style="--i:0">' +
+                '<div class="nx-login-field">' +
+                    '<input id="nxLoginUser" type="text" placeholder="账号" autocomplete="username" spellcheck="false">' +
+                '</div>' +
+                '<div class="nx-login-field">' +
+                    '<input id="nxLoginPass" type="password" placeholder="密码" autocomplete="current-password">' +
+                '</div>' +
+                '<button class="nx-deck-dl nx-login-btn" id="nxLoginBtn" type="button">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' +
+                        '<circle cx="12" cy="8.4" r="3.6"></circle><path d="M4.8 20.2a7.2 7.2 0 0 1 14.4 0"></path>' +
+                    '</svg><span data-txt="登录">登录</span>' +
+                '</button>' +
+                '<div class="nx-login-err" id="nxLoginErr"' + (errMsg ? '' : ' hidden') + '>' + esc(errMsg || '') + '</div>' +
+            '</div>' +
+            '<div class="nx-login-tips nx-reveal" style="--i:1">' +
+                '<div class="nx-login-tip-title">还没有账号？注册方式</div>' +
+                '<div class="nx-login-tip-row">在<b>游戏客户端</b>的聊天框里输入 ' +
+                    '<code>/register 用户名 密码 显示名</code> 即可注册</div>' +
+                '<div class="nx-login-tip-row">已有账号：客户端里用 <code>/login 用户名 密码</code> 登录，' +
+                    '和本站是<b>同一套账号</b></div>' +
+                '<div class="nx-login-tip-row">注册后在天梯房（<code>M#</code>）对局，' +
+                    '双方都登录才计入排名与积分</div>' +
+                '<div class="nx-login-tip-row">登录本站后可投稿卡组、参与论坛与查看个人中心</div>' +
+            '</div>';
+
+        var uEl = document.getElementById('nxLoginUser');
+        var pEl = document.getElementById('nxLoginPass');
+        var bEl = document.getElementById('nxLoginBtn');
+        var errEl = document.getElementById('nxLoginErr');
+        function fail(msg) {
+            if (errEl) { errEl.textContent = msg; errEl.hidden = false; }
+        }
+        function submit() {
+            var u = (uEl && uEl.value || '').trim();
+            var p = (pEl && pEl.value) || '';
+            if (!u || !p) { fail('请输入账号和密码'); return; }
+            if (errEl) errEl.hidden = true;
+            var span = bEl && bEl.querySelector('span');
+            if (bEl) bEl.disabled = true;
+            if (span) span.textContent = '登录中…';
+            fetch('/api/forum/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p })
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (data && data.ok) {
+                    _loginAuth = { username: u, password: p };
+                    // 同步给经典版模块（论坛/个人中心等）
+                    window._communityLoggedIn = true;
+                    window._communityUsername = u;
+                    window._communityAuth = _loginAuth;
+                    playSfx('click');
+                    paintLoginProfile(body, _loginAuth);
+                    return;
+                }
+                fail((data && data.error) || '登录失败');
+            }).catch(function () {
+                fail('网络错误，请重试');
+            }).then(function () {
+                if (bEl) bEl.disabled = false;
+                if (span) span.textContent = '登录';
             });
+        }
+        if (bEl) bEl.addEventListener('click', function (ev) { ev.stopPropagation(); submit(); });
+        [uEl, pEl].forEach(function (el) {
+            if (!el) return;
+            el.addEventListener('click', function (ev) { ev.stopPropagation(); });
+            el.addEventListener('pointerdown', function (ev) { ev.stopPropagation(); });
+            el.addEventListener('keydown', function (ev) {
+                ev.stopPropagation();
+                if (ev.key === 'Enter') { ev.preventDefault(); submit(); }
+            });
+            _nxBarTouchAt = Date.now();
+        });
+        if (uEl) setTimeout(function () { uEl.focus(); }, 80);
+    }
+
+    function paintLoginProfile(body, auth) {
+        body.innerHTML = '<div class="nx-deck-loading"><div class="nx-load-rings"><i></i><i></i><i></i></div>' +
+            '<div class="nx-load-text">正在读取资料 <b>0</b></div></div>';
+        var qs = '?username=' + encodeURIComponent(auth.username) + '&pass=' + encodeURIComponent(auth.password);
+        Promise.all([
+            fetch('/api/forum/profile' + qs).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; }),
+            fetch('/api/forum/profile/ladder' + qs).then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
+        ]).then(function (res) {
+            var p = res[0] || {}, ld = res[1] || {};
+            var name = p.displayName || auth.username;
+            var avatar = '/api/forum/avatar/' + encodeURIComponent(auth.username) +
+                (p.avatarVersion ? '?v=' + encodeURIComponent(p.avatarVersion) : '');
+            var rating = (ld.rating != null ? ld.rating : (ld.score != null ? ld.score : null));
+            var tier = ld.tier || ld.rankName || '';
+            var wins = (ld.wins != null ? ld.wins : ld.win);
+            var total = (ld.total != null ? ld.total : ld.duels);
+            body.innerHTML =
+                '<div class="nx-login-me nx-reveal" style="--i:0">' +
+                    '<img class="nx-login-avatar" src="' + avatar + '" alt="" onerror="this.style.visibility=\'hidden\'">' +
+                    '<div class="nx-login-me-texts">' +
+                        '<div class="nx-login-me-name">' + esc(name) + '</div>' +
+                        '<div class="nx-login-me-acct">账号 ' + esc(auth.username) + '</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="nx-login-card nx-reveal" style="--i:1">' +
+                    (rating != null ? '<div class="nx-login-row"><span>天梯积分</span><b>' + esc(rating) + '</b></div>' : '') +
+                    (tier ? '<div class="nx-login-row"><span>段位</span><b>' + esc(tier) + '</b></div>' : '') +
+                    (wins != null ? '<div class="nx-login-row"><span>胜场</span><b>' + esc(wins) + '</b></div>' : '') +
+                    (total != null ? '<div class="nx-login-row"><span>总场次</span><b>' + esc(total) + '</b></div>' : '') +
+                    '<div class="nx-login-row"><span>账号状态</span><b class="is-ok">已登录</b></div>' +
+                '</div>' +
+                '<div class="nx-login-acts nx-reveal" style="--i:2">' +
+                    '<a class="nx-page-btn" href="index.html?goto=login">个人中心（经典版）</a>' +
+                    '<button class="nx-page-btn" id="nxLogoutBtn" type="button">退出登录</button>' +
+                '</div>' +
+                '<div class="nx-info-hint nx-reveal" style="--i:3">账号只保存在当前页面，刷新或关闭后需要重新登录</div>';
+            var out = document.getElementById('nxLogoutBtn');
+            if (out) out.addEventListener('click', function (ev) {
+                ev.stopPropagation();
+                _loginAuth = null;
+                window._communityLoggedIn = false;
+                window._communityUsername = '';
+                window._communityAuth = null;
+                playSfx('back');
+                renderLogin(body);
+            });
+        });
     }
 
     // 分页外壳：上下各一条翻页栏 + 当页卡图网格（供卡池 / 卡表用，避免一次性塞几千个节点）
