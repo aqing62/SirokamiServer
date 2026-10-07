@@ -2346,6 +2346,8 @@ body.nx-blue { background-color: #05070f; }
   }
   .nx-prize-stage { padding: 6px; flex: 0 0 auto; }
   .nx-prize-card { max-width: 104px; }
+  /* 覆盖上面旧的手机规则（那条把 img 设成 min(170px,44vw)，会撑出父容器压到文字上） */
+  .nx-prize-card img { width: 100%; max-width: 104px; }
   .nx-prize-texts {
     flex: 1 1 auto;
     min-width: 0;
