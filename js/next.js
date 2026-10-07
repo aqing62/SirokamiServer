@@ -318,6 +318,7 @@
         transition(function () {
             historyStack.push({ screen: id, label: SCREENS[id].title });
             renderCurrent();
+            syncUrl('push');
         });
     }
 
@@ -3509,6 +3510,44 @@
         return lift;
     }
 
+    // ── URL 同步（vue-router 那套原理）──────────────────────────
+    //   只改地址栏、不发请求、不刷新页面：
+    //     前进（选项/CTA）      → history.pushState  →  /next.html/天梯
+    //     页面内返回（点空白/Esc）→ history.back()     →  交给 popstate 统一处理
+    //     手机/浏览器返回键      → popstate           →  按历史深度回退应用状态
+    //   回到最外层（/next.html）时，页面就是首页状态。
+    var NX_BASE = (function () {
+        var i = location.pathname.indexOf('/next.html');
+        return i >= 0 ? location.pathname.slice(0, i + '/next.html'.length) : '/next.html';
+    })();
+    var _urlSyncing = false;          // 正在处理 popstate 时不要再 push
+
+    function syncUrl(mode) {
+        if (_urlSyncing) return;
+        var top = historyStack[historyStack.length - 1];
+        // 第 1 层（首页状态）→ 干净的 /next.html；其余带上这一步的标签
+        var label = (historyStack.length > 1 && top && top.label) ? String(top.label) : '';
+        var url = label ? (NX_BASE + '/' + encodeURIComponent(label.replace(/[\/?#]/g, ' '))) : NX_BASE;
+        try {
+            var st = { nx: historyStack.length };
+            if (mode === 'replace' || !label) history.replaceState(st, '', url);
+            else history.pushState(st, '', url);
+        } catch (e) { /* 个别环境不允许改 URL，忽略即可 */ }
+    }
+
+    window.addEventListener('popstate', function (ev) {
+        var want = (ev.state && typeof ev.state.nx === 'number') ? ev.state.nx : 1;
+        if (want < 1) want = 1;
+        if (want === historyStack.length) return;              // 已经在对应层，不用动
+        if (want > historyStack.length) return;                // 前进到未知层：交给正常导航
+        _urlSyncing = true;
+        transition(function () {
+            historyStack.length = want;
+            renderCurrent();
+            _urlSyncing = false;
+        });
+    });
+
     // 渲染当前节点（按类型自动分流：选项节点 / 结果节点）
     function renderCurrent() {
         var top = historyStack[historyStack.length - 1];
@@ -3539,14 +3578,23 @@
             if (!node) return;
             historyStack.push({ key: key, label: label || node.q });
             renderCurrent();
+            syncUrl('push');
         });
     }
 
     function goBack() {
         if (historyStack.length <= 1 || busy) return;
+        // 走浏览器历史返回：由 popstate 统一回退应用状态，地址栏与页面永远同步。
+        // 万一历史里没有对应条目，才退回直接出栈。
+        var st = history.state;
+        if (st && typeof st.nx === 'number' && st.nx >= historyStack.length) {
+            history.back();
+            return;
+        }
         transition(function () {
             historyStack.pop();
             renderCurrent();
+            syncUrl('replace');
         });
     }
 
@@ -3689,6 +3737,7 @@
         _deferOptions = !!deferOptions;
         historyStack = [{ key: key, label: '开始' }];
         renderCurrent();
+        syncUrl('replace');
         _deferOptions = false;
     }
 
