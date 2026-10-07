@@ -2289,26 +2289,33 @@ body.nx-blue { background-color: #05070f; }
 
 /* ② 房间与规则：分组竖排、药丸铺满一行并自动换行、生成结果和按钮都收窄 */
 @media (max-width: 768px) {
-  .nx-room-editor { gap: 10px; margin-bottom: 12px; }
+  .nx-room-editor { gap: 8px; margin-bottom: 10px; }
   .nx-room-group {
-    flex-direction: column;
-    align-items: stretch;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
     gap: 6px;
   }
   .nx-room-group-title {
-    flex: none;
+    flex: 0 0 100%;
     padding-left: 2px;
     font-size: 11px;
     letter-spacing: 1.5px;
   }
+  /* 一行两个：短标签也不会拉得太开，长标签（官方 OT 合表）允许换行 */
   .nx-room-group .nx-room-chip {
-    flex: 1 1 auto;
+    flex: 1 1 calc(50% - 6px);
     min-width: 0;
     justify-content: center;
-    padding: 9px 12px;
-    font-size: 13px;
+    white-space: normal;
+    text-align: center;
+    line-height: 1.25;
+    padding: 8px 10px;
+    font-size: 12.5px;
   }
-  .nx-room-name { flex: 1 1 auto; min-width: 0; }
+  .nx-room-group .nx-room-chip .nx-room-chip-code { padding: 0 5px; font-size: 10.5px; }
+  .nx-room-group .nx-room-chip .nx-room-chip-num { font-size: 12px; }
+  .nx-room-name { flex: 1 1 100%; min-width: 0; }
   .nx-room-out { margin-bottom: 10px; }
   .nx-room-out-label { letter-spacing: 2px; margin-bottom: 6px; }
   .nx-room-out-code { font-size: 20px; letter-spacing: 1px; line-height: 1.35; }
@@ -2317,6 +2324,7 @@ body.nx-blue { background-color: #05070f; }
   .nx-room-out-acts > * { width: 100%; max-width: 260px; }
   .nx-room-mean { padding: 12px 14px; border-radius: 12px; }
   .nx-room-mean-row { font-size: 12px; line-height: 1.75; }
+  .nx-room-mean-warn { font-size: 12px; line-height: 1.7; }
   /* 数字弹窗也收一收 */
   .nx-room-dlg-box { padding: 18px 16px; border-radius: 16px; }
   .nx-room-dlg-desc { font-size: 12px; margin-bottom: 14px; }
