@@ -821,6 +821,11 @@ class VoteHandler(SimpleHTTPRequestHandler):
         elif path.startswith("/img/"):
             self._serve_image(path)
         else:
+            # 新版引导把每一步的地址写成 /next.html/天梯 这种形式（history API，不刷新页面）。
+            # 直接刷新或收藏这类地址时浏览器会来请求它，这里统一回落到 next.html：
+            # 地址栏保持不变，页面加载后会自己把地址规范回 /next.html。
+            if path.startswith("/next.html/"):
+                self.path = "/next.html"
             super().do_GET()
 
     def do_POST(self):
