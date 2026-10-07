@@ -2263,9 +2263,13 @@ body.nx-blue { background-color: #05070f; }
    ③ 比赛相关：奖品卡改成紧凑横排，别占一大块
    ══════════════════════════════════════════════════════════ */
 
-/* ① 卡图网格：一行最多 3 张，minmax(0,1fr) 防止卡图/角标把格子撑宽 */
+/* ① 卡图网格：一行最多 3 张，minmax(0,1fr) 防止卡图/角标把格子撑宽
+   注意：只限定在【卡池 / 卡表 / 常用卡】这三个屏，
+   卡组界面（八强的卡组视图、组卡器、选手详情里的卡组）一律不动，保持原样。 */
 @media (max-width: 768px) {
-  .nx-card-grid {
+  .nx-screen[data-screen="pool"] .nx-card-grid,
+  .nx-screen[data-screen="banlist"] .nx-card-grid,
+  .nx-screen[data-screen="popular"] .nx-card-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
     gap: 10px 8px;
     max-width: 100%;
@@ -2283,8 +2287,7 @@ body.nx-blue { background-color: #05070f; }
   /* 分页栏在窄屏也收一收，别把内容顶宽 */
   .nx-pager { flex-wrap: wrap; gap: 6px; }
   .nx-page-info { font-size: 11px; }
-  /* 卡组视图 / 八强卡组里的卡图网格同样限制（如果用了同一套网格） */
-  .nx-deck-cards { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  /* ↓ 这里原来有一条 .nx-deck-cards 的 3 列规则，会改掉卡组界面的列数，已删除 */
 }
 
 /* ② 房间与规则：分组竖排、药丸铺满一行并自动换行、生成结果和按钮都收窄 */
