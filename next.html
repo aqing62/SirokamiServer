@@ -3,8 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- 相对路径统一从站点根算：新版会把地址写成 /next.html/天梯 这种形式，
+     直接刷新这类地址时如果没有 base，css/js 会去找 /next.html/css/... 而 404（页面变裸 HTML） -->
+<base href="/">
 <title>白神服 · 新版引导</title>
-<link rel="stylesheet" href="css/next.css?v=20261009d">
+<link rel="stylesheet" href="css/next.css?v=20261009f">
 <!-- 老组卡器样式（media=not all，进入组卡屏时才启用） -->
 <link rel="stylesheet" href="css/card-pool-info.css?v=20261008u" id="nxClassicCssBuilder" media="not all">
 <link rel="stylesheet" href="css/card-list.css?v=20261007r" id="nxClassicCssList" media="not all">
@@ -238,6 +241,6 @@
 <script src="js/deck-viewer.js?v=20261007r"></script>
 <script src="js/replay-viewer.js?v=20261007z7"></script>
 <script src="js/deck-builder.js?v=20261008x"></script>
-<script src="js/next.js?v=20261009e"></script>
+<script src="js/next.js?v=20261009f"></script>
 </body>
 </html>
