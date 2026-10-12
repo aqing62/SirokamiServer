@@ -784,6 +784,10 @@ def _verify_community_cookie(token: str) -> tuple | None:
 
 # ── 先手 / 后手 胜率统计（读游戏服的 Postgres） ──────────────
 # 数据来自 duel_record_player.isFirst（每场 2 条记录）
+# 赛季信息：换赛季时改这三行即可（页面主要展示当前赛季的天梯先后手胜率）
+SEASON_NAME = "S3"
+SEASON_START = "2026-09-28"      # S3 开始（第二赛季 9/28 结算 + 重置）
+SEASON_END = "2026-10-31"
 SRVPRO_DIR = Path("/root/servers/ygopro/srvpro-siro")
 _FS_CACHE = {"t": 0.0, "data": None}
 _FS_CACHE_TTL = 300          # 5 分钟缓存，别每次都打数据库
@@ -838,7 +842,7 @@ def _wr(wins, games):
 
 
 def _first_second_stats():
-    """先手/后手胜率：总览 + 最近7天 + 天梯房(M#) + 按月趋势"""
+    """先手/后手胜率：当前赛季天梯（主）+ 最近7天 + 全部 + 按月趋势"""
     now = time.time()
     if _FS_CACHE["data"] and now - _FS_CACHE["t"] < _FS_CACHE_TTL:
         return _FS_CACHE["data"]
@@ -868,6 +872,12 @@ def _first_second_stats():
                 "secondGames": sg, "secondWins": sw, "secondWinRate": _wr(sw, sg),
                 "games": fg + sg}
 
+    # 天梯口径：M# 房 + 双方都已登录（DB 里用 realName 不含 $ 判定，与服务器重算积分一致）
+    ladder_cond = ("d.name like 'M#%' and p.\"realName\" not like '%$%'")
+    month_cond = 'p."createTime" > now() - interval \'7 days\''
+    season_cond = ('d.name like \'M#%\' and p."realName" not like \'%$%\' '
+                   'and p."createTime" >= \'' + SEASON_START + '\'')
+
     monthly = []
     for mon, fg, fw, sg, sw in _pg_query(
         'select to_char("createTime", \'YYYY-MM\') as mon,\n'
@@ -884,10 +894,16 @@ def _first_second_stats():
     data = {
         "ok": True,
         "generatedAt": int(now),
+        "season": {
+            "name": SEASON_NAME,
+            "start": SEASON_START,
+            "end": SEASON_END,
+            **(scope_rows(season_cond) or {}),
+        },
         "scopes": [
             dict(scope_rows(None) or {}, key="all", label="全部对局"),
-            dict(scope_rows('p."createTime" > now() - interval \'7 days\'') or {}, key="week", label="最近 7 天"),
-            dict(scope_rows("d.name like 'M#%'") or {}, key="ladder", label="天梯房 M#"),
+            dict(scope_rows(month_cond) or {}, key="week", label="最近 7 天"),
+            dict(scope_rows(ladder_cond) or {}, key="ladder", label="天梯房 M#（历史全部）"),
         ],
         "monthly": monthly,
     }

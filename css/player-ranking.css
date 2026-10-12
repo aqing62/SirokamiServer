@@ -50,6 +50,98 @@
     margin-bottom: 20px;
 }
 
+/* ── 当前赛季天梯（主展示） ── */
+.winrate-season {
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    background: linear-gradient(135deg, rgba(212, 175, 55, 0.07), rgba(212, 175, 55, 0.01));
+}
+
+.winrate-season-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.winrate-season-badge {
+    background: linear-gradient(135deg, #D4AF37, #FFD700);
+    color: #1a1a2e;
+    font-weight: 900;
+    font-size: 0.9rem;
+    padding: 2px 10px;
+    border-radius: 4px;
+}
+
+.winrate-season-name {
+    font-size: 0.92rem;
+    font-weight: 700;
+    color: #ddd6cd;
+}
+
+.winrate-season-games {
+    margin-left: auto;
+    font-size: 0.78rem;
+    color: #8d8d96;
+}
+
+.winrate-season-bars .winrate-row {
+    font-size: 0.95rem;
+    margin-bottom: 10px;
+}
+
+.winrate-season-bars .winrate-label {
+    flex: 0 0 44px;
+}
+
+.winrate-season-bars .winrate-bar {
+    height: 14px;
+}
+
+.winrate-season-bars .winrate-value {
+    flex: 0 0 74px;
+    font-size: 1.05rem;
+}
+
+.winrate-season-foot {
+    font-size: 0.75rem;
+    color: #7d7d86;
+    margin-top: 4px;
+}
+
+/* ── 其它口径（小字一行） ── */
+.winrate-mini {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 0.75rem;
+    color: #b9b9c2;
+}
+
+.winrate-mini b {
+    color: #ddd6cd;
+    font-weight: 700;
+}
+
+.winrate-mini .f {
+    color: #FFD700;
+}
+
+.winrate-mini .s {
+    color: #9ec4f0;
+}
+
+.winrate-mini i {
+    font-style: normal;
+    color: #6f6f78;
+}
+
 /* ── 先后手胜率面板 ── */
 .winrate-panel {
     border: 1px solid rgba(212, 175, 55, 0.3);

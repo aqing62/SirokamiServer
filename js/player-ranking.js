@@ -551,6 +551,7 @@
 
   // ── 先手 / 后手 胜率（数据来自游戏服数据库 duel_record_player.isFirst） ──
   const winratePanel = document.getElementById('winratePanel');
+  const winrateSeason = document.getElementById('winrateSeason');
   const winrateScopes = document.getElementById('winrateScopes');
   const winrateMonths = document.getElementById('winrateMonths');
   const winrateNote = document.getElementById('winrateNote');
@@ -568,20 +569,45 @@
 
   function renderWinrate(d) {
     if (!winratePanel) return;
-    if (winrateNote) {
-      const total = (d.scopes || []).reduce(function (m, s) { return Math.max(m, s.games || 0); }, 0);
-      winrateNote.textContent = '共 ' + total.toLocaleString() + ' 条对局记录 · 每 5 分钟更新';
-    }
-    winrateScopes.innerHTML = (d.scopes || []).map(function (s) {
-      return '<div class="winrate-scope">' +
-        '<div class="winrate-scope-head">' +
-          '<span class="winrate-scope-name">' + escapeHtml(s.label || s.key) + '</span>' +
-          '<span class="winrate-scope-games">' + (s.games || 0).toLocaleString() + ' 人次</span>' +
+    const season = d.season || {};
+    const sc = winrateSeason;
+
+    // ① 当前赛季天梯 —— 主展示
+    if (sc) {
+      const range = (season.start || '') + (season.end ? ' ~ ' + season.end : '');
+      sc.innerHTML =
+        '<div class="winrate-season-head">' +
+          '<span class="winrate-season-badge">' + escapeHtml(season.name || '当前赛季') + '</span>' +
+          '<span class="winrate-season-name">当前赛季 · 天梯房先后手胜率</span>' +
+          '<span class="winrate-season-games">' + (season.firstGames || 0).toLocaleString() + ' 场有效对局</span>' +
         '</div>' +
-        winrateBar('first', '先手', s.firstWinRate) +
-        winrateBar('second', '后手', s.secondWinRate) +
+        '<div class="winrate-season-bars">' +
+          winrateBar('first', '先手', season.firstWinRate) +
+          winrateBar('second', '后手', season.secondWinRate) +
+        '</div>' +
+        '<div class="winrate-season-foot">' +
+          '统计范围：' + escapeHtml(range) + ' · 仅 M# 房且双方均已登录的对局' +
+          (season.firstWinRate !== null && season.secondWinRate !== null
+            ? ' · 先手领先 ' + (season.firstWinRate - season.secondWinRate).toFixed(2) + ' 个百分点'
+            : '') +
         '</div>';
+    }
+
+    if (winrateNote) {
+      winrateNote.textContent = '每 5 分钟更新';
+    }
+
+    // ② 其它口径 —— 小字一行
+    winrateScopes.innerHTML = (d.scopes || []).map(function (s) {
+      return '<span class="winrate-mini">' +
+        '<b>' + escapeHtml(s.label || s.key) + '</b>' +
+        '<span class="f">先 ' + (s.firstWinRate === null ? '-' : s.firstWinRate + '%') + '</span>' +
+        '<span class="s">后 ' + (s.secondWinRate === null ? '-' : s.secondWinRate + '%') + '</span>' +
+        '<i>(' + (s.games || 0).toLocaleString() + ' 人次)</i>' +
+        '</span>';
     }).join('');
+
+    // ③ 按月趋势
     winrateMonths.innerHTML = (d.monthly || []).map(function (m) {
       const mon = String(m.month || '').replace('-', '/');
       return '<span class="winrate-month"><b>' + escapeHtml(mon) + '</b>' +
