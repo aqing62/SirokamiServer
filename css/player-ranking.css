@@ -50,6 +50,158 @@
     margin-bottom: 20px;
 }
 
+/* ── 先后手胜率面板 ── */
+.winrate-panel {
+    border: 1px solid rgba(212, 175, 55, 0.3);
+    border-radius: 10px;
+    padding: 16px 18px;
+    margin-bottom: 25px;
+    background: transparent;
+}
+
+.winrate-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 14px;
+}
+
+.winrate-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    color: var(--light-gold, #F0E68C);
+    letter-spacing: 1px;
+}
+
+.winrate-note {
+    font-size: 0.78rem;
+    color: #8d8d96;
+}
+
+.winrate-scopes {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 12px;
+}
+
+.winrate-scope {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    padding: 12px 14px;
+}
+
+.winrate-scope-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+
+.winrate-scope-name {
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: #ddd6cd;
+}
+
+.winrate-scope-games {
+    font-size: 0.72rem;
+    color: #7d7d86;
+}
+
+.winrate-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 7px;
+    font-size: 0.8rem;
+}
+
+.winrate-row:last-child {
+    margin-bottom: 0;
+}
+
+.winrate-label {
+    flex: 0 0 34px;
+    color: #9a9aa4;
+}
+
+.winrate-bar {
+    flex: 1 1 auto;
+    height: 9px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.07);
+    overflow: hidden;
+}
+
+.winrate-bar > i {
+    display: block;
+    height: 100%;
+    border-radius: 999px;
+}
+
+.winrate-row.first .winrate-bar > i {
+    background: linear-gradient(90deg, #D4AF37, #FFD700);
+}
+
+.winrate-row.second .winrate-bar > i {
+    background: linear-gradient(90deg, #4a6fa5, #7aa5d8);
+}
+
+.winrate-value {
+    flex: 0 0 56px;
+    text-align: right;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.winrate-row.first .winrate-value {
+    color: #FFD700;
+}
+
+.winrate-row.second .winrate-value {
+    color: #9ec4f0;
+}
+
+.winrate-months {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255, 255, 255, 0.07);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.winrate-month {
+    flex: 0 0 auto;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.75rem;
+    color: #b9b9c2;
+    min-width: 108px;
+}
+
+.winrate-month b {
+    color: #ddd6cd;
+    font-weight: 700;
+    margin-right: 6px;
+}
+
+.winrate-month .f {
+    color: #FFD700;
+}
+
+.winrate-month .s {
+    color: #9ec4f0;
+}
+
+.winrate-err {
+    color: #ff9aa8;
+    font-size: 0.82rem;
+}
+
 /* ── S1 赛季信息横幅 ── */
 .season-banner {
     background: transparent;

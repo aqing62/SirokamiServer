@@ -549,6 +549,64 @@
     return html;
   }
 
+  // ── 先手 / 后手 胜率（数据来自游戏服数据库 duel_record_player.isFirst） ──
+  const winratePanel = document.getElementById('winratePanel');
+  const winrateScopes = document.getElementById('winrateScopes');
+  const winrateMonths = document.getElementById('winrateMonths');
+  const winrateNote = document.getElementById('winrateNote');
+  let _winrateLoaded = false;
+
+  function winrateBar(cls, label, rate) {
+    if (rate === null || rate === undefined) return '';
+    const pct = Math.max(0, Math.min(100, Number(rate)));
+    return '<div class="winrate-row ' + cls + '">' +
+      '<span class="winrate-label">' + label + '</span>' +
+      '<span class="winrate-bar"><i style="width:' + pct.toFixed(2) + '%"></i></span>' +
+      '<span class="winrate-value">' + pct.toFixed(2) + '%</span>' +
+      '</div>';
+  }
+
+  function renderWinrate(d) {
+    if (!winratePanel) return;
+    if (winrateNote) {
+      const total = (d.scopes || []).reduce(function (m, s) { return Math.max(m, s.games || 0); }, 0);
+      winrateNote.textContent = '共 ' + total.toLocaleString() + ' 条对局记录 · 每 5 分钟更新';
+    }
+    winrateScopes.innerHTML = (d.scopes || []).map(function (s) {
+      return '<div class="winrate-scope">' +
+        '<div class="winrate-scope-head">' +
+          '<span class="winrate-scope-name">' + escapeHtml(s.label || s.key) + '</span>' +
+          '<span class="winrate-scope-games">' + (s.games || 0).toLocaleString() + ' 人次</span>' +
+        '</div>' +
+        winrateBar('first', '先手', s.firstWinRate) +
+        winrateBar('second', '后手', s.secondWinRate) +
+        '</div>';
+    }).join('');
+    winrateMonths.innerHTML = (d.monthly || []).map(function (m) {
+      const mon = String(m.month || '').replace('-', '/');
+      return '<span class="winrate-month"><b>' + escapeHtml(mon) + '</b>' +
+        '<span class="f">先 ' + (m.firstWinRate === null ? '-' : m.firstWinRate + '%') + '</span>' +
+        ' <span class="s">后 ' + (m.secondWinRate === null ? '-' : m.secondWinRate + '%') + '</span>' +
+        '</span>';
+    }).join('');
+    winratePanel.hidden = false;
+  }
+
+  async function fetchWinrate() {
+    if (!winratePanel || _winrateLoaded) return;
+    try {
+      const resp = await fetch('/api/stats/first-second?t=' + Date.now());
+      const d = await resp.json();
+      if (!d || !d.ok) throw new Error((d && d.error) || '接口异常');
+      renderWinrate(d);
+      _winrateLoaded = true;
+    } catch (e) {
+      winrateScopes.innerHTML = '<div class="winrate-err">统计读取失败：' + escapeHtml(e.message || e) + '</div>';
+      winratePanel.hidden = false;
+      _winrateLoaded = true;   // 失败也不反复重试
+    }
+  }
+
   // Events
   searchBtn.addEventListener('click', fetchRanking);
   clearBtn.addEventListener('click', clearSearch);
@@ -566,6 +624,7 @@
         section.classList.contains('active')
       ) {
         fetchRanking();
+        fetchWinrate();
       }
     }
   });
@@ -574,5 +633,6 @@
   // Also load on first click of sidebar button
   document.getElementById('playerRankingBtn').addEventListener('click', function () {
     fetchRanking();
+    fetchWinrate();
   });
 })();

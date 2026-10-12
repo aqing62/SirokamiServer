@@ -8,9 +8,11 @@ import base64
 import gzip
 import json
 import logging
+import os
 import re
 import sqlite3
 import ssl
+import subprocess
 import threading
 import time
 import urllib.request
@@ -780,6 +782,120 @@ def _verify_community_cookie(token: str) -> tuple | None:
         return None
 
 
+# ── 先手 / 后手 胜率统计（读游戏服的 Postgres） ──────────────
+# 数据来自 duel_record_player.isFirst（每场 2 条记录）
+SRVPRO_DIR = Path("/root/servers/ygopro/srvpro-siro")
+_FS_CACHE = {"t": 0.0, "data": None}
+_FS_CACHE_TTL = 300          # 5 分钟缓存，别每次都打数据库
+_DB_CONFIG_CACHE = {"t": 0.0, "conf": None}
+
+
+def _srvpro_db_config():
+    """从游戏服 config.yaml 读数据库连接（读不到就用已知默认值）"""
+    now = time.time()
+    if _DB_CONFIG_CACHE["conf"] and now - _DB_CONFIG_CACHE["t"] < 600:
+        return _DB_CONFIG_CACHE["conf"]
+    conf = {"host": "127.0.0.1", "port": 5432, "user": "postgres",
+            "password": "", "dbname": "srvpro2_siro"}
+    try:
+        text = (SRVPRO_DIR / "config.yaml").read_text(encoding="utf-8", errors="ignore")
+        for key, field in (("dbHost", "host"), ("dbPort", "port"), ("dbUser", "user"),
+                           ("dbPass", "password"), ("dbName", "dbname")):
+            m = re.search(r'^\s*' + key + r'\s*:\s*"?([^"\n#]+)"?', text, re.M)
+            if m:
+                val = m.group(1).strip()
+                conf[field] = int(val) if field == "port" else val
+    except Exception as e:
+        logger.warning(f"读取游戏服数据库配置失败，用默认值: {e}")
+    _DB_CONFIG_CACHE["conf"] = conf
+    _DB_CONFIG_CACHE["t"] = now
+    return conf
+
+
+def _pg_query(sql):
+    """用 psql 执行只读查询（不引入新依赖），返回二维列表"""
+    conf = _srvpro_db_config()
+    env = dict(os.environ)
+    if conf["password"]:
+        env["PGPASSWORD"] = conf["password"]
+    proc = subprocess.run(
+        ["psql", "-h", conf["host"], "-p", str(conf["port"]), "-U", conf["user"],
+         "-d", conf["dbname"], "-tA", "-F", "\t", "-c", sql],
+        capture_output=True, text=True, timeout=25, env=env,
+    )
+    if proc.returncode != 0:
+        msg = (proc.stderr or "").strip().splitlines()
+        raise RuntimeError(msg[-1] if msg else "psql 执行失败")
+    rows = []
+    for line in proc.stdout.splitlines():
+        if line.strip():
+            rows.append(line.split("\t"))
+    return rows
+
+
+def _wr(wins, games):
+    return round(100.0 * wins / games, 2) if games else None
+
+
+def _first_second_stats():
+    """先手/后手胜率：总览 + 最近7天 + 天梯房(M#) + 按月趋势"""
+    now = time.time()
+    if _FS_CACHE["data"] and now - _FS_CACHE["t"] < _FS_CACHE_TTL:
+        return _FS_CACHE["data"]
+
+    def scope_rows(where):
+        sql = (
+            'select count(*) filter (where "isFirst"),\n'
+            '       count(*) filter (where "isFirst" and winner),\n'
+            '       count(*) filter (where not "isFirst"),\n'
+            '       count(*) filter (where not "isFirst" and winner)\n'
+            'from duel_record_player p\n'
+        )
+        if where:
+            sql = (
+                'select count(*) filter (where p."isFirst"),\n'
+                '       count(*) filter (where p."isFirst" and p.winner),\n'
+                '       count(*) filter (where not p."isFirst"),\n'
+                '       count(*) filter (where not p."isFirst" and p.winner)\n'
+                'from duel_record_player p join duel_record d on d.id = p."duelRecordId"\n'
+                'where ' + where + '\n'
+            )
+        rows = _pg_query(sql)
+        if not rows:
+            return None
+        fg, fw, sg, sw = [int(x) for x in rows[0][:4]]
+        return {"firstGames": fg, "firstWins": fw, "firstWinRate": _wr(fw, fg),
+                "secondGames": sg, "secondWins": sw, "secondWinRate": _wr(sw, sg),
+                "games": fg + sg}
+
+    monthly = []
+    for mon, fg, fw, sg, sw in _pg_query(
+        'select to_char("createTime", \'YYYY-MM\') as mon,\n'
+        '       count(*) filter (where "isFirst"),\n'
+        '       count(*) filter (where "isFirst" and winner),\n'
+        '       count(*) filter (where not "isFirst"),\n'
+        '       count(*) filter (where not "isFirst" and winner)\n'
+        'from duel_record_player group by 1 order by 1'
+    ):
+        fg, fw, sg, sw = int(fg), int(fw), int(sg), int(sw)
+        monthly.append({"month": mon, "firstGames": fg, "firstWinRate": _wr(fw, fg),
+                        "secondWinRate": _wr(sw, sg), "games": fg + sg})
+
+    data = {
+        "ok": True,
+        "generatedAt": int(now),
+        "scopes": [
+            dict(scope_rows(None) or {}, key="all", label="全部对局"),
+            dict(scope_rows('p."createTime" > now() - interval \'7 days\'') or {}, key="week", label="最近 7 天"),
+            dict(scope_rows("d.name like 'M#%'") or {}, key="ladder", label="天梯房 M#"),
+        ],
+        "monthly": monthly,
+    }
+    _FS_CACHE["data"] = data
+    _FS_CACHE["t"] = now
+    return data
+
+
 # ── HTTP 请求处理器 ───────────────────────────────────────
 class VoteHandler(SimpleHTTPRequestHandler):
     """投票 API + 静态文件服务"""
@@ -986,6 +1102,15 @@ class VoteHandler(SimpleHTTPRequestHandler):
             self.send_header("Content-Length", len(_scores_json))
             self.end_headers()
             self.wfile.write(_scores_json)
+
+        elif path == "/api/stats/first-second":
+            # 先手 / 后手 胜率（来自游戏服数据库 duel_record_player.isFirst）
+            try:
+                data = _first_second_stats()
+                self._json_response(data)
+            except Exception as e:
+                logger.error(f"先后手统计失败: {e}")
+                self._json_response({"ok": False, "error": str(e)}, status=502)
 
         elif path == "/api/archetypes":
             # 字段（系列）表：setcode(16进制) → 字段名
