@@ -241,6 +241,26 @@
     payload.set(body, 1);
     state.sock.send(YGO.encodeFrame(payload));
   }
+
+  /**
+   * 用官网注入的账号自动登录游戏服（让网页对战计入天梯）。
+   *   官网在页面里注入：window._duelUser = { name, account, pass }
+   *   游戏服的登录就是聊天命令 `/login 「账号」「密码」`（srvpro2 的 login 服务）；
+   *   登录成功后 client.loggedIn = true、账号绑定，天梯才会统计这局。
+   *   没注入（未登录官网 / 本地联调）就什么都不做，行为与以前一致。
+   */
+  function autoLoginIfNeeded() {
+    try {
+      if (state.autoLoginSent) return;
+      var u = window._duelUser;
+      if (!u || !u.account || !u.pass) return;
+      state.autoLoginSent = true;
+      send(new YGO.YGOProCtosChat().fromPartial({ msg: '/login ' + u.account + ' ' + u.pass }));
+      logLine('已用官网账号自动登录游戏服：' + u.account + '（这局会计入天梯）', 'rp-log-hint');
+    } catch (e) {
+      logLine('自动登录失败：' + (e && e.message), 'rp-log-err');
+    }
+  }
   function respond(body) {
     if (state.previewMode) { state.previewMode = false; clearPending(); return; }   // UI 预览：不真发
     if (!body) { logLine('⚠ 无法构造应答（实现缺失）', 'rp-log-err'); return; }
@@ -406,6 +426,7 @@
     if (msg instanceof YGO.YGOProStocJoinGame) {
       state.joined = true;
       $('roomInfo').textContent = '房间 ' + state.room;
+      autoLoginIfNeeded();     // 官网账号 → 自动 /login（网页对战计入天梯）
       return;
     }
     if (msg instanceof YGO.YGOProStocTypeChange) {

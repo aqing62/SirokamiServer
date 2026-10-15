@@ -1689,10 +1689,13 @@ class VoteHandler(SimpleHTTPRequestHandler):
         creds = self._get_community_cookie()
         if creds:
             # 昵称 = 账号：srvpro2 的断线重连是按昵称认人的（交接文档 §4.3）
+            # pass 也一并注入：客户端进房后用聊天命令 `/login 账号 密码` 登录游戏服，
+            # 这样网页对战才算登录态、才计入天梯（用户定的方案：客户端直连登录）。
+            # ⚠ 本页 no-store 不缓存；只有在官网已登录时才会注入。
             account = creds[0]
             inject = (
                 "<script>window._duelUser="
-                + json.dumps({"name": account, "account": account}, ensure_ascii=False)
+                + json.dumps({"name": account, "account": account, "pass": creds[1]}, ensure_ascii=False)
                 + ";window._communityUsername=" + json.dumps(account, ensure_ascii=False) + ";</script>"
             )
         else:
