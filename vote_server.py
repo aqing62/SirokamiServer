@@ -547,6 +547,70 @@ def pg_user_exists(account: str) -> bool:
     return out.strip().isdigit() and int(out.strip()) > 0
 
 
+# ── 账号卡组库（决斗大厅用）────────────────────────────────
+# 每个账号一个 JSON：data/duel-decks/<sha1(账号)前16位>.json
+#   { "account": "账号", "active": "当前使用卡组名", "decks": { "卡组名": {main,extra,side} } }
+# 文件名用哈希：账号允许中文/斜杠（游戏服账号表就是这样），直接当文件名不安全。
+DUEL_DECK_DIR = ROOT / "data" / "duel-decks"
+DUEL_DECK_MAX = 60            # 单账号卡组上限
+DUEL_DECK_MAX_CARDS = 300     # 单个卡组卡数上限（防滥用）
+
+
+def _duel_deck_path(account: str) -> Path:
+    h = hashlib.sha1(account.encode("utf-8")).hexdigest()[:16]
+    return DUEL_DECK_DIR / f"{h}.json"
+
+
+def duel_decks_load(account: str) -> dict:
+    """读某账号的卡组库（不存在则返回空结构）"""
+    path = _duel_deck_path(account)
+    if not path.is_file():
+        return {"account": account, "active": "", "decks": {}}
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not isinstance(data.get("decks"), dict):
+            raise ValueError("结构不对")
+        data.setdefault("active", "")
+        data["account"] = account
+        return data
+    except Exception as e:
+        logger.warning(f"卡组库损坏({account}): {e}")
+        return {"account": account, "active": "", "decks": {}}
+
+
+def duel_decks_save(account: str, data: dict) -> None:
+    DUEL_DECK_DIR.mkdir(parents=True, exist_ok=True)
+    path = _duel_deck_path(account)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    tmp.replace(path)          # 原子替换，避免写一半被读到
+
+
+def parse_ydk(text: str) -> dict:
+    """解析 .ydk 文本 → {main, extra, side}（卡号数组）"""
+    main, extra, side = [], [], []
+    cur = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        low = line.lower()
+        if low.startswith("#main"):
+            cur = main
+            continue
+        if low.startswith("#extra"):
+            cur = extra
+            continue
+        if low.startswith("!side"):
+            cur = side
+            continue
+        if line.startswith("#"):
+            continue
+        if cur is not None and line.isdigit():
+            cur.append(int(line))
+    return {"main": main, "extra": extra, "side": side}
+
+
 def refresh_cards_cache():
     """重新从 CDB 加载卡牌数据并更新缓存。
 
@@ -1337,55 +1401,58 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 })
 
         elif path == "/api/duel/deck":
-            # 当前卡组（交接文档 §2.2）：取该账号最近一局天梯用过的卡组；
-            # 取不到就返回空，客户端仍可用容器里的「导入卡组 (.ydk)」按钮
+            # 「当前使用卡组」（交接文档 §2.2）：从账号卡组库里取 active 那套
             creds = self._get_community_cookie()
             if not creds:
                 self._json_response({"error": "未登录"}, status=401)
             else:
-                deck = None
-                try:
-                    for d0 in _ladder_decks_of(creds[0])[:1]:
-                        deck = {
-                            "name": d0.get("name") or d0.get("deckName") or "最近使用",
-                            "main": d0.get("main") or [],
-                            "extra": d0.get("extra") or [],
-                            "side": d0.get("side") or [],
-                        }
-                except Exception as e:
-                    logger.warning(f"取最近卡组失败: {e}")
-                self._json_response(deck or {"name": None, "main": [], "extra": [], "side": []})
+                store = duel_decks_load(creds[0])
+                active = store.get("active") or ""
+                deck = store["decks"].get(active)
+                if not deck:
+                    # 没设当前卡组就退回卡组库里第一套，方便玩家直接开打
+                    first = sorted(store["decks"].keys())
+                    if first:
+                        active, deck = first[0], store["decks"][first[0]]
+                if not deck:
+                    self._json_response({"name": None, "main": [], "extra": [], "side": []})
+                else:
+                    self._json_response({"name": active, "main": deck.get("main", []),
+                                         "extra": deck.get("extra", []), "side": deck.get("side", [])})
 
-        elif path == "/api/decks":
-            # 决斗客户端的「卡组选择」下拉（契约：{dir, names:[…]}）。
-            # 站点没有「我的卡组」存储，所以用**账号最近打过天梯的卡组**顶上；
-            # 没有就返回空列表（客户端会只留「（内置默认卡组）」，导入按钮仍可用）。
+        elif path in ("/api/duel/decks", "/api/decks"):
+            # 账号卡组库（两个路径都给：/api/decks 是**客户端契约**里那个，
+            # /api/duel/decks 是决斗大厅自己用的）
             creds = self._get_community_cookie()
-            decks = _ladder_decks_of(creds[0]) if creds else []
-            names = [f"卡组{i}（主{len(d.get('main') or [])}张）.ydk" for i, d in enumerate(decks, 1)]
-            self._json_response({"dir": "白神服 · 账号最近使用", "names": names})
+            if not creds:
+                self._json_response({"dir": "未登录", "names": [], "active": ""})
+            else:
+                acc = creds[0]
+                store = duel_decks_load(acc)
+                names = [f"{n}.ydk" for n in sorted(store["decks"].keys())]
+                self._json_response({"dir": f"{acc} 的卡组库", "names": names,
+                                     "active": store.get("active", ""),
+                                     "count": len(names)})
 
         elif path == "/api/deck":
-            # 读某个卡组（契约：{name, main, extra, side}）。name 用 /api/decks 给的那个。
+            # 读某个卡组（客户端契约：{name, main, extra, side}）
             creds = self._get_community_cookie()
             raw = unquote(self.path.split("?", 1)[1]) if "?" in self.path else ""
             want = ""
             for part in raw.split("&"):
                 if part.startswith("name="):
                     want = part[5:]
-            decks = _ladder_decks_of(creds[0]) if creds else []
-            deck = None
-            m = re.match(r"^卡组(\d+)", want)
-            if m:
-                idx = int(m.group(1)) - 1
-                if 0 <= idx < len(decks):
-                    d = decks[idx]
-                    deck = {"name": want, "main": d.get("main") or [],
-                            "extra": d.get("extra") or [], "side": d.get("side") or []}
+            if not creds:
+                self._json_response({"error": "未登录"}, status=401)
+                return
+            store = duel_decks_load(creds[0])
+            key = want[:-4] if want.lower().endswith(".ydk") else want
+            deck = store["decks"].get(key)
             if deck is None:
                 self._json_response({"error": "找不到卡组：" + want}, status=404)
             else:
-                self._json_response(deck)
+                self._json_response({"name": key, "main": deck.get("main", []),
+                                     "extra": deck.get("extra", []), "side": deck.get("side", [])})
 
         elif path == "/api/archetypes":
             # 字段（系列）表：setcode(16进制) → 字段名
@@ -1545,6 +1612,79 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 return
             # 按文档 §0 的流程：注册完成 → 回到登录页（这里只回成功，不自动登录）
             self._json_response({"ok": True, "account": account, "name": display_name})
+
+        elif path == "/api/duel/decks/upload":
+            # 上传 .ydk 存进账号卡组库（决斗大厅「编辑 → 选卡组」用）
+            creds = self._get_community_cookie()
+            if not creds:
+                self._json_response({"ok": False, "error": "未登录"}, status=401)
+                return
+            name = (payload.get("name") or "").strip()
+            ydk = payload.get("ydk") or ""
+            if not name:
+                self._json_response({"ok": False, "error": "缺少卡组名"}, status=400)
+                return
+            if len(name) > 40:
+                self._json_response({"ok": False, "error": "卡组名太长（最多 40 字）"}, status=400)
+                return
+            if any(ch in name for ch in '/\\:*?"<>|') or any(ord(c) < 32 for c in name):
+                self._json_response({"ok": False, "error": "卡组名不能包含 / \\ : * ? \" < > | 等字符"}, status=400)
+                return
+            if len(ydk) > 200 * 1024:
+                self._json_response({"ok": False, "error": "文件太大了"}, status=400)
+                return
+            deck = parse_ydk(ydk)
+            total = len(deck["main"]) + len(deck["extra"]) + len(deck["side"])
+            if not deck["main"]:
+                self._json_response({"ok": False, "error": "这个 .ydk 里没读到主卡组（是不是选错文件了？）"}, status=400)
+                return
+            if total > DUEL_DECK_MAX_CARDS:
+                self._json_response({"ok": False, "error": f"卡数太多（{total} > {DUEL_DECK_MAX_CARDS}）"}, status=400)
+                return
+            store = duel_decks_load(creds[0])
+            if name not in store["decks"] and len(store["decks"]) >= DUEL_DECK_MAX:
+                self._json_response({"ok": False, "error": f"卡组太多了（上限 {DUEL_DECK_MAX} 套），先删几套"}, status=400)
+                return
+            store["decks"][name] = deck
+            if not store.get("active"):
+                store["active"] = name        # 第一套自动设为当前使用
+            duel_decks_save(creds[0], store)
+            logger.info(f"卡组已保存: {creds[0]} / {name}（主{len(deck['main'])} 额{len(deck['extra'])} 副{len(deck['side'])}）")
+            self._json_response({"ok": True, "name": name, "active": store.get("active"),
+                                 "main": len(deck["main"]), "extra": len(deck["extra"]),
+                                 "side": len(deck["side"])})
+
+        elif path == "/api/duel/decks/active":
+            # 设为「当前使用卡组」（开始匹配时注入给客户端的就是它）
+            creds = self._get_community_cookie()
+            if not creds:
+                self._json_response({"ok": False, "error": "未登录"}, status=401)
+                return
+            name = (payload.get("name") or "").strip()
+            store = duel_decks_load(creds[0])
+            if name not in store["decks"]:
+                self._json_response({"ok": False, "error": "没有这套卡组"}, status=404)
+                return
+            store["active"] = name
+            duel_decks_save(creds[0], store)
+            self._json_response({"ok": True, "active": name})
+
+        elif path == "/api/duel/decks/delete":
+            creds = self._get_community_cookie()
+            if not creds:
+                self._json_response({"ok": False, "error": "未登录"}, status=401)
+                return
+            name = (payload.get("name") or "").strip()
+            store = duel_decks_load(creds[0])
+            if name not in store["decks"]:
+                self._json_response({"ok": False, "error": "没有这套卡组"}, status=404)
+                return
+            del store["decks"][name]
+            if store.get("active") == name:
+                store["active"] = sorted(store["decks"].keys())[0] if store["decks"] else ""
+            duel_decks_save(creds[0], store)
+            self._json_response({"ok": True, "active": store.get("active", ""),
+                                 "remain": len(store["decks"])})
 
         # ── 论坛社区 API (POST) ──
 

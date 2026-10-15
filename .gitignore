@@ -32,3 +32,4 @@ data/duel-strings.json
 
 # 决斗客户端错误上报日志
 logs/
+data/duel-decks/
