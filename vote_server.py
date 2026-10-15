@@ -1688,14 +1688,25 @@ class VoteHandler(SimpleHTTPRequestHandler):
         html = path.read_text(encoding="utf-8")
         creds = self._get_community_cookie()
         if creds:
-            # 昵称 = 账号：srvpro2 的断线重连是按昵称认人的（交接文档 §4.3）
-            # pass 也一并注入：客户端进房后用聊天命令 `/login 账号 密码` 登录游戏服，
-            # 这样网页对战才算登录态、才计入天梯（用户定的方案：客户端直连登录）。
+            # name   = **显示名**（房间/对局里显示的就是它，客户端拿它当昵称发出去）
+            # account/pass = 账号与密码，客户端进房后用聊天命令 `/login 账号 密码` 登录游戏服，
+            #                这样网页对战才算登录态、才计入天梯（用户定的方案：客户端直连登录）。
             # ⚠ 本页 no-store 不缓存；只有在官网已登录时才会注入。
             account = creds[0]
+            display = account
+            try:
+                rows = _pg_query(
+                    'select coalesce(nullif("displayName", \'\'), "accountName") from srv_user '
+                    'where "accountName" = :\'acct\'',
+                    {"acct": account},
+                )
+                if rows and rows[0][0].strip():
+                    display = rows[0][0].strip()
+            except Exception as e:
+                logger.warning(f"取显示名失败({account}): {e}")
             inject = (
                 "<script>window._duelUser="
-                + json.dumps({"name": account, "account": account, "pass": creds[1]}, ensure_ascii=False)
+                + json.dumps({"name": display, "account": account, "pass": creds[1]}, ensure_ascii=False)
                 + ";window._communityUsername=" + json.dumps(account, ensure_ascii=False) + ";</script>"
             )
         else:
