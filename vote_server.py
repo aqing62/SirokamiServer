@@ -1393,12 +1393,30 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 self._json_response({"loggedIn": False})
             else:
                 account = creds[0]
-                self._json_response({
+                out = {
                     "loggedIn": True,
                     "account": account,
                     "name": account,     # 昵称=账号：断线重连按昵称认人（文档 §4.3）
                     "avatar": f"/api/forum/avatar/{account}",
-                })
+                }
+                # 天梯战绩（积分/胜/负/胜率）——社区资料接口不给胜场，这里直接读 player_rating
+                try:
+                    rows = _pg_query(
+                        'select rating, wins, losses from player_rating where "accountName" = :\'acct\'',
+                        {"acct": account},
+                    )
+                    if rows:
+                        rating, wins, losses = int(rows[0][0]), int(rows[0][1]), int(rows[0][2])
+                        games = wins + losses
+                        out["ladder"] = {
+                            "rating": rating,
+                            "wins": wins,
+                            "losses": losses,
+                            "winRate": round(100.0 * wins / games, 1) if games else None,
+                        }
+                except Exception as e:
+                    logger.warning(f"取天梯战绩失败({account}): {e}")
+                self._json_response(out)
 
         elif path == "/api/duel/deck":
             # 「当前使用卡组」（交接文档 §2.2）：从账号卡组库里取 active 那套

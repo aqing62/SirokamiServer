@@ -30,6 +30,12 @@ a { color:#9ec4f0; text-decoration:none; }
 .btn.start-top:hover { background:rgba(255,59,59,.10); border-color:#ff6b6b; }
 .btn.start-top:active { background:rgba(255,59,59,.18); }
 .btn.start-top:disabled { opacity:.4; }
+/* 右上角的天梯战绩小条（积分/段位/胜场/胜率），放在「开始匹配」左边、与头像同一行 */
+.mine { flex:0 0 auto; align-self:center; display:grid; grid-template-columns:repeat(2,auto); gap:4px 22px;
+  padding-right:6px; }
+.mine span { display:flex; align-items:baseline; gap:6px; font-size:.78rem; color:#8d8d96; white-space:nowrap; }
+.mine i { font-style:normal; }
+.mine b { color:#FFD700; font-weight:800; font-size:.98rem; font-variant-numeric:tabular-nums; }
 .avatar { flex:0 0 84px; width:84px; height:84px; border-radius:12px; overflow:hidden; position:relative;
   border:2px solid var(--gold); background:linear-gradient(135deg,#1b2430,#0e141c 60%,#1b2430);
   display:flex; align-items:center; justify-content:center; }
@@ -83,6 +89,12 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       <div class="who" id="who">…</div>
       <div class="hint" id="startHint">点开始匹配 → 自动进房 → 自动准备 → 人齐自动开局</div>
     </div>
+    <div class="mine" id="mine">
+      <span><i>积分</i><b id="mLadder">-</b></span>
+      <span><i>段位</i><b id="mTier">-</b></span>
+      <span><i>胜场</i><b id="mWins">-</b></span>
+      <span><i>胜率</i><b id="mRate">-</b></span>
+    </div>
     <button class="btn start-top" id="btnStart">开始匹配</button>
   </div>
 
@@ -107,11 +119,6 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       <div id="deckCards"></div>
     </div>
     <div class="msg" id="msg"></div>
-  </div>
-
-  <div class="card">
-    <div class="hint" style="margin-bottom:10px">我的天梯</div>
-    <div class="stat" id="stat"><div>加载中…</div></div>
   </div>
 
   <div class="hint" style="text-align:center">
@@ -151,7 +158,7 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     av.onerror = function () { av.remove(); };            // 没头像就保持 ⚔️ 占位
     av.src = '/api/forum/avatar/' + encodeURIComponent(d.account || d.name) + '?v=' + Date.now();
     $('avatarBox').appendChild(av);
-    loadDecks(); loadLadder();
+    loadDecks(); loadMine(d);
   }).catch(function () { $('who').textContent = '读取登录状态失败'; });
 
   // ── 卡组库 ──
@@ -271,17 +278,18 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     this.value = '';
   };
 
-  // ── 天梯数据 ──
-  function loadLadder() {
+  // ── 右上角战绩：积分/胜场/胜率来自 whoami（读 player_rating），段位来自社区资料接口 ──
+  function loadMine(me) {
+    var L = (me && me.ladder) || {};
+    function set(id, v) { var e = $(id); if (e) e.textContent = (v === undefined || v === null || v === '') ? '-' : v; }
+    set('mLadder', L.rating);
+    set('mWins', L.wins);
+    set('mRate', L.winRate === undefined || L.winRate === null ? null : L.winRate + '%');
     fetch('/api/forum/profile/ladder?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
-      var box = $('stat');
-      if (!j || j.error) { box.innerHTML = '<div>暂无天梯数据</div>'; return; }
-      var d = (j.data && j.data[0]) || j.data || j;
-      function cell(k, v) { return '<div>' + k + '<b>' + (v === undefined || v === null ? '-' : v) + '</b></div>'; }
-      box.innerHTML =
-        cell('天梯积分', d.rating) + cell('排名', d.rank) + cell('段位', d.tier || d.tierName) +
-        cell('战绩', (d.wins === undefined ? '-' : d.wins + ' 胜 ' + (d.losses || 0) + ' 负'));
-    }).catch(function () { $('stat').innerHTML = '<div>暂无天梯数据</div>'; });
+      var d = (j && j.data) || j || {};
+      set('mTier', d.tier || d.tierName);
+      if (L.rating === undefined) set('mLadder', d.rating);
+    }).catch(function () {});
   }
 
   // ── 开始匹配 ──
