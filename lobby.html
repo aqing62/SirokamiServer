@@ -225,6 +225,15 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   var curDeck = null;      // 当前使用卡组（{name, main, extra, side}）
 
 
+  // 从对局页被"中止匹配"退回来时带的原因（?err=）→ 红字显示出来
+  try {
+    var errMsg = new URLSearchParams(location.search).get('err');
+    if (errMsg) {
+      var m0 = $('msg');
+      if (m0) { m0.className = 'msg'; m0.textContent = '⚠ ' + errMsg + ' —— 请换一套合规卡组再开始匹配'; }
+    }
+  } catch (e) {}
+
   // ── 身份 ──
   fetch('/api/duel/whoami?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
     if (!d || !d.loggedIn) {

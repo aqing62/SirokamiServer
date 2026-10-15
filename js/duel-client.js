@@ -291,6 +291,31 @@
    * 盘面一显示（= 猜拳那一刻客户端切入对局界面）就自动消失，所以不用改 setUiPhase。
    * 样式内联：css/duel-client.css 是同步脚本生成的产物，不往里塞东西。
    */
+
+  /**
+   * 中止匹配：服务器拒了卡组（或这次匹配）→ 断开连接 → 把原因大字显示在遮罩上 →
+   * 带原因退回大厅。天梯形态下"卡组不合规还继续等人"是错的：玩家会一直干等。
+   */
+  function abortMatch(reasonText) {
+    if (state.matchAborted) return;
+    state.matchAborted = true;
+    try { if (state.sock) state.sock.close(); } catch (e) {}
+    var safe = String(reasonText || '').replace(/[<>&"]/g, '');
+    var ov = document.getElementById('ypMatching');
+    if (ov) {
+      ov.style.opacity = '1';
+      ov.innerHTML = '<div style="text-align:center;max-width:560px;padding:0 22px">'
+        + '<div style="font-size:34px;margin-bottom:12px">⚠️</div>'
+        + '<div style="font-size:17px;font-weight:800;letter-spacing:1px;color:#FF8A8A">这次匹配已中止</div>'
+        + '<div style="margin-top:12px;font-size:13.5px;line-height:1.7;color:#F0E68C">' + safe + '</div>'
+        + '<div style="margin-top:10px;font-size:12.5px;color:#9b97a1">正在返回决斗大厅…（回去换一套合规卡组再匹配）</div>'
+        + '</div>';
+    }
+    setTimeout(function () {
+      location.href = 'lobby.html?err=' + encodeURIComponent(String(reasonText || ''));
+    }, 3000);
+  }
+
   function ensureMatchingOverlay(noticeText) {
     if (document.getElementById('ypMatching')) return;
     var lobby = document.getElementById('lobby');
@@ -606,13 +631,23 @@
     if (msg instanceof YGO.YGOProStocErrorMsg) {
       var reason = { 1: 'JOINERROR', 2: 'DECKERROR', 3: 'SIDEERROR', 4: 'VERERROR' }[msg.msg] || msg.msg;
       var extra = '';
+      var why = '';
       if (msg.msg === 2 || msg.msg === 3) {
         var code = msg.code >>> 0;
         var R = { 1: '禁限卡表', 2: 'OCG 独有', 3: 'TCG 独有', 4: '未知卡', 5: '单卡数量', 6: '主卡组', 7: '额外卡组', 8: '副卡组', 9: '不允许' };
-        extra = '（' + (R[code >>> 28] || '?') + ' 卡号 ' + (code & 0x0fffffff) + '）';
+        why = (R[code >>> 28] || '卡组不合法');
+        extra = '（' + why + ' 卡号 ' + (code & 0x0fffffff) + '）';
       }
       setHud('服务端错误 ' + reason + ' ' + extra, 'err');
       logLine('⚠ 服务端错误 ' + reason + ' code=' + msg.code + extra, 'rp-log-err');
+      // 天梯/比赛形态（?auto=1）：服务器拒了卡组 → 这一步之后**根本准备不了**，
+      // 继续在房里等人毫无意义 → 直接中止匹配、说清原因、退回大厅。
+      try {
+        var qq = new URLSearchParams(location.search);
+        if (qq.get('auto') === '1') {
+          abortMatch(extra ? ('卡组没通过服务器校验 ' + extra) : ('服务器拒绝了这次匹配（' + reason + '）'));
+        }
+      } catch (e) {}
       return;
     }
     if (msg instanceof YGO.YGOProStocSelectHand) {
