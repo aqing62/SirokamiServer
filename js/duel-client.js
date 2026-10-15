@@ -283,6 +283,54 @@
     }
     return { identifier: 22, toPayload: function () { return buf; } };
   }
+
+  /**
+   * 「正在匹配对手…」遮罩。
+   * 只在天梯/比赛形态（?auto=1）下用：进房后不该再给玩家看「决斗准备」面板 ——
+   * 玩家的输入全在官网大厅里做完了（选卡组 + 点开始匹配），这里只需要等人。
+   * 盘面一显示（= 猜拳那一刻客户端切入对局界面）就自动消失，所以不用改 setUiPhase。
+   * 样式内联：css/duel-client.css 是同步脚本生成的产物，不往里塞东西。
+   */
+  function ensureMatchingOverlay() {
+    if (document.getElementById('ypMatching')) return;
+    var lobby = document.getElementById('lobby');
+    if (lobby) lobby.style.display = 'none';          // 藏掉「决斗准备」面板
+    var d = document.createElement('div');
+    d.id = 'ypMatching';
+    d.style.cssText = 'position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;'
+      + 'background:radial-gradient(900px 500px at 50% 30%, rgba(216,30,68,.16), rgba(10,10,12,.96) 62%, #0a0a0c 100%);'
+      + 'pointer-events:none;';
+    d.innerHTML = '<div style="text-align:center">'
+      + '<div style="width:46px;height:46px;margin:0 auto 16px;border-radius:50%;'
+      + 'border:3px solid rgba(216,30,68,.25);border-top-color:#D81E44;animation:ypmSpin .9s linear infinite"></div>'
+      + '<div style="font-size:17px;font-weight:800;letter-spacing:2px;color:#F0E68C">正在匹配对手…</div>'
+      + '<div style="margin-top:8px;font-size:12.5px;color:#9b97a1">进房后会自动准备 · 人齐自动开局 · 不用操作</div>'
+      + '<div id="ypmWait" style="margin-top:14px;font-size:12px;color:#7d7d86"></div>'
+      + '</div>';
+    var st = document.createElement('style');
+    st.textContent = '@keyframes ypmSpin { to { transform: rotate(360deg); } }';
+    d.appendChild(st);
+    document.body.appendChild(d);
+    // 等了多久（让玩家知道不是卡住）
+    var t0 = Date.now();
+    setInterval(function () {
+      var el = document.getElementById('ypmWait');
+      if (!el) return;
+      el.textContent = '已等待 ' + Math.floor((Date.now() - t0) / 1000) + ' 秒';
+    }, 1000);
+    // 盘面出现 → 撤掉遮罩 + 恢复面板（面板本来也会被 setUiPhase 隐藏）
+    var modal = document.getElementById('replayModal');
+    if (modal) {
+      var hide = function () {
+        if (modal.offsetParent === null) return;      // 还没显示
+        var el = document.getElementById('ypMatching');
+        if (el) el.remove();
+      };
+      new MutationObserver(hide).observe(modal, { attributes: true, attributeFilter: ['style', 'class'] });
+      hide();
+    }
+  }
+
   function respond(body) {
     if (state.previewMode) { state.previewMode = false; clearPending(); return; }   // UI 预览：不真发
     if (!body) { logLine('⚠ 无法构造应答（实现缺失）', 'rp-log-err'); return; }
@@ -2860,7 +2908,7 @@
         }
       }).catch(function () {});
     }
-    if (q.get('auto') === '1') setTimeout(function () { joinRoom(); setTimeout(uploadDeckAndReady, 1500); }, 300);
+    if (q.get('auto') === '1') { ensureMatchingOverlay(); setTimeout(function () { joinRoom(); setTimeout(uploadDeckAndReady, 1500); }, 300); }
     // 天梯：没有 ?room=（即不是本地联调）就**自动进匹配队列**，玩家不需要点任何按钮
     if (!q.get('room')) setTimeout(function () {
       state.room = ladderRoom();
