@@ -318,17 +318,18 @@
       if (!el) return;
       el.textContent = '已等待 ' + Math.floor((Date.now() - t0) / 1000) + ' 秒';
     }, 1000);
-    // 盘面出现 → 撤掉遮罩 + 恢复面板（面板本来也会被 setUiPhase 隐藏）
-    var modal = document.getElementById('replayModal');
-    if (modal) {
-      var hide = function () {
-        if (modal.offsetParent === null) return;      // 还没显示
-        var el = document.getElementById('ypMatching');
+    // 自愈式：每 400ms 看一次盘面 —— 还没进对局就保证遮罩在场（别人把它拆了也补回来），
+    // 盘面一显示（= 猜拳切对局界面）就立刻撤掉并把定时器停掉。
+    var timer = setInterval(function () {
+      var el = document.getElementById('ypMatching');
+      if (state.duelStarted || (document.getElementById('replayModal') && document.getElementById('replayModal').offsetParent !== null)) {
         if (el) el.remove();
-      };
-      new MutationObserver(hide).observe(modal, { attributes: true, attributeFilter: ['style', 'class'] });
-      hide();
-    }
+        clearInterval(timer);
+        return;
+      }
+      if (!el) ensureMatchingOverlay();     // 被清掉了就补一层
+      if (lobby && lobby.style.display !== 'none') lobby.style.display = 'none';
+    }, 400);
   }
 
   function respond(body) {
