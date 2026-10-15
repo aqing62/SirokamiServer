@@ -1393,10 +1393,22 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 self._json_response({"loggedIn": False})
             else:
                 account = creds[0]
+                # name 用「显示名」（决斗大厅标题、房间内昵称都用它）；显示名没设就退回账号
+                display = account
+                try:
+                    rows = _pg_query(
+                        'select coalesce(nullif("displayName", \'\'), "accountName") from srv_user '
+                        'where "accountName" = :\'acct\'',
+                        {"acct": account},
+                    )
+                    if rows and rows[0][0].strip():
+                        display = rows[0][0].strip()
+                except Exception as e:
+                    logger.warning(f"whoami 取显示名失败({account}): {e}")
                 out = {
                     "loggedIn": True,
                     "account": account,
-                    "name": account,     # 昵称=账号：断线重连按昵称认人（文档 §4.3）
+                    "name": display,
                     "avatar": f"/api/forum/avatar/{account}",
                 }
                 # 天梯战绩（积分/胜/负/胜率）——社区资料接口不给胜场，这里直接读 player_rating

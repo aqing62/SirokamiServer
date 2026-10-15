@@ -4,9 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>决斗大厅 · 白神服</title>
-<!-- 直接复用官网已有的「卡组查看器」（和玩家排名/卡组社区里看卡组是同一个窗口） -->
-<link rel="stylesheet" href="css/deck-viewer.css?v=20260903a">
-<script src="js/deck-viewer.js?v=20260903b" defer></script>
 <!-- 大厅页：照 MDPro3 房间面板的排版，但**只有两个模式**（天梯 M# / 比赛 D#）
      选卡组 = 打开本地文件夹挑 .ydk 上传存到账号 → 开始匹配时自动注入给客户端 -->
 <style>
@@ -70,8 +67,12 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
 .deck-sec { font-size:.78rem; color:#9a9aa4; margin:10px 0 6px; }
 .deck-sec:first-child { margin-top:0; }
 .deck-cards { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:5px; }
+/* 卡图：鼠标移上去浮起来放大（这个模块本身就是卡组展示，点它不再跳大窗口） */
 .deck-cards img { width:100%; aspect-ratio:421/614; object-fit:cover; display:block; border-radius:4px;
-  background:#101720; border:1px solid #2a3542; cursor:pointer; }
+  background:#101720; border:1px solid #2a3542; position:relative; z-index:1;
+  transition:transform .13s ease, box-shadow .13s ease, border-color .13s ease; }
+.deck-cards img:hover { transform:scale(1.8) translateY(-8px); z-index:30; border-color:var(--gold2);
+  box-shadow:0 14px 34px rgba(0,0,0,.75), 0 0 12px rgba(255,215,0,.35); }
 .deck-empty { font-size:.8rem; color:#7d7d86; }
 .msg { min-height:18px; font-size:.8rem; color:#ff9aa8; margin-top:10px; }
 .msg.ok { color:#8ee6a8; }
@@ -85,7 +86,7 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   <div class="top">
     <div class="avatar" id="avatarBox"><span>⚔️</span></div>
     <div class="top-mid">
-      <div class="title">决斗大厅</div>
+      <div class="title" id="meName">决斗大厅</div>
       <div class="who" id="who">…</div>
       <div class="hint" id="startHint">点开始匹配 → 自动进房 → 自动准备 → 人齐自动开局</div>
     </div>
@@ -151,7 +152,8 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       msg('登录后才能开始匹配');
       return;
     }
-    $('who').textContent = '已登录：' + (d.name || d.account);
+    $('who').textContent = '已登录：' + (d.account || d.name);
+    if (d.name) $('meName').textContent = d.name;    // 标题换成玩家显示名
     // 头像：用官网已有的 /api/forum/avatar/<账号>（和论坛/卡组社区同一个头像）
     var av = document.createElement('img');
     av.alt = '头像';
@@ -204,14 +206,13 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     var img = document.createElement('img');
     var step = 0;
     img.loading = 'lazy';
-    img.title = '第 ' + id + ' 号卡（点开看大图和效果）';
+    img.title = '第 ' + id + ' 号卡';
     img.onerror = function () {
       step++;
       if (step < CARD_PIC.length) img.src = CARD_PIC[step] + id + '.jpg';
       else img.onerror = null;
     };
     img.src = CARD_PIC[0] + id + '.jpg';
-    img.onclick = function () { viewDeck(); };
     return img;
   }
   function renderDeckCards(deck) {
@@ -234,14 +235,6 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     if (!box.children.length) box.innerHTML = '<div class="deck-empty">这套卡组是空的</div>';
   }
 
-  // 点卡图 → 打开官网那个卡组大窗口（含总分/禁限角标/下载），不再是必点的按钮
-  function viewDeck() {
-    if (!curDeck || !window.DeckViewer) return;
-    window.DeckViewer.showDeck(
-      { main: curDeck.main || [], extra: curDeck.extra || [], side: curDeck.side || [] },
-      curDeck.name || '当前使用卡组'
-    );
-  }
 
   $('deckSel').onchange = function () {
     var v = this.value;
