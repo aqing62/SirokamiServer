@@ -4,6 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>决斗大厅 · 白神服</title>
+<!-- 复用官网「卡组查看器」的卡牌悬停提示（鼠标移上去显示卡名/效果文本），不做点击弹窗 -->
+<link rel="stylesheet" href="css/deck-viewer.css?v=20260903a">
+<script src="js/deck-viewer.js?v=20260903b" defer></script>
 <!-- 大厅页：照 MDPro3 房间面板的排版，但**只有两个模式**（天梯 M# / 比赛 D#）
      选卡组 = 打开本地文件夹挑 .ydk 上传存到账号 → 开始匹配时自动注入给客户端 -->
 <style>
@@ -71,16 +74,10 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
    这个模块本身就是卡组展示，点它不再跳大窗口 */
 .deck-cards img { width:100%; aspect-ratio:421/614; object-fit:cover; display:block; border-radius:4px;
   background:#101720; border:1px solid #2a3542; position:relative; z-index:1;
-  transition:transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
+  transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
 .deck-cards img:hover {
-  z-index:30; border-color:var(--gold2); cursor:grab;
-  box-shadow:0 16px 26px -6px rgba(0,0,0,.85), 0 30px 42px -18px rgba(0,0,0,.6), 0 0 10px rgba(255,215,0,.28);
-  animation:cardFloat 1.7s ease-in-out infinite; }
-@keyframes cardFloat {
-  0%   { transform:translateY(-10px) rotate(-.6deg); }
-  50%  { transform:translateY(-17px) rotate(.6deg); }
-  100% { transform:translateY(-10px) rotate(-.6deg); }
-}
+  z-index:30; border-color:var(--gold2); cursor:pointer;
+  box-shadow:0 12px 20px -6px rgba(0,0,0,.8), 0 0 10px rgba(255,215,0,.25); }
 .deck-empty { font-size:.8rem; color:#7d7d86; }
 .msg { min-height:18px; font-size:.8rem; color:#ff9aa8; margin-top:10px; }
 .msg.ok { color:#8ee6a8; }
@@ -211,6 +208,9 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     'https://api.ygopro3.cn/pics/siro/',
   ];
   function deckCardImg(id) {
+    var wrap = document.createElement('div');
+    wrap.className = 'card-img-wrapper';
+    wrap.setAttribute('data-card-id', String(id));
     var img = document.createElement('img');
     var step = 0;
     img.loading = 'lazy';
@@ -221,7 +221,8 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       else img.onerror = null;
     };
     img.src = CARD_PIC[0] + id + '.jpg';
-    return img;
+    wrap.appendChild(img);
+    return wrap;
   }
   function renderDeckCards(deck) {
     var box = $('deckCards');
@@ -241,6 +242,10 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     section('额外卡组', deck.extra || []);
     section('副卡组', deck.side || []);
     if (!box.children.length) box.innerHTML = '<div class="deck-empty">这套卡组是空的</div>';
+    // 老站那套悬停提示：鼠标移到卡上显示卡名/效果文本
+    if (window.DeckViewer && window.DeckViewer.attachCardHover) {
+      window.DeckViewer.attachCardHover(box);
+    }
   }
 
 
