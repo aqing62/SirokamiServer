@@ -87,6 +87,7 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
 /* 紧凑行：模式/卡组横排，去掉大片空白 */
 .row-inline { gap:10px; margin-bottom:12px; }
 .row-inline .k { flex:0 0 44px; }
+.row-inline .k-gap { margin-left:22px; }
 .row-inline select { min-width:150px; max-width:230px; flex:0 1 auto; }
 .row-inline .mode { padding:8px 16px; font-size:.88rem; }
 </style>
@@ -115,8 +116,8 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
         <button class="mode on" id="mLadder">竞技匹配（天梯）</button>
         <button class="mode" id="mTour" disabled title="开赛后公布对阵即可用">比赛模式</button>
       </div>
-    </div>
-    <div class="row row-inline"><span class="k">卡组</span>
+      <!-- 卡组就放在模式右边（同一行，和参考图里「分类 / 卡组」同一排一样） -->
+      <span class="k k-gap">卡组</span>
       <select id="deckSel"><option value="">（还没有卡组，先上传一个）</option></select>
       <button class="btn ghost" id="btnUpload">上传 / 编辑卡组(.ydk)</button>
       <input type="file" id="ydkFile" accept=".ydk,text/plain" style="display:none">
