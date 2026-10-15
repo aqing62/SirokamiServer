@@ -298,7 +298,7 @@
     var d = document.createElement('div');
     d.id = 'ypMatching';
     d.style.cssText = 'position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;'
-      + 'background:radial-gradient(900px 500px at 50% 30%, rgba(216,30,68,.16), rgba(10,10,12,.96) 62%, #0a0a0c 100%);'
+      + 'background:#0a0a0c;background-image:radial-gradient(900px 500px at 50% 30%, rgba(216,30,68,.18), rgba(10,10,12,0) 70%);'
       + 'pointer-events:none;';
     d.innerHTML = '<div style="text-align:center">'
       + '<div style="width:46px;height:46px;margin:0 auto 16px;border-radius:50%;'
