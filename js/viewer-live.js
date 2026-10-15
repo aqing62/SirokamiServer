@@ -1,0 +1,3115 @@
+/* 本文件由 make-viewer-live.mjs 从官网回放查看器生成，请勿手工编辑。
+ * 来源: D:\YGO\Server\SirokamiServer\js\replay-viewer.js
+ * 已应用补丁: liveMode 标志 / startAuto 追平等待 / 手牌屏蔽显示为盖牌 / 手牌移出按 seq 精确删 + 补位 / 回手按 seq 插位（并把后面往后挪） / UpdateData 整区重建（重连快照用） / 卡面左上角标等级 L*（调整怪黄色） / 卡离开格位时清掉该格攻守缓存（同卡号再次出场不能沿用旧个体的数值） / 补位工具函数 / cardMetaMap 带 attribute（属性角标用） / 实时接口注入
+ * 生成时间: 2026-10-15T21:05:20.969Z
+ */
+/**
+ * 白神服Sirokami — 回放播放器（雏形）
+ * 输入 R# → /api/forum/replay/:id → 消息流驱动场地状态机
+ * 左：双场地视图（卡图实时加载）  右：对局日志（每步从下弹出）
+ * 雏形版说明：能播完整一局，支持 播放/暂停/步进/倍速/拖动。
+ */
+function initReplayViewer() {
+    'use strict';
+
+    // ── 常量（YGOPro ocgcore）──
+    var LOC = {
+        DECK: 1, HAND: 2, MZONE: 4, SZONE: 8, GRAVE: 16,
+        REMOVED: 32, EXTRA: 64, OVERLAY: 128, FZONE: 256, PZONE: 512,
+    };
+    var LOC_NAME = {};
+    LOC_NAME[LOC.DECK] = '卡组'; LOC_NAME[LOC.HAND] = '手牌';
+    LOC_NAME[LOC.MZONE] = '怪兽区'; LOC_NAME[LOC.SZONE] = '魔陷区';
+    LOC_NAME[LOC.GRAVE] = '墓地'; LOC_NAME[LOC.REMOVED] = '除外';
+    LOC_NAME[LOC.EXTRA] = '额外'; LOC_NAME[LOC.OVERLAY] = '素材';
+    LOC_NAME[LOC.FZONE] = '场地'; LOC_NAME[LOC.PZONE] = '灵摆';
+
+    // 阶段（ocgcore phase 位标记值 → 中文）
+    var PHASE_NAMES = {
+        1: '抽卡阶段', 2: '准备阶段', 4: '主要阶段1',
+        8: '战斗阶段', 16: '战斗步骤', 32: '伤害步骤',
+        64: '伤害计算', 128: '战斗阶段',
+        256: '主要阶段2', 512: '结束阶段',
+    };
+
+    // 卡图源（与站内一致：DIY 图 → 官方 CDN）
+    var OCG_PIC = 'https://cdn.233.momobako.com/ygopro/pics/';
+    var SUPER_PRE_PIC = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
+    var DIY_PIC = 'https://api.ygopro3.cn/pics/siro/';
+
+    // ── DOM ──
+    var $ = function (id) { return document.getElementById(id); };
+    var inputEl = $('replayInput');
+    var loadBtn = $('replayLoadBtn');
+    var metaEl = $('replayMeta');
+    var controlsEl = $('replayControls');
+    var mainEl = $('replayMain');
+    var fieldEl = $('replayField');
+    var logBody = $('replayLogBody');
+    var playPauseBtn = $('rpPlayPause');
+    var stepBtn = $('rpStep');
+    var stepBackBtn = $('rpStepBack');
+    var progressEl = $('rpProgress');
+    var progressText = $('rpProgressText');
+
+    // ── 回放状态 ──
+    var messages = [];   // 解码后的消息 [{name,f,hex}]
+    var meta = null;
+    var idx = -1;        // 当前已播放到第几条
+    var playing = false;
+    var speed = 1;
+    var timer = 0;
+    var loaded = false;
+    var liveMode = false;      // PATCH: 实时模式（消息来自 WebSocket 而非回放 API）
+
+    // 场地状态模型（只维护回放需要的抽象位置）
+    // 简化：主控双方各一张表，键 "loc:seq"，值 {code, controller, loc, seq, faceDown}
+    var field = {
+        0: {}, 1: {},          // controller → 该玩家视角下的区（其实 loc 带 controller，这里简化按 controller 存储）
+    };
+    var lp = [8000, 8000];
+    var turnPlayer = 0;
+    var turnCount = 0;        // 当前回合数（每次 NewTurn +1）
+    var phaseText = '';
+    var deckCount = [0, 0];  // 剩余卡组张数：开局=mainc，抽卡/移出卡组递减，回卡组递增
+    var extraCount = [0, 0]; // 额外卡组张数（开局按 UpdateData(64) 列表，出场/回收增减）
+    var inBattle = false;        // 是否处于伤害步骤（战斗消息上下文）
+    var animSuppress = false;    // 进度条大跳等批量处理时关闭动画
+    var preloading = false;      // 卡图预加载中
+    var pendingMats = {};        // 额外卡组超量：召唤前先叠放的素材 "ctl:extraSeq" → {count, rects}
+    var lastLand = null;         // 最近一次怪兽落地 {code, fromExtra, idx, ctl, seq, rawLoc}
+    var pendingImpact = null;    // 攻击命中后等待"真正破坏"以同步爆炸+破碎 {code, rect, defCtl, done}
+    var lastPayLp = null;        // 最近一次支付 LP 的位置（避免 LpUpdate 重复飘字）
+
+    // 卡池索引（卡名/卡片种类查询，可选加载 /api/cards）
+    var cardNameMap = {};
+    var cardMetaMap = {};   // id → { cat, subs, level } 用于识别召唤种类
+    var cardNameLoaded = false;
+    function loadCardNames() {
+        if (cardNameLoaded) return Promise.resolve();
+        cardNameLoaded = true;
+        return fetch('/api/cards?t=' + Date.now())
+            .then(function (r) { return r.json(); })
+            .then(function (cards) {
+                cards.forEach(function (c) {
+                    var id = String(c.id);
+                    cardNameMap[id] = c.name || '';
+                    var ti = c.typeInfo || {};
+                    cardMetaMap[id] = {
+                        attribute: c.attribute || 0,   // PATCH: 属性位（1地 2水 4炎 8风 16光 32暗 64神）
+                        cat: ti.monsterCategory || '',
+                        subs: ti.subTypes || [],
+                        level: c.level || 0,
+                        atk: typeof c.atk === 'number' ? c.atk : undefined,
+                        def: typeof c.def === 'number' ? c.def : undefined,
+                    };
+                });
+            })
+            .catch(function () {});
+    }
+    function cardName(code) {
+        return cardNameMap[String(code)] || '';
+    }
+    // 召唤种类：fusion / synchro / xyz / link / pendulum / ritual / null
+    function summonTypeOf(code) {
+        var m = cardMetaMap[String(code)];
+        if (!m) return null;
+        var cat = m.cat || '';
+        var subs = m.subs || [];
+        if (cat.indexOf('连接') >= 0 || subs.indexOf('连接') >= 0) return 'link';
+        if (cat.indexOf('超量') >= 0 || subs.indexOf('超量') >= 0) return 'xyz';
+        if (cat.indexOf('同调') >= 0 || subs.indexOf('同调') >= 0) return 'synchro';
+        if (cat.indexOf('融合') >= 0 || subs.indexOf('融合') >= 0) return 'fusion';
+        if (cat.indexOf('灵摆') >= 0 || subs.indexOf('灵摆') >= 0) return 'pendulum';
+        if (cat.indexOf('仪式') >= 0 || subs.indexOf('仪式') >= 0) return 'ritual';
+        return null;
+    }
+    function cardLevel(code) {
+        var m = cardMetaMap[String(code)];
+        return (m && m.level) || 0;
+    }
+    function cardImgSrc(code) {
+        return DIY_PIC + code + '.jpg';
+    }
+
+    // ── 日志（右侧，每步插到底部并自动滚下）──
+    function log(line, cls) {
+        var div = document.createElement('div');
+        div.className = 'rp-log-line' + (cls ? ' ' + cls : '');
+        div.textContent = line;
+        logBody.appendChild(div);
+        // 保留最近 500 条
+        while (logBody.children.length > 500) logBody.removeChild(logBody.firstChild);
+        logBody.scrollTop = logBody.scrollHeight;
+    }
+
+    function logHtml(html) {
+        var div = document.createElement('div');
+        div.className = 'rp-log-line';
+        div.innerHTML = html;
+        logBody.appendChild(div);
+        while (logBody.children.length > 500) logBody.removeChild(logBody.firstChild);
+        logBody.scrollTop = logBody.scrollHeight;
+    }
+
+    // ── 场地渲染：持久 DOM + 分区局部更新（避免整场重建导致卡图闪烁）──
+    var zoneEls = {};   // "c:loc:seq" → 格子容器（手牌/怪兽/魔陷）
+    var midEls = {};    // "grave:c"/"deck:c" → 中间墓地/卡组容器
+    var phaseEl = null;
+    var turnLabelEl = null;
+    var lpEls = {};
+    var playerNameEls = {};
+    var boardEl = null;     // 整个场地棋盘容器（用于整体缩放防滚动条）
+    var cardDomCache = {}; // code → 已创建的 img src（内存缓存避免闪）
+
+    // 场地棋盘按播放器窗口自动缩放：整体缩小到刚好放下，不出现滚动条
+    // zoom 会参与布局（transform: scale 不会），用 zoom 才能让场地框高度贴合实际画面、不出现上下空白
+    var ZOOM_OK = (function () {
+        try { return !!(window.CSS && CSS.supports && CSS.supports('zoom', '0.5')); } catch (e) { return false; }
+    })();
+
+    function fitBoard() {
+        if (!boardEl || !fieldEl.clientWidth) return;
+        var availW = fieldEl.clientWidth - 12;
+        var availH = fieldEl.clientHeight - 12;
+        var bw = boardEl.scrollWidth || boardEl.offsetWidth;
+        var bh = boardEl.scrollHeight || boardEl.offsetHeight;
+        if (!bw || !bh) return;
+        var k = Math.min(1, availW / bw, availH / bh);
+        if (ZOOM_OK) {
+            boardEl.style.zoom = k < 1 ? String(k) : '';
+            boardEl.style.transform = '';
+        } else {
+            boardEl.style.transform = k < 1 ? 'scale(' + k + ')' : '';
+        }
+    }
+
+    function createFieldDOM() {
+        // 上=对手(P1)，下=自己(P0)
+        // 行 = [外轨][5格][外轨]：对手的牌堆凸在左外轨、自己凸在右外轨，对侧外轨留空，
+        //     因此双方 5 格怪兽/魔陷列上下对齐（对称）。
+        // 中线行：除外P1(左外轨) | 额外区P1 | 回合/阶段 | 额外区P0 | 除外P0(右外轨)
+        var html =
+            '<div class="rp-board">'
+            + '<div class="rp-side rp-opp">' + sideSkeleton(1, true) + '</div>'
+            + '<div class="rp-row rp-centerband">'
+            + '<div class="rp-cell rp-pile rp-pile-removed" data-pile="removed:1"></div>'
+            + '<div class="rp-mid-zone">'
+            + '<div class="rp-rail-void"></div>'
+            + '<div class="rp-cell rp-emz-cell" data-zone="emz:L" title="额外怪兽区(共用)"></div>'
+            + '<div class="rp-mid-info"><span class="rp-turn-label"></span><span class="rp-phase"></span></div>'
+            + '<div class="rp-cell rp-emz-cell" data-zone="emz:R" title="额外怪兽区(共用)"></div>'
+            + '<div class="rp-rail-void"></div>'
+            + '</div>'
+            + '<div class="rp-cell rp-pile rp-pile-removed" data-pile="removed:0"></div>'
+            + '</div>'
+            + '<div class="rp-side rp-self">' + sideSkeleton(0, false) + '</div>'
+            + '</div>';
+        fieldEl.innerHTML = html;
+        boardEl = fieldEl.querySelector('.rp-board');
+
+        // 收集引用
+        zoneEls = {};
+        fieldEl.querySelectorAll('[data-zone]').forEach(function (el) {
+            zoneEls[el.getAttribute('data-zone')] = el;
+        });
+        phaseEl = fieldEl.querySelector('.rp-phase');
+        turnLabelEl = fieldEl.querySelector('.rp-turn-label');
+        lpEls[0] = fieldEl.querySelector('[data-lp="0"]');
+        lpEls[1] = fieldEl.querySelector('[data-lp="1"]');
+        playerNameEls[0] = fieldEl.querySelector('[data-pname="0"]');
+        playerNameEls[1] = fieldEl.querySelector('[data-pname="1"]');
+        // 边侧牌堆格子：墓地/卡组（各2）+ 除外（中线行2）
+        midEls = {};
+        fieldEl.querySelectorAll('[data-pile]').forEach(function (el) {
+            midEls[el.getAttribute('data-pile')] = el;
+        });
+        renderPlayerHead(0);
+        renderPlayerHead(1);
+        updateAllZones();
+        fitBoard();
+    }
+
+    // 一侧场地骨架：名签 + 手牌 + 行(怪兽/魔陷 与 墓地/卡组 同格并排)
+    function sideSkeleton(controller, isOpp) {
+        // 名签：纵向排列，名字在上 LP 在下；对手挂右上角，自己挂左下角
+        var nameTag = '<div class="rp-nametag ' + (isOpp ? 'rp-nametag-opp' : 'rp-nametag-self') + '">'
+            + '<span class="rp-player-name" data-pname="' + controller + '"></span>'
+            + '<span class="rp-lp" data-lp="' + controller + '"></span>'
+            + '</div>';
+
+        function zoneRow(loc, count, mirrored) {
+            // 对手半场镜像：与游戏客户端一致（对手的 zone 4 显示在最左，zone 0 在最右），
+            // 这样"对手在自己视角最左边放的怪"在观战者画面里出现在右边，与客户端一致
+            var cells = '';
+            var order = [];
+            for (var i = 0; i < count; i++) order.push(i);
+            if (mirrored) order.reverse();
+            for (var k = 0; k < order.length; k++) {
+                cells += '<div class="rp-cell" data-zone="' + controller + ':' + loc + ':' + order[k] + '"></div>';
+            }
+            return cells;
+        }
+        var mzone = zoneRow(LOC.MZONE, 5, isOpp);
+        var szone = zoneRow(LOC.SZONE, 5, isOpp);
+        var hand = '<div class="rp-hand" data-zone="' + controller + ':' + LOC.HAND + '"></div>';
+        var mzoneRow = '<div class="rp-fieldrow rp-mzone">' + mzone + '</div>';
+        var szoneRow = '<div class="rp-fieldrow rp-szone">' + szone + '</div>';
+        // 牌堆/场地区：与同行格子同尺寸贴在外轨
+        //   自己：怪兽行 [场地|怪兽×5|墓地]，魔陷行 [额外|魔陷×5|卡组]；对手左右镜像
+        var graveCell = '<div class="rp-cell rp-pile rp-pile-grave" data-pile="grave:' + controller + '"></div>';
+        var deckCell = '<div class="rp-cell rp-pile rp-pile-deck" data-pile="deck:' + controller + '"></div>';
+        var extraCell = '<div class="rp-cell rp-pile rp-pile-extra" data-pile="extra:' + controller + '"></div>';
+        var fieldCell = '<div class="rp-cell rp-field-cell" data-zone="' + controller + ':' + LOC.SZONE + ':5"></div>';
+
+        if (isOpp) {
+            // 对手(镜像)：手牌(顶) → [卡组|魔陷×5|额外] → [墓地|怪兽×5|场地]
+            return nameTag
+                + hand
+                + '<div class="rp-row">' + deckCell + szoneRow + extraCell + '</div>'
+                + '<div class="rp-row">' + graveCell + mzoneRow + fieldCell + '</div>';
+        }
+        // 自己：[场地|怪兽×5|墓地] → [额外|魔陷×5|卡组] → 手牌(底)
+        return nameTag
+            + '<div class="rp-row">' + fieldCell + mzoneRow + graveCell + '</div>'
+            + '<div class="rp-row">' + extraCell + szoneRow + deckCell + '</div>'
+            + hand;
+    }
+
+    // 中间回合标签：回合方 + 回合数（如 我方回合3）
+    function renderTurnLabel() {
+        if (!turnLabelEl) return;
+        var who = turnPlayer === 0 ? '我方' : '对方';
+        turnLabelEl.textContent = turnCount ? who + '回合' + turnCount : who + '回合';
+    }
+
+    function renderPlayerHead(controller) {
+        var p = playerByDuelPos(controller);
+        var name = p ? (p.realName || p.name || '') : '';
+        var pEl = playerNameEls[controller];
+        if (pEl) pEl.textContent = name || ('玩家' + (controller + 1));
+        if (lpEls[controller]) lpEls[controller].textContent = 'LP ' + lp[controller];
+    }
+
+    function updateAllZones() {
+        [0, 1].forEach(function (c) {
+            [LOC.HAND, LOC.MZONE, LOC.SZONE].forEach(function (loc) {
+                updateZone(c, loc);
+            });
+        });
+        updatePiles();
+        refreshEmz();
+        // 阶段/回合
+        if (phaseEl) phaseEl.textContent = phaseText || '对局开始';
+        renderTurnLabel();
+        // 高亮当前回合玩家
+        [0, 1].forEach(function (c) {
+            var side = fieldEl.querySelector(c === 1 ? '.rp-opp' : '.rp-self');
+            if (side) side.classList.toggle('rp-active-side', turnPlayer === c);
+        });
+    }
+
+    // 额外怪兽区：两格共用。核心按“各玩家自己视角”编号：
+    //   P0：左=seq5 右=seq6；P1：左=seq6 右=seq5（左格=emz:L，右格=emz:R）
+    function refreshEmz() {
+        function content(candidates) {
+            for (var i = 0; i < candidates.length; i++) {
+                var ctl = candidates[i][0];
+                var seq = candidates[i][1];
+                var t = field[ctl];
+                var cd = t ? t[LOC.MZONE + ':' + seq] : null;
+                if (cd) return { card: cd, flip: ctl === 1, ctl: ctl, seq: seq };
+            }
+            return null;
+        }
+        var L = content([[0, 5], [1, 6]]);
+        var R = content([[0, 6], [1, 5]]);
+        setCellCard(zoneEls['emz:L'], L ? L.card : null, L ? L.flip : false, L ? isDefense(L.card.pos) : false,
+            L ? (L.ctl + ':' + LOC.MZONE + ':5') : null, true);
+        setCellCard(zoneEls['emz:R'], R ? R.card : null, R ? R.flip : false, R ? isDefense(R.card.pos) : false,
+            R ? (R.ctl + ':' + LOC.MZONE + ':5') : null, true);
+    }
+
+    // 侧边牌堆格子：墓地/除外 = 计数徽标 + 最顶卡（里侧则盖牌）；卡组 = 计数 + 卡背
+    // 内容未变（_sig 相同）时跳过重绘，避免每步闪烁
+    function fillPile(el, sig, badge, card, flip) {
+        if (!el) return;
+        if (el._sig === sig) return;
+        giveImgsIn(el);
+        el.innerHTML = '';
+        if (badge) {
+            var b = document.createElement('span');
+            b.className = 'rp-pile-count';
+            b.textContent = badge;
+            el.appendChild(b);
+        }
+        if (card) el.appendChild(cardNode(card, flip));
+        el._sig = sig;
+    }
+    function updatePiles() {
+        [0, 1].forEach(function (c) {
+            var gc = locCards(c, LOC.GRAVE);
+            var gtop = gc[gc.length - 1];
+            fillPile(midEls['grave:' + c],
+                'g' + gc.length + '|' + (gtop ? (gtop.code + (gtop.faceDown ? 'd' : 'u')) : ''),
+                gc.length ? String(gc.length) : null,
+                gc.length ? gtop : null,
+                !!(c === 1 && gtop && !gtop.faceDown));
+            var dcount = deckCount[c] || 0;
+            fillPile(midEls['deck:' + c],
+                'd' + dcount,
+                String(dcount),
+                dcount ? { code: 0, faceDown: true } : null,
+                false);
+            var xcount = extraCount[c] || 0;
+            fillPile(midEls['extra:' + c],
+                'x' + xcount,
+                String(xcount),
+                xcount ? { code: 0, faceDown: true } : null,
+                false);
+            var bc = locCards(c, LOC.REMOVED);
+            var btop = bc[bc.length - 1];
+            fillPile(midEls['removed:' + c],
+                'r' + bc.length + '|' + (btop ? (btop.code + (btop.faceDown ? 'd' : 'u')) : ''),
+                bc.length ? String(bc.length) : null,
+                bc.length ? btop : null,
+                !!(c === 1 && btop && !btop.faceDown));
+        });
+    }
+
+    // 更新某玩家某区：手牌签名比对（未变不重绘，防每步闪）；场上逐格精确填
+    // 对手(controller=1)的正面场上卡上下倒置，方便区分归属；手牌不倒
+    function updateZone(controller, loc) {
+        if (loc === LOC.HAND) {
+            var container = zoneEls[controller + ':' + LOC.HAND];
+            if (!container) return;
+            var cards = locCards(controller, LOC.HAND);
+            var sig = cards.map(function (c) { return c.code + (c.faceDown ? 'd' : 'u'); }).join(',');
+            if (container._sig === sig) return;
+            giveImgsIn(container);
+            container.innerHTML = '';
+            cards.forEach(function (card) { container.appendChild(cardNode(card, false)); });
+            container._sig = sig;
+            return;
+        }
+        // MZONE / SZONE：按 sequence 逐格
+        for (var seq = 0; seq < 5; seq++) {
+            var cellKey = controller + ':' + loc + ':' + seq;
+            var cell = zoneEls[cellKey];
+            var card = cell ? (field[controller] ? field[controller][loc + ':' + seq] : null) : null;
+            setCellCard(cell, card, controller === 1 && !!card && !card.faceDown,
+                !!card && loc === LOC.MZONE && isDefense(card.pos),   // 只有怪兽区守备横置
+                cellKey, loc === LOC.MZONE);                          // 只有怪兽区显示攻守
+        }
+        // 场地区：魔陷区的 seq=5 格（场地魔法）单独显示在怪兽行外轨
+        if (loc === LOC.SZONE) {
+            var fKey = controller + ':' + LOC.SZONE + ':5';
+            var fCell = zoneEls[fKey];
+            var fCard = field[controller] ? field[controller][LOC.SZONE + ':5'] : null;
+            setCellCard(fCell, fCard, controller === 1 && !!fCard && !fCard.faceDown, false, fKey, false);   // 场地/魔陷不倒不横置、不显示攻守
+        }
+    }
+
+    // 卡图节点池：同一卡号复用已解码的 <img>，离场回收、再上场直接取用（不再重新加载）
+    var cardImgs = {};
+    // 卡图回退链：DIY → 先行(SuperPre) → OCG → moecube 镜像1/2/3 → cover.jpg
+    function picChain(code) {
+        return [
+            cardImgSrc(code),
+            SUPER_PRE_PIC + code + '.jpg',
+            OCG_PIC + code + '.jpg',
+            'https://cdn01.moecube.com:444/ygopro/pics/' + code + '.jpg',
+            'https://cdn02.moecube.com:444/ygopro/pics/' + code + '.jpg',
+            'https://cdn03.moecube.com:444/ygopro/pics/' + code + '.jpg',
+            'cover2.jpg'
+        ];
+    }
+    function wireImgChain(im, code) {
+        var chain = picChain(code);
+        var i = 0;
+        im.onerror = function () {
+            i++;
+            if (i < chain.length) im.src = chain[i];
+        };
+    }
+    function buildCardImg(code) {
+        var im = document.createElement('img');
+        im._code = code;
+        wireImgChain(im, code);
+        im.src = cardImgSrc(code);
+        return im;
+    }
+    function takeImg(code) {
+        var arr = cardImgs[code];
+        if (arr && arr.length) return arr.pop();
+        return buildCardImg(code);
+    }
+    function giveImg(code, im) {
+        if (!im) return;
+        if (im.parentNode) im.parentNode.removeChild(im);
+        (cardImgs[code] || (cardImgs[code] = [])).push(im);
+    }
+    function giveImgsIn(el) {
+        if (!el) return;
+        var imgs = el.querySelectorAll('img');
+        for (var i = 0; i < imgs.length; i++) {
+            var im = imgs[i];
+            giveImg(im._code !== undefined ? im._code : 0, im);
+        }
+    }
+
+    // 生成卡牌外层节点（正面图从池中取；盖牌/卡背无 img 节点）
+    // flip=true：正面卡上下倒置（用于区分对手的卡；手牌不做）
+    // def=true：守备表示 → 横置
+    function cardNode(card, flip, def) {
+        var w = document.createElement('div');
+        w.className = 'rp-card';
+        if (!card) { w.className += ' rp-card-empty'; return w; }
+        if (card.faceDown) { w.className += ' rp-card-down'; w.title = '盖牌'; }
+        else {
+            var nm = cardName(card.code);
+            w.title = escapeHtml(nm || card.code);
+            w.appendChild(takeImg(card.code));
+            // PATCH: 等级角标**不放在卡面里** —— 守备表示时卡面会 rotate(-90deg)，
+            //   角标在卡内就会跟着转走（玩家实测："守备怪兽的等级应该保持在左上角"）。
+            //   → 角标改由 setCellCard() 挂到**格位**上（格位不旋转）。
+        }
+        if (def) w.className += ' rp-def';
+        if (flip) w.className += ' rp-flip';
+        return w;
+    }
+
+    // 单元格精确更新：同卡同状态/同朝向/同素材数/同攻守数据不动 DOM；否则重建并回收旧图
+    // statKey: "ctl:loc:seq"，用于查该格实时攻守数据
+    function setCellCard(cell, card, flip, def, statKey, withStat) {
+        if (!cell) return;
+        if (card) {
+            var f = !!flip, d = !!def;
+            var mats = card.mats || 0;
+            var st = (!card.faceDown && statKey) ? statFor(statKey, card.code) : null;
+            // PATCH: 是否算"调整"来自实时类型(type & 0x1000)，而 statFor() 的返回值不含 type ✗
+            //   → 只把 statSig(st) 当签名时，"被效果赋予调整"这类**只变 type** 的更新不会触发重建，
+            //   角标颜色就永远不变（玩家实测：强袭黑羽·泪雨之千鸟刀鸟 应显示为调整却仍是白色）。
+            var __tunBit = 0;
+            try {
+                var __rr = cardStatByKey[statKey];
+                if (__rr && typeof __rr.type === 'number') __tunBit = (__rr.type & 0x1000) ? 1 : 0;
+            } catch (e) {}
+            var sig = statSig(st) + '|t' + __tunBit;
+            // PATCH: 等级/攻守被效果改过时，角标要显示**当前**等级（取实时 stat，取不到才用基础值）
+            var __liveLv = null;
+            try {
+                if (!card.faceDown && statKey) {
+                    var __st = statFor(statKey, card.code);
+                    if (__st && typeof __st.level === 'number' && __st.level) __liveLv = __st.level;
+                }
+            } catch (e) {}
+            if (__liveLv) {
+                var __lb2 = cell.querySelector('.rp-lv');
+                if (__lb2 && __lb2.textContent !== ('L' + __liveLv)) {
+                    __lb2.textContent = 'L' + __liveLv;
+                    cell._statSig = '';           // 触发重建，让下面那段重画时带上新等级
+                }
+            }
+            if (cell._code === card.code && cell._down === !!card.faceDown && cell._flip === f
+                && cell._def === d && cell._mats === mats && cell._statSig === sig
+                && cell.querySelector('.rp-card') && cell.style.opacity !== '0') return;
+            giveImgsIn(cell);
+            cell.innerHTML = '';
+            cell.appendChild(cardNode(card, f, d));
+            // PATCH: 等级角标挂在**格位**上（不随卡面旋转）——
+            //   守备表示时卡面会 rotate(-90deg)，角标若在卡内就跟着转走
+            //   （玩家实测："守备怪兽的等级应该保持在左上角，而不是卡图的左上角"）。
+            (function () {
+                // PATCH: 右上角**属性角标**（和等级同款；挂格位上、不随卡面旋转 ✓）
+                //   玩家要求：有些卡会"当作送去墓地那只的属性"使用，前端必须能看到属性；
+                //   风地炎水光暗不同颜色，位置和等级差不多 ✓
+                var __am = cardMetaMap[String(card.code)];
+                var __ab = (card.faceDown || !__am) ? 0 : (__am.attribute || 0);
+                var __aOld = cell.querySelector('.rp-attr');
+                var __keys = [1, 2, 4, 8, 16, 32, 64];
+                var __names = ['地', '水', '炎', '风', '光', '暗', '神'];
+                var __cls = ['earth', 'water', 'fire', 'wind', 'light', 'dark', 'divine'];
+                var __ai = __keys.indexOf(__ab);
+                if (__ai < 0) { if (__aOld) __aOld.parentNode.removeChild(__aOld); }
+                else {
+                    var __a = __aOld || document.createElement('span');
+                    __a.className = 'rp-attr rp-attr-' + __cls[__ai];
+                    __a.textContent = __names[__ai];
+                    __a.title = '属性：' + __names[__ai];
+                    if (!__aOld) cell.appendChild(__a);
+                }
+                var _meta = cardMetaMap[String(card.code)];
+                var _lv = (card.faceDown || !_meta || !_meta.level) ? 0 : _meta.level;
+                var _old = cell.querySelector('.rp-lv');
+                if (!_lv) { if (_old) _old.parentNode.removeChild(_old); return; }
+                var _isT = ((_meta.subs) || []).indexOf('调整') >= 0;
+                var _lb = _old || document.createElement('span');
+                _lb.className = 'rp-lv' + (_isT ? ' rp-lv-tuner' : '');
+                _lb.textContent = 'L' + _lv;
+                _lb.title = (_isT ? '调整怪 · ' : '') + '等级 ' + _lv;
+                if (!_old) cell.appendChild(_lb);
+            })();
+            // PATCH: 效果改过等级（如黑羽-沙尘之哈麦丹 以 2 星怪兽为对象把自身等级 +2）时，
+            // 角标要显示**当前**等级 —— 取实时 stat，取不到就用卡表基础值（实测玩家指出过 ✗）。
+            try {
+                if (!card.faceDown && statKey) {
+                    var __lv2 = statFor(statKey, card.code);
+                    var __lb3 = cell.querySelector('.rp-lv');
+                    if (__lb3) {
+                        if (__lv2 && typeof __lv2.level === 'number' && __lv2.level) {
+                            __lb3.textContent = 'L' + __lv2.level;
+                            __lb3.title = '等级 ' + __lv2.level + '（实时）';
+                        }
+                        // 是否算"调整"要看**实时类型**（效果可动态赋予调整 0x1000）。
+                        // ⚠ 注意：statFor() 的返回对象是"挑选过的字段"，**不含 type** —— 必须直接读该格缓存记录。
+                        var __rec = cardStatByKey[statKey];
+                        var __isT = null;
+                        if (__rec && typeof __rec.type === 'number') __isT = (__rec.type & 0x1000) !== 0;
+                        if (__isT === null) {
+                            var __mm2 = cardMetaMap[String(card.code)];
+                            __isT = (((__mm2 && __mm2.subs) || []).indexOf('调整') >= 0);
+                        }
+                        __lb3.classList.toggle('rp-lv-tuner', !!__isT);
+                        __lb3.title = (__isT ? '调整怪 · ' : '') + __lb3.textContent.replace('L', '等级 ') + '（实时）';
+                    }
+                }
+            } catch (e) {}
+            if (mats > 0) {
+                var mb = document.createElement('span');
+                mb.className = 'rp-mats';
+                mb.textContent = '◆' + mats;   // 超量素材数
+                mb.title = '超量素材 ' + mats;
+                cell.appendChild(mb);
+            }
+            // 攻守角标 + 连接标记箭头（仅怪兽区；魔陷/场地区不显示攻守）
+            var isMonsterStat = st && (st.type === undefined || (st.type & 0x1) !== 0);
+            if (withStat && st && isMonsterStat) {
+                var badge = document.createElement('span');
+                var isLink = !!st.link;
+                var cur = st.atk;
+                var base = st.batk;
+                var txt;
+                if (isLink) {
+                    txt = (cur !== undefined ? cur : '?') + ' / L' + st.link;
+                } else if (st.def !== undefined) {
+                    txt = (cur !== undefined ? cur : '?') + ' / ' + st.def;
+                } else if (cur !== undefined) {
+                    txt = String(cur);          // 守备力未知时只显示攻击力，不显示 "?"
+                } else {
+                    txt = '';
+                }
+                if (txt) {
+                    badge.className = 'rp-stat' + (d ? ' def-pos' : '')
+                        + ((base !== undefined && cur !== undefined && base !== cur) ? ' atk-up' : '');
+                    badge.textContent = txt;
+                    badge.title = (cardName(card.code) || card.code)
+                        + (isLink ? ('  攻击 ' + cur + '  连接 ' + st.link)
+                            : ('  攻击 ' + cur + (st.def !== undefined ? '  守备 ' + st.def : '  守备 ?')))
+                        + (base !== undefined ? ('  (基础 ' + base + '/' + (st.bdef !== undefined ? st.bdef : '?') + ')') : '');
+                    cell.appendChild(badge);
+                }
+                if (isLink && st.marker) {
+                    var marks = linkMarkerDirs(st.marker, f);
+                    marks.forEach(function (dir) {
+                        var a = document.createElement('i');
+                        a.className = 'rp-lmark ' + dir;
+                        cell.appendChild(a);
+                    });
+                }
+            }
+            cell._code = card.code;
+            cell._down = !!card.faceDown;
+            cell._flip = f;
+            cell._def = d;
+            cell._mats = mats;
+            cell._statSig = sig;
+            cell.style.opacity = cell._fxHold ? '0' : '';   // 召唤演出期间可临时隐藏该格
+            if (!card.faceDown) warmCardImg(card.code);
+        } else {
+            if (cell._code !== undefined || cell.innerHTML !== '') {
+                giveImgsIn(cell);
+                cell.innerHTML = '';
+                cell._code = null;
+                cell._down = false;
+                cell._flip = false;
+                cell._def = false;
+                cell._mats = 0;
+                cell._statSig = '';
+            }
+        }
+    }
+
+    // 连接标记位 → 方向类名；对手的卡整体倒置，上下需要互换
+    function linkMarkerDirs(marker, mirrorV) {
+        var map = [
+            [LMARK.TOP, 'top'], [LMARK.BOTTOM, 'bottom'], [LMARK.LEFT, 'left'], [LMARK.RIGHT, 'right'],
+            [LMARK.TL, 'tl'], [LMARK.TR, 'tr'], [LMARK.BL, 'bl'], [LMARK.BR, 'br'],
+        ];
+        var out = [];
+        map.forEach(function (pair) {
+            if (!(marker & pair[0])) return;
+            var dir = pair[1];
+            if (mirrorV) {
+                dir = dir.replace('top', '@').replace('bottom', 'top').replace('@', 'bottom')
+                    .replace('tl', '@').replace('bl', 'tl').replace('@', 'bl')
+                    .replace('tr', '@').replace('br', 'tr').replace('@', 'br');
+            }
+            out.push(dir);
+        });
+        return out;
+    }
+
+    function locCards(controller, loc) {
+        var out = [];
+        var pfx = loc + ':';
+        Object.keys(field[controller] || {}).forEach(function (k) {
+            if (k.indexOf(pfx) === 0) out.push(field[controller][k]);
+        });
+        out.sort(function (a, b) { return a.seq - b.seq; });
+        return out;
+    }
+
+    function countLoc(controller, loc) {
+        var pfx = loc + ':';
+        var n = 0;
+        Object.keys(field[controller] || {}).forEach(function (k) {
+            if (k.indexOf(pfx) === 0) n++;
+        });
+        return n;
+    }
+
+    // 闪烁根治：预加载 + 缓存图片（防止每条消息重建触发加载闪烁）
+    var imgLoading = {};
+    function warmCardImg(code) {
+        if (imgLoading[code] || cardDomCache[code]) return;
+        imgLoading[code] = true;
+        var trySrcs = picChain(code).slice(0, 6);   // 依次尝试各图源（不含最终 cover）
+        var attempt = 0;
+        var tryNext = function () {
+            if (attempt >= trySrcs.length) { cardDomCache[code] = 'cover2.jpg'; return; }
+            var im = new Image();
+            var src = trySrcs[attempt++];
+            im.onload = function () { cardDomCache[code] = src; };
+            im.onerror = tryNext;
+            im.src = src;
+        };
+        tryNext();
+    }
+    function warmAllVisible() {
+        [0, 1].forEach(function (c) {
+            Object.keys(field[c] || {}).forEach(function (k) {
+                var card = field[c][k];
+                if (card && card.code && !card.faceDown) warmCardImg(card.code);
+            });
+        });
+    }
+
+    // ── 动画系统：全部用视口坐标（棋盘被 fitBoard 缩放时 getBoundingClientRect 自动换算）──
+    function isVisibleLoc(l) { return l === LOC.HAND || l === LOC.MZONE || l === LOC.SZONE; }
+    function emzKey(ctl, seq) {
+        // P0：左=5 右=6；P1：左=6 右=5
+        return ctl === 0 ? (seq === 5 ? 'emz:L' : 'emz:R') : (seq === 5 ? 'emz:R' : 'emz:L');
+    }
+    function rectAt(ctl, locRaw, seq) {
+        var l2 = locRaw & 0xff;
+        if (l2 === LOC.HAND) {
+            var cont = zoneEls[ctl + ':' + LOC.HAND];
+            if (!cont || !cont.children.length) return null;
+            var cards = locCards(ctl, LOC.HAND);
+            var i = 0;
+            for (; i < cards.length; i++) { if (cards[i].seq === seq) break; }
+            if (i >= cards.length || i >= cont.children.length) return null;
+            return cont.children[i].getBoundingClientRect();
+        }
+        if (l2 === LOC.MZONE && seq >= 5) {
+            var cellE = zoneEls[emzKey(ctl, seq)];
+            return cellE ? cellE.getBoundingClientRect() : null;
+        }
+        if (l2 === LOC.SZONE && seq === 5) {
+            var fcell = zoneEls[ctl + ':' + LOC.SZONE + ':5'];
+            return fcell ? fcell.getBoundingClientRect() : null;
+        }
+        if (l2 === LOC.GRAVE || l2 === LOC.REMOVED || l2 === LOC.DECK || l2 === LOC.EXTRA) {
+            var pileName = l2 === LOC.GRAVE ? 'grave' : (l2 === LOC.REMOVED ? 'removed' : (l2 === LOC.DECK ? 'deck' : 'extra'));
+            var pel = midEls[pileName + ':' + ctl];
+            return pel ? pel.getBoundingClientRect() : null;
+        }
+        var cell = zoneEls[ctl + ':' + l2 + ':' + seq];
+        return cell ? cell.getBoundingClientRect() : null;
+    }
+    // 取格子元素（与 rectAt 同样的定位规则，用于临时隐藏/高亮）
+    function cellElFor(ctl, locRaw, seq) {
+        var l2 = locRaw & 0xff;
+        if (l2 === LOC.MZONE && seq >= 5) return zoneEls[emzKey(ctl, seq)] || null;
+        if (l2 === LOC.SZONE && seq === 5) return zoneEls[ctl + ':' + LOC.SZONE + ':5'] || null;
+        return zoneEls[ctl + ':' + l2 + ':' + seq] || null;
+    }
+    // 手牌来源格：按卡号定位（不依赖 seq，防止压缩/洗牌后错位导致没动画）
+    function rectAtHandByCode(ctl, code) {
+        var cont = zoneEls[ctl + ':' + LOC.HAND];
+        if (!cont || !cont.children.length || !code) return null;
+        var cards = locCards(ctl, LOC.HAND);
+        for (var i = 0; i < cards.length; i++) {
+            if (cards[i].code === code && cont.children[i]) return cont.children[i].getBoundingClientRect();
+        }
+        return null;
+    }
+    // 阶段横幅：画面中央从左滑入 → 停留 → 向右滑出消失
+    function phaseBanner(text) {
+        if (animSuppress || !text) return;
+        var pane = fieldEl.getBoundingClientRect();
+        var b = fxEl('rp-phase-banner');
+        b.textContent = text;
+        b.style.left = (pane.left + pane.width / 2) + 'px';
+        b.style.top = (pane.top + pane.height / 2) + 'px';
+        b.style.transform = 'translate(-50%,-50%) translateX(-130%)';
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                b.style.transform = 'translate(-50%,-50%) translateX(0)';
+            });
+        });
+        setTimeout(function () {
+            b.style.transform = 'translate(-50%,-50%) translateX(130%)';
+            b.style.opacity = '0';
+            setTimeout(function () { if (b.parentNode) b.parentNode.removeChild(b); }, 340);
+        }, 640);
+    }
+
+    // 翻开盖卡：卡片 3D 翻转（盖牌→正面）
+    function flipRevealFx(rect, cardCode) {
+        if (animSuppress || !rect || !rect.width || !cardCode) return;
+        var wrap = fxEl('rp-flip3d', rect.width, rect.height, rect.left, rect.top);
+        var inner = document.createElement('div');
+        inner.className = 'rp-flip3d-inner';
+        var back = document.createElement('div');
+        back.className = 'rp-flip3d-face rp-flip3d-back';
+        var front = document.createElement('div');
+        front.className = 'rp-flip3d-face rp-flip3d-front';
+        var im = document.createElement('img');
+        wireImgChain(im, cardCode);
+        im.src = cardImgSrc(cardCode);
+        front.appendChild(im);
+        inner.appendChild(back);
+        inner.appendChild(front);
+        wrap.appendChild(inner);
+        document.body.appendChild(wrap);
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                inner.style.transform = 'rotateY(180deg)';
+            });
+        });
+        setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 460);
+    }
+
+    // 通用特效节点（fixed 定位，视口坐标）
+    function fxEl(cls, w, h, left, top) {
+        var el = document.createElement('div');
+        el.className = cls;
+        if (w) el.style.width = w + 'px';
+        if (h) el.style.height = h + 'px';
+        el.style.left = left + 'px';
+        el.style.top = top + 'px';
+        document.body.appendChild(el);
+        return el;
+    }
+
+    // 超量叠放：素材卡飞向宿主并缩小叠入
+    function overlayStackFx(srcRect, dstRect, cardCode) {
+        if (animSuppress || !srcRect || !dstRect || !srcRect.width || !dstRect.width) return;
+        var g = fxEl('rp-fly', srcRect.width, srcRect.height, srcRect.left, srcRect.top);
+        g.style.transition = 'none';   // 用 WAAPI 精确控制
+        if (cardCode) {
+            var im = document.createElement('img');
+            wireImgChain(im, cardCode);
+            im.src = cardImgSrc(cardCode);
+            g.appendChild(im);
+        }
+        var tx = (dstRect.left + dstRect.width / 2) - srcRect.width / 2 - srcRect.left;
+        var ty = (dstRect.top + dstRect.height / 2) - srcRect.height / 2 - srcRect.top;
+        function done() { if (g.parentNode) g.parentNode.removeChild(g); }
+        try {
+            g.animate([
+                { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                { transform: 'translate(' + tx + 'px,' + ty + 'px) scale(0.55)', opacity: 1, offset: 0.7 },
+                { transform: 'translate(' + tx + 'px,' + ty + 'px) scale(0.28)', opacity: 0, offset: 1 }
+            ], { duration: 330, easing: 'cubic-bezier(.3,.7,.4,1)' }).onfinish = done;
+        } catch (e) { /* 忽略 */ }
+        setTimeout(done, 430);
+    }
+
+    // ══════════ 召唤演出（融合/同调/超量/灵摆/连接）══════════
+    var matBuf = [];   // 最近用于召唤的素材：{code, rect, idx}
+
+    function pushMat(code, rect) {
+        if (!rect) return;
+        matBuf.push({ code: code, rect: rect, idx: idx });
+        if (matBuf.length > 12) matBuf.shift();
+    }
+    function takeMats() {
+        var out = matBuf.filter(function (m) { return idx - m.idx <= 14; });
+        matBuf = [];
+        return out;
+    }
+    function centerOf(rect) { return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; }
+
+    // 单颗光球（含拖尾）从 (sx,sy) 飞向 target
+    function spawnOrbGroup(sx, sy, target, color, swirl, delay0) {
+        var dx = target.x - sx, dy = target.y - sy;
+        var near = Math.sqrt(dx * dx + dy * dy) < 45;
+        var dur = near ? 780 : 560;
+        for (var t = 0; t < 3; t++) {
+            (function (sx0, sy0, dx0, dy0, delay, size, alpha, isNear, durMs) {
+                setTimeout(function () {
+                    var o = fxEl('rp-orb', size, size, sx0 - size / 2, sy0 - size / 2);
+                    o.style.background = color;
+                    o.style.boxShadow = '0 0 12px 4px ' + color;
+                    o.style.opacity = String(alpha);
+                    var frames;
+                    if (isNear) {
+                        frames = [
+                            { transform: 'translate(0px,0px) scale(1)', opacity: alpha, offset: 0 },
+                            { transform: 'translate(-86px,-60px) scale(1.12)', opacity: alpha, offset: 0.36 },
+                            { transform: 'translate(-48px,-104px) scale(1.05)', opacity: alpha, offset: 0.6 },
+                            { transform: 'translate(12px,-42px) scale(0.85)', opacity: alpha * 0.85, offset: 0.84 },
+                            { transform: 'translate(0px,0px) scale(0.2)', opacity: 0, offset: 1 }
+                        ];
+                    } else {
+                        var midX = dx0 * 0.45 + (swirl ? dy0 * 0.22 : 0);
+                        var midY = dy0 * 0.45 - (swirl ? dx0 * 0.22 : 0);
+                        frames = [
+                            { transform: 'translate(0px,0px) scale(1)', opacity: alpha, offset: 0 },
+                            { transform: 'translate(' + midX + 'px,' + midY + 'px) scale(1.15)', opacity: alpha, offset: 0.55 },
+                            { transform: 'translate(' + dx0 + 'px,' + dy0 + 'px) scale(0.2)', opacity: 0, offset: 1 }
+                        ];
+                    }
+                    var anim = null;
+                    try {
+                        anim = o.animate(frames, { duration: durMs, easing: 'cubic-bezier(.35,.6,.35,1)' });
+                    } catch (e) { /* ignore */ }
+                    if (anim) { anim.onfinish = function () { if (o.parentNode) o.parentNode.removeChild(o); }; }
+                    setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, durMs + delay + 240);
+                }, delay);
+            })(sx, sy, dx, dy, (delay0 || 0) + t * 45, 16 - t * 4, 1 - t * 0.3, near, dur);
+        }
+        return dur + (delay0 || 0);
+    }
+
+    // 彩色光球（带拖尾）飞向中心 —— 超量金色 / 连接红色
+    // 素材本来就在目标位置（位移≈0）时，改为向左上角绕一圈再回到目标
+    function fxOrbs(srcRects, target, color, swirl) {
+        var n = Math.max(1, srcRects.length);
+        for (var i = 0; i < n; i++) {
+            var r = srcRects[i] || null;
+            var sx = r ? r.left + r.width / 2 : target.x;
+            var sy = r ? r.top + r.height / 2 : target.y;
+            spawnOrbGroup(sx, sy, target, color, swirl, 0);
+        }
+    }
+
+    // 同调：绿色同调环 + 等级数量的星星汇聚
+    function fxSynchro(target, starCount) {
+        var R = 56;
+        var ring = fxEl('rp-syn-ring', R, R, target.x - R / 2, target.y - R / 2);
+        try {
+            var a1 = ring.animate([
+                { transform: 'scale(0.3) rotate(0deg)', opacity: 0, offset: 0 },
+                { transform: 'scale(1) rotate(160deg)', opacity: 1, offset: 0.45 },
+                { transform: 'scale(1.25) rotate(320deg)', opacity: 0.95, offset: 0.75 },
+                { transform: 'scale(1.7) rotate(420deg)', opacity: 0, offset: 1 }
+            ], { duration: 880, easing: 'ease-out' });
+            a1.onfinish = function () { if (ring.parentNode) ring.parentNode.removeChild(ring); };
+        } catch (e) { }
+        setTimeout(function () { if (ring.parentNode) ring.parentNode.removeChild(ring); }, 1000);
+        var n = Math.max(1, Math.min(12, starCount || 1));
+        for (var i = 0; i < n; i++) {
+            (function (k) {
+                setTimeout(function () {
+                    var ang = (Math.PI * 2 * k) / n - Math.PI / 2;
+                    var sx = target.x + Math.cos(ang) * 78;
+                    var sy = target.y + Math.sin(ang) * 78;
+                    var st = fxEl('rp-star', 20, 20, sx - 10, sy - 10);
+                    var dx = target.x - sx, dy = target.y - sy;
+                    var an = null;
+                    try {
+                        an = st.animate([
+                            { transform: 'translate(0px,0px) rotate(0deg) scale(1)', opacity: 1, offset: 0 },
+                            { transform: 'translate(' + dx * 0.55 + 'px,' + dy * 0.55 + 'px) rotate(220deg) scale(0.9)', opacity: 1, offset: 0.6 },
+                            { transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(400deg) scale(0.2)', opacity: 0, offset: 1 }
+                        ], { duration: 780, easing: 'ease-in-out' });
+                    } catch (e) { }
+                    if (an) { an.onfinish = function () { if (st.parentNode) st.parentNode.removeChild(st); }; }
+                    setTimeout(function () { if (st.parentNode) st.parentNode.removeChild(st); }, 950);
+                }, 120 + k * 55);
+            })(i);
+        }
+    }
+
+    // 融合：橙色 + 蓝色「扭曲螺旋」汇聚（柔化、非几何）→ 中心爆闪
+    function fxFusion(target) {
+        var S = 210;
+        function spiralLayer(color, delay, dir, turns, width) {
+            setTimeout(function () {
+                if (animSuppress) return;
+                var wrap = fxEl('rp-spiral', S, S, target.x - S / 2, target.y - S / 2);
+                wrap.appendChild(makeSpiralSvg(color, turns, width));
+                var an = null;
+                try {
+                    an = wrap.animate([
+                        { transform: 'rotate(0deg) scale(1.4)', opacity: 0, offset: 0 },
+                        { transform: 'rotate(' + (dir * 130) + 'deg) scale(1.18)', opacity: 0.95, offset: 0.3 },
+                        { transform: 'rotate(' + (dir * 330) + 'deg) scale(0.8)', opacity: 0.95, offset: 0.7 },
+                        { transform: 'rotate(' + (dir * 560) + 'deg) scale(0.12)', opacity: 0, offset: 1 }
+                    ], { duration: 1000, easing: 'cubic-bezier(.45,.15,.3,1)' });
+                } catch (e) { /* ignore */ }
+                if (an) { an.onfinish = function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }; }
+                setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, 1160);
+            }, delay);
+        }
+        spiralLayer('rgba(255,150,40,0.95)', 0, 1, 2.4, 7);
+        spiralLayer('rgba(70,170,255,0.95)', 140, -1, 2.0, 6);
+        setTimeout(function () {
+            if (animSuppress) return;
+            var fl = fxEl('rp-fx-hit', 130, 130, target.x - 65, target.y - 65);
+            setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 90);
+        }, 850);
+    }
+
+    // 生成一条柔化扭曲螺旋（SVG 旋臂，模糊后呈流体质感）
+    function makeSpiralSvg(color, turns, width) {
+        var NS = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('viewBox', '-50 -50 100 100');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        var d = '';
+        var steps = 140;
+        for (var i = 0; i <= steps; i++) {
+            var t = i / steps;
+            var ang = t * Math.PI * 2 * (turns || 2);
+            var r = 6 + t * 38;
+            var x = Math.cos(ang) * r;
+            var y = Math.sin(ang) * r;
+            d += (i === 0 ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2);
+        }
+        var path = document.createElementNS(NS, 'path');
+        path.setAttribute('d', d);
+        path.setAttribute('fill', 'none');
+        path.setAttribute('stroke', color);
+        path.setAttribute('stroke-width', String(width || 6));
+        path.setAttribute('stroke-linecap', 'round');
+        path.setAttribute('opacity', '0.95');
+        svg.appendChild(path);
+        return svg;
+    }
+
+    // 超量：素材光球 → 星系黑洞 → 爆炸
+    function fxFusionXyz(target, srcRects) {
+        fxOrbs(srcRects, target, '#ffd700', true);
+        // 星系/黑洞
+        setTimeout(function () {
+            if (animSuppress) return;
+            var gal = fxEl('rp-galaxy', 40, 40, target.x - 20, target.y - 20);
+            try {
+                var g = gal.animate([
+                    { transform: 'scale(0.2) rotate(0deg)', opacity: 0, offset: 0 },
+                    { transform: 'scale(1.1) rotate(240deg)', opacity: 1, offset: 0.55 },
+                    { transform: 'scale(1.5) rotate(420deg)', opacity: 0.95, offset: 0.8 },
+                    { transform: 'scale(0.25) rotate(560deg)', opacity: 0, offset: 1 }
+                ], { duration: 620, easing: 'ease-in' });
+                g.onfinish = function () { if (gal.parentNode) gal.parentNode.removeChild(gal); };
+            } catch (e) { }
+            setTimeout(function () { if (gal.parentNode) gal.parentNode.removeChild(gal); }, 760);
+        }, 470);
+        // 爆炸
+        setTimeout(function () {
+            if (animSuppress) return;
+            var hit = fxEl('rp-fx-hit', 150, 150, target.x - 75, target.y - 75);
+            setTimeout(function () { hit.style.opacity = '0'; setTimeout(function () { if (hit.parentNode) hit.parentNode.removeChild(hit); }, 330); }, 100);
+            for (var i = 0; i < 12; i++) {
+                var sp = fxEl('rp-orb', 10, 10, target.x - 5, target.y - 5);
+                sp.style.background = '#ffe27a';
+                sp.style.boxShadow = '0 0 10px 3px #ffd700';
+                var ang = (Math.PI * 2 * i) / 12, dist = 70 + Math.random() * 50;
+                var an = null;
+                try {
+                    an = sp.animate([
+                        { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                        { transform: 'translate(' + Math.cos(ang) * dist + 'px,' + Math.sin(ang) * dist + 'px) scale(0.3)', opacity: 0, offset: 1 }
+                    ], { duration: 480, easing: 'ease-out' });
+                } catch (e) { }
+                if (an) { an.onfinish = function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }; }
+                setTimeout(function (el) { if (el.parentNode) el.parentNode.removeChild(el); }, 620, sp);
+            }
+        }, 1020);
+    }
+
+    // 灵摆：同一悬点垂下两条锁链（蓝水晶 / 红水晶），起点一致、反向交错摆动
+    // batchOpen：本次灵摆召唤批次（整批只触发一次）；active：特效当前是否在画面上
+    var pendFx = { batchOpen: false, active: false, ctl: -1, el: null, timer: 0 };
+    var PEND_SWING_MS = 1500;
+    var PEND_AMP = 34;              // 摆动幅度（度）
+    function pendBegin(ctl) {
+        if (animSuppress || pendFx.batchOpen) return;   // 同一批连续召唤只触发一次
+        if (ctl === undefined) ctl = 0;
+        pendFx.batchOpen = true;
+        var pane = fieldEl.getBoundingClientRect();
+        var cx = pane.left + pane.width / 2;
+        var pivotY = ctl === 0 ? (pane.top + pane.height * 0.53) : (pane.top + pane.height * 0.47);
+        var H = 112;                          // 锁链长度
+        var wrap = fxEl('rp-pend-wrap' + (ctl === 0 ? '' : ' is-up'), 0, 0, cx, pivotY);
+        // 共用悬点装饰（吊环）
+        var ring = document.createElement('div');
+        ring.className = 'rp-pend-ring';
+        wrap.appendChild(ring);
+        // 一条锁链 + 一颗水晶；两条起点完全一致（都挂在悬点上），方向相反
+        function arm(kind, fromCss) {
+            var el = document.createElement('div');
+            el.className = 'rp-pend-arm ' + kind;
+            el.style.left = '-6px';
+            el.style.top = '0px';
+            el.style.height = H + 'px';
+            el.style.transformOrigin = '50% 0%';
+            var inner = document.createElement('div');
+            inner.className = 'rp-pend-inner';
+            if (ctl === 1) inner.style.transform = 'rotate(180deg)';
+            inner.appendChild(makeChainSvg(kind, H));
+            inner.appendChild(makeGemSvg(kind));
+            el.appendChild(inner);
+            wrap.appendChild(el);
+            try {
+                // 蓝：左→右→左；红：右→左→右（起始都在中位）
+                el.animate([
+                    { transform: 'rotate(0deg)', offset: 0 },
+                    { transform: 'rotate(' + (PEND_AMP * fromCss) + 'deg)', offset: 0.3 },
+                    { transform: 'rotate(' + (-PEND_AMP * fromCss) + 'deg)', offset: 0.7 },
+                    { transform: 'rotate(' + (PEND_AMP * fromCss) + 'deg)', offset: 1 }
+                ], { duration: PEND_SWING_MS, easing: 'ease-in-out', fill: 'forwards' });
+            } catch (e) { /* ignore */ }
+        }
+        arm('is-blue', 1);    // 正角=向左摆 → 左 右 左
+        arm('is-red', -1);    // 负角=向右摆 → 右 左 右
+        pendFx.active = true;
+        pendFx.ctl = ctl;
+        pendFx.el = wrap;
+        pendExtend();
+        // 动画结束：保持末态片刻，特效消失
+        setTimeout(function () {
+            if (!pendFx.batchOpen) return;
+            setTimeout(pendHide, 200);
+        }, PEND_SWING_MS + 10);
+    }
+
+    // 锁链：交替朝向的链节（SVG，描边金属渐变）
+    function makeChainSvg(kind, H) {
+        var NS = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'rp-pend-chain-svg');
+        svg.setAttribute('width', '14');
+        svg.setAttribute('height', String(H));
+        svg.setAttribute('viewBox', '0 0 14 ' + H);
+        var defs = document.createElementNS(NS, 'defs');
+        var gid = 'rp-chain-' + kind + '-' + Math.floor(Math.random() * 1e6);
+        var grad = document.createElementNS(NS, 'linearGradient');
+        grad.setAttribute('id', gid);
+        grad.setAttribute('x1', '0'); grad.setAttribute('y1', '0');
+        grad.setAttribute('x2', '1'); grad.setAttribute('y2', '0');
+        [['0%', '#f4f7ff'], ['45%', '#9aa6bd'], ['55%', '#6d7891'], ['100%', '#e8edf8']].forEach(function (st) {
+            var s = document.createElementNS(NS, 'stop');
+            s.setAttribute('offset', st[0]);
+            s.setAttribute('stop-color', st[1]);
+            grad.appendChild(s);
+        });
+        defs.appendChild(grad);
+        svg.appendChild(defs);
+        var step = 9.6;
+        var n = Math.max(2, Math.floor(H / step));
+        for (var i = 0; i < n; i++) {
+            var cy = 5 + i * step;
+            var vertical = i % 2 === 0;
+            var link = document.createElementNS(NS, 'ellipse');
+            link.setAttribute('cx', '7');
+            link.setAttribute('cy', cy.toFixed(1));
+            link.setAttribute('rx', vertical ? '3.1' : '4.6');
+            link.setAttribute('ry', vertical ? '4.6' : '3.1');
+            link.setAttribute('fill', 'none');
+            link.setAttribute('stroke', 'url(#' + gid + ')');
+            link.setAttribute('stroke-width', '1.5');
+            svg.appendChild(link);
+        }
+        return svg;
+    }
+
+    // 水晶：五面宝石（顶面 + 冠部刻面 + 底部尖端），带高光与内发光
+    function makeGemSvg(kind) {
+        var NS = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'rp-pend-gem-svg');
+        svg.setAttribute('width', '32');
+        svg.setAttribute('height', '44');
+        svg.setAttribute('viewBox', '-16 -24 32 44');
+        var defs = document.createElementNS(NS, 'defs');
+        var uid = kind + '-' + Math.floor(Math.random() * 1e6);
+        var body = document.createElementNS(NS, 'linearGradient');
+        body.setAttribute('id', 'gem-body-' + uid);
+        body.setAttribute('x1', '0.15'); body.setAttribute('y1', '0');
+        body.setAttribute('x2', '0.85'); body.setAttribute('y2', '1');
+        var cols = kind === 'is-blue'
+            ? [['0%', '#f2fbff'], ['28%', '#8ad6ff'], ['62%', '#2f7fe6'], ['100%', '#0b3488']]
+            : [['0%', '#fff2f2'], ['28%', '#ff9c9c'], ['62%', '#e02a37'], ['100%', '#7d0a12']];
+        cols.forEach(function (st) {
+            var s = document.createElementNS(NS, 'stop');
+            s.setAttribute('offset', st[0]);
+            s.setAttribute('stop-color', st[1]);
+            body.appendChild(s);
+        });
+        defs.appendChild(body);
+        var shine = document.createElementNS(NS, 'linearGradient');
+        shine.setAttribute('id', 'gem-shine-' + uid);
+        shine.setAttribute('x1', '0'); shine.setAttribute('y1', '0');
+        shine.setAttribute('x2', '0'); shine.setAttribute('y2', '1');
+        [['0%', 'rgba(255,255,255,0.85)'], ['100%', 'rgba(255,255,255,0)']].forEach(function (st) {
+            var s = document.createElementNS(NS, 'stop');
+            s.setAttribute('offset', st[0]);
+            s.setAttribute('stop-color', st[1]);
+            shine.appendChild(s);
+        });
+        defs.appendChild(shine);
+        svg.appendChild(defs);
+        // 主体：顶面 -14,-8 / 冠部 -13,-13 … 底部尖端 0,18
+        var poly = document.createElementNS(NS, 'polygon');
+        poly.setAttribute('points', '0,-15 11,-7 7,7 0,18 -7,7 -11,-7');
+        poly.setAttribute('fill', 'url(#gem-body-' + uid + ')');
+        poly.setAttribute('stroke', kind === 'is-blue' ? 'rgba(200,240,255,0.9)' : 'rgba(255,220,220,0.9)');
+        poly.setAttribute('stroke-width', '1');
+        svg.appendChild(poly);
+        // 刻面：从顶面顶点连到各腰点
+        [[0, -15, 0, 18], [0, -15, 11, -7], [0, -15, -11, -7], [-7, 7, 7, 7]].forEach(function (seg) {
+            var ln = document.createElementNS(NS, 'line');
+            ln.setAttribute('x1', seg[0]); ln.setAttribute('y1', seg[1]);
+            ln.setAttribute('x2', seg[2]); ln.setAttribute('y2', seg[3]);
+            ln.setAttribute('stroke', 'rgba(255,255,255,0.45)');
+            ln.setAttribute('stroke-width', '0.8');
+            svg.appendChild(ln);
+        });
+        // 左上高光
+        var hl = document.createElementNS(NS, 'polygon');
+        hl.setAttribute('points', '0,-15 -5.5,-5 -2,2');
+        hl.setAttribute('fill', 'url(#gem-shine-' + uid + ')');
+        svg.appendChild(hl);
+        var spark = document.createElementNS(NS, 'ellipse');
+        spark.setAttribute('cx', '-3.4');
+        spark.setAttribute('cy', '-6.5');
+        spark.setAttribute('rx', '2.1');
+        spark.setAttribute('ry', '3.2');
+        spark.setAttribute('fill', 'rgba(255,255,255,0.75)');
+        svg.appendChild(spark);
+        return svg;
+    }
+    // 兼容旧入口（若在 SpSummoning 才拿到种类）
+    function fxPendulum(ctl) {
+        if (pendFx.batchOpen) { pendExtend(); return; }
+        pendBegin(ctl);
+    }
+    function pendExtend() {
+        if (!pendFx.batchOpen) return;
+        clearTimeout(pendFx.timer);
+        pendFx.timer = setTimeout(function () { pendBatchEnd(); }, 3200);
+    }
+    // 只把钟摆元素淡出（不影响批次）
+    function pendHide() {
+        if (!pendFx.active) return;
+        pendFx.active = false;
+        var el = pendFx.el;
+        pendFx.el = null;
+        if (el) {
+            el.style.transition = 'opacity 0.28s ease';
+            el.style.opacity = '0';
+            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 340);
+        }
+    }
+    // 本批连续特殊召唤结束：撤掉钟摆（若有），允许下次灵摆召唤重新触发
+    function pendBatchEnd() {
+        clearTimeout(pendFx.timer);
+        pendHide();
+        pendFx.batchOpen = false;
+        pendFx.ctl = -1;
+    }
+
+    // 召唤演出：临时隐藏卡片，等特效到位后再现身
+    function fxHoldCell(cell, ms) {
+        if (!cell) return;
+        cell._fxHold = true;
+        cell.style.opacity = '0';
+        if (ms) setTimeout(function () { fxReleaseCell(cell); }, ms);
+    }
+    function fxReleaseCell(cell) {
+        if (!cell) return;
+        cell._fxHold = false;
+        cell.style.opacity = '';
+    }
+    // 现身：卡片由小变大（保留翻转/横置角度）
+    function fxRevealPop(cell, flip, def) {
+        if (!cell) return;
+        cell._fxHold = false;
+        cell.style.opacity = '';
+        var node = cell.querySelector('.rp-card');
+        if (!node) return;
+        var rot = '';
+        if (flip && def) rot = 'rotate(90deg) ';
+        else if (flip) rot = 'rotate(180deg) ';
+        else if (def) rot = 'rotate(-90deg) ';
+        var scaleEnd = def ? ' scale(0.68)' : '';
+        try {
+            node.animate([
+                { transform: rot + 'scale(0.15)', opacity: 0, offset: 0 },
+                { transform: rot + 'scale(1.12)' + scaleEnd, opacity: 1, offset: 0.68 },
+                { transform: rot + 'scale(1)' + scaleEnd, opacity: 1, offset: 1 }
+            ], { duration: 420, easing: 'cubic-bezier(.2,.8,.3,1)' });
+        } catch (e) { /* ignore */ }
+    }
+
+    // 连接素材的连接值：连接怪按其连接值算（连接3 → 3 个球），非连接怪算 1 个
+    function linkValueOf(code) {
+        if (!code) return 1;
+        var st = cardStatByCode[String(code)];
+        if (st && st.link) return st.link;
+        var m = cardMetaMap[String(code)];
+        if (m && (m.cat || '').indexOf('连接') >= 0 && m.level) return m.level;   // 连接怪的等级字段即连接值
+        return 1;
+    }
+
+    // 连接：每个素材按自身连接值放出等量红色光球飞向召唤位 → 到位后连接怪由小变大现身 + 六边形数码特效
+    function fxLink(target, mats, cellEl, flip, def) {
+        var groups = (mats && mats.length) ? mats : [{ code: 0, rect: null }];
+        var delay = 0, spawned = 0;
+        groups.forEach(function (mt) {
+            var n = linkValueOf(mt.code);
+            var r = mt.rect;
+            var bx = r ? r.left + r.width / 2 : target.x;
+            var by = r ? r.top + r.height / 2 : target.y;
+            for (var k = 0; k < n && spawned < 12; k++) {
+                // 同一素材的多个球稍微散开，便于看出"几个球"
+                var ang = (Math.PI * 2 * k) / Math.max(1, n) - Math.PI / 2;
+                var rad = n > 1 ? 13 : 0;
+                spawnOrbGroup(bx + Math.cos(ang) * rad, by + Math.sin(ang) * rad, target, '#ff3b3b', true, delay);
+                delay += 90;
+                spawned++;
+            }
+        });
+        var landAt = Math.max(760, delay + 260);
+        setTimeout(function () {
+            if (animSuppress) { fxReleaseCell(cellEl); return; }
+            // 素材到位：卡片由小变大现身 + 数码特效
+            fxRevealPop(cellEl, flip, def);
+            hexRingFx(target, 130, 0, 760, 2.6, '#8ef0ff');
+            hexRingFx(target, 100, 60, 820, 2.2, '#d8fbff');
+            hexRingFx(target, 70, 120, 880, 1.8, '#7fe9ff');
+            for (var i = 0; i < 6; i++) {
+                (function (k) {
+                    setTimeout(function () {
+                        if (animSuppress) return;
+                        var ang = (Math.PI * 2 * k) / 6 + Math.random() * 0.3;
+                        var dist = 44 + Math.random() * 26;
+                        var hx = hexRingFx(target, 26, Math.random() * 90, 420, 1.6, '#aef4ff');
+                        var el = hx.el;
+                        var an = null;
+                        try {
+                            an = el.animate([
+                                { transform: 'translate(0px,0px) scale(0.4) rotate(0deg)', opacity: 0, offset: 0 },
+                                { transform: 'translate(' + Math.cos(ang) * dist + 'px,' + Math.sin(ang) * dist + 'px) scale(1) rotate(120deg)', opacity: 1, offset: 0.35 },
+                                { transform: 'translate(' + Math.cos(ang) * (dist + 34) + 'px,' + Math.sin(ang) * (dist + 34) + 'px) scale(0.6) rotate(240deg)', opacity: 0, offset: 1 }
+                            ], { duration: 520, easing: 'ease-out' });
+                        } catch (e) { /* ignore */ }
+                        if (an) { an.onfinish = function () { if (el.parentNode) el.parentNode.removeChild(el); }; }
+                        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 620);
+                    }, 60 + k * 45);
+                })(i);
+            }
+            var fl = fxEl('rp-hex-flash', 140, 140, target.x - 70, target.y - 70);
+            setTimeout(function () { fl.style.opacity = '0'; setTimeout(function () { if (fl.parentNode) fl.parentNode.removeChild(fl); }, 320); }, 130);
+        }, landAt);
+    }
+
+    // 单个六边形环（返回元素，便于外部再动画）
+    function hexRingFx(target, size, rotate0, dur, scaleTo, stroke, cb) {
+        var NS = 'http://www.w3.org/2000/svg';
+        var wrap = fxEl('rp-hex', size, size, target.x - size / 2, target.y - size / 2);
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('viewBox', '0 0 100 100');
+        svg.setAttribute('width', '100%');
+        svg.setAttribute('height', '100%');
+        var poly = document.createElementNS(NS, 'polygon');
+        poly.setAttribute('points', '50,3 92,26 92,74 50,97 8,74 8,26');
+        poly.setAttribute('fill', 'none');
+        poly.setAttribute('stroke', stroke || '#8ef0ff');
+        poly.setAttribute('stroke-width', '2.5');
+        poly.setAttribute('stroke-linejoin', 'round');
+        svg.appendChild(poly);
+        wrap.appendChild(svg);
+        var an = null;
+        try {
+            an = wrap.animate([
+                { transform: 'rotate(' + rotate0 + 'deg) scale(0.35)', opacity: 0, offset: 0 },
+                { transform: 'rotate(' + (rotate0 + 60) + 'deg) scale(' + (scaleTo * 0.75) + ')', opacity: 1, offset: 0.5 },
+                { transform: 'rotate(' + (rotate0 + 140) + 'deg) scale(' + scaleTo + ')', opacity: 0, offset: 1 }
+            ], { duration: dur, easing: 'ease-out' });
+        } catch (e) { /* ignore */ }
+        if (an) { an.onfinish = function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }; }
+        setTimeout(function () { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); }, dur + 120);
+        return { el: wrap, anim: an };
+    }
+
+    // 召唤演出总入口：按召唤种类播放（cellEl 用于"素材到位后卡片才现身"）
+    function summonShowFx(code, rect, cellEl, flip, def, ctlOf) {
+        if (animSuppress || !rect || !rect.width) return;
+        var type = summonTypeOf(code);
+        if (!type) return;
+        var target = centerOf(rect);
+        var mats = takeMats();
+        var srcRects = mats.map(function (m) { return m.rect; }).filter(Boolean);
+        if (!srcRects.length) srcRects = [rect];
+        if (type === 'link') {
+            fxHoldCell(cellEl, 2600);           // 兜底：确保仍处于隐藏
+            // 每个素材按其连接值放球：连接3的怪放 3 个球，普通怪放 1 个球
+            fxLink(target, mats.length ? mats : [{ code: 0, rect: rect }], cellEl, flip, def);
+            return;
+        }
+        if (type === 'xyz') fxFusionXyz(target, srcRects);
+        else if (type === 'synchro') fxSynchro(target, cardLevel(code));
+        else if (type === 'fusion') fxFusion(target);
+        else if (type === 'pendulum') fxPendulum(ctlOf);
+    }
+
+    // 移动动画：幽灵卡从原格滑到目标格（flip = 对手的卡需倒置显示）
+    function flyGhost(cardCode, down, s, d, flip) {
+        if (animSuppress || !s || !d || !s.width || !d.width) return;
+        var g = fxEl('rp-fly' + (down || !cardCode ? ' rp-fly-down' : ''), s.width, s.height, s.left, s.top);
+        if (!down && cardCode) {
+            var im = document.createElement('img');
+            wireImgChain(im, cardCode);
+            im.src = cardImgSrc(cardCode);
+            if (flip) im.style.transform = 'rotate(180deg)';   // 内层旋转，不影响外层定位
+            g.appendChild(im);
+        }
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                g.style.transform = 'translate(' + (d.left - s.left) + 'px,' + (d.top - s.top) + 'px)'
+                    + ' scale(' + (d.width / s.width) + ',' + (d.height / s.height) + ')';
+            });
+        });
+        setTimeout(function () {
+            g.style.opacity = '0';
+            setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 200);
+        }, 200);
+    }
+
+    // 发效果：把卡片“放到镜头前”闪一下，并从中央向外扩散金色圆环
+    function effectFlash(cardCode, fromRect, flip) {
+        if (animSuppress || !cardCode) return;
+        var pane = fieldEl.getBoundingClientRect();
+        var cx = pane.left + pane.width / 2;
+        var cy = pane.top + pane.height / 2;
+        var BW = 150, BH = 210;
+        var el = fxEl('rp-fx-card' + (flip ? ' rp-flip' : ''), BW, BH, cx - BW / 2, cy - BH / 2);
+        var im = document.createElement('img');
+        wireImgChain(im, cardCode);
+        im.src = cardImgSrc(cardCode);
+        el.appendChild(im);
+        var sx = cx, sy = cy, sc = 0.5;
+        if (fromRect && fromRect.width) {
+            sx = fromRect.left + fromRect.width / 2;
+            sy = fromRect.top + fromRect.height / 2;
+            sc = Math.min(1, fromRect.width / 120);
+        }
+        el.style.opacity = '0';
+        el.style.transform = 'translate(' + (sx - cx) + 'px,' + (sy - cy) + 'px) scale(' + (0.35 * sc) + ')';
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                el.style.opacity = '1';
+                el.style.transform = 'translate(0px,0px) scale(1)';
+            });
+        });
+        // 由中央发出的扩散圆环（两道，交错）
+        function ringPulse(delay, size, dur, thick) {
+            setTimeout(function () {
+                var r = fxEl('rp-fx-ring', 46, 46, cx - 23, cy - 23);
+                r.style.borderWidth = thick + 'px';
+                try {
+                    r.animate([
+                        { transform: 'scale(0.5)', opacity: 0.95, offset: 0 },
+                        { transform: 'scale(' + size + ')', opacity: 0, offset: 1 }
+                    ], { duration: dur, easing: 'cubic-bezier(.1,.7,.35,1)' }).onfinish = function () {
+                        if (r.parentNode) r.parentNode.removeChild(r);
+                    };
+                } catch (e) { /* ignore */ }
+                setTimeout(function () { if (r.parentNode) r.parentNode.removeChild(r); }, dur + 120);
+            }, delay);
+        }
+        ringPulse(80, 8.5, 640, 3);
+        ringPulse(200, 5.5, 480, 2);
+        // 收尾淡出
+        setTimeout(function () {
+            el.style.opacity = '0';
+            el.style.transform = 'translate(0px,0px) scale(1.15)';
+            setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 180);
+        }, 430);
+    }
+
+    // 攻击动画：攻击者撞向目标（或对手中线），撞击处闪光
+    function attackFx(cardCode, fromRect, targetRect) {
+        if (animSuppress || !fromRect || !fromRect.width) return;
+        var tx, ty, tw, th;
+        if (targetRect && targetRect.width) {
+            tx = targetRect.left + targetRect.width / 2;
+            ty = targetRect.top + targetRect.height / 2;
+            tw = targetRect.width; th = targetRect.height;
+        } else {
+            var pane = fieldEl.getBoundingClientRect();
+            tx = pane.left + pane.width / 2;
+            ty = pane.top + pane.height * 0.42;
+            tw = fromRect.width; th = fromRect.height;
+        }
+        var g = fxEl('rp-fly rp-fly-atk', fromRect.width, fromRect.height, fromRect.left, fromRect.top);
+        if (cardCode) {
+            var im = document.createElement('img');
+            wireImgChain(im, cardCode);
+            im.src = cardImgSrc(cardCode);
+            g.appendChild(im);
+        }
+        // 变换原点在左上角：位移按左上角差值算，终点与目标格完全重合
+        var dx = (tx - tw / 2) - fromRect.left;
+        var dy = (ty - th / 2) - fromRect.top;
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () {
+                g.style.transform = 'translate(' + dx + 'px,' + dy + 'px) scale(' + (tw / fromRect.width) + ',' + (th / fromRect.height) + ')';
+            });
+        });
+        setTimeout(function () {
+            var ring = fxEl('rp-fx-hit', 120, 120, tx - 60, ty - 60);
+            setTimeout(function () {
+                ring.style.opacity = '0';
+                setTimeout(function () { if (ring.parentNode) ring.parentNode.removeChild(ring); }, 300);
+            }, 90);
+        }, 230);
+        setTimeout(function () {
+            g.style.opacity = '0';
+            setTimeout(function () { if (g.parentNode) g.parentNode.removeChild(g); }, 220);
+        }, 330);
+    }
+
+    // 破坏动画：卡片碎成金色发光粒子，先炸开再飞向墓地（定时双保险清理）
+    function shatterFx(srcRect, graveRect) {
+        if (animSuppress || !srcRect || !srcRect.width) return;
+        var gx = graveRect && graveRect.width ? graveRect.left + graveRect.width / 2 : srcRect.left + srcRect.width / 2;
+        var gy = graveRect && graveRect.width ? graveRect.top + graveRect.height / 2 : srcRect.bottom;
+        var cx0 = srcRect.left + srcRect.width / 2, cy0 = srcRect.top + srcRect.height / 2;
+        var golds = ['#ffd700', '#ffe27a', '#fff3c4', '#ffc94d', '#ffec9e'];
+        for (var i = 0; i < 20; i++) {
+            var sz = 3 + Math.random() * 5;
+            var el = fxEl('rp-fx-shard rp-fx-gold', sz, sz,
+                cx0 + (Math.random() - 0.5) * srcRect.width * 0.7,
+                cy0 + (Math.random() - 0.5) * srcRect.height * 0.7);
+            el.style.background = golds[i % golds.length];
+            var bx = (Math.random() - 0.5) * 140;
+            var by = (Math.random() - 0.5) * 100 - 30;
+            (function (node) {
+                var anim = null;
+                try {
+                    anim = node.animate([
+                        { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                        { transform: 'translate(' + bx + 'px,' + by + 'px) scale(1.2)', opacity: 1, offset: 0.25 },
+                        { transform: 'translate(' + (gx - cx0) + 'px,' + (gy - cy0) + 'px) scale(0.15)', opacity: 0, offset: 1 }
+                    ], { duration: 620, easing: 'cubic-bezier(.3,.6,.5,1)' });
+                } catch (e) { /* WAAPI 不可用时仅靠定时器清理 */ }
+                if (anim) {
+                    anim.onfinish = function () { if (node.parentNode) node.parentNode.removeChild(node); };
+                }
+                setTimeout(function () { if (node.parentNode) node.parentNode.removeChild(node); }, 760);
+            })(el);
+        }
+    }
+
+    function animateMove(cardCode, down, s, d) {
+        flyGhost(cardCode, down, s, d);
+    }
+
+    // 召唤落地：怪兽入场后在脚下展开召唤圆环
+    function summonRingFx(rect) {
+        if (animSuppress || !rect || !rect.width) return;
+        var cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+        var r = fxEl('rp-summon-ring', rect.width * 0.5, rect.width * 0.5, cx - rect.width * 0.25, cy - rect.width * 0.25);
+        r.style.left = (cx - rect.width * 0.25) + 'px';
+        r.style.top = (cy - rect.width * 0.25) + 'px';
+        var anim = null;
+        try {
+            anim = r.animate([
+                { transform: 'scale(0.15)', opacity: 0, offset: 0 },
+                { transform: 'scale(1)', opacity: 0.95, offset: 0.35 },
+                { transform: 'scale(1.25)', opacity: 0, offset: 1 }
+            ], { duration: 480, easing: 'ease-out' });
+        } catch (e) { /* ignore */ }
+        if (anim) anim.onfinish = function () { if (r.parentNode) r.parentNode.removeChild(r); };
+        setTimeout(function () { if (r.parentNode) r.parentNode.removeChild(r); }, 620);
+    }
+
+    // 单元格标记环：攻击方红圈 / 目标金圈（脉冲）
+    function cellMarkFx(rect, color) {
+        if (animSuppress || !rect || !rect.width) return;
+        var m = fxEl('rp-fx-cellmark ' + (color === 'gold' ? 'gold' : 'red'),
+            rect.width + 8, rect.height + 8, rect.left - 4, rect.top - 4);
+        var anim = null;
+        try {
+            anim = m.animate([
+                { opacity: 0, transform: 'scale(0.92)', offset: 0 },
+                { opacity: 0.95, transform: 'scale(1.03)', offset: 0.3 },
+                { opacity: 0.9, transform: 'scale(1.05)', offset: 0.65 },
+                { opacity: 0, transform: 'scale(1.1)', offset: 1 }
+            ], { duration: 900, easing: 'ease-in-out' });
+        } catch (e) { /* ignore */ }
+        if (anim) anim.onfinish = function () { if (m.parentNode) m.parentNode.removeChild(m); };
+        setTimeout(function () { if (m.parentNode) m.parentNode.removeChild(m); }, 1050);
+    }
+
+    // 攻击箭头：攻击方 → 目标 的金色虚线箭头
+    function arrowFx(ax, ay, tx, ty) {
+        if (animSuppress) return;
+        var NS = 'http://www.w3.org/2000/svg';
+        var svg = document.createElementNS(NS, 'svg');
+        svg.setAttribute('class', 'rp-fx-arrow');
+        svg.style.left = '0px';
+        svg.style.top = '0px';
+        svg.style.width = '100vw';
+        svg.style.height = '100vh';
+        var defs = document.createElementNS(NS, 'defs');
+        var mark = document.createElementNS(NS, 'marker');
+        mark.setAttribute('id', 'rpArrowH' + Date.now() + Math.floor(Math.random() * 9999));
+        mark.setAttribute('viewBox', '0 0 10 10');
+        mark.setAttribute('refX', '8');
+        mark.setAttribute('refY', '5');
+        mark.setAttribute('markerWidth', '8');
+        mark.setAttribute('markerHeight', '8');
+        mark.setAttribute('orient', 'auto-start-reverse');
+        var path = document.createElementNS(NS, 'path');
+        path.setAttribute('d', 'M 0 0 L 10 5 L 0 10 z');
+        path.setAttribute('fill', '#ffd700');
+        mark.appendChild(path);
+        defs.appendChild(mark);
+        svg.appendChild(defs);
+        var line = document.createElementNS(NS, 'line');
+        line.setAttribute('x1', ax);
+        line.setAttribute('y1', ay);
+        line.setAttribute('x2', tx);
+        line.setAttribute('y2', ty);
+        line.setAttribute('stroke', '#ffd700');
+        line.setAttribute('stroke-width', '4');
+        line.setAttribute('stroke-dasharray', '10 7');
+        line.setAttribute('marker-end', 'url(#' + mark.getAttribute('id') + ')');
+        svg.appendChild(line);
+        document.body.appendChild(svg);
+        var anim = null;
+        try {
+            anim = svg.animate([
+                { opacity: 0, offset: 0 },
+                { opacity: 1, offset: 0.15 },
+                { opacity: 0.85, offset: 0.7 },
+                { opacity: 0, offset: 1 }
+            ], { duration: 950, easing: 'linear' });
+        } catch (e) { /* ignore */ }
+        if (anim) anim.onfinish = function () { if (svg.parentNode) svg.parentNode.removeChild(svg); };
+        setTimeout(function () { if (svg.parentNode) svg.parentNode.removeChild(svg); }, 1100);
+    }
+
+    // 攻击特效：发射带拖尾的能量球
+    // 攻击能量球：可指定飞行时长，命中时回调（用于爆炸/破碎同步）
+    function attackBallFx(fromRect, targetRect, flightMs, onImpact) {
+        if (animSuppress || !fromRect || !fromRect.width) return;
+        var dur = flightMs || 290;
+        var sx = fromRect.left + fromRect.width / 2, sy = fromRect.top + fromRect.height / 2;
+        var tx, ty;
+        if (targetRect && targetRect.width) {
+            tx = targetRect.left + targetRect.width / 2;
+            ty = targetRect.top + targetRect.height / 2;
+        } else {
+            var pane = fieldEl.getBoundingClientRect();
+            tx = pane.left + pane.width / 2;
+            ty = pane.top + pane.height * 0.42;
+        }
+        var dx = tx - sx, dy = ty - sy;
+        var size = Math.max(18, Math.min(30, fromRect.width * 0.34));
+        // 主球 + 3 个滞后小球（拖尾），略带弧线
+        for (var t = 0; t < 4; t++) {
+            (function (k) {
+                setTimeout(function () {
+                    var s = size * (1 - k * 0.17);
+                    var o = fxEl('rp-ball' + (k === 0 ? ' rp-ball-core' : ''), s, s, sx - s / 2, sy - s / 2);
+                    var midX = dx * 0.5;
+                    var midY = dy * 0.5 - Math.abs(dy) * 0.12 - 16;
+                    var an = null;
+                    try {
+                        an = o.animate([
+                            { transform: 'translate(0px,0px) scale(1)', opacity: k === 0 ? 1 : (0.8 - k * 0.16), offset: 0 },
+                            { transform: 'translate(' + midX + 'px,' + midY + 'px) scale(' + (k === 0 ? 1.15 : 0.85) + ')', opacity: k === 0 ? 1 : (0.62 - k * 0.16), offset: 0.5 },
+                            { transform: 'translate(' + dx + 'px,' + dy + 'px) scale(0.55)', opacity: 0, offset: 1 }
+                        ], { duration: dur, easing: 'cubic-bezier(.35,.5,.5,1)' });
+                    } catch (e) { /* ignore */ }
+                    if (an) { an.onfinish = function () { if (o.parentNode) o.parentNode.removeChild(o); }; }
+                    setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, dur + 160);
+                }, k * Math.max(14, dur * 0.09));
+            })(t);
+        }
+        // 命中：冲击环 + 火花
+        setTimeout(function () {
+            if (animSuppress) return;
+            var hit = fxEl('rp-fx-hit', 96, 96, tx - 48, ty - 48);
+            setTimeout(function () { hit.style.opacity = '0'; setTimeout(function () { if (hit.parentNode) hit.parentNode.removeChild(hit); }, 300); }, 70);
+            for (var i = 0; i < 8; i++) {
+                var sp = fxEl('rp-ball', 9, 9, tx - 4.5, ty - 4.5);
+                var ang = (Math.PI * 2 * i) / 8 + Math.random() * 0.4;
+                var dist = 42 + Math.random() * 34;
+                var an2 = null;
+                try {
+                    an2 = sp.animate([
+                        { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                        { transform: 'translate(' + Math.cos(ang) * dist + 'px,' + Math.sin(ang) * dist + 'px) scale(0.3)', opacity: 0, offset: 1 }
+                    ], { duration: 380, easing: 'ease-out' });
+                } catch (e) { /* ignore */ }
+                if (an2) { an2.onfinish = function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }; }
+                setTimeout(function (el) { if (el.parentNode) el.parentNode.removeChild(el); }, 520, sp);
+            }
+            if (onImpact) onImpact();
+        }, dur);
+    }
+
+    // 攻击编排：①红圈+箭头标记 ②能量球飞出 ③命中爆炸；若目标随后真的被破坏，则爆炸+破碎同时发生
+    function attackMarkFx(aRect, tRect, direct, killedCode, defCtl) {
+        if (animSuppress || !aRect || !aRect.width) return;
+        cellMarkFx(aRect, 'red');
+        // ① 箭头标记（保留）
+        if (tRect && tRect.width) {
+            arrowFx(aRect.left + aRect.width / 2, aRect.top + aRect.height / 2,
+                tRect.left + tRect.width / 2, tRect.top + tRect.height / 2);
+        }
+        var tr = tRect;
+        pendingImpact = null;
+        setTimeout(function () {
+            attackBallFx(aRect, tr, 340, function () {
+                if (killedCode && tr && tr.width) {
+                    // 预计会被破坏：先在目标处蓄能，等真正的送墓消息再爆炸+破碎（保证同步）
+                    chargeOrbFx(tr, defCtl);
+                    pendingImpact = { code: killedCode, rect: tr, defCtl: defCtl, done: false };
+                    setTimeout(function () {
+                        if (pendingImpact && pendingImpact.code === killedCode && !pendingImpact.done) {
+                            pendingImpact = null;
+                            if (tr && tr.width) boomFx(tr);
+                            if (tr && tr.width && !direct) cellMarkFx(tr, 'gold');
+                        }
+                    }, 1500);
+                } else {
+                    if (tr && tr.width && !direct) cellMarkFx(tr, 'gold');
+                }
+            });
+        }, 170);
+    }
+
+    // 命中处的蓄能光球（等待破坏结算）
+    function chargeOrbFx(rect, defCtl) {
+        if (animSuppress || !rect || !rect.width) return;
+        var cx = rect.left + rect.width / 2, cy = rect.top + rect.height / 2;
+        var o = fxEl('rp-ball rp-ball-core rp-ball-charge', 26, 26, cx - 13, cy - 13);
+        var an = null;
+        try {
+            an = o.animate([
+                { transform: 'scale(0.5)', opacity: 0.5, offset: 0 },
+                { transform: 'scale(1.15)', opacity: 1, offset: 0.5 },
+                { transform: 'scale(0.7)', opacity: 0.55, offset: 1 }
+            ], { duration: 420, iterations: 3, easing: 'ease-in-out' });
+        } catch (e) { /* ignore */ }
+        setTimeout(function () { if (o.parentNode) o.parentNode.removeChild(o); }, 1400);
+    }
+
+    // 爆炸：冲击环 + 火花（不含碎卡，碎卡由调用方同时触发）
+    function boomFx(rect) {
+        if (animSuppress || !rect || !rect.width) return;
+        var tx = rect.left + rect.width / 2, ty = rect.top + rect.height / 2;
+        var hit = fxEl('rp-fx-hit', 130, 130, tx - 65, ty - 65);
+        setTimeout(function () { hit.style.opacity = '0'; setTimeout(function () { if (hit.parentNode) hit.parentNode.removeChild(hit); }, 320); }, 90);
+        for (var i = 0; i < 12; i++) {
+            var sp = fxEl('rp-ball', 10, 10, tx - 5, ty - 5);
+            var ang = (Math.PI * 2 * i) / 12 + Math.random() * 0.4;
+            var dist = 50 + Math.random() * 42;
+            var an = null;
+            try {
+                an = sp.animate([
+                    { transform: 'translate(0px,0px) scale(1)', opacity: 1, offset: 0 },
+                    { transform: 'translate(' + Math.cos(ang) * dist + 'px,' + Math.sin(ang) * dist + 'px) scale(0.3)', opacity: 0, offset: 1 }
+                ], { duration: 420, easing: 'ease-out' });
+            } catch (e) { /* ignore */ }
+            if (an) { an.onfinish = function () { if (sp.parentNode) sp.parentNode.removeChild(sp); }; }
+            setTimeout(function (el) { if (el.parentNode) el.parentNode.removeChild(el); }, 560, sp);
+        }
+    }
+
+    // ── 攻击日志辅助：尽量确定“攻击了谁” ──
+    function attackTargetCode(atkCtl) {
+        // 攻击宣言前最近的 SelectCard（目标候选，通常只有1个=唯一目标）
+        for (var i = idx - 1; i >= 0 && i > idx - 14; i--) {
+            var m = messages[i];
+            if (!m || !m.f) continue;
+            if (m.name === 'SelectCard' && m.f.player === atkCtl && m.f.cards && m.f.cards.length) {
+                return m.f.cards.length === 1 ? m.f.cards[0] : 0; // 0=多名候选不确定
+            }
+            if (m.name === 'Move' || m.name === 'Summoning' || m.name === 'SpSummoning') return -1;
+        }
+        return -1;
+    }
+    // 前瞻本次战阶：若防守方(1-atkCtl)的怪兽从怪兽区离场 → 那正是被攻击的目标
+    function lookAheadDefender(atkCtl) {
+        var defCtl = 1 - atkCtl;
+        var end = Math.min(idx + 200, messages.length - 1);
+        for (var i = idx + 1; i <= end; i++) {
+            var m = messages[i];
+            if (!m || !m.f) continue;
+            if (m.name === 'Move') {
+                var pr = m.f.previous;
+                var cr = m.f.current;
+                if (pr && pr.location !== undefined && (pr.location & 0xff) === LOC.MZONE) {
+                    if (pr.controller === defCtl) return m.f.code || 0;   // 防守方怪兽离场=被破坏
+                    if (pr.controller === atkCtl && (cr.location & 0xff) === LOC.GRAVE) return 0; // 攻击方反死，难定目标
+                }
+            } else if (m.name === 'DamageStepEnd' || m.name === 'NewPhase' || m.name === 'Win' || m.name === 'Attack') {
+                break;
+            }
+        }
+        return -1;
+    }
+    function attackResolve(atkCtl) {
+        var defCtl = 1 - atkCtl;
+        var defCards = Object.keys(field[defCtl] || {})
+            .filter(function (k) { return k.indexOf('4:') === 0; })
+            .map(function (k) { return field[defCtl][k]; });
+        var c = attackTargetCode(atkCtl);
+        if (c > 0) return { code: c, direct: false, killedCode: killedFromLookahead(atkCtl) };
+        if (!defCards.length) return { code: 0, direct: true, killedCode: 0 };   // 场上无怪兽 → 直接攻击
+        if (c === -1 && defCards.length === 1) {
+            return { code: defCards[0].code, direct: false, killedCode: killedFromLookahead(atkCtl) };
+        }
+        // 多名候选：看战斗结果定目标（防守方被破坏离场=目标）
+        var la = lookAheadDefender(atkCtl);
+        if (la > 0) return { code: la, direct: false, killedCode: la };
+        return { code: 0, direct: false, killedCode: 0 };                        // 仍无法确定
+    }
+    // 本次战斗防守方是否会被破坏（前瞻结果）
+    function killedFromLookahead(atkCtl) {
+        var la = lookAheadDefender(atkCtl);
+        return la > 0 ? la : 0;
+    }
+
+    // 受伤闪红：受伤方那一半场地闪一层红色渐变
+    function hurtFlash(ctl) {
+        if (animSuppress) return;
+        var side = fieldEl.querySelector(ctl === 1 ? '.rp-opp' : '.rp-self');
+        if (!side) return;
+        side.classList.remove('rp-hurt');
+        void side.offsetWidth;   // 重置以重新触发动画
+        side.classList.add('rp-hurt');
+        setTimeout(function () { side.classList.remove('rp-hurt'); }, 620);
+    }
+
+    // 伤害/恢复数字提示：-3000 红字上飘 / +N 绿字上飘（可指定颜色）
+    function dmgFloat(ctl, value, sign, colorOverride) {
+        if (animSuppress) return;
+        var side = fieldEl.querySelector(ctl === 1 ? '.rp-opp' : '.rp-self');
+        if (!side) return;
+        var sr = side.getBoundingClientRect();
+        var x = sr.left + sr.width / 2;
+        var y = sr.top + sr.height * (ctl === 1 ? 0.45 : 0.55);
+        var el = fxEl('rp-dmg-num', 0, 0, 0, 0);
+        el.textContent = (sign === '+' ? '+' : '-') + value;
+        el.style.color = colorOverride || (sign === '+' ? '#8dff9e' : '#ff5b6e');
+        el.style.left = x + 'px';
+        el.style.top = y + 'px';
+        el.style.transform = 'translate(-50%,-50%)';
+        var anim = null;
+        try {
+            anim = el.animate([
+                { opacity: 0, transform: 'translate(-50%,-50%) translateY(6px)', offset: 0 },
+                { opacity: 1, transform: 'translate(-50%,-50%) translateY(0)', offset: 0.12 },
+                { opacity: 1, transform: 'translate(-50%,-50%) translateY(-22px)', offset: 0.75 },
+                { opacity: 0, transform: 'translate(-50%,-50%) translateY(-46px)', offset: 1 }
+            ], { duration: 950, easing: 'ease-out' });
+        } catch (e) { /* ignore */ }
+        if (anim) anim.onfinish = function () { if (el.parentNode) el.parentNode.removeChild(el); };
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 1100);
+    }
+
+    // ── 消息处理（驱动场地状态 + 日志）──
+    // 座位(pos, 建房顺序) ↔ 决斗位(消息流里的 player 索引) 可能互换：
+    // 用 Win 消息的 player(真实决斗位) 与 DB 里 winner 的座位比对判定
+    var metaSwap = false;
+    function duelSeat(d) { return metaSwap ? (1 - d) : d; }
+    function playerByDuelPos(d) {
+        if (!meta || !meta.players) return null;
+        var seat = duelSeat(d);
+        return meta.players.find(function (p) { return p.pos === seat; }) || null;
+    }
+    function playerName(pos) {
+        var p = playerByDuelPos(pos);
+        if (p) return p.realName || p.name || ('P' + pos);
+        return 'P' + pos;
+    }
+
+    function handleMessage(m) {
+        var n = m.name;
+        var f = m.f || {};
+        // 灵摆：本次连续灵摆召唤期间不重复触发；批次结束后才允许下次灵摆召唤再触发
+        if (pendFx.batchOpen) {
+            if (n === 'SpSummoning' || n === 'Summoning' || n === 'Move' || n === 'Hint') {
+                pendExtend();
+            } else if (VISIBLE_MSG[n]) {
+                pendBatchEnd();
+            }
+        }
+        switch (n) {
+            case 'Start': {
+                idx = 0;
+                // 重置场地
+                field = { 0: {}, 1: {} };
+                lp = [8000, 8000];
+                turnPlayer = 0;
+                turnCount = 0;
+                phaseText = '';
+                // 卡组张数 = 开局主卡组数(mainc)，此后由 Draw/Move 增减
+                deckCount = [0, 0];
+                extraCount = [0, 0];
+                (meta && meta.players || []).forEach(function (p) {
+                    var dp = duelSeat(p.pos);
+                    if ((dp === 0 || dp === 1) && p.mainc) deckCount[dp] = p.mainc;
+                });
+                createFieldDOM();
+                log('对局开始（房间 ' + (meta.roomName || '') + '）');
+                logHtml('VS <b>' + escapeHtml(playerName(0)) + '</b> 对战 <b>' + escapeHtml(playerName(1)) + '</b>');
+                break;
+            }
+            case 'UpdateData': {
+                // PATCH: 处理「重连快照」。服务端在玩家重连时不重放整局，而是发
+                //   MSG_START + NewTurn/NewPhase + **每个区域一条 UpdateData 全量** + 当前请求；
+                //   而原实现的 UpdateData 分支只重建手牌/额外数量，**场上区一律不管** ——
+                //   于是"重连回来场上卡全没"（实测：模型 怪兽区/魔陷区/墓地全空）。
+                //   这里对"成片区域"按快照整区重建（UpdateData 对这些区域本来就是权威全量）。
+                (function () {
+                    var zl = f.location !== undefined ? (f.location & 0xff) : null;
+                    // 卡组：原实现只记数量（deckCount），**把卡号丢了** —— 于是「天变地异」这类
+                    // "卡组翻过来打（顶端公开）"的效果下，玩家看不到双方卡组顶端的卡（实测被反馈）。
+                    // 服务端只在**该公开时才发**卡组全量（平时根本不发），所以"收到过就说明可以公开"。
+                    if (zl === LOC.DECK && f.player !== undefined && f.player >= 0 && f.player <= 1 && Array.isArray(f.cards)) {
+                        window.__ypDeck = window.__ypDeck || { 0: [], 1: [] };
+                        var raw0 = f.raw || [];
+                        window.__ypDeck[f.player] = f.cards.map(function (c, i) {
+                            return { code: c, sequence: (raw0[i] && typeof raw0[i].sequence === 'number') ? raw0[i].sequence : i };
+                        }).filter(function (x) { return !!x.code; })
+                          .sort(function (a, b) { return a.sequence - b.sequence; });
+                    }
+                    // 额外卡组：原实现只记数量（extraCount），**把卡号丢了** → "查看列表"读模型时是空的
+                    // （玩家反馈："为什么额外是空的"）。这里把卡号存到侧通道，供交互层列表使用。
+                    if (zl === LOC.EXTRA && f.player !== undefined && f.player >= 0 && f.player <= 1 && Array.isArray(f.cards)) {
+                        window.__ypExtra = window.__ypExtra || { 0: [], 1: [] };
+                        window.__ypExtra[f.player] = f.cards.filter(function (c) { return !!c; });
+                    }
+                    var zones = [LOC.MZONE, LOC.SZONE, LOC.GRAVE, LOC.REMOVED];
+                    if (zl === null || zones.indexOf(zl) < 0) return;
+                    if (f.player === undefined || f.player < 0 || f.player > 1) return;
+                    if (!Array.isArray(f.cards)) return;
+                    var raw = f.raw || [];
+                    // 先清空该区域
+                    Object.keys(field[f.player] || {}).forEach(function (k) {
+                        if (k.indexOf(zl + ':') === 0) delete field[f.player][k];
+                    });
+                    for (var i = 0; i < f.cards.length; i++) {
+                        var code = f.cards[i];
+                        if (!code) continue;                       // 0 = 空槽位
+                        var q = raw[i] || {};
+                        var pos = (typeof q.position === 'number') ? q.position : 0;
+                        addCardAt(f.player, zl, i, code, isFaceDown(pos), pos);
+                    }
+                    if (zl === LOC.MZONE || zl === LOC.SZONE) { updateZone(f.player, zl); refreshEmz(); }
+                    else updatePiles();
+                })();
+                // UpdateData 语义复杂，雏形不重建场上区；
+                // 但 手牌(2) 全量列表与 额外卡组(64) 是权威的；另外其中带卡牌 query 数据（攻守/等级/连接标记）
+                var ingested = ingestUpdateDataStats(m);
+                var udLoc = f.location !== undefined ? (f.location & 0xff) : null;
+                if (udLoc === LOC.HAND && f.player !== undefined && f.cards
+                    && (f.cards.length === 0 || typeof f.cards[0] === 'number')) {
+                    syncHand(f.player, f.cards);
+                    updateZone(f.player, LOC.HAND);
+                } else if (udLoc === LOC.EXTRA && f.player !== undefined && Array.isArray(f.cards)) {
+                    // 额外卡组列表（数字=卡号）→ 张数
+                    var ec = f.cards.filter(function (c) { return typeof c === 'number'; }).length;
+                    extraCount[f.player] = ec;
+                    updatePiles();
+                }
+                // 攻守数据有变化 → 刷新对应区域（角标/连接箭头）
+                if (ingested && udLoc !== null && f.player !== undefined && f.player >= 0 && f.player <= 1) {
+                    if (udLoc === LOC.MZONE || udLoc === LOC.SZONE) updateZone(f.player, udLoc);
+                }
+                break;
+            }
+            case 'Draw': {
+                var pl = f.player;
+                var cards = f.cards || [];
+                var drawN = cards.length || (f.count || 0);
+                if (drawN && deckCount[pl] !== undefined) {
+                    deckCount[pl] = Math.max(0, deckCount[pl] - drawN);
+                }
+                log(playerName(pl) + ' 抽卡 ' + drawN + ' 张');
+                cards.forEach(function (code) {
+                    addToHand(pl, code);
+                });
+                updateZone(pl, LOC.HAND);
+                // 卡组计数即时刷新（Draw 无 Move，不会触发 updateAllZones）
+                updatePiles();
+                // 抽卡动画：卡从卡组堆滑向手牌
+                if (!animSuppress && cards.length) {
+                    var dkPileEl = midEls['deck:' + pl];
+                    var handCont = zoneEls[pl + ':' + LOC.HAND];
+                    if (dkPileEl && handCont) {
+                        var dkR = dkPileEl.getBoundingClientRect();
+                        cards.forEach(function (c, ci) {
+                            var slotEl = handCont.children[handCont.children.length - cards.length + ci];
+                            if (slotEl) {
+                                setTimeout(function () {
+                                    flyGhost(c, false, dkR, slotEl.getBoundingClientRect());
+                                }, ci * 50);
+                            }
+                        });
+                    }
+                }
+                break;
+            }
+            case 'NewTurn': {
+                turnPlayer = f.player;
+                turnCount++;              // 回合计数
+                phaseText = '回合开始';
+                renderPlayerHead(0);
+                renderPlayerHead(1);
+                if (phaseEl) phaseEl.textContent = phaseText;
+                renderTurnLabel();
+                // 高亮当前回合方
+                [0, 1].forEach(function (c) {
+                    var side = fieldEl.querySelector(c === 1 ? '.rp-opp' : '.rp-self');
+                    if (side) side.classList.toggle('rp-active-side', turnPlayer === c);
+                });
+                log(playerName(turnPlayer) + ' 的回合', 'rp-log-phase');
+                break;
+            }
+            case 'NewPhase': {
+                phaseText = PHASE_NAMES[f.phase] || ('阶段' + f.phase);
+                if (phaseEl) phaseEl.textContent = phaseText;
+                log('— ' + phaseText + ' —', 'rp-log-phase');
+                if (!animSuppress) phaseBanner(phaseText);
+                break;
+            }
+            case 'PosChange': {
+                // 表示形式变更（守备↔攻击）
+                // payload: code(4) controller(1) location(1) sequence(1) previousPosition(1) currentPosition(1)
+                var pcCode = hexU32(m.hex, 1);
+                var pcCtl = hexU8(m.hex, 5);
+                var pcLoc = hexU8(m.hex, 6);
+                var pcSeq = hexU8(m.hex, 7);
+                var pcPrev = hexU8(m.hex, 8);
+                var pcCur = hexU8(m.hex, 9) || (f.currentPosition || 0);
+                var pcName = cardName(pcCode) || ('#' + pcCode);
+                // 先按 (controller,location,sequence) 精确找，找不到再按卡号在场上扫
+                var pcCard = field[pcCtl] ? field[pcCtl][pcLoc + ':' + pcSeq] : null;
+                if (!pcCard || (pcCard.code && pcCard.code !== pcCode)) {
+                    pcCard = null;
+                    var pcLocs = [LOC.MZONE, LOC.SZONE];
+                    for (var pli = 0; pli < pcLocs.length && !pcCard; pli++) {
+                        for (var psq = 0; psq < 7; psq++) {
+                            var pcCand = field[pcCtl] ? field[pcCtl][pcLocs[pli] + ':' + psq] : null;
+                            if (pcCand && pcCand.code === pcCode) {
+                                pcCard = pcCand; pcLoc = pcLocs[pli]; pcSeq = psq; break;
+                            }
+                        }
+                    }
+                }
+                if (pcCard) {
+                    pcCard.pos = pcCur;                       // 更新表示形式（守备横置 / 攻击竖置）
+                    pcCard.faceDown = isFaceDown(pcCur);
+                    updateZone(pcCtl, pcLoc);
+                    if (pcLoc === LOC.MZONE && pcSeq >= 5) refreshEmz();   // 额外怪兽区(seq5/6)单独刷新
+                }
+                var pcIsMonster = (pcLoc === LOC.MZONE);
+                var pcPosText = function (p) {
+                    if (!pcIsMonster) return isFaceDown(p) ? '里侧' : '表侧';   // 魔陷：只分表侧/里侧
+                    if (isFaceDown(p)) return '里侧' + (isDefense(p) ? '守备' : '攻击');
+                    return isDefense(p) ? '守备' : '攻击';
+                };
+                log(playerName(pcCtl) + ' ' + pcName + '：' + (pcIsMonster ? '表示形式 ' : '')
+                    + pcPosText(pcPrev) + ' → ' + pcPosText(pcCur));
+                break;
+            }
+            case 'Move': {
+                var code = f.code;
+                var prev = f.previous || {};
+                var cur = f.current || {};
+                var name = cardName(code);
+                var pRawM = prev.location;
+                var cRawM = cur.location;
+                var prevOv = pRawM !== undefined && (pRawM & 0x80) !== 0;   // 来源=叠放素材
+                var curOv = cRawM !== undefined && (cRawM & 0x80) !== 0;    // 去向=叠放素材
+                var pPlain = pRawM === undefined ? null : (pRawM & 0x7f);
+                var cPlain = cRawM === undefined ? null : (cRawM & 0x7f);
+                var mCon = prev.controller !== undefined ? prev.controller : 0;
+                var mConC = cur.controller !== undefined ? cur.controller : mCon;
+                var mSeqP = prev.sequence !== undefined ? prev.sequence : 0;
+                var mSeqC = cur.sequence !== undefined ? cur.sequence : 0;
+
+                // 动画：移动前记下来源矩形
+                var animPreSrc = null;
+                if (!animSuppress && !prevOv && pRawM !== undefined) {
+                    if (pPlain === LOC.HAND) {
+                        animPreSrc = rectAtHandByCode(mCon, code);
+                    } else if (pPlain === LOC.MZONE || pPlain === LOC.SZONE || pPlain === LOC.GRAVE
+                        || pPlain === LOC.REMOVED || pPlain === LOC.DECK || pPlain === LOC.EXTRA) {
+                        animPreSrc = rectAt(mCon, pRawM, mSeqP);
+                    }
+                }
+                // 卡组/额外卡组计数（叠放素材不计）
+                if (!prevOv && !curOv) {
+                    if (pPlain === LOC.DECK || cPlain === LOC.DECK) {
+                        var dDelta = (cPlain === LOC.DECK ? 1 : 0) - (pPlain === LOC.DECK ? 1 : 0);
+                        deckCount[mCon] = Math.max(0, (deckCount[mCon] || 0) + dDelta);
+                    }
+                    if (pPlain === LOC.EXTRA || cPlain === LOC.EXTRA) {
+                        var eDelta = (cPlain === LOC.EXTRA ? 1 : 0) - (pPlain === LOC.EXTRA ? 1 : 0);
+                        extraCount[mCon] = Math.max(0, (extraCount[mCon] || 0) + eDelta);
+                    }
+                }
+                if (cur.location !== undefined) {
+                    var hostRectForFx = null;
+                    if (curOv) {
+                        // ── 素材叠放 ──
+                        if (cPlain === LOC.MZONE) {
+                            // 宿主已在场上：直接给宿主格 +1（sequence = 宿主格序号）
+                            var hostCard = field[mConC] ? field[mConC][LOC.MZONE + ':' + mSeqC] : null;
+                            if (hostCard) {
+                                hostCard.mats = (hostCard.mats || 0) + 1;
+                                hostRectForFx = rectAt(mConC, LOC.MZONE, mSeqC);
+                            }
+                        } else {
+                            // 宿主还在额外卡组（sequence = 额外卡组序号）：先记着，宿主落地时再叠
+                            var pkey = mConC + ':' + mSeqC;
+                            if (!pendingMats[pkey]) pendingMats[pkey] = { count: 0, rects: [] };
+                            pendingMats[pkey].count++;
+                            if (animPreSrc) pendingMats[pkey].rects.push(animPreSrc);
+                        }
+                        // 素材来源若是场上怪兽，从场上移除（素材卡本身不入场）
+                        if (!prevOv && pPlain !== null && pPlain !== LOC.HAND) {
+                            removeAt(mCon, pPlain, mSeqP);
+                        } else if (!prevOv && pPlain === LOC.HAND) {
+                            removeFromHandByCode(mCon, code);
+                        }
+                        if (hostRectForFx && animPreSrc) overlayStackFx(animPreSrc, hostRectForFx, code);
+                        pushMat(code, animPreSrc);   // 素材入缓冲（供超量/融合演出用）
+                    } else {
+                        moveCard(prev, cur, code);                        // 宿主从额外卡组落地：把之前叠放的素材归到它头上，并播叠放动画
+                        if (!prevOv && pPlain === LOC.EXTRA) {
+                            var lk = mConC + ':' + mSeqP;
+                            var pendMats = pendingMats[lk];
+                            var landed = field[mConC] ? field[mConC][(cPlain || 0) + ':' + mSeqC] : null;
+                            if (pendMats && landed) {
+                                landed.mats = (landed.mats || 0) + pendMats.count;
+                                var hostR = rectAt(mConC, cRawM, mSeqC);
+                                if (hostR) {
+                                    pendMats.rects.forEach(function (r, i) {
+                                        setTimeout(function () { overlayStackFx(r, hostR, code); }, 60 + i * 70);
+                                    });
+                                }
+                            }
+                            delete pendingMats[lk];
+                        }
+                        // 记录最近一次怪兽落地（供 SpSummoning 判断召唤种类/是否来自额外卡组）
+                        if (cPlain === LOC.MZONE) {
+                            lastLand = { code: code, fromExtra: (pPlain === LOC.EXTRA), idx: idx, ctl: mConC, seq: mSeqC, rawLoc: cRawM };
+                            var landType = summonTypeOf(code);
+                            // 连接怪：落地瞬间就先隐藏（避免特效前闪一下），等素材红球飞到位再由小变大现身
+                            if (!animSuppress && pPlain === LOC.EXTRA && landType === 'link') {
+                                var linkCell = cellElFor(mConC, cRawM, mSeqC);
+                                if (linkCell) fxHoldCell(linkCell, 1800);
+                            }
+                            // 灵摆怪：召唤前先起钟摆（怪兽照常立即上场，不做隐藏）
+                            if (!animSuppress && landType === 'pendulum') {
+                                if (!pendFx.batchOpen) pendBegin(mConC);
+                            }
+                        }
+                        // 素材进缓冲：场上/手牌/卡组 → 墓地（非战斗破坏）
+                        if (!animSuppress && !inBattle && cPlain === LOC.GRAVE
+                            && (pPlain === LOC.MZONE || pPlain === LOC.SZONE || pPlain === LOC.HAND || pPlain === LOC.DECK)) {
+                            pushMat(code, animPreSrc);
+                        }
+                    }
+                    // 素材取除（素材 → 墓/手/除外等）：宿主计数 -1
+                    if (prevOv && !curOv) {
+                        if (pPlain === LOC.MZONE) {
+                            var hc = field[mCon] ? field[mCon][LOC.MZONE + ':' + mSeqP] : null;
+                            if (hc) hc.mats = Math.max(0, (hc.mats || 0) - 1);
+                            var hRect = hc ? rectAt(mCon, LOC.MZONE, mSeqP) : null;
+                            var dRectD = rectAt(mConC, cRawM, mSeqC);
+                            if (hRect && dRectD) flyGhost(code || 0, false, hRect, dRectD, false);
+                        }
+                    }
+                    // 刷新涉及区域
+                    if (!prevOv && pPlain !== null && (mCon !== mConC || pPlain !== cPlain)) {
+                        updateZone(mCon, pPlain);
+                    }
+                    if (!curOv) updateZone(mConC, cPlain);
+                    updateAllZones();
+                    // 常规移动动画
+                    if (animPreSrc && !curOv && !prevOv) {
+                        var sameCell = pPlain === cPlain && mCon === mConC
+                            && (prev.sequence === undefined || cur.sequence === undefined || prev.sequence === cur.sequence);
+                        if (cPlain === LOC.GRAVE && (pPlain === LOC.MZONE || pPlain === LOC.SZONE)) {
+                            // 若这次破坏正是攻击命中的目标：爆炸与破碎同时发生
+                            if (pendingImpact && !pendingImpact.done && pendingImpact.code === code) {
+                                var impRect = pendingImpact.rect;
+                                var impCtl = pendingImpact.defCtl;
+                                pendingImpact.done = true;
+                                pendingImpact = null;
+                                boomFx(impRect);
+                                var gPileEl2 = midEls['grave:' + (impCtl === undefined ? mConC : impCtl)];
+                                shatterFx(impRect, gPileEl2 ? gPileEl2.getBoundingClientRect() : null);
+                            } else {
+                                var gPileEl = midEls['grave:' + mConC];
+                                shatterFx(animPreSrc, gPileEl ? gPileEl.getBoundingClientRect() : null);
+                            }
+                        } else if (sameCell) {
+                            if (prev.position !== undefined && cur.position !== undefined
+                                && isFaceDown(prev.position) && !isFaceDown(cur.position) && code) {
+                                var flipRect = animPreSrc;
+                                setTimeout(function () { flipRevealFx(flipRect, code); }, 40);
+                            }
+                        } else {
+                            var dRect = rectAt(mConC, cRawM, mSeqC);
+                            // 连接召唤：不播"卡图滑行"（否则会在演出前露出卡图），交给素材红球+数码特效
+                            var isLinkLand = (!prevOv && pPlain === LOC.EXTRA && cPlain === LOC.MZONE
+                                && summonTypeOf(code) === 'link');
+                            if (dRect && !isLinkLand) {
+                                flyGhost(code || 0, isFaceDown(cur.position) || cPlain === LOC.DECK || cPlain === LOC.EXTRA, animPreSrc, dRect,
+                                    mConC === 1 && (cPlain === LOC.MZONE || cPlain === LOC.SZONE) && !isFaceDown(cur.position));
+                                if (cPlain === LOC.MZONE) {
+                                    var ringRect = dRect;
+                                    setTimeout(function () { summonRingFx(ringRect); }, 200);
+                                }
+                            }
+                        }
+                    }
+                }
+                // 日志：素材进出不刷屏
+                var from = (!prevOv && pRawM !== undefined) ? (LOC_NAME[pPlain] || '') : '';
+                var to = (!curOv && cRawM !== undefined) ? (LOC_NAME[cPlain] || '') : '';
+                if (to) {
+                    var mover = cur.controller !== undefined ? playerName(cur.controller) : '';
+                    log((mover ? mover + '：' : '') + (name || '卡片') + '：' + (from ? from + ' → ' : '') + to);
+                }
+                break;
+            }
+            case 'Summoning': {
+                var sc = f.code;
+                log(playerName(f.controller !== undefined ? f.controller : 0) + ' 召唤 ' + cardName(sc));
+                // 召唤通常先有 Move 到手牌→场上，这里仅日志
+                break;
+            }
+            case 'Summoned': {
+                break;
+            }
+            case 'SpSummoning': {
+                log('特殊召唤 ' + cardName(f.code));
+                // 召唤演出：融合/同调/超量/连接（来自额外卡组）、灵摆
+                if (!animSuppress && lastLand && lastLand.code === f.code && idx - lastLand.idx <= 6) {
+                    var st = summonTypeOf(f.code);
+                    var extraType = st === 'fusion' || st === 'synchro' || st === 'xyz' || st === 'link';
+                    if ((extraType && lastLand.fromExtra) || st === 'pendulum') {
+                        var sRect = rectAt(lastLand.ctl, lastLand.rawLoc, lastLand.seq);
+                        var sCell = cellElFor(lastLand.ctl, lastLand.rawLoc, lastLand.seq);
+                        var sCard = field[lastLand.ctl] ? field[lastLand.ctl][(lastLand.rawLoc & 0x7f) + ':' + lastLand.seq] : null;
+                        var sFlip = lastLand.ctl === 1 && !!sCard && !sCard.faceDown;
+                        var sDef = !!sCard && isDefense(sCard.pos);
+                        if (sRect) summonShowFx(f.code, sRect, sCell, sFlip, sDef, lastLand.ctl);
+                    }
+                }
+                break;
+            }
+            case 'Chaining': {
+                log('连锁发动：' + cardName(f.code), 'rp-log-chain');
+                // 发效果动画：把卡“放到镜头前”闪一下；若该卡是盖着的(陷阱/魔法)先原地翻面
+                if (!animSuppress && f.code) {
+                    var cl0 = f.location;
+                    var cc0 = f.controller;
+                    if ((cl0 === undefined || cc0 === undefined) && f.chainCardLocation) {
+                        cl0 = f.chainCardLocation.location;
+                        cc0 = f.chainCardLocation.controller;
+                    }
+                    var seq0 = f.sequence !== undefined ? f.sequence : 0;
+                    if (cl0 !== undefined && cc0 !== undefined) {
+                        var l2 = cl0 & 0xff;
+                        var cObj = field[cc0] ? field[cc0][l2 + ':' + seq0] : null;
+                        if (cObj && cObj.faceDown) {
+                            // 盖卡发动：翻成正面 + 翻牌动画，随后镜头闪光
+                            cObj.faceDown = false;
+                            if (l2 === LOC.SZONE || l2 === LOC.MZONE) updateZone(cc0, l2);
+                            var cRect = rectAt(cc0, cl0, seq0);
+                            if (cRect) flipRevealFx(cRect, f.code);
+                            setTimeout(function () { effectFlash(f.code, cRect, false); }, 170);
+                        } else {
+                            var fr2 = rectAt(cc0, cl0, seq0);
+                            effectFlash(f.code, fr2, false);
+                        }
+                    } else {
+                        effectFlash(f.code, null, false);
+                    }
+                }
+                break;
+            }
+            case 'Attack': {
+                var atk = f.attacker || {};
+                var aCtl = atk.controller !== undefined ? atk.controller : 0;
+                var aSeq = atk.sequence !== undefined ? atk.sequence : 0;
+                var aLocRaw = atk.location !== undefined ? atk.location : LOC.MZONE;
+                var aCard = field[aCtl] ? field[aCtl][(aLocRaw & 0xff) + ':' + aSeq] : null;
+                var aCode = aCard ? aCard.code : 0;
+                var tg = attackResolve(aCtl);
+                var line = '⚔ ' + playerName(aCtl) + ' 的 ' + (cardName(aCode) || '怪兽');
+                if (tg && tg.code) line += ' 攻击 ' + (cardName(tg.code) || '怪兽');
+                else if (tg && tg.direct) line += ' 直接攻击';
+                else line += ' 发起攻击';
+                log(line, 'rp-log-battle');
+                // 攻击动画：红圈+箭头标记 → 能量球飞出 → 爆炸（若目标会破坏则同时碎卡）
+                if (!animSuppress) {
+                    var aRect = rectAt(aCtl, aLocRaw, aSeq);
+                    var tRect = null;
+                    var tCell = null;
+                    var isDirect = !!(tg && tg.direct);
+                    if (tg && tg.code) {
+                        var df = field[1 - aCtl] || {};
+                        var dk = Object.keys(df).filter(function (k) { return k.indexOf('4:') === 0; })
+                            .find(function (k) { return df[k].code === tg.code; });
+                        if (dk) {
+                            var dSeq = parseInt(dk.split(':')[1], 10);
+                            tRect = rectAt(1 - aCtl, LOC.MZONE, dSeq);
+                            tCell = cellElFor(1 - aCtl, LOC.MZONE, dSeq);
+                        }
+                    } else if (isDirect) {
+                        // 直击：能量球射向对方手卡区中心（与客户端一致）
+                        var hEl = zoneEls[(1 - aCtl) + ':' + LOC.HAND];
+                        tRect = hEl ? hEl.getBoundingClientRect() : null;
+                        if (!tRect) {
+                            var lpEl2 = lpEls[1 - aCtl];
+                            if (lpEl2) tRect = lpEl2.getBoundingClientRect();
+                        }
+                    }
+                    attackMarkFx(aRect, tRect, isDirect, (tg && tg.killedCode) || 0, 1 - aCtl);
+                }
+                break;
+            }
+            case 'DamageStepStart': inBattle = true; break;
+            case 'DamageStepEnd': inBattle = false; break;
+            case 'ChainSolving': log('… 连锁处理中 …', 'rp-log-chain'); break;
+            case 'ChainSolved': log('连锁处理完毕', 'rp-log-chain'); break;
+            case 'ChainEnd': log('— 连锁结束 —', 'rp-log-chain'); break;
+            case 'Damage': {
+                var dpl = f.player;
+                lp[dpl] = Math.max(0, (lp[dpl] || 8000) - (f.value || 0));
+                renderPlayerHead(dpl);
+                hurtFlash(dpl);   // 受伤方瞬间闪红
+                dmgFloat(dpl, f.value, '-');   // -3000 提示
+                if (inBattle) {
+                    log(playerName(dpl) + ' 受到 ' + f.value + ' 战斗伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
+                } else {
+                    log(playerName(dpl) + ' 受到 ' + f.value + ' 点效果伤害（LP ' + lp[dpl] + '）', 'rp-log-damage');
+                }
+                break;
+            }
+            case 'Recover': {
+                var rpl = f.player;
+                lp[rpl] = Math.min(8000, (lp[rpl] || 8000) + (f.value || 0));
+                renderPlayerHead(rpl);
+                dmgFloat(rpl, f.value, '+');   // +N 提示
+                log(playerName(rpl) + ' 恢复 ' + f.value + ' LP');
+                break;
+            }
+            case 'PayLpCost': {
+                // 支付基本分（后端白名单不含金额 → 从原始 hex 解码：player(1B) + cost(4B LE)）
+                var plp = m.f && m.f.player !== undefined ? m.f.player : hexU8(m.hex, 1);
+                var cost = (m.f && typeof m.f.value === 'number') ? m.f.value : hexU32(m.hex, 2);
+                if (cost > 0) {
+                    lp[plp] = Math.max(0, (lp[plp] || 8000) - cost);
+                    renderPlayerHead(plp);
+                    dmgFloat(plp, cost, '-', '#ffb347');       // 橙色 = 支付
+                    lastPayLp = { player: plp, idx: idx };
+                    log(playerName(plp) + ' 支付 ' + cost + ' LP（LP ' + lp[plp] + '）', 'rp-log-damage');
+                }
+                break;
+            }
+            case 'LpUpdate': {
+                // 绝对 LP（权威）：直接校准，避免累计误差
+                var lup = f.player;
+                if (typeof f.lp === 'number' && (lup === 0 || lup === 1)) {
+                    var prevLp = lp[lup];
+                    lp[lup] = f.lp;
+                    renderPlayerHead(lup);
+                    var dlp = f.lp - prevLp;
+                    if (dlp !== 0 && !(lastPayLp && lastPayLp.player === lup && idx - lastPayLp.idx <= 3)) {
+                        dmgFloat(lup, Math.abs(dlp), dlp > 0 ? '+' : '-');
+                    }
+                }
+                break;
+            }
+            case 'Win': {
+                var wpl = f.player;
+                log(playerName(wpl) + ' 获胜！', 'rp-log-win');
+                break;
+            }
+            case 'Hint': {
+                if (f.hint) log('提示：' + f.hint, 'rp-log-hint');
+                break;
+            }
+            case 'ShuffleHand': {
+                // 手牌洗牌：cards 为新顺序，整体重建手牌
+                if (f.player !== undefined && f.cards && f.cards.length && typeof f.cards[0] === 'number') {
+                    syncHand(f.player, f.cards);
+                    updateZone(f.player, LOC.HAND);
+                }
+                break;
+            }
+            case 'SelectIdleCmd':
+            case 'SelectBattleCmd':
+            case 'SelectChain':
+            case 'SelectCard':
+            case 'SelectEffectYn':
+            case 'SelectOption':
+            case 'SelectPlace':
+            case 'SelectPosition':
+            case 'SelectTribute':
+            case 'SelectSum':
+            case 'SelectUnselectCard':
+            case 'AnnounceCard':
+            case 'AnnounceAttrib':
+            case 'AnnounceNumber':
+            case 'AnnounceRace':
+            case 'ConfirmCards':
+            case 'Toss':
+            case 'RockPaperScissors':
+                // 选择类消息：回放时无需操作，直接跳过（可能有可视提示可选做）
+                break;
+            default:
+                // 未知消息不阻塞
+                break;
+        }
+    }
+
+    // 场地操作辅助：field[c][loc:seq] = {code, faceDown, pos(原表示位)}
+    var _uid = 1;
+
+    function addCardAt(controller, loc, seq, code, down, posRaw) {
+        if (!field[controller]) field[controller] = {};
+        field[controller][loc + ':' + seq] = {
+            code: code,
+            uid: _uid++,
+            faceDown: !!down,
+            pos: posRaw,
+        };
+    }
+
+    function removeAt(controller, loc, seq) {
+        if (field[controller]) delete field[controller][loc + ':' + seq];
+    }
+
+    // 手牌是“压缩列表”：出牌/洗牌后核心的序号会前移。
+    // 因此删除手牌按【卡号】匹配，删除后把剩余手牌重排为 0..n-1（不依赖 seq 键）。
+    function handKeys(ctl) {
+        var t = field[ctl] || {};
+        return Object.keys(t)
+            .filter(function (k) { return k.indexOf(LOC.HAND + ':') === 0; })
+            .sort(function (a, b) { return parseInt(a.split(':')[1], 10) - parseInt(b.split(':')[1], 10); });
+    }
+    function removeFromHandByCode(ctl, code) {
+        if (!field[ctl] || !code) return false;
+        var keys = handKeys(ctl);
+        var found = -1;
+        for (var i = 0; i < keys.length; i++) {
+            if (field[ctl][keys[i]].code === code) { found = i; break; }
+        }
+        if (found < 0) return false;
+        delete field[ctl][keys[found]];
+        var rest = keys.filter(function (k, j) { return j !== found; })
+            .map(function (k) { return field[ctl][k]; });
+        var next = {};
+        Object.keys(field[ctl]).forEach(function (k) {
+            if (k.indexOf(LOC.HAND + ':') !== 0) next[k] = field[ctl][k];
+        });
+        rest.forEach(function (c, j) { next[LOC.HAND + ':' + j] = c; });
+        field[ctl] = next;
+        return true;
+    }
+
+    // 用权威的手牌列表（顺序）整体重建手牌（UpdateData/ShuffleHand 同步用）
+    function syncHand(ctl, codes) {
+        if (!field[ctl]) field[ctl] = {};
+        var next = {};
+        Object.keys(field[ctl]).forEach(function (k) {
+            if (k.indexOf(LOC.HAND + ':') !== 0) next[k] = field[ctl][k];
+        });
+        codes.forEach(function (c, i) {
+            next[LOC.HAND + ':' + i] = { code: c, uid: _uid++, faceDown: !c, pos: 0 };   // PATCH: 卡号 0 = 服务端屏蔽（观战视角手牌）→ 画背面
+        });
+        field[ctl] = next;
+    }
+
+    /**
+     * PATCH: 把某区域内 seq >= fromSeq 的卡整体挪 delta 位（-1 补位 / +1 让位）。
+     * 服务端在移出/插入时会自己补位，客户端必须照做，否则 seq 会错开 ——
+     * 表现就是"点右边那张，召唤出来的却是左边那张"。delta>0 时从大到小处理，避免互相覆盖。
+     */
+    function shiftSeqKeys(ctl, loc, fromSeq, delta) {
+        if (!field[ctl] || !delta) return;
+        var pfx = loc + ':';
+        var keys = Object.keys(field[ctl]).filter(function (k) {
+            if (k.indexOf(pfx) !== 0) return false;
+            var s = parseInt(k.slice(pfx.length), 10);
+            return !isNaN(s) && s >= fromSeq;
+        });
+        keys.sort(function (a, b) {
+            var sa = parseInt(a.slice(pfx.length), 10), sb = parseInt(b.slice(pfx.length), 10);
+            return delta > 0 ? sb - sa : sa - sb;
+        });
+        keys.forEach(function (k) {
+            var s = parseInt(k.slice(pfx.length), 10);
+            var card = field[ctl][k];
+            delete field[ctl][k];
+            card.seq = s + delta;
+            field[ctl][loc + ':' + (s + delta)] = card;
+        });
+    }
+
+    function moveCard(prev, cur, code) {
+        // PATCH: 卡一旦离开某格，就把该格与"该卡号"的实时攻守缓存清掉。
+        // 否则：同一张卡的新个体再次出场、占回同一格时，会沿用旧个体被装备/指示物加成过的攻守
+        // （玩家实测："我明明是 1600，之前出场装备过，重新召唤就变成装备过的攻击力了"）。
+        // 原实现的作废条件只比"卡号是否相同"（statFor 里），同卡号新个体正好躲过检查。
+        try {
+            if (prev && prev.controller !== undefined && prev.location !== undefined) {
+                delete cardStatByKey[prev.controller + ':' + (prev.location & 0x7f) + ':' + (prev.sequence || 0)];
+            }
+            delete cardStatByCode[code];
+        } catch (e) {}
+
+        var pCon = prev.controller !== undefined ? prev.controller : 0;
+        var pRaw = prev.location;
+        var pLoc = pRaw !== undefined ? (pRaw & 0x7f) : undefined;
+        var prevOverlay = pRaw !== undefined && (pRaw & 0x80) !== 0;   // 来源是叠放素材（不在模型里）
+        var cCon = cur.controller !== undefined ? cur.controller : pCon;
+        var cLoc = cur.location !== undefined ? (cur.location & 0x7f) : undefined;
+        var cOverlay = cur.location !== undefined && (cur.location & 0x80) !== 0;
+        var down = isFaceDown(cur.position);
+        var posRaw = cur.position;
+        var oldCard = null;
+
+        if (prevOverlay) {
+            // 叠放素材移出：不操作场地模型（计数由调用方处理）
+        } else if (pLoc === LOC.HAND) {
+            // PATCH: 服务端的 seq 才是真相 —— 优先按 seq 精确删（手牌有同名卡时按卡号删会删错），
+            // 删完把后面的牌往前补位；两处都不做，手牌 seq 就会与服务端错开一位。
+            var pSeq = prev.sequence !== undefined ? prev.sequence : 0;
+            var atSeq = field[pCon] ? field[pCon][LOC.HAND + ':' + pSeq] : null;
+            if (atSeq && (code === undefined || !code || atSeq.code === code)) {
+                removeAt(pCon, LOC.HAND, pSeq);
+            } else {
+                var removed = removeFromHandByCode(pCon, code);
+                if (!removed) removeAt(pCon, LOC.HAND, pSeq);
+            }
+            shiftSeqKeys(pCon, LOC.HAND, pSeq, -1);
+        } else if (pLoc !== undefined) {
+            // 记住旧卡对象（携带超量素材数，移动后要继承）
+            oldCard = (field[pCon] && field[pCon][pLoc + ':' + (prev.sequence !== undefined ? prev.sequence : 0)]) || null;
+            removeAt(pCon, pLoc, prev.sequence !== undefined ? prev.sequence : 0);
+        }
+
+        if (cOverlay) {
+            return;   // 素材本身不显示在场上（计数由调用方处理）
+        }
+        if (cLoc === LOC.HAND) {
+            // PATCH: 服务端给了 seq 就插到那个位置（后面的牌往后挪一位），没给才追加末尾
+            var cSeq = cur.sequence !== undefined ? cur.sequence : -1;
+            if (cSeq >= 0) {
+                shiftSeqKeys(cCon, LOC.HAND, cSeq, 1);
+                addCardAt(cCon, LOC.HAND, cSeq, code !== undefined ? code : 0, false, 0);
+            } else {
+                addToHand(cCon, code !== undefined ? code : 0);
+            }
+        } else if (cLoc !== undefined) {
+            addCardAt(cCon, cLoc, cur.sequence !== undefined ? cur.sequence : 0, code, down, posRaw);
+            var newCard = field[cCon][cLoc + ':' + (cur.sequence !== undefined ? cur.sequence : 0)];
+            if (newCard && oldCard && oldCard.mats) newCard.mats = oldCard.mats;   // 素材随宿主移动
+        }
+    }
+
+    function addToHand(controller, code) {
+        var seq = 0;
+        while (field[controller] && field[controller][LOC.HAND + ':' + seq]) seq++;
+        if (code) addCardAt(controller, LOC.HAND, seq, code, false, 0);
+    }
+
+    function isFaceDown(pos) {
+        if (pos === undefined) return false;
+        return (pos & 0x8) !== 0 || (pos & 0x2) !== 0; // FACEDOWN_DEFENSE=8 FACEDOWN_ATTACK=2
+    }
+
+    // 守备表示：表侧守备 0x4 / 里侧守备 0x8
+    function isDefense(pos) {
+        if (pos === undefined) return false;
+        return (pos & 0x4) !== 0 || (pos & 0x8) !== 0;
+    }
+
+    function escapeHtml(text) {
+        var div = document.createElement('div');
+        div.textContent = text == null ? '' : String(text);
+        return div.innerHTML;
+    }
+
+    // ── 原始 payload hex 解码（用于后端白名单没提取的字段，如 PayLpCost 的金额）──
+    function hexU8(hex, off) {
+        if (!hex || hex.length < (off + 1) * 2) return 0;
+        return parseInt(hex.substr(off * 2, 2), 16);
+    }
+    function hexU32(hex, off) {
+        if (!hex || hex.length < (off + 4) * 2) return 0;
+        var b0 = hexU8(hex, off), b1 = hexU8(hex, off + 1), b2 = hexU8(hex, off + 2), b3 = hexU8(hex, off + 3);
+        return (b0 | (b1 << 8) | (b2 << 16) | (b3 << 24)) >>> 0;
+    }
+
+    // ── 卡牌 query 数据解析（含攻守/等级/连接标记）──
+    // 与 ygopro-msg-encode 的 CardQuery 字段顺序一致；每个 chunk = [len(4B)][flags(4B)][按标志位排列的字段]
+    var QUERY = {
+        CODE: 1, POSITION: 2, ALIAS: 4, TYPE: 8, LEVEL: 16, RANK: 32, ATTRIBUTE: 64, RACE: 128,
+        ATTACK: 256, DEFENSE: 512, BASE_ATTACK: 1024, BASE_DEFENSE: 2048, REASON: 4096,
+        REASON_CARD: 8192, EQUIP_CARD: 16384, TARGET_CARD: 32768, OVERLAY_CARD: 65536,
+        COUNTERS: 131072, OWNER: 262144, STATUS: 524288, LSCALE: 2097152, RSCALE: 4194304, LINK: 8388608,
+    };
+    // 连接标记位（ocgcore）
+    var LMARK = {
+        BL: 1, BOTTOM: 2, BR: 4, LEFT: 8, RIGHT: 32, TL: 64, TOP: 128, TR: 256,
+    };
+    var cardStatByKey = {};    // "ctl:loc:seq" → {atk,def,batk,bdef,level,rank,link,marker,type}
+    var cardStatByCode = {};   // code → 同上（兜底）
+
+    function hexToBytes(hex) {
+        var n = Math.floor(hex.length / 2);
+        var out = new Uint8Array(n);
+        for (var i = 0; i < n; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16);
+        return out;
+    }
+    function parseCardQueryChunk(dv, offset, total) {
+        if (offset + 4 > total) return null;
+        var len = dv.getInt32(offset, true);
+        if (len < 4 || offset + len > total) return null;
+        if (len === 4) return { card: { empty: true }, length: 4 };
+        var flags = dv.getUint32(offset + 4, true);
+        var card = { flags: flags };
+        var o = offset + 8;
+        if (flags & QUERY.CODE) { card.code = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.POSITION) {
+            var pd = dv.getUint32(o, true);
+            card.controller = pd & 255; card.location = (pd >>> 8) & 255;
+            card.sequence = (pd >>> 16) & 255; card.position = (pd >>> 24) & 255;
+            o += 4;
+        }
+        if (flags & QUERY.ALIAS) { card.alias = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.TYPE) { card.type = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.LEVEL) { card.level = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.RANK) { card.rank = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.ATTRIBUTE) { card.attribute = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.RACE) { card.race = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.ATTACK) { card.atk = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.DEFENSE) { card.def = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.BASE_ATTACK) { card.batk = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.BASE_DEFENSE) { card.bdef = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.REASON) { o += 4; }
+        if (flags & QUERY.REASON_CARD) { o += 4; }
+        if (flags & QUERY.EQUIP_CARD) { o += 4; }
+        if (flags & QUERY.TARGET_CARD) { var tc = dv.getInt32(o, true); o += 4 + tc * 4; }
+        if (flags & QUERY.OVERLAY_CARD) { var oc = dv.getInt32(o, true); o += 4 + oc * 4; }
+        if (flags & QUERY.COUNTERS) { var cc = dv.getInt32(o, true); o += 4 + cc * 4; }
+        if (flags & QUERY.OWNER) { o += 4; }
+        if (flags & QUERY.STATUS) { card.status = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.LSCALE) { card.lscale = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.RSCALE) { card.rscale = dv.getInt32(o, true); o += 4; }
+        if (flags & QUERY.LINK) { card.link = dv.getInt32(o, true); o += 4; card.marker = dv.getInt32(o, true); o += 4; }
+        return { card: card, length: len };   // 用 chunk 长度推进，容错
+    }
+    function statSig(s) {
+        if (!s) return '';
+        return [s.atk, s.def, s.link, s.marker, s.level, s.rank].join('|');
+    }
+    // 字段级合并：query 可能只带部分字段（如只查攻击力），缺的字段保留旧值，避免守备力变 "?"
+    function mergeStat(prev, c) {
+        var out = {};
+        function pick(name) {
+            if (c[name] !== undefined) return c[name];
+            if (prev && prev[name] !== undefined) return prev[name];
+            return undefined;
+        }
+        ['atk', 'def', 'batk', 'bdef', 'level', 'rank', 'link', 'marker', 'type'].forEach(function (k) {
+            var v = pick(k);
+            if (v !== undefined) out[k] = v;
+        });
+        return out;
+    }
+    // 解析 UpdateData 的 hex，缓存攻守等数据；返回是否有更新
+    function ingestUpdateDataStats(m) {
+            // ⚠ 注意：查看器调用本函数时传的是**整个 envelope**（我们的形状是 {name, f:{...}}），
+            //   所以 hex/raw/player/location 都要先看 m.f，再看 m 本身。
+            var __o = (m && m.f && (m.f.raw || m.f.hex)) ? m.f : m;
+            if (!__o || !__o.raw || !__o.raw.length) return false;
+            // PATCH: 我们的 envelope 没有 hex，只有 raw（结构化 query 字段）→ 直接用它回填
+            if (!__o.hex || __o.hex.length < 6) {
+                var __pl = (__o.player === 0 || __o.player === 1) ? __o.player : -1;
+                var __lc = (__o.location !== undefined ? (__o.location & 0x7f) : null);
+                if (__pl < 0 || __lc === null) return false;
+                var __ch = false;
+                for (var __ri = 0; __ri < __o.raw.length; __ri++) {
+                    var __rq = __o.raw[__ri] || {};
+                    if (!__rq.code) continue;
+                    var __sq = (typeof __rq.sequence === 'number') ? __rq.sequence : __ri;
+                    var __k = __pl + ':' + __lc + ':' + __sq;
+                    var __mm = mergeStat(cardStatByKey[__k], __rq);
+                    __mm.code = __rq.code;
+                    if (statSig(cardStatByKey[__k]) !== statSig(__mm)) __ch = true;
+                    cardStatByKey[__k] = __mm;
+                }
+                return __ch;
+            }
+        var bytes;
+        try { bytes = hexToBytes(m.hex); } catch (e) { return false; }
+        if (bytes.length < 3) return false;
+        var player = bytes[1];
+        var location = bytes[2];
+        if (player !== 0 && player !== 1) return false;
+        var locPlain = location & 0x7f;
+        var dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+        var off = 3, slot = 0, changed = false;
+        while (off < bytes.length && slot < 64) {
+            var r;
+            try { r = parseCardQueryChunk(dv, off, bytes.length); } catch (e) { break; }
+            if (!r || !r.length) break;
+            var c = r.card;
+            off += r.length;
+            if (c && c.code && (c.atk !== undefined || c.def !== undefined || c.batk !== undefined
+                || c.link !== undefined || c.level !== undefined)) {
+                var key = player + ':' + locPlain + ':' + (c.sequence !== undefined ? c.sequence : slot);
+                var mergedKey = mergeStat(cardStatByKey[key], c);
+                mergedKey.code = c.code;                 // 记住该格当前是哪张卡，换卡后旧记录作废
+                if (statSig(cardStatByKey[key]) !== statSig(mergedKey)) changed = true;
+                cardStatByKey[key] = mergedKey;
+                var mergedCode = mergeStat(cardStatByCode[c.code], c);
+                mergedCode.code = c.code;
+                if (statSig(cardStatByCode[c.code]) !== statSig(mergedCode)) changed = true;
+                cardStatByCode[c.code] = mergedCode;
+            }
+            slot++;
+        }
+        return changed;
+    }
+    // 取某格/某卡的攻守：优先实时 query 数据（字段级合并），其次卡池基础值
+    // 连接怪没有守备力：改用连接值显示（卡池里 level=连接值、def=箭头掩码）
+    function statFor(cellKey, code) {
+        var sKey = cardStatByKey[cellKey] || null;
+        if (sKey && sKey.code !== undefined && sKey.code !== code) sKey = null;   // 该格已换成别的卡 → 旧记录作废
+        var sCode = cardStatByCode[code] || null;
+        // 以"卡号记录"为底，用"本格记录"覆盖已知字段（两处互补，避免残缺记录丢字段）
+        var s = (sKey || sCode) ? mergeStat(sCode, sKey || {}) : null;
+        var m = cardMetaMap[String(code)];
+        var isLinkMon = !!(s && s.link) || !!(m && (m.cat || '').indexOf('连接') >= 0);
+        if (isLinkMon) {
+            var out = s ? {
+                atk: s.atk, batk: s.batk, level: s.level, rank: s.rank,
+                link: s.link, marker: s.marker, type: s.type,
+            } : {};
+            if (out.link === undefined && m && m.level) out.link = m.level;                 // 连接值
+            if (out.marker === undefined && m && typeof m.def === 'number') out.marker = m.def;  // 箭头掩码
+            if (out.atk === undefined && m) out.atk = m.atk;
+            if (out.batk === undefined) out.batk = out.atk;
+            out.def = undefined;   // 连接怪不显示守备力
+            return out;
+        }
+        if (s) {
+            // 实时数据可能有残缺（只查了攻击力等）→ 用卡池基础值补齐，避免只有一半数字
+            var out2 = {
+                atk: s.atk, def: s.def, batk: s.batk, bdef: s.bdef,
+                level: s.level, rank: s.rank, type: s.type,
+            };
+            if (out2.atk === undefined && m) out2.atk = m.atk;
+            if (out2.def === undefined && m) out2.def = m.def;
+            if (out2.batk === undefined) out2.batk = (m && m.atk !== undefined) ? m.atk : out2.atk;
+            if (out2.bdef === undefined) out2.bdef = (m && m.def !== undefined) ? m.def : out2.def;
+            if (out2.atk === undefined && out2.def === undefined) return null;
+            return out2;
+        }
+        if (m && (m.atk !== undefined || m.def !== undefined)) {
+            return { atk: m.atk, def: m.def, batk: m.atk, bdef: m.def, level: m.level };
+        }
+        return null;
+    }
+
+    // ── 播放推进 ──
+    // 哪些消息算“可见步”：会写日志或改变场地。
+    // UpdateData / UpdateCard / Select* / CardHint 等只是查询回声/等待输入，算填充消息。
+    var VISIBLE_MSG = {
+        Start: 1, Draw: 1, NewTurn: 1, NewPhase: 1, Move: 1, Attack: 1,
+        Summoning: 1, SpSummoning: 1, Chaining: 1, ChainSolving: 1,
+        ChainSolved: 1, ChainEnd: 1, Damage: 1, Recover: 1, PayLpCost: 1,
+        Win: 1, Hint: 1,
+    };
+
+    function playNext() {
+        if (idx < messages.length - 1) {
+            idx++;
+            handleMessage(messages[idx]);
+            // 消息处理器内部已做分区 updateZone；此处仅兜底更新计数/头
+            renderPlayerHead(0);
+            renderPlayerHead(1);
+            updateProgress();
+            return true;
+        }
+        return false;
+    }
+
+    // 推进到下一个“可见步”：中间夹的填充消息在同一 tick 内直接快进跳过（不计时）
+    function playNextVisible() {
+        var guard = 0;
+        while (idx < messages.length - 1 && guard++ < 50000) {
+            idx++;
+            handleMessage(messages[idx]);
+            if (VISIBLE_MSG[messages[idx].name]) break;
+        }
+        renderPlayerHead(0);
+        renderPlayerHead(1);
+        updateProgress();
+        return idx < messages.length - 1;
+    }
+
+    function playStepBack() {
+        // 雏形不支持回退（状态难回滚），提示
+        log('暂不支持回退，请用进度条重播', 'rp-log-hint');
+    }
+
+    function startAuto() {
+        stopAuto();
+        playing = true;
+        playPauseBtn.textContent = '⏸ 暂停';
+        // 基准：1x ≈ 333ms/可见步 → 右侧日志约每秒 3 行（填充消息不计时）
+        var interval = Math.max(80, Math.floor(1000 / 3 / speed));
+        function tick() {
+            if (!playing) return;
+            if (!playNextVisible()) {
+                if (liveMode) { timer = setTimeout(tick, interval); return; }   // PATCH: 实时模式，等新消息
+                stopAuto();
+                log('回放结束', 'rp-log-win');
+                return;
+            }
+            timer = setTimeout(tick, interval);
+        }
+        timer = setTimeout(tick, 0);
+    }
+
+    function stopAuto() {
+        playing = false;
+        if (timer) { clearTimeout(timer); timer = 0; }
+        playPauseBtn.textContent = '▶ 播放';
+    }
+
+    function updateProgress() {
+        progressEl.value = messages.length ? (idx / (messages.length - 1)) * 100 : 0;
+        progressText.textContent = (idx + 1) + ' / ' + messages.length;
+    }
+
+    // ── 卡图预加载：开播前把所有会用到的卡图下载好，播放中不等待、不闪烁 ──
+    function collectCodes(msgs) {
+        var set = {};
+        msgs.forEach(function (m) {
+            var f = m.f || {};
+            if (typeof f.code === 'number') set[f.code] = 1;
+            if (Array.isArray(f.cards)) {
+                f.cards.forEach(function (c) { if (typeof c === 'number') set[c] = 1; });
+            }
+        });
+        return Object.keys(set).map(function (k) { return parseInt(k, 10); });
+    }
+    function loadOneImg(code) {
+        return new Promise(function (resolve) {
+            var chain = picChain(code);
+            var i = 0;
+            function tryNext() {
+                if (i >= chain.length) { cardDomCache[code] = 'cover2.jpg'; return resolve(); }
+                var im = new Image();
+                var src = chain[i];
+                im.onload = function () { cardDomCache[code] = src; resolve(); };
+                im.onerror = function () { i++; tryNext(); };
+                im.src = src;
+            }
+            tryNext();
+        });
+    }
+    function preloadAll(codes, onProg) {
+        return new Promise(function (resolveAll) {
+            var total = codes.length;
+            if (!total) { resolveAll(); return; }
+            var cursor = 0, done = 0;
+            function nextBatch() {
+                var batch = [];
+                while (cursor < total && batch.length < 8) batch.push(codes[cursor++]);
+                if (!batch.length) { resolveAll(); return; }
+                var pending = batch.length;
+                batch.forEach(function (code) {
+                    loadOneImg(code).then(function () {
+                        done++;
+                        if (onProg) onProg(done, total);
+                        if (--pending === 0) nextBatch();
+                    });
+                });
+            }
+            nextBatch();
+        });
+    }
+
+    // ── 加载回放 ──
+    function loadReplay(text) {
+        var m = /R#?(\d+)/i.exec(text || '');
+        var id = m ? parseInt(m[1], 10) : parseInt(text || '', 10);
+        if (!id || isNaN(id)) { log('请输入有效回放码，如 R#3333'); return; }
+
+        stopAuto();
+        field = { 0: {}, 1: {} };
+        lp = [8000, 8000];
+        logBody.innerHTML = '';
+        fieldEl.innerHTML = '<div class="rp-loading-tip">加载回放 R#' + id + ' ...</div>';
+        mainEl.style.display = 'none';
+        controlsEl.style.display = 'none';
+
+        loadCardNames().then(function () {
+            return fetch('/api/forum/replay/' + id);
+        })
+            .then(function (r) {
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                return r.json();
+            })
+            .then(function (data) {
+                if (data.error) throw new Error(data.error);
+                meta = data;
+                messages = data.messages || [];
+                // 判定 座位(pos) ↔ 决斗位(消息player) 是否互换：用 Win 消息的真实决斗位对照 DB winner 座位
+                metaSwap = false;
+                var winMsg = null;
+                for (var wi = 0; wi < messages.length; wi++) {
+                    if (messages[wi].name === 'Win') { winMsg = messages[wi]; break; }
+                }
+                if (winMsg && winMsg.f && (winMsg.f.player === 0 || winMsg.f.player === 1)) {
+                    var seatWinner = (data.players || []).find(function (p) { return p.winner; });
+                    if (seatWinner) metaSwap = (winMsg.f.player !== seatWinner.pos);
+                }
+                // 显示顺序按决斗位（0 在前 = 我方）
+                var orderedPlayers = (data.players || []).slice().sort(function (a, b) {
+                    return duelSeat(a.pos) - duelSeat(b.pos);
+                });
+                metaEl.textContent = data.roomName + ' · ' + orderedPlayers.map(function (p) {
+                    return (p.realName || p.name) + (p.winner ? '🏆' : '');
+                }).join(' VS ');
+                idx = -1;
+                mainEl.style.display = 'flex';
+                controlsEl.style.display = 'flex';
+                loaded = true;
+                // 先预加载全部会用到的卡图，再开始播放
+                var codes = collectCodes(messages);
+                preloading = true;
+                fieldEl.innerHTML = '<div class="rp-loading-tip">预加载卡图 0/' + codes.length + ' …</div>';
+                var tip = fieldEl.firstChild;
+                preloadAll(codes, function (done, total) {
+                    if (tip) tip.textContent = '预加载卡图 ' + done + '/' + total + ' …';
+                }).then(function () {
+                    preloading = false;
+                    if (tip) tip.textContent = '预加载完成，开始播放';
+                    // 播放到 Start
+                    playNext();
+                    startAuto();
+                });
+            })
+            .catch(function (e) {
+                logBody.innerHTML = '';
+                log('加载失败：' + e.message, 'rp-log-err');
+                fieldEl.innerHTML = '<div class="rp-loading-tip" style="color:#ff6b6b;">加载失败：' + escapeHtml(e.message) + '</div>';
+            });
+    }
+
+    // ── 控件绑定 ──
+    loadBtn.addEventListener('click', function () { loadReplay(inputEl.value); });
+    inputEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') loadReplay(inputEl.value); });
+    playPauseBtn.addEventListener('click', function () {
+        if (preloading) return;   // 预加载中不响应
+        if (playing) stopAuto(); else startAuto();
+    });
+    stepBtn.addEventListener('click', function () {
+        if (preloading) return;
+        stopAuto();
+        playNextVisible();
+    });
+    stepBackBtn.addEventListener('click', playStepBack);
+    progressEl.addEventListener('input', function () {
+        // 拖动进度：雏形直接跳消息数重放（重置状态）
+        if (!messages.length) return;
+        var target = Math.round((progressEl.value / 100) * (messages.length - 1));
+        stopAuto();
+        // 从 Start 重放到 target
+        field = { 0: {}, 1: {} };
+        lp = [8000, 8000];
+        turnPlayer = 0;
+        phaseText = '';
+        logBody.innerHTML = '';
+        idx = -1;
+        animSuppress = true;   // 大跳不放动画
+        for (var i = 0; i <= target; i++) {
+            idx = i;
+            handleMessage(messages[i]);
+        }
+        animSuppress = false;
+        // Start 消息已 createFieldDOM；若消息流没有 Start 则兜底建一次
+        if (!fieldEl.querySelector('.rp-side')) createFieldDOM();
+        updateProgress();
+    });
+    document.querySelectorAll('.rp-speed').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            speed = parseFloat(btn.getAttribute('data-s'));
+            document.querySelectorAll('.rp-speed').forEach(function (b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            if (playing) { stopAuto(); startAuto(); }
+        });
+    });
+
+    // 窗口尺寸变化时重新缩放棋盘，保证不出现滚动条
+    var _fitTimer = 0;
+    window.addEventListener('resize', function () {
+        clearTimeout(_fitTimer);
+        _fitTimer = setTimeout(fitBoard, 80);
+    });
+
+    // ── 弹窗 API：回放码旁“▶ 回放”按钮调用 openReplay ──
+    var modalEl = $('replayModal');
+    if (modalEl) {
+        window.openReplay = function (code) {
+            modalEl.style.display = 'flex';
+            loadReplay(code || '');
+            setTimeout(fitBoard, 80);
+        };
+        var closeBtnEl = $('replayClose');
+        function closeModal() {
+            modalEl.style.display = 'none';
+            stopAuto();
+        }
+        if (closeBtnEl) closeBtnEl.addEventListener('click', closeModal);
+        modalEl.addEventListener('click', function (e) {
+            if (e.target === modalEl) closeModal();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape' && modalEl.style.display !== 'none') closeModal();
+        });
+    }
+    // ===== PATCH: 实时模式接口（由 make-viewer-live.mjs 注入）=====
+    window.__live = {
+        /** 重置场地并进入实时模式。metaIn 形如 {roomName, players:[{pos,name,mainc}]} */
+        reset: function (metaIn) {
+            stopAuto();
+            meta = metaIn || { players: [] };
+            metaSwap = false;                 // 实时/观战：决斗位 0 固定画在下方
+            messages = [];
+            idx = -1;
+            field = { 0: {}, 1: {} };
+            lp = [8000, 8000];
+            // 卡组/额外张数直接从 meta 来（不必依赖抓到 Start 那条消息）
+            deckCount = [0, 0];
+            extraCount = [0, 0];
+            (meta.players || []).forEach(function (p) {
+                if (p.pos === 0 || p.pos === 1) {
+                    if (p.mainc) deckCount[p.pos] = p.mainc;
+                    if (p.extrac) extraCount[p.pos] = p.extrac;
+                }
+            });
+            turnPlayer = 0;
+            turnCount = 0;
+            phaseText = '';
+            pendingMats = {};
+            lastLand = null;
+            pendingImpact = null;
+            lastPayLp = null;
+            inBattle = false;
+            animSuppress = false;
+            preloading = false;
+            loaded = true;
+            logBody.innerHTML = '';
+            mainEl.style.display = 'flex';
+            if (controlsEl) controlsEl.style.display = 'none';   // 实时模式不显示播放控件
+            createFieldDOM();
+            liveMode = true;
+            renderPlayerHead(0);
+            renderPlayerHead(1);
+            updatePiles();
+            updateProgress();
+            if (typeof fitBoard === 'function') { try { fitBoard(); } catch (e) {} }
+            log('— 实时对局已接入 —', 'rp-log-phase');
+        },
+        /** 追加一条消息 {name, f, hex}；播放循环会自动取走 */
+        push: function (env) { messages.push(env); },
+        /** 批量追加（迟到进页面时补齐历史用） */
+        pushMany: function (envs) { for (var i = 0; i < envs.length; i++) messages.push(envs[i]); },
+        setSpeed: function (x) { speed = x; },
+        /** 加载卡名/卡种表（/api/cards）。实时模式不走 loadReplay，必须手动触发一次，
+         *  否则日志里"召唤 xx"后面是空的，也认不出召唤种类（融合/同调/超量/连接/灵摆）。 */
+        loadCards: function () { return loadCardNames(); },
+        /** 卡图多源回退链（DIY → 先行 → OCG → 镜像 → cover.jpg），供交互层画卡图按钮用 */
+        picChain: function (code) { return picChain(code); },
+        /** 卡号 → 卡名（依赖 loadCards() 先加载过；没有就返回空串） */
+        cardName: function (code) { return cardName(code); },
+        /**
+         * 某个区域里现在有哪些卡 —— 交互层用它做"点开墓地/除外/额外查看列表"这类功能。
+         * loc 用位值（DECK=1 HAND=2 MZONE=4 SZONE=8 GRAVE=16 REMOVED=32 EXTRA=64）。
+         */
+        cardsAt: function (ctl, loc) {
+            var want = loc & 0x7f;
+            var out = [];
+            Object.keys(field[ctl] || {}).forEach(function (k) {
+                var p = k.split(':');
+                if (parseInt(p[0], 10) !== want) return;
+                var c = field[ctl][k];
+                out.push({ seq: parseInt(p[1], 10), code: c.code, pos: c.pos, faceDown: !!c.faceDown });
+            });
+            out.sort(function (a, b) { return a.seq - b.seq; });
+            return out;
+        },
+        /**
+         * 立即把队列里的消息全部应用掉（交互模式用）。
+         * 回放的 3 可见步/秒节奏对"自己出牌"太慢；flush 保留动画代码路径，
+         * 只是不等定时器 —— CSS 过渡/飞行元素照常播。
+         */
+        flush: function () {
+            var guard = 0, applied = 0;
+            while (playNextVisible() && guard++ < 200000) applied++;
+            if (idx < messages.length - 1) { idx = messages.length - 1; handleMessage(messages[idx]); }
+            return applied;
+        },
+        play: function () { startAuto(); },
+        pause: function () { stopAuto(); },
+        status: function () { return { live: liveMode, buffered: messages.length, played: idx, playing: playing }; },
+    };
+}
+
+// 弹窗常驻 DOM，直接初始化（不再依赖分区懒加载）
+initReplayViewer();

@@ -1,0 +1,296 @@
+/* ─────────────────────────────────────────────────────────────
+
+ * duel-client.css —— 决斗客户端的样式
+
+ * ⚠ 自动生成：由 tools/sync-duel-client.mjs 从 ygopro-web 的 play.html 提取
+
+ *   要改样式请改上游 play.html 再重跑脚本，不要手改本文件
+
+ * 依赖：css/replay-viewer.css（官网已有，场地/日志样式）+ cover2.jpg（卡背）
+
+ * ───────────────────────────────────────────────────────────── */
+
+
+
+html, body { margin: 0; padding: 0; background: #0f1216; color: #e8e8e8; font-family: "Microsoft YaHei", system-ui, sans-serif; height: 100%; }
+  #hud { display: flex; gap: 14px; align-items: center; padding: 8px 14px; font-size: 13px; border-bottom: 1px solid #2a2f36; }
+  #hud .tag { color: #8b95a1; }
+  .yp-state { font-weight: 600; }
+  .yp-state.ok { color: #7ee787; } .yp-state.warn { color: #ffb347; } .yp-state.err { color: #ff7b72; }
+  .yp-btn { background: #1e2a38; color: #dbe6f1; border: 1px solid #2f4256; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  .yp-btn:hover:not(:disabled) { background: #26384c; border-color: #3f5a75; }
+  .yp-btn:disabled { opacity: .45; cursor: not-allowed; }
+  #lobby { padding: 12px 14px; border-bottom: 1px solid #2a2f36; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; }
+  #lobby input { background: #161b22; color: #e8e8e8; border: 1px solid #2f4256; border-radius: 6px; padding: 6px 10px; }
+  #lobbyInfo { color: #8b95a1; }
+  /* ── 三栏布局：左=卡片信息（常驻）／中=对局场地／右=对局日志 ── */
+  .rp-modal { display: block; position: static !important; background: none !important; padding: 0 !important; }
+  .rp-modal-box { width: 100% !important; max-width: none !important; height: calc(100vh - 150px); margin: 0 !important; border-radius: 0 !important; }
+  .rp-modal-head, .replay-input-bar, .replay-controls { display: none !important; }
+  #replayMain { display: grid !important; grid-template-columns: var(--yp-info-w, 300px) minmax(0, 1fr) var(--yp-log-w, 340px);
+    /* ⚠ 行高必须显式锁成 minmax(0,1fr)：默认 auto 时，左栏长效果文本的"最小高度"会撑高整行，
+       场地跟着变高、盘面重新布局 —— 玩家看到的"每操作一次画面往下移一点"就是这个。 */
+    grid-template-rows: minmax(0, 1fr);
+    gap: 8px; align-items: stretch; height: 100% !important; min-height: 0 !important; }
+  #replayMain > #ypCardInfo,
+  #replayMain > .replay-field,
+  #replayMain > .replay-log { width: auto !important; min-width: 0 !important; max-width: none !important;
+    height: 100% !important; min-height: 0 !important; box-sizing: border-box !important; }
+  #replayMain > .replay-field { overflow: hidden; }
+  #replayMain > .replay-log { display: flex !important; flex-direction: column; }
+  #replayMain > .replay-log > .replay-log-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+
+  /* 卡组顶端公开（天变地异等）：把顶端那张画在牌堆上 */
+  .yp-pile-top { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+    border-radius: 4px; z-index: 4; pointer-events: auto; box-shadow: 0 0 0 2px #7ee787 inset; }
+
+  /* ── 牌堆发光：墓地里"有可发动的效果"时提示玩家这里能点（点击弹 发动效果/查看列表）── */
+  .yp-pile-glow { box-shadow: 0 0 0 2px #ffd24a, 0 0 14px 3px rgba(255,210,74,.55) !important;
+    animation: yp-pile-pulse 1.6s ease-in-out infinite; }
+  @keyframes yp-pile-pulse { 0%,100% { box-shadow: 0 0 0 2px #ffd24a, 0 0 10px 2px rgba(255,210,74,.4) !important; }
+    50% { box-shadow: 0 0 0 2px #ffe89a, 0 0 18px 5px rgba(255,210,74,.75) !important; } }
+
+  /* ── 卡面左上角等级标签（L4…；调整怪黄色）── */
+  .rp-lv { position: absolute; top: 2px; left: 3px; z-index: 3; font-size: 11px; font-weight: 800;
+    color: #dbe6f1; text-shadow: 0 1px 2px #000, 0 0 3px #000; pointer-events: none; }
+  .rp-lv-tuner { color: #ffd24a; }
+
+  /* ── 决斗准备（房间）面板：照真实客户端的版式 —— 左=决斗者/卡组，右=房间规则，底=开始/退出 ── */
+  #lobby { padding: 14px; display: flex; justify-content: center; }
+  .yp-room-box { width: min(880px, 96vw); background: linear-gradient(180deg, #16202c, #101821);
+    border: 1px solid #3f5a75; border-radius: 10px; box-shadow: 0 14px 40px rgba(0,0,0,.55); overflow: hidden; }
+  .yp-room-title { padding: 7px 14px; font-weight: 700; color: #cfe6ff; background: rgba(60,120,180,.22);
+    border-bottom: 1px solid #2c4257; letter-spacing: 1px; }
+  .yp-room-body { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 14px; padding: 12px 14px; }
+  .yp-room-left { display: flex; flex-direction: column; gap: 8px; }
+  .yp-room-right { font-size: 13px; line-height: 1.75; color: #cfe0f0; border-left: 1px solid #2c4257; padding-left: 14px; }
+  .yp-room-right .k { color: #9fb3c8; }
+  .yp-room-right .ok { color: #7ee787; }
+  .yp-room-sec { color: #9fb3c8; font-size: 12px; }
+  .yp-room-row { display: flex; gap: 8px; align-items: center; }
+  .yp-room-note { color: #8b95a1; font-size: 12px; min-height: 16px; }
+  .yp-room-foot { display: flex; gap: 10px; justify-content: center; padding: 10px; border-top: 1px solid #2c4257; }
+  .yp-room-foot .yp-btn { min-width: 96px; }
+  /* 决斗者行：名字 + ✕（踢出） */
+  .yp-player-row { display: flex; align-items: center; gap: 8px; }
+  .yp-player-row .nm { flex: 1; background: rgba(10,16,22,.9); border: 1px solid #33506b; border-radius: 6px;
+    padding: 4px 8px; color: #dbe6f1; font-size: 13px; }
+  .yp-player-row .nm.me { border-color: #7ee787; }
+  .yp-player-row .st { width: 44px; text-align: center; font-size: 12px; color: #ffd24a; }
+  .yp-kick { width: 22px; height: 22px; line-height: 18px; padding: 0; border-radius: 4px; cursor: pointer;
+    background: rgba(30,40,52,.95); border: 1px solid #4a7398; color: #cfe6ff; }
+  .yp-kick:hover { background: #b3413f; border-color: #d9655f; color: #fff; }
+
+  /* ── 候选卡高亮 / 已选中 ── */
+  .yp-pick { outline: 2px dashed #ffb347; outline-offset: -2px; cursor: pointer; border-radius: 6px; }
+  .yp-picked { outline: 3px solid #7ee787 !important; outline-offset: -3px; box-shadow: 0 0 12px rgba(126,231,135,.45); border-radius: 6px; }
+  /* 可操作的卡：点一下会弹出操作菜单（召唤/盖放/发动…） */
+  .yp-act { cursor: pointer; outline: 2px solid rgba(110,190,255,.75); outline-offset: -2px; border-radius: 6px; }
+  .yp-act:hover { outline-color: #6ec6ff; box-shadow: 0 0 12px rgba(110,198,255,.5); }
+  .yp-act-multi { outline-color: rgba(126,231,135,.85); }
+
+  /* ── 额外牌堆角标：提示"这里有 N 只可以出"，不占位、不挡操作 ── */
+  .rp-pile { position: relative; }
+  .yp-pile-badge { position: absolute; top: 2px; right: 2px; min-width: 16px; text-align: center;
+    background: rgba(110,198,255,.92); color: #04121f; font-size: 11px; font-weight: 700;
+    border-radius: 9px; padding: 0 4px; pointer-events: none; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+
+
+  /* ── 选卡/选素材的进度提示条：横在场地顶部（参照真实客户端），不挡场地 ── */
+  #ypTopBar { position: fixed; z-index: 70; display: none; padding: 6px 18px; font-size: 13px;
+    background: rgba(18,24,32,.94); color: #dbe6f1; border: 1px solid #3f5a75; border-radius: 6px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.45); pointer-events: none; }
+
+  /* ── 表示形式变更 / 翻转召唤的翻面动画（真实客户端有，查看器实时路径没有）── */
+  @keyframes yp-flip-anim {
+    0%   { transform: scaleX(1); }
+    40%  { transform: scaleX(.05); }
+    60%  { transform: scaleX(.05); }
+    100% { transform: scaleX(1); }
+  }
+  .yp-flip-anim { animation: yp-flip-anim .55s ease-in-out; }
+  /* 表示形式变更：向左转 90°（攻击→守备）；查看器里守备表示就是 rotate(-90deg) scale(.68) ✓ */
+  /* 攻击→守备：向左转 90°（查看器守备表示就是 rotate(-90deg) scale(.68)） */
+  @keyframes yp-rot-def { from { transform: rotate(0deg) scale(1); } to { transform: rotate(-90deg) scale(.68); } }
+  /* 守备→攻击：反向转回直立（玩家实测："守备转攻击怎么还是往左转"✗） */
+  @keyframes yp-rot-atk { from { transform: rotate(-90deg) scale(.68); } to { transform: rotate(0deg) scale(1); } }
+  .yp-rot-def { animation: yp-rot-def .4s ease-in-out; }
+  .yp-rot-atk { animation: yp-rot-atk .4s ease-in-out; }
+
+  /* ── 卡片操作菜单：出现在鼠标位置（参照真实客户端）── */
+  #ypCardMenu { position: fixed; z-index: 99; display: flex; flex-direction: column; gap: 4px;
+    background: rgba(18,22,28,.96); border: 1px solid #3f5a75; border-radius: 8px; padding: 6px;
+    box-shadow: 0 10px 26px rgba(0,0,0,.55); }
+  #ypCardMenu .yp-menu-item { background: #1e2a38; color: #e6eef8; border: 1px solid #2f4256; border-radius: 6px;
+    padding: 6px 18px; cursor: pointer; font-size: 13px; white-space: nowrap; text-align: left; }
+  #ypCardMenu .yp-menu-item:hover { background: #2b4a68; border-color: #4a7398; }
+
+  /* ── 卡图按钮（连锁发动 / 表示形式 / 是否发动 都用卡图，而不是文字）── */
+  .yp-btn-card { position: relative; padding: 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .yp-cardimg-holder { display: flex; align-items: center; justify-content: center; width: 84px; height: 96px; }
+  .yp-cardimg { width: 62px; height: 90px; object-fit: contain; border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.6); transition: transform .12s ease; display: block; }
+  .yp-rot .yp-cardimg { transform: rotate(90deg); }              /* 守备表示 = 横放 */
+  .yp-btn-card:hover .yp-cardimg { transform: scale(1.06); }
+  .yp-rot.yp-btn-card:hover .yp-cardimg { transform: rotate(90deg) scale(1.06); }
+  .yp-cardback { opacity: .92; }
+  .yp-cardcap { font-size: 11px; color: #cfe0f0; max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .yp-cardtip { font-size: 10px; color: #9fb3c8; max-width: 96px; text-align: center; line-height: 1.25; }
+  /* 猜拳手势：内联 SVG，视觉比卡图按钮更大（对齐真实客户端的三个手形按钮） */
+  .yp-gesture { width: 54px; height: 54px; display: block; }
+  .yp-btn-card:has(.yp-gesture) .yp-cardimg-holder { width: 66px; height: 66px; }
+  .yp-btn-card:has(.yp-gesture) { background: #16324a; }
+  .yp-cardsub { position: absolute; top: 4px; right: 4px; font-size: 10px; background: rgba(255,179,71,.9);
+    color: #201500; border-radius: 4px; padding: 1px 5px; font-weight: 700; }
+
+  /* ── 居中卡牌选择盘（额外卡组特召等）── */
+  /* 引擎已固定的卡（SELECT_SUM 的 mustSelectCards）：展示出来但不可点，灰色 + 虚线框 */
+  /* 选择盘右上角关闭按钮 */
+  .yp-chooser-title { position: relative; padding-right: 26px; }
+  .yp-chooser-close { position: absolute; right: 2px; top: -2px; width: 22px; height: 22px; line-height: 20px;
+    padding: 0; border-radius: 50%; border: 1px solid #4a7398; background: rgba(24,30,40,.95); color: #cfe6ff;
+    font-size: 13px; cursor: pointer; }
+  .yp-chooser-close:hover { background: #b3413f; border-color: #d9655f; color: #fff; }
+
+  .yp-chooser-fixed { opacity: .55; cursor: default; outline: 2px dashed #7ee787; outline-offset: -2px; }
+  .yp-chooser { position: fixed; z-index: 98; background: rgba(14,18,24,.97); border: 1px solid #3f5a75;
+    border-radius: 12px; padding: 10px 12px 8px; box-shadow: 0 14px 40px rgba(0,0,0,.65); max-width: min(86vw, 980px); }
+  .yp-chooser-title { font-size: 13px; color: #9fd0ff; margin-bottom: 8px; }
+  .yp-chooser-grid { display: flex; flex-wrap: wrap; gap: 8px; max-height: 62vh; overflow-y: auto; }
+  .yp-chooser-item { background: #182230; }
+  .yp-chooser-foot { display: flex; justify-content: flex-end; margin-top: 6px; }
+
+  /* ── 场地控件层：左=当前阶段，中=战阶/主二，右=结束回合 ── */
+  #ypCtl { position: fixed; z-index: 60; align-items: center;
+    /* ⚠ 必须用 grid 的 `1fr auto 1fr` 才能让"中间那个按钮"**真正居中**：
+       原来用 justify-content: space-between，中间项会被左右两项的宽度差推偏（玩家反馈"中间按钮偏了"）。
+       左右两列各占 1fr，各自动靠向两端，中间那列恒在正中。 */
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    gap: 10px; pointer-events: none; }
+  #ypCtl > .yp-ctl-left { justify-self: start; }
+  #ypCtl > #ypCtlMid { justify-self: center; }
+  #ypCtl > #ypCtlRight { justify-self: end; }
+  #ypCtl > * { pointer-events: auto; }
+  #ypPhase { font-size: 12px; font-weight: 600; color: #dbe6f1; background: rgba(18,22,28,.82);
+    border: 1px solid #3f5a75; border-radius: 6px; padding: 4px 10px; white-space: nowrap; }
+  .yp-ctl-left { display: flex; align-items: center; gap: 8px; }
+  #ypUtil:empty { display: none; }
+  #ypUtil { display: flex; gap: 6px; }
+  #ypCtlMid:empty, #ypCtlRight:empty { display: none; }
+
+  /* ── 居中弹窗：诱发时点 / 是否连锁 / 位置选择 ── */
+  #ypPrompt { position: fixed; display: none; z-index: 80; flex-direction: column; gap: 10px; align-items: center;
+    background: rgba(20,26,34,.96); border: 1px solid #4a7398; border-radius: 10px; padding: 12px 16px;
+    box-shadow: 0 14px 34px rgba(0,0,0,.6); max-width: min(560px, 90vw); }
+  #ypPromptTitle { font-size: 13px; color: #cfe3f7; text-align: center; line-height: 1.5; }
+  #ypPromptBtns { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  /* 竖向排布（先后攻：上=先攻，下=后攻；对齐真实客户端的上下布局） */
+  #ypPromptBtns.yp-prompt-vertical { flex-direction: column; align-items: stretch; min-width: 132px; }
+  #ypPromptBtns.yp-prompt-vertical .yp-btn { width: 100%; text-align: center; }
+  /* 阶段/回合文本改由场地左边的阶段框显示，隐藏查看器中线里那一份（保留占位不破坏布局） */
+  /* ══════════════════════════════════════════════════════════════════════
+     配色对齐官网（来源：D:\YGO\Server\SirokamiServer\css\next.css / style.css）
+       :root 变量、body 背景渐变、红金主色、按钮/标题/面板的做法全部照搬
+     ══════════════════════════════════════════════════════════════════════ */
+  :root {
+    --red: #D81E44; --dark-red: #A51834; --black: #121212; --dark-gray: #1E1E1E;
+    --gray: #222; --gold: #D4AF37; --light-gold: #F0E68C; --blue: #1E88E5;
+    --green: #4CAF50; --orange: #FF9800;
+    --nx-line: rgba(212, 175, 55, .22);          /* 官网的金色描边 */
+    --nx-panel: linear-gradient(135deg, rgba(216, 30, 68, .10), rgba(20, 14, 18, .94));
+    --nx-panel-2: linear-gradient(180deg, rgba(30, 30, 30, .96), rgba(18, 18, 18, .96));
+  }
+  html, body {
+    background: linear-gradient(rgba(18,18,18,.9), rgba(18,18,18,.9)),
+                linear-gradient(135deg, #1a1a1a 0%, #000 100%) !important;
+    color: #fff;
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif !important;
+  }
+  /* 顶栏 */
+  #hud { background: linear-gradient(90deg, rgba(216,30,68,.14), rgba(18,18,18,.9));
+    border-bottom: 1px solid var(--nx-line); color: #f2e6c8; }
+  .tag { background: rgba(30,30,30,.9); border: 1px solid var(--nx-line); color: var(--light-gold); }
+  /* 按钮：官网是"红底白字渐变"，次要按钮走金边深底 */
+  .yp-btn { background: linear-gradient(135deg, rgba(60,60,60,.9), rgba(30,30,30,.95)); color: #f2e6c8;
+    border: 1px solid var(--nx-line); border-radius: 6px; transition: filter .15s, box-shadow .15s; }
+  .yp-btn:hover:not(:disabled) { filter: brightness(1.25); box-shadow: 0 0 10px rgba(212,175,55,.35); }
+  .yp-btn:disabled { opacity: .45; }
+  .yp-btn.yp-primary, #btnJoin, #btnStart {
+    background: linear-gradient(135deg, var(--red), rgba(216,30,68,.45)); color: #fff; border-color: rgba(216,30,68,.7); }
+  #btnReady { background: linear-gradient(135deg, #F0E68C, #D4AF37); color: #1a0d12; font-weight: 700; border-color: #b08d24; }
+  input, select { background: rgba(18,18,18,.92); color: #fff; border: 1px solid var(--nx-line); border-radius: 5px; }
+  /* 房间面板 */
+  .yp-room-box { background: var(--nx-panel-2); border: 1px solid var(--nx-line);
+    box-shadow: 0 14px 40px rgba(0,0,0,.7), 0 0 0 1px rgba(216,30,68,.15) inset; }
+  .yp-room-title { background: linear-gradient(90deg, rgba(216,30,68,.30), rgba(212,175,55,.10));
+    border-bottom: 1px solid var(--nx-line); color: var(--light-gold); letter-spacing: 2px; font-weight: 800; }
+  .yp-room-right { border-left: 1px solid var(--nx-line); color: #e9e0cf; }
+  .yp-room-right .k { color: var(--gold); } .yp-room-right .ok { color: var(--light-gold); }
+  .yp-room-sec { color: var(--gold); } .yp-room-note { color: #9a9a9a; }
+  .yp-room-foot { border-top: 1px solid var(--nx-line); background: rgba(12,12,12,.6); }
+  .yp-player-row .nm { background: rgba(12,12,12,.92); border: 1px solid var(--nx-line); color: #fff; }
+  .yp-player-row .nm.me { border-color: var(--green); box-shadow: 0 0 8px rgba(76,175,80,.35); }
+  .yp-player-row .st { color: var(--light-gold); font-weight: 700; }
+  .yp-kick { background: rgba(30,30,30,.95); border: 1px solid var(--nx-line); color: var(--light-gold); }
+  .yp-kick:hover:not(:disabled) { background: var(--dark-red); border-color: var(--red); color: #fff; }
+  /* 中央提示 / 选择盘 / 卡片菜单 / 信息面板 */
+  #ypPrompt { background: var(--nx-panel); border: 1px solid var(--nx-line); box-shadow: 0 14px 34px rgba(0,0,0,.7); }
+  #ypPromptTitle { color: var(--light-gold); font-weight: 700; }
+  .yp-chooser { background: var(--nx-panel); border: 1px solid var(--nx-line); box-shadow: 0 14px 34px rgba(0,0,0,.7); }
+  .yp-chooser-title { color: var(--light-gold); font-weight: 700; }
+  .yp-chooser-close { border-color: var(--nx-line); color: var(--light-gold); background: rgba(18,18,18,.95); }
+  .yp-chooser-close:hover { background: var(--red); border-color: var(--red); color: #fff; }
+  #ypCardMenu.yp-menu { background: var(--nx-panel); border: 1px solid var(--nx-line); box-shadow: 0 10px 26px rgba(0,0,0,.7); }
+  .yp-menu-item { color: #f2e6c8; }
+  .yp-menu-item:hover { background: linear-gradient(90deg, rgba(216,30,68,.30), rgba(216,30,68,.06)); color: #fff; }
+  #ypCardInfo { background: var(--nx-panel-2) !important; border: 1px solid var(--nx-line) !important; }
+  #ypInfoName { color: var(--light-gold) !important; }
+  #ypInfoType { color: #9fd0ff !important; } #ypInfoStat { color: var(--orange) !important; }
+  #ypInfoSeries { color: #c9b6ff !important; } #ypInfoText { color: #ded6c6 !important; }
+  /* 场地顶部细提示条 / 中线控件 */
+  #ypTopBar { background: linear-gradient(90deg, rgba(216,30,68,.88), rgba(165,24,52,.88)) !important;
+    color: #fff !important; border: 1px solid rgba(216,30,68,.9); }
+  #ypPhase { background: rgba(18,18,18,.9); border: 1px solid var(--nx-line); color: var(--light-gold); }
+  /* 牌堆发光/角标改成金色系（和官网的"可用时点"金色一致） */
+  .yp-pile-glow { box-shadow: 0 0 0 2px var(--gold), 0 0 14px 3px rgba(212,175,55,.6) !important; }
+  @keyframes yp-pile-pulse { 0%,100% { box-shadow: 0 0 0 2px var(--gold), 0 0 10px 2px rgba(212,175,55,.45) !important; }
+    50% { box-shadow: 0 0 0 2px var(--light-gold), 0 0 18px 5px rgba(212,175,55,.8) !important; } }
+  .rp-lv { color: #f2e6c8; } .rp-lv-tuner { color: var(--gold); }
+  /* 右上角属性角标（位置和等级对称；不同属性不同颜色） */
+  .rp-attr { position: absolute; top: 2px; right: 3px; z-index: 3; font-size: 11px; font-weight: 800;
+    line-height: 1; padding: 1px 3px; border-radius: 3px; pointer-events: none;
+    background: #dbe6f1; color: #10100c; }
+  .rp-attr-earth  { background: #a1887f; color: #1b120c; }
+  .rp-attr-water  { background: #4fc3f7; color: #04222f; }
+  .rp-attr-fire   { background: #ef5350; color: #2b0705; }
+  .rp-attr-wind   { background: #66bb6a; color: #052b07; }
+  .rp-attr-light  { background: #ffd54f; color: #2e2405; }
+  .rp-attr-dark   { background: #9575cd; color: #14092b; }
+  .rp-attr-divine { background: #ffa726; color: #2e1a00; }
+  /* ── 房间 UI ↔ 对局 UI 的转场动画（淡出上移 / 淡入）── */
+  .yp-fade-out { opacity: 0; transform: translateY(-10px) scale(.99); transition: opacity .24s ease, transform .24s ease; pointer-events: none; }
+  .yp-fade-in { animation: ypFadeIn .34s cubic-bezier(.2,.7,.2,1) both; }
+  @keyframes ypFadeIn { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: none; } }
+  #lobby { transition: opacity .24s ease, transform .24s ease; }
+  #replayModal { transition: opacity .24s ease, transform .24s ease; }
+
+  /* 阶段/回合文本由场地左边的阶段框显示，隐藏查看器中线里那一份（保留占位不破坏布局） */
+  #replayField .rp-mid-info { visibility: hidden; }
+
+#ypCardInfo { position: static; display: block; width: 100%; height: 100%; overflow-y: auto;
+      background: rgba(14,18,24,.96); border: 1px solid #3f5a75; border-radius: 8px; padding: 8px 10px 10px;
+      box-sizing: border-box; font-size: 12px; line-height: 1.5; color: #dbe6f1; }
+    /* 卡图占位框：固定长宽比 → 图片加载前后高度一致，下面文字不跳动 */
+    #ypInfoImgBox { position: relative; width: 100%; aspect-ratio: 421 / 614; margin-bottom: 6px;
+      border-radius: 6px; overflow: hidden;
+      background: #101720 url('cover2.jpg') center/cover no-repeat, linear-gradient(135deg, #1b2430, #0e141c 60%, #1b2430); }
+    #ypInfoImg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .12s ease; }
+    #ypInfoImg.ready { opacity: 1; }
+    #ypInfoImgHint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      font-size: 11px; color: #9fb3c8; background: rgba(10,14,20,.6); padding: 2px 8px; border-radius: 10px; }
+    #ypInfoName { font-size: 13px; font-weight: 700; color: #cfe6ff; margin-bottom: 3px; word-break: break-all; }
+    #ypInfoType { color: #9fd0ff; margin-bottom: 2px; }
+    #ypInfoStat { color: #ffd479; margin-bottom: 2px; }
+    #ypInfoSeries { color: #b7a6ff; margin-bottom: 4px; }
+    #ypInfoText { color: #cfd8e3; white-space: pre-wrap; }
+

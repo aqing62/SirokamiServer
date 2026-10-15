@@ -1,0 +1,137 @@
+<!doctype html>
+<!--
+  duel.html —— 「决斗客户端」入口页（**生成产物**）
+  ⚠ 由 tools/sync-duel-client.mjs 从 tools/duel-page.template.html + ygopro-web 的 play.html 组装
+     要改入口 UI / 样式：改 tools/duel-page.template.html；要改客户端：改上游再重跑同步脚本
+  流程（对照官方交接文档 §0）：
+     未登录 → 登录（账号/密码）→ 已登录 → 显示当前卡组 + 「开始匹配」
+     → 点开始匹配 → duel.html?auto=1 → 客户端自动进房/自动准备/自动开局 → 猜拳时切到对局界面
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>开始匹配 · 白神服</title>
+<!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
+<link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
+<link rel="stylesheet" href="css/duel-client.css">
+<style>
+/* ── 入口层（本站自己的 UI；不动客户端产物） ── */
+#duelEntry { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(1200px 600px at 50% 0%, #1a1420 0%, #0d0b12 60%, #08070b 100%);
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; color: #e8e2d8; }
+#duelEntry.hidden { display: none; }
+.de-card { width: min(420px, 92vw); border: 1px solid rgba(212,175,55,.35); border-radius: 12px;
+  background: rgba(20,18,26,.92); padding: 26px 26px 22px; box-shadow: 0 18px 50px rgba(0,0,0,.55); }
+.de-title { font-size: 1.15rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px;
+  background: linear-gradient(135deg,#D4AF37,#FFD700); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.de-sub { font-size: .78rem; color: #8d8d96; margin-bottom: 18px; }
+.de-field { margin-bottom: 12px; }
+.de-field label { display: block; font-size: .78rem; color: #a9a9b3; margin-bottom: 5px; }
+.de-field input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: #f2eee6; font-size: .92rem; }
+.de-field input:focus { outline: none; border-color: rgba(212,175,55,.6); }
+.de-btn { width: 100%; padding: 11px 14px; border-radius: 8px; border: none; cursor: pointer;
+  font-size: .95rem; font-weight: 700; letter-spacing: 1px;
+  background: linear-gradient(135deg,#D4AF37,#FFD700); color: #1a1a2e; }
+.de-btn:disabled { opacity: .5; cursor: not-allowed; }
+.de-btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,.18); color: #cfc8bd; font-weight: 500; }
+.de-msg { min-height: 18px; font-size: .78rem; color: #ff9aa8; margin-top: 8px; }
+.de-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; margin-bottom: 14px; }
+.de-line b { color: #FFD700; font-weight: 700; }
+.de-line span { font-size: .8rem; color: #9a9aa4; }
+.de-foot { margin-top: 14px; font-size: .75rem; color: #7d7d86; text-align: center; }
+.de-foot a { color: #9ec4f0; text-decoration: none; }
+#duelEntry .de-back { position: absolute; left: 16px; top: 14px; font-size: .8rem; color: #9a9aa4; text-decoration: none; }
+</style>
+</head>
+<body>
+
+@@DUEL_CONTAINER@@
+
+<!-- ── 入口层：登录 / 开始匹配 ── -->
+<div id="duelEntry">
+  <a class="de-back" href="index.html">← 返回官网</a>
+  <div class="de-card" id="deCard">
+    <div class="de-title" id="deTitle">开始匹配</div>
+    <div class="de-sub" id="deSub">正在读取登录状态…</div>
+    <div id="deBody"></div>
+  </div>
+</div>
+
+<script src="js/ygopro-web-browser.js"></script>
+<script src="js/viewer-live.js"></script>
+<script src="js/duel-client.js"></script>
+<script>
+/* 入口层逻辑：登录 / 显示当前卡组 / 开始匹配（不改客户端产物） */
+(function () {
+  'use strict';
+  var q = new URLSearchParams(location.search);
+  var entry = document.getElementById('duelEntry');
+  var title = document.getElementById('deTitle');
+  var sub = document.getElementById('deSub');
+  var body = document.getElementById('deBody');
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function show(html) { body.innerHTML = html; }
+  function msg(t) { var m = document.getElementById('deMsg'); if (m) m.textContent = t || ''; }
+
+  // ?auto=1 = 已点过「开始匹配」→ 隐藏入口层，交给客户端自动进房
+  if (q.get('auto') === '1') { entry.classList.add('hidden'); return; }
+
+  fetch('/api/duel/whoami?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d || !d.loggedIn) return renderLogin();
+    renderMatch(d);
+  }).catch(function () { renderLogin(); });
+
+  function renderLogin() {
+    title.textContent = '登录';
+    sub.textContent = '用白神服账号登录后即可开始匹配';
+    show(
+      '<div class="de-field"><label>账号</label><input id="deUser" autocomplete="username"></div>' +
+      '<div class="de-field"><label>密码</label><input id="dePass" type="password" autocomplete="current-password"></div>' +
+      '<button class="de-btn" id="deLogin">登录</button>' +
+      '<div class="de-msg" id="deMsg"></div>' +
+      '<div class="de-foot">还没有账号？<a href="index.html#community">去注册</a></div>'
+    );
+    var go = function () {
+      var u = document.getElementById('deUser').value.trim();
+      var p = document.getElementById('dePass').value;
+      if (!u || !p) return msg('请输入账号和密码');
+      msg('登录中…');
+      fetch('/api/forum/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p }),
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (r) {
+          if (!r.ok || !r.j || r.j.ok === false) return msg((r.j && r.j.error) || '账号或密码错误');
+          location.reload();
+        }).catch(function (e) { msg('登录失败：' + e.message); });
+    };
+    document.getElementById('deLogin').onclick = go;
+    document.getElementById('dePass').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+  }
+
+  function renderMatch(d) {
+    title.textContent = '开始匹配';
+    sub.textContent = '天梯随机匹配 · 无需输入房间号';
+    show(
+      '<div class="de-line"><span>当前卡组</span><b id="deDeck">读取中…</b></div>' +
+      '<button class="de-btn" id="deStart">开始匹配</button>' +
+      '<div class="de-msg" id="deMsg"></div>' +
+      '<div class="de-foot">已登录：' + esc(d.name || d.account) + ' · 匹配成功后自动准备、自动开局</div>'
+    );
+    document.getElementById('deStart').onclick = function () { location.href = 'duel.html?auto=1'; };
+    fetch('/api/duel/deck?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
+      var el = document.getElementById('deDeck');
+      if (j && j.name) el.textContent = j.name + '（主' + (j.main || []).length + '）';
+      else el.textContent = '未设置（进入后可用「导入卡组」按钮导入 .ydk）';
+    }).catch(function () {
+      var el = document.getElementById('deDeck');
+      if (el) el.textContent = '未设置';
+    });
+  }
+})();
+</script>
+</body>
+</html>

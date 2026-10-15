@@ -19,7 +19,7 @@ import urllib.request
 import urllib.error
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 from pathlib import Path
-from urllib.parse import unquote, urlencode
+from urllib.parse import unquote, urlencode, quote
 
 # ── 配置 ──────────────────────────────────────────────────
 HOST = "0.0.0.0"
@@ -1045,6 +1045,11 @@ class VoteHandler(SimpleHTTPRequestHandler):
             # 地址栏保持不变，页面加载后会自己把地址规范回 /next.html。
             if path.startswith("/next.html/"):
                 self.path = "/next.html"
+            # 决斗客户端入口页：要把登录态注入成 window._duelUser（客户端启动时同步读它，
+            # 所以必须服务端注入，不能等前端 fetch）——见官方交接文档 §2.1 / §3
+            if path in ("/duel.html", "/duel"):
+                self._serve_duel_page()
+                return
             super().do_GET()
 
     def do_POST(self):
@@ -1230,6 +1235,64 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 self._json_response({"error": "提示文本表未生成，请先跑 tools/gen-duel-data.mjs"}, status=503)
             else:
                 _send_duel_json(self, cache)
+
+        elif path == "/api/duel/whoami":
+            # 决斗客户端身份（交接文档 §2.1）：站点自己的 siro_community cookie
+            creds = self._get_community_cookie()
+            if not creds:
+                self._json_response({"loggedIn": False})
+            else:
+                account = creds[0]
+                self._json_response({
+                    "loggedIn": True,
+                    "account": account,
+                    "name": account,     # 昵称=账号：断线重连按昵称认人（文档 §4.3）
+                    "avatar": f"/api/forum/avatar/{account}",
+                })
+
+        elif path == "/api/duel/deck":
+            # 当前卡组（交接文档 §2.2）：取该账号最近一局天梯用过的卡组；
+            # 取不到就返回空，客户端仍可用容器里的「导入卡组 (.ydk)」按钮
+            creds = self._get_community_cookie()
+            if not creds:
+                self._json_response({"error": "未登录"}, status=401)
+            else:
+                deck = None
+                try:
+                    resp = urllib.request.urlopen(
+                        "https://api.ygopro3.cn/api/ladder/decks?player="
+                        + quote(creds[0]) + "&t=" + str(int(time.time() * 1000)),
+                        timeout=8,
+                    )
+                    data = json.loads(resp.read().decode("utf-8"))
+                    items = data.get("decks") if isinstance(data, dict) else data
+                    if isinstance(items, list) and items:
+                        first = items[0]
+                        if isinstance(first, dict) and (first.get("main") or first.get("deck")):
+                            deck = {
+                                "name": first.get("name") or first.get("deckName") or "最近使用",
+                                "main": first.get("main") or [],
+                                "extra": first.get("extra") or [],
+                                "side": first.get("side") or [],
+                            }
+                except Exception as e:
+                    logger.warning(f"取最近卡组失败: {e}")
+                self._json_response(deck or {"name": None, "main": [], "extra": [], "side": []})
+
+        elif path == "/api/duel/enter":
+            # 进匹配（交接文档 §2.3）：房号由服务端给。
+            # 现阶段 srvpro2 侧的「票据校验 + M# 配对」还没做（GAP A4），
+            # 所以先返回天梯固定前缀 M#，客户端会用账号昵称自己进随机匹配队列。
+            creds = self._get_community_cookie()
+            if not creds:
+                self._json_response({"error": "未登录"}, status=401)
+            else:
+                self._json_response({
+                    "room": "M#",          # 客户端会自动补全/走随机匹配
+                    "ticket": None,        # 票据待 srvpro2 侧中间件就绪后再签发
+                    "expiresIn": 60,
+                    "name": creds[0],
+                })
 
         elif path == "/api/archetypes":
             # 字段（系列）表：setcode(16进制) → 字段名
@@ -1470,6 +1533,33 @@ class VoteHandler(SimpleHTTPRequestHandler):
         self.wfile.write(data)
 
     # ── 辅助方法 ───────────────────────────────────────
+
+    def _serve_duel_page(self):
+        """输出 duel.html，并把登录态注入为 window._duelUser（客户端启动时同步读它）"""
+        path = ROOT / "duel.html"
+        if not path.is_file():
+            self.send_error(404, "duel.html not found")
+            return
+        html = path.read_text(encoding="utf-8")
+        creds = self._get_community_cookie()
+        if creds:
+            # 昵称 = 账号：srvpro2 的断线重连是按昵称认人的（交接文档 §4.3）
+            account = creds[0]
+            inject = (
+                "<script>window._duelUser="
+                + json.dumps({"name": account, "account": account}, ensure_ascii=False)
+                + ";window._communityUsername=" + json.dumps(account, ensure_ascii=False) + ";</script>"
+            )
+        else:
+            inject = "<script>window._duelUser=null;</script>"
+        html = html.replace("<body>", "<body>\n" + inject, 1) if "<body>" in html else inject + html
+        body = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache, no-store, must-revalidate")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _get_admin_cookie(self) -> tuple | None:
         return self._get_cookie(COOKIE_NAME, _verify_cookie)

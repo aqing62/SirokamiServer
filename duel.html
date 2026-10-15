@@ -1,0 +1,249 @@
+<!doctype html>
+<!--
+  duel.html —— 「决斗客户端」入口页（**生成产物**）
+  ⚠ 由 tools/sync-duel-client.mjs 从 tools/duel-page.template.html + ygopro-web 的 play.html 组装
+     要改入口 UI / 样式：改 tools/duel-page.template.html；要改客户端：改上游再重跑同步脚本
+  流程（对照官方交接文档 §0）：
+     未登录 → 登录（账号/密码）→ 已登录 → 显示当前卡组 + 「开始匹配」
+     → 点开始匹配 → duel.html?auto=1 → 客户端自动进房/自动准备/自动开局 → 猜拳时切到对局界面
+-->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>开始匹配 · 白神服</title>
+<!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
+<link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
+<link rel="stylesheet" href="css/duel-client.css">
+<style>
+/* ── 入口层（本站自己的 UI；不动客户端产物） ── */
+#duelEntry { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(1200px 600px at 50% 0%, #1a1420 0%, #0d0b12 60%, #08070b 100%);
+  font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; color: #e8e2d8; }
+#duelEntry.hidden { display: none; }
+.de-card { width: min(420px, 92vw); border: 1px solid rgba(212,175,55,.35); border-radius: 12px;
+  background: rgba(20,18,26,.92); padding: 26px 26px 22px; box-shadow: 0 18px 50px rgba(0,0,0,.55); }
+.de-title { font-size: 1.15rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px;
+  background: linear-gradient(135deg,#D4AF37,#FFD700); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.de-sub { font-size: .78rem; color: #8d8d96; margin-bottom: 18px; }
+.de-field { margin-bottom: 12px; }
+.de-field label { display: block; font-size: .78rem; color: #a9a9b3; margin-bottom: 5px; }
+.de-field input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: #f2eee6; font-size: .92rem; }
+.de-field input:focus { outline: none; border-color: rgba(212,175,55,.6); }
+.de-btn { width: 100%; padding: 11px 14px; border-radius: 8px; border: none; cursor: pointer;
+  font-size: .95rem; font-weight: 700; letter-spacing: 1px;
+  background: linear-gradient(135deg,#D4AF37,#FFD700); color: #1a1a2e; }
+.de-btn:disabled { opacity: .5; cursor: not-allowed; }
+.de-btn.ghost { background: transparent; border: 1px solid rgba(255,255,255,.18); color: #cfc8bd; font-weight: 500; }
+.de-msg { min-height: 18px; font-size: .78rem; color: #ff9aa8; margin-top: 8px; }
+.de-line { display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 10px 12px; border: 1px solid rgba(255,255,255,.1); border-radius: 8px; margin-bottom: 14px; }
+.de-line b { color: #FFD700; font-weight: 700; }
+.de-line span { font-size: .8rem; color: #9a9aa4; }
+.de-foot { margin-top: 14px; font-size: .75rem; color: #7d7d86; text-align: center; }
+.de-foot a { color: #9ec4f0; text-decoration: none; }
+#duelEntry .de-back { position: absolute; left: 16px; top: 14px; font-size: .8rem; color: #9a9aa4; text-decoration: none; }
+</style>
+</head>
+<body>
+
+<div id="hud">
+    <span class="tag">决斗客户端</span>
+    <span id="roomInfo" class="tag">未进房</span>
+    <span id="hudState" class="yp-state">填房间名 → 加入</span>
+  </div>
+
+  <!-- ── 决斗准备（房间）面板：左侧决斗者/卡组，右侧房间规则，底部开始/退出（参照真实客户端） ── -->
+  <div id="lobby">
+    <div class="yp-room-box">
+      <div class="yp-room-title">决斗准备</div>
+      <div class="yp-room-body">
+        <!-- 左列 -->
+        <div class="yp-room-left">
+          <div class="yp-room-sec">→ 决斗者</div>
+          <div id="roomPlayers"></div>
+          <div class="yp-room-row">
+            <button class="yp-btn" id="btnReady" style="display:none">准备</button>
+            <span id="duelRoomTag" class="yp-room-note"></span>
+          </div>
+          <div class="yp-room-sec">卡组：</div>
+          <div class="yp-room-row">
+            <button class="yp-btn" id="btnImportDeck">导入卡组 (.ydk)</button>
+            <span id="deckName" class="yp-room-note">未选择</span>
+            <input type="file" id="ydkFile" accept=".ydk,text/plain" style="display:none">
+          </div>
+          <!-- 天梯模式：房间号由服务端分配（固定前缀 M#），用户不需要输入；
+               ?room= / ?ydk= 仅用于本地联调，正常玩家不会看到这些控件 -->
+          <div class="yp-room-row" id="roomJoinRow" style="display:none">
+            <input id="inName" placeholder="昵称" size="10">
+            <input id="inRoom" placeholder="房间名" size="12">
+            <button class="yp-btn" id="btnJoin">加入房间</button>
+          </div>
+          <div id="lobbyInfo" class="yp-room-note"></div>
+        </div>
+        <!-- 右列：房间规则 -->
+        <div class="yp-room-right" id="roomRules"></div>
+      </div>
+      <div class="yp-room-foot">
+        <button class="yp-btn" id="btnStart" style="display:none">开始</button>
+        <button class="yp-btn" id="btnExit">退出房间</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 场地控件层（贴在场地中线上） -->
+  <div id="ypCtl">
+    <span class="yp-ctl-left"><span id="ypPhase"></span><span id="ypUtil"></span></span>
+    <span id="ypCtlMid"></span>
+    <span id="ypCtlRight"></span>
+  </div>
+
+  <!-- 左侧卡片信息面板：三栏布局的左栏，常驻（悬停/点击卡片时更新内容） -->
+  <style>
+    #ypCardInfo { position: static; display: block; width: 100%; height: 100%; overflow-y: auto;
+      background: rgba(14,18,24,.96); border: 1px solid #3f5a75; border-radius: 8px; padding: 8px 10px 10px;
+      box-sizing: border-box; font-size: 12px; line-height: 1.5; color: #dbe6f1; }
+    /* 卡图占位框：固定长宽比 → 图片加载前后高度一致，下面文字不跳动 */
+    #ypInfoImgBox { position: relative; width: 100%; aspect-ratio: 421 / 614; margin-bottom: 6px;
+      border-radius: 6px; overflow: hidden;
+      background: #101720 url('cover2.jpg') center/cover no-repeat, linear-gradient(135deg, #1b2430, #0e141c 60%, #1b2430); }
+    #ypInfoImg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .12s ease; }
+    #ypInfoImg.ready { opacity: 1; }
+    #ypInfoImgHint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+      font-size: 11px; color: #9fb3c8; background: rgba(10,14,20,.6); padding: 2px 8px; border-radius: 10px; }
+    #ypInfoName { font-size: 13px; font-weight: 700; color: #cfe6ff; margin-bottom: 3px; word-break: break-all; }
+    #ypInfoType { color: #9fd0ff; margin-bottom: 2px; }
+    #ypInfoStat { color: #ffd479; margin-bottom: 2px; }
+    #ypInfoSeries { color: #b7a6ff; margin-bottom: 4px; }
+    #ypInfoText { color: #cfd8e3; white-space: pre-wrap; }
+  </style>
+
+  <!-- 选卡/选素材的进度提示条（场地顶部，参照真实客户端） -->
+  <div id="ypTopBar"></div>
+
+  <!-- 居中弹窗（贴在场地中央） -->
+  <div id="ypPrompt">
+    <div id="ypPromptTitle"></div>
+    <div id="ypPromptBtns"></div>
+  </div>
+
+  <div class="rp-modal" id="replayModal">
+    <div class="rp-modal-box">
+      <div class="rp-modal-head"><div class="replay-title">对局</div><button class="rp-modal-close" id="replayClose">✕</button></div>
+      <div class="replay-input-bar"><input type="text" id="replayInput"><button id="replayLoadBtn">加载</button><span class="replay-meta" id="replayMeta"></span></div>
+      <div class="replay-controls" id="replayControls" style="display:none;">
+        <button id="rpPlayPause">⏸</button><button id="rpStepBack">⏮</button><button id="rpStep">⏭</button>
+        <input type="range" id="rpProgress" min="0" max="100" value="0" style="flex:1;"><span class="rp-progress-text" id="rpProgressText">0 / 0</span>
+      </div>
+      <div class="replay-main" id="replayMain" style="display:none;">
+        <!-- 左栏：卡片信息（常驻；悬停/点击卡片时更新） -->
+        <div id="ypCardInfo">
+          <!-- 卡图位：**先按卡牌比例占好位**（421:614），图没到之前就是卡背底 + "加载中"，
+               这样下面的文字不会因为图片加载而被顶来顶去（玩家反馈的"字体来回闪"）。 -->
+          <div id="ypInfoImgBox">
+            <span id="ypInfoImgHint">卡图加载中…</span>
+            <img id="ypInfoImg" alt="">
+          </div>
+          <div id="ypInfoName">悬停卡片查看详情</div>
+          <div id="ypInfoType"></div>
+          <div id="ypInfoStat"></div>
+          <div id="ypInfoSeries"></div>
+          <div id="ypInfoText"></div>
+        </div>
+        <!-- 中栏：对局场地 -->
+        <div class="replay-field" id="replayField"><div class="rp-loading-tip">等待进房…</div></div>
+        <!-- 右栏：对局日志 -->
+        <div class="replay-log" id="replayLog">
+          <div class="replay-log-title">对局日志</div>
+          <div class="replay-log-body" id="replayLogBody"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<!-- ── 入口层：登录 / 开始匹配 ── -->
+<div id="duelEntry">
+  <a class="de-back" href="index.html">← 返回官网</a>
+  <div class="de-card" id="deCard">
+    <div class="de-title" id="deTitle">开始匹配</div>
+    <div class="de-sub" id="deSub">正在读取登录状态…</div>
+    <div id="deBody"></div>
+  </div>
+</div>
+
+<script src="js/ygopro-web-browser.js"></script>
+<script src="js/viewer-live.js"></script>
+<script src="js/duel-client.js"></script>
+<script>
+/* 入口层逻辑：登录 / 显示当前卡组 / 开始匹配（不改客户端产物） */
+(function () {
+  'use strict';
+  var q = new URLSearchParams(location.search);
+  var entry = document.getElementById('duelEntry');
+  var title = document.getElementById('deTitle');
+  var sub = document.getElementById('deSub');
+  var body = document.getElementById('deBody');
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+  function show(html) { body.innerHTML = html; }
+  function msg(t) { var m = document.getElementById('deMsg'); if (m) m.textContent = t || ''; }
+
+  // ?auto=1 = 已点过「开始匹配」→ 隐藏入口层，交给客户端自动进房
+  if (q.get('auto') === '1') { entry.classList.add('hidden'); return; }
+
+  fetch('/api/duel/whoami?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
+    if (!d || !d.loggedIn) return renderLogin();
+    renderMatch(d);
+  }).catch(function () { renderLogin(); });
+
+  function renderLogin() {
+    title.textContent = '登录';
+    sub.textContent = '用白神服账号登录后即可开始匹配';
+    show(
+      '<div class="de-field"><label>账号</label><input id="deUser" autocomplete="username"></div>' +
+      '<div class="de-field"><label>密码</label><input id="dePass" type="password" autocomplete="current-password"></div>' +
+      '<button class="de-btn" id="deLogin">登录</button>' +
+      '<div class="de-msg" id="deMsg"></div>' +
+      '<div class="de-foot">还没有账号？<a href="index.html#community">去注册</a></div>'
+    );
+    var go = function () {
+      var u = document.getElementById('deUser').value.trim();
+      var p = document.getElementById('dePass').value;
+      if (!u || !p) return msg('请输入账号和密码');
+      msg('登录中…');
+      fetch('/api/forum/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p }),
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (r) {
+          if (!r.ok || !r.j || r.j.ok === false) return msg((r.j && r.j.error) || '账号或密码错误');
+          location.reload();
+        }).catch(function (e) { msg('登录失败：' + e.message); });
+    };
+    document.getElementById('deLogin').onclick = go;
+    document.getElementById('dePass').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+  }
+
+  function renderMatch(d) {
+    title.textContent = '开始匹配';
+    sub.textContent = '天梯随机匹配 · 无需输入房间号';
+    show(
+      '<div class="de-line"><span>当前卡组</span><b id="deDeck">读取中…</b></div>' +
+      '<button class="de-btn" id="deStart">开始匹配</button>' +
+      '<div class="de-msg" id="deMsg"></div>' +
+      '<div class="de-foot">已登录：' + esc(d.name || d.account) + ' · 匹配成功后自动准备、自动开局</div>'
+    );
+    document.getElementById('deStart').onclick = function () { location.href = 'duel.html?auto=1'; };
+    fetch('/api/duel/deck?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
+      var el = document.getElementById('deDeck');
+      if (j && j.name) el.textContent = j.name + '（主' + (j.main || []).length + '）';
+      else el.textContent = '未设置（进入后可用「导入卡组」按钮导入 .ydk）';
+    }).catch(function () {
+      var el = document.getElementById('deDeck');
+      if (el) el.textContent = '未设置';
+    });
+  }
+})();
+</script>
+</body>
+</html>
