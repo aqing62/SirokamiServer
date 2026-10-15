@@ -97,6 +97,7 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
 .deck-cards { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:5px; }
 /* 卡图：鼠标移上去「浮起来」——上浮 + 轻微上下飘 + 下方柔影 + 金边（**不放大**）
    这个模块本身就是卡组展示，点它不再跳大窗口 */
+.deck-cards .card-img-wrapper { position:relative; }
 .deck-cards img { width:100%; aspect-ratio:421/614; object-fit:cover; display:block; border-radius:4px;
   background:#101720; border:1px solid #2a3542; position:relative; z-index:1;
   transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
@@ -142,13 +143,9 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   </div>
 
   <div class="card">
-    <div class="row row-inline"><span class="k">模式</span>
-      <div class="modes">
-        <button class="mode on" id="mLadder">竞技匹配（天梯）</button>
-        <button class="mode" id="mTour" disabled title="开赛后公布对阵即可用">比赛模式</button>
-      </div>
-      <!-- 卡组就放在模式右边（同一行，和参考图里「分类 / 卡组」同一排一样） -->
-      <span class="k k-gap">卡组</span>
+    <!-- 只有天梯一种形态（比赛模式已按用户决定去掉）→ 不再需要模式选择，卡组行独自成行 -->
+    <div class="row row-inline">
+      <span class="k">卡组</span>
       <select id="deckSel"><option value="">（还没有卡组，先上传一个）</option></select>
       <button class="btn ghost" id="btnUpload">上传 / 编辑卡组(.ydk)</button>
       <input type="file" id="ydkFile" accept=".ydk,text/plain" style="display:none">
@@ -174,16 +171,8 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   'use strict';
   var $ = function (i) { return document.getElementById(i); };
   function msg(t, ok) { var m = $('msg'); m.textContent = t || ''; m.className = 'msg' + (ok ? ' ok' : ''); }
-  var mode = 'ladder';
   var curDeck = null;      // 当前使用卡组（{name, main, extra, side}）
 
-  $('mLadder').onclick = function () { mode = 'ladder'; syncModes(); };
-  $('mTour').onclick = function () { if (!$('mTour').disabled) { mode = 'tour'; syncModes(); } };
-  function syncModes() {
-    $('mLadder').className = 'mode' + (mode === 'ladder' ? ' on' : '');
-    $('mTour').className = 'mode' + (mode === 'tour' ? ' on' : '');
-    $('btnStart').textContent = mode === 'ladder' ? '开始匹配' : '进入比赛房间';
-  }
 
   // ── 身份 ──
   fetch('/api/duel/whoami?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
@@ -238,29 +227,42 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   }
 
   // ── 卡图（和官网同一条兜底链：OCG → SuperPre 先行卡 → 白神服 DIY）──
+  // 分值表（左下角角标用）：/api/scores → {id: {score, forbidden}}
+  var scoreMap = null;
+  function loadScores() {
+    return fetch('/api/scores?t=' + Date.now()).then(function (r) { return r.json(); })
+      .then(function (j) { scoreMap = (j && !j.error) ? j : {}; })
+      .catch(function () { scoreMap = {}; });
+  }
   var CARD_PIC = [
     'https://cdn.233.momobako.com/ygopro/pics/',
     'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/',
     'https://api.ygopro3.cn/pics/siro/',
   ];
+  // 每张卡：包一层 .card-img-wrapper（老站同款）+ 左下角分值角标 + 右下角 DIY 角标。
+  // DIY 角标由「DIY 图加载成功」时打上 —— 这是老站 deck-viewer.js 的做法，原样搬过来。
   function deckCardImg(id) {
     var wrap = document.createElement('div');
     wrap.className = 'card-img-wrapper';
     wrap.setAttribute('data-card-id', String(id));
-    var img = document.createElement('img');
-    var step = 0;
-    img.loading = 'lazy';
-    img.title = '第 ' + id + ' 号卡';
-    img.onerror = function () {
-      step++;
-      if (step < CARD_PIC.length) img.src = CARD_PIC[step] + id + '.jpg';
-      else img.onerror = null;
-    };
-    img.src = CARD_PIC[0] + id + '.jpg';
-    wrap.appendChild(img);
+    var sc = scoreMap && scoreMap[id];
+    var badge = '';
+    if (sc) badge = sc.forbidden
+      ? '<div class="card-score-badge forbidden">🚫</div>'
+      : '<div class="card-score-badge">' + sc.score + '</div>';
+    wrap.innerHTML =
+      '<img class="deck-card-img" alt="' + id + '" loading="lazy" src="' + CARD_PIC[0] + id + '.jpg"'
+      + " onerror=\"this.onerror=null;this.src='" + CARD_PIC[1] + id + ".jpg';"
+      + "this.onerror=function(){this.onerror=null;this.src='" + CARD_PIC[2] + id + ".jpg';"
+      + "this.onload=function(){if(!this.closest('.card-img-wrapper').querySelector('.card-diy-badge')){"
+      + "var b=document.createElement('div');b.className='card-diy-badge';b.textContent='DIY';"
+      + "this.closest('.card-img-wrapper').appendChild(b);}};"
+      + "this.onerror=function(){this.src='cover.jpg';}}\">"
+      + badge;
     return wrap;
   }
   function renderDeckCards(deck) {
+    if (!scoreMap) { loadScores().then(function () { renderDeckCards(deck); }); return; }
     var box = $('deckCards');
     box.innerHTML = '';
     function section(label, ids) {
@@ -335,18 +337,27 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   }
 
   // ── 开始匹配 ──
+  // 没卡组不让开始匹配（④ 的 UI 侧；客户端那边也有兜底拦截）
+  function setStartEnabled(hasDeck) {
+    var b = $('btnStart');
+    if (!b) return;
+    b.disabled = !hasDeck;
+    b.title = hasDeck ? '开始匹配' : '先在右边选好卡组(.ydk)再开始匹配';
+  }
+  // 大厅 → 匹配 的转场动画：先铺一层红黑扫光，再跳转
+  function playTransition(then) {
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;pointer-events:none;opacity:0;'
+      + 'background:radial-gradient(closest-side at 50% 50%, rgba(216,30,68,.55), rgba(10,10,12,.97) 70%);'
+      + 'transition:opacity .34s ease;';
+    document.body.appendChild(ov);
+    requestAnimationFrame(function () { ov.style.opacity = '1'; });
+    setTimeout(then, 380);
+  }
   $('btnStart').onclick = function () {
-    if (mode === 'ladder') {
-      location.href = 'duel.html?auto=1';
-      return;
-    }
-    location.href = 'duel.html?auto=1&mode=tour';
+    if (this.disabled) return;
+    playTransition(function () { location.href = 'duel.html?auto=1'; });
   };
-  try {
-    var q = new URLSearchParams(location.search);
-    if (q.get('mode') === 'tour') { mode = 'tour'; syncModes(); }
-  } catch (e) {}
-  syncModes();
 })();
 </script>
 </body>

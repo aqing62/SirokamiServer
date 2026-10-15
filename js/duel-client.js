@@ -291,7 +291,7 @@
    * 盘面一显示（= 猜拳那一刻客户端切入对局界面）就自动消失，所以不用改 setUiPhase。
    * 样式内联：css/duel-client.css 是同步脚本生成的产物，不往里塞东西。
    */
-  function ensureMatchingOverlay() {
+  function ensureMatchingOverlay(noticeText) {
     if (document.getElementById('ypMatching')) return;
     var lobby = document.getElementById('lobby');
     if (lobby) lobby.style.display = 'none';          // 藏掉「决斗准备」面板
@@ -299,18 +299,31 @@
     d.id = 'ypMatching';
     d.style.cssText = 'position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;'
       + 'background:#0a0a0c;background-image:radial-gradient(900px 500px at 50% 30%, rgba(216,30,68,.18), rgba(10,10,12,0) 70%);'
-      + 'pointer-events:none;';
+      + 'pointer-events:auto;opacity:0;transform:scale(.985);transition:opacity .42s ease, transform .42s ease;';
     d.innerHTML = '<div style="text-align:center">'
       + '<div style="width:46px;height:46px;margin:0 auto 16px;border-radius:50%;'
       + 'border:3px solid rgba(216,30,68,.25);border-top-color:#D81E44;animation:ypmSpin .9s linear infinite"></div>'
-      + '<div style="font-size:17px;font-weight:800;letter-spacing:2px;color:#F0E68C">正在匹配对手…</div>'
-      + '<div style="margin-top:8px;font-size:12.5px;color:#9b97a1">进房后会自动准备 · 人齐自动开局 · 不用操作</div>'
+      + '<div style="font-size:17px;font-weight:800;letter-spacing:2px;color:#F0E68C">' + (noticeText || '正在匹配对手…') + '</div>'
+      + '<div style="margin-top:8px;font-size:12.5px;color:#9b97a1">' + (noticeText ? '请先回大厅选一套卡组' : '进房后会自动准备 · 人齐自动开局 · 不用操作') + '</div>'
       + '<div id="ypmWait" style="margin-top:14px;font-size:12px;color:#7d7d86"></div>'
+      + '<button id="ypmCancel" style="margin-top:26px;padding:10px 30px;border-radius:999px;cursor:pointer;'
+      + 'background:transparent;border:2px solid rgba(216,30,68,.85);color:#F0E68C;font-size:14px;font-weight:700;'
+      + 'letter-spacing:2px;font-family:inherit">取消匹配</button>'
       + '</div>';
     var st = document.createElement('style');
     st.textContent = '@keyframes ypmSpin { to { transform: rotate(360deg); } }';
     d.appendChild(st);
     document.body.appendChild(d);
+    requestAnimationFrame(function () { d.style.opacity = '1'; d.style.transform = 'scale(1)'; });
+    // 取消匹配：断开连接 → 退回大厅（复用「退出房间」的关闭方式）
+    var cancelBtn = document.getElementById('ypmCancel');
+    if (cancelBtn && noticeText) cancelBtn.textContent = '返回大厅';
+    if (cancelBtn) cancelBtn.onclick = function () {
+      cancelBtn.disabled = true;
+      cancelBtn.textContent = '正在取消…';
+      try { if (state.sock) state.sock.close(); } catch (e) {}
+      setTimeout(function () { location.href = 'lobby.html'; }, 250);
+    };
     // 等了多久（让玩家知道不是卡住）
     var t0 = Date.now();
     setInterval(function () {
@@ -2908,6 +2921,11 @@
           logLine('卡表：无禁限（lflist=-1，服务端用空表 blankLFList）', 'rp-log-hint');
         }
       }).catch(function () {});
+    }
+    if (q.get('auto') === '1' && !deckFromInjection()) {
+      // 天梯/比赛形态必须有卡组（官网大厅里选好再进来）；否则不进匹配，只提示
+      ensureMatchingOverlay('没有可用卡组');
+      return;
     }
     if (q.get('auto') === '1') { ensureMatchingOverlay(); setTimeout(function () { joinRoom(); setTimeout(uploadDeckAndReady, 1500); }, 300); }
     // 天梯：没有 ?room=（即不是本地联调）就**自动进匹配队列**，玩家不需要点任何按钮
