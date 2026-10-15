@@ -255,7 +255,7 @@
       var u = window._duelUser;
       if (!u || !u.account || !u.pass) return;
       state.autoLoginTries = (state.autoLoginTries || 0) + 1;
-      send(new YGO.YGOProCtosChat().fromPartial({ msg: '/login ' + u.account + ' ' + u.pass }));
+      send(chatFrame('/login ' + u.account + ' ' + u.pass));
       logLine('已用官网账号自动登录游戏服：' + u.account + '（第 ' + state.autoLoginTries + ' 次，登录成功这局才计天梯）', 'rp-log-hint');
       // 没收到「登录成功」就再补一次（进房握手时序偶尔会吃掉第一条聊天）
       if (state.autoLoginTries < 2) {
@@ -266,6 +266,22 @@
     } catch (e) {
       logLine('自动登录失败：' + (e && e.message), 'rp-log-err');
     }
+  }
+
+  /**
+   * 手工拼一条聊天帧（CTOS_CHAT = 22，载荷是 UTF-16LE 文本）。
+   * ⚠ 为什么要手拼：bundle 的入口只导出了客户端需要的那几个 YGOProCtos*，
+   *   `YGO.YGOProCtosChat` **不存在**（实测报 "…sChat is not a constructor"）。
+   *   send() 只要求对象带 identifier + toPayload()，所以这样最省事、也不依赖导出表。
+   */
+  function chatFrame(text) {
+    var buf = new Uint8Array(text.length * 2 + 2);   // 末尾补一个 NUL（与真客户端一致）
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i);
+      buf[i * 2] = c & 0xff;
+      buf[i * 2 + 1] = (c >> 8) & 0xff;
+    }
+    return { identifier: 22, toPayload: function () { return buf; } };
   }
   function respond(body) {
     if (state.previewMode) { state.previewMode = false; clearPending(); return; }   // UI 预览：不真发
