@@ -251,12 +251,18 @@
    */
   function autoLoginIfNeeded() {
     try {
-      if (state.autoLoginSent) return;
+      if (state.autoLoginTries >= 2) return;
       var u = window._duelUser;
       if (!u || !u.account || !u.pass) return;
-      state.autoLoginSent = true;
+      state.autoLoginTries = (state.autoLoginTries || 0) + 1;
       send(new YGO.YGOProCtosChat().fromPartial({ msg: '/login ' + u.account + ' ' + u.pass }));
-      logLine('已用官网账号自动登录游戏服：' + u.account + '（这局会计入天梯）', 'rp-log-hint');
+      logLine('已用官网账号自动登录游戏服：' + u.account + '（第 ' + state.autoLoginTries + ' 次，登录成功这局才计天梯）', 'rp-log-hint');
+      // 没收到「登录成功」就再补一次（进房握手时序偶尔会吃掉第一条聊天）
+      if (state.autoLoginTries < 2) {
+        setTimeout(function () {
+          if (!state.loggedInOk) autoLoginIfNeeded();
+        }, 2500);
+      }
     } catch (e) {
       logLine('自动登录失败：' + (e && e.message), 'rp-log-err');
     }
@@ -426,13 +432,14 @@
     if (msg instanceof YGO.YGOProStocJoinGame) {
       state.joined = true;
       $('roomInfo').textContent = '房间 ' + state.room;
-      autoLoginIfNeeded();     // 官网账号 → 自动 /login（网页对战计入天梯）
       return;
     }
     if (msg instanceof YGO.YGOProStocTypeChange) {
       state.mySeat = msg.playerPosition;
       state.isHost = !!msg.isHost;
       logLine('我进房了：座位 ' + state.mySeat + (state.isHost ? '（房主）' : '') + (state.mySeat === 7 ? '（观战）' : ''));
+      // 拿到座位 = 真正进房了 → 这时才发 /login 自动登录（早于这一刻服务端会收不到）
+      if (state.mySeat !== 7) setTimeout(autoLoginIfNeeded, 800);
       if (state.mySeat === 7) {
         // 观战 = 两个座位都有人。最常见原因：你上次断线后服务端**保留了你的席位**（约 3 分钟），
         // 换个昵称再进就挤不进座位了 —— 所以把"怎么办"直接写清楚（玩家反馈过"进不去房间了"）。
@@ -477,6 +484,13 @@
     }
     if (msg instanceof YGO.YGOProStocChat) {
       logLine('[聊天] ' + msg.msg, 'rp-log-hint');
+      // 自动登录的回执：服务端登录成功会发「登录成功！账号: X 显示名: Y 权限: Z」
+      if (msg.msg && msg.msg.indexOf('登录成功') >= 0) {
+        state.loggedInOk = true;
+        setHud('已登录官网账号，本局计入天梯 ✓', 'ok');
+      } else if (msg.msg && msg.msg.indexOf('密码错误') >= 0) {
+        setHud('自动登录失败：密码错误（本局不计天梯）', 'err');
+      }
       // 服务端按昵称重连"未完成的对局"（enableReconnect）。实测服务端会把你放回**原座位**并提示
       // "请选择你在本局决斗中使用的卡组并准备"，随后**重放整局消息**把盘面重建好再继续实时。
       // 所以恢复对局 = 同名重进 + 上传卡组 + 准备 —— 这里直接自动化掉，省得玩家以为"卡住了"。
