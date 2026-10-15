@@ -7,6 +7,7 @@
  *
  * 数据源（**顺序即优先级，先到先得** —— 与 srvpro2 的合并规则一致）：
  *   - 站点自己的 DIY_Sirokami.cdb（2841 张 DIY 卡）
+ *   - 游戏服 /root/servers/ygopro/cards-pre/ 里的先行卡（test-release + test-update，**只读不搬**）
  *   - 官方 cards_ocg.cdb（14981 张 OCG 卡）
  *   - 官方 strings.conf
  *
@@ -22,7 +23,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
-const CDBS = ['/root/servers/siro/DIY_Sirokami.cdb', '/root/servers/siro/cards_ocg.cdb'];
+const CDBS = [
+  '/root/servers/siro/DIY_Sirokami.cdb',                    // DIY 卡
+  '/root/servers/ygopro/cards-pre/test-release.cdb',        // 先行卡（预发布 release）
+  '/root/servers/ygopro/cards-pre/test-update.cdb',         // 先行卡（预发布 update）
+  '/root/servers/siro/cards_ocg.cdb',                       // 官方 OCG
+];
 const STRINGS_CONF = process.argv[2] || '/root/servers/ygopro/ygopro-database/locales/zh-CN/strings.conf';
 const OUT_DIR = process.argv[3] || '/root/servers/siro/data';
 

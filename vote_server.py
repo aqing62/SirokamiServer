@@ -29,6 +29,12 @@ IMG_DIR = ROOT / "xiaobairenshe"
 THUMB_DIR = ROOT / "xiaobairenshe_thumb"
 DATA_FILE = ROOT / "vote_data.json"
 CDB_FILE = ROOT / "DIY_Sirokami.cdb"
+# 先行卡（预发布卡）CDB：**直接读游戏服目录，只调用不迁移**（用户要求）。
+# 顺序 = srvpro2 的 ygoproPath 顺序里 cards-pre 内部顺序（release → update），先到先得。
+PRE_CDB_FILES = [
+    "/root/servers/ygopro/cards-pre/test-release.cdb",
+    "/root/servers/ygopro/cards-pre/test-update.cdb",
+]
 MAX_VOTES = 2
 THUMB_WIDTH = 200
 THUMB_QUALITY = 72
@@ -470,28 +476,46 @@ def append_clientlog(payload) -> None:
 
 
 def refresh_cards_cache():
-    """重新从 CDB 加载卡牌数据并更新缓存（DIY + 官方 OCG 合并为总卡池）。"""
+    """重新从 CDB 加载卡牌数据并更新缓存。
+
+    卡池 = DIY + **先行卡（pre）** + 官方 OCG，按 id 去重、**先到先得**
+    —— 顺序刻意与 srvpro2 的 ygoproPath 一致（cards-diy → cards-pre → cards），
+    所以"先行卡覆盖官方同号卡"的行为和游戏里完全一样。
+
+    ⚠ 先行卡的 CDB 在游戏服目录里，这里**只读不搬**（用户要求：调用即可，不要迁移）。
+       路径见 PRE_CDB_FILES；换预发布包时那边换了这里自动跟着变 ✓
+    """
     global _cards_cache, _cards_json, _cards_json_gz, _cards_etag
-    diy_cards = load_cards_from_cdb(CDB_FILE)
-    ocg_cards = load_cards_from_cdb(ROOT / "cards_ocg.cdb")
-    # 来源标记：diy / ocg（前端统计可区分）
-    for c in diy_cards:
-        c["source"] = "diy"
-    for c in ocg_cards:
-        c["source"] = "ocg"
-    # 合并：以 id 去重，DIY 优先（两者 id 实际不重叠，兜底保护）
+    groups = [
+        ("diy", [CDB_FILE]),
+        ("pre", [Path(p) for p in PRE_CDB_FILES]),
+        ("ocg", [ROOT / "cards_ocg.cdb"]),
+    ]
     seen: set = set()
     merged: list = []
-    for c in diy_cards + ocg_cards:
-        if c["id"] in seen:
-            continue
-        seen.add(c["id"])
-        merged.append(c)
+    counts = {}
+    for source, paths in groups:
+        n = 0
+        for path in paths:
+            if not Path(path).is_file():
+                continue          # 先行卡目录没有/被清空时静默跳过，不影响其它来源
+            for c in load_cards_from_cdb(Path(path)):
+                if c["id"] in seen:
+                    continue
+                seen.add(c["id"])
+                c["source"] = source
+                merged.append(c)
+                n += 1
+        counts[source] = n
     _cards_cache = merged
     _cards_json = json.dumps(_cards_cache, ensure_ascii=False).encode("utf-8")
     _cards_json_gz = gzip.compress(_cards_json, compresslevel=6)
     _cards_etag = f'"{hashlib.md5(_cards_json).hexdigest()}"'
-    logger.info(f"卡牌缓存已刷新: DIY {len(diy_cards)} + OCG {len(ocg_cards)} = {len(merged)} 张, {len(_cards_json) / 1024:.0f} KB JSON → {len(_cards_json_gz) / 1024:.0f} KB gzip")
+    logger.info(
+        "卡牌缓存已刷新: DIY %d + 先行卡 %d + OCG %d = %d 张, %d KB JSON → %d KB gzip"
+        % (counts["diy"], counts["pre"], counts["ocg"], len(merged),
+           len(_cards_json) / 1024, len(_cards_json_gz) / 1024)
+    )
 
 
 def refresh_scores_cache():
