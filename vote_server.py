@@ -382,6 +382,93 @@ _tournament_cache: dict | None = None
 _tournament_cache_time: float = 0
 
 
+# ── 决斗客户端数据（嵌官网用） ──────────────────────────────
+# 两份大表由 tools/gen-duel-data.mjs 生成（不进 git）：
+#   data/duel-cards-text.json  卡文表（约 6.8MB → gzip 约 1MB，客户端懒加载）
+#   data/duel-strings.json     提示文本表（system/victory/counter/setname）
+DUEL_DATA_DIR = ROOT / "data"
+_duel_text: dict = {"raw": None, "gz": None, "etag": ""}
+_duel_strings: dict = {"raw": None, "gz": None, "etag": ""}
+
+
+def _load_duel_json(filename: str, cache: dict, label: str):
+    """惰性读取大 JSON（首次请求时读入并 gzip；文件缺失返回 None）"""
+    if cache["raw"] is not None:
+        return cache
+    path = DUEL_DATA_DIR / filename
+    if not path.is_file():
+        logger.warning(f"{label} 不存在: {path}（跑 tools/gen-duel-data.mjs 生成）")
+        return None
+    raw = path.read_bytes()
+    cache["raw"] = raw
+    cache["gz"] = gzip.compress(raw, compresslevel=6)
+    cache["etag"] = f'"{hashlib.md5(raw).hexdigest()}"'
+    logger.info(f"{label} 已加载: {len(raw) / 1048576:.2f} MB → gzip {len(cache['gz']) / 1024:.0f} KB")
+    return cache
+
+
+def _send_duel_json(handler, cache: dict, max_age: int = 86400):
+    """按 ETag/gzip 输出大 JSON 表"""
+    if handler.headers.get("If-None-Match") == cache["etag"]:
+        handler.send_response(304)
+        handler.send_header("ETag", cache["etag"])
+        handler.end_headers()
+        return
+    body = cache["gz"]
+    handler.send_response(200)
+    handler.send_header("Content-Type", "application/json; charset=utf-8")
+    handler.send_header("Cache-Control", f"public, max-age={max_age}")
+    handler.send_header("ETag", cache["etag"])
+    if "gzip" in (handler.headers.get("Accept-Encoding") or ""):
+        handler.send_header("Content-Encoding", "gzip")
+    else:
+        body = cache["raw"]
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
+# ── 客户端错误上报（决斗客户端 window.onerror → POST /api/clientlog） ──
+CLIENTLOG_FILE = ROOT / "logs" / "clientlog.jsonl"
+CLIENTLOG_DIR = ROOT / "logs"
+CLIENTLOG_KEEP_DAYS = 7
+
+
+def _rotate_clientlog():
+    """按天切分，只保留最近 7 天"""
+    try:
+        CLIENTLOG_DIR.mkdir(exist_ok=True)
+        if not CLIENTLOG_FILE.is_file():
+            return
+        today = time.strftime("%Y-%m-%d")
+        mtime_day = time.strftime("%Y-%m-%d", time.localtime(CLIENTLOG_FILE.stat().st_mtime))
+        if mtime_day != today:
+            CLIENTLOG_FILE.rename(CLIENTLOG_DIR / f"clientlog-{mtime_day}.jsonl")
+        cutoff = time.time() - CLIENTLOG_KEEP_DAYS * 86400
+        for old in CLIENTLOG_DIR.glob("clientlog-*.jsonl"):
+            try:
+                if old.stat().st_mtime < cutoff:
+                    old.unlink()
+            except OSError:
+                pass
+    except OSError as e:
+        logger.warning(f"clientlog 轮转失败: {e}")
+
+
+def append_clientlog(payload) -> None:
+    """追加一条客户端上报（JSONL，一行一条；无上限字段，超长截断）"""
+    try:
+        CLIENTLOG_DIR.mkdir(exist_ok=True)
+        _rotate_clientlog()
+        line = json.dumps(payload, ensure_ascii=False)
+        if len(line) > 64 * 1024:
+            line = line[:64 * 1024] + '…(truncated)"}'
+        with CLIENTLOG_FILE.open("a", encoding="utf-8") as f:
+            f.write(line.replace("\n", " ") + "\n")
+    except Exception as e:
+        logger.warning(f"写入 clientlog 失败: {e}")
+
+
 def refresh_cards_cache():
     """重新从 CDB 加载卡牌数据并更新缓存（DIY + 官方 OCG 合并为总卡池）。"""
     global _cards_cache, _cards_json, _cards_json_gz, _cards_etag
@@ -1128,6 +1215,22 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 logger.error(f"先后手统计失败: {e}")
                 self._json_response({"ok": False, "error": str(e)}, status=502)
 
+        elif path == "/api/cardtext":
+            # 决斗客户端的卡文表（约 6.8MB → gzip，客户端懒加载；首次请求才读盘）
+            cache = _load_duel_json("duel-cards-text.json", _duel_text, "卡文表")
+            if cache is None:
+                self._json_response({"error": "卡文表未生成，请先跑 tools/gen-duel-data.mjs"}, status=503)
+            else:
+                _send_duel_json(self, cache)
+
+        elif path == "/api/strings":
+            # 提示文本表（system/victory/counter/setname）：决斗客户端显示效果/阶段名用
+            cache = _load_duel_json("duel-strings.json", _duel_strings, "提示文本表")
+            if cache is None:
+                self._json_response({"error": "提示文本表未生成，请先跑 tools/gen-duel-data.mjs"}, status=503)
+            else:
+                _send_duel_json(self, cache)
+
         elif path == "/api/archetypes":
             # 字段（系列）表：setcode(16进制) → 字段名
             if self.headers.get("If-None-Match") == _archetypes_etag and _archetypes_etag:
@@ -1227,6 +1330,13 @@ class VoteHandler(SimpleHTTPRequestHandler):
             result = store.vote(image, self.get_client_ip())
             status = 200 if result["ok"] else 400
             self._json_response(result, status=status)
+
+        elif path == "/api/clientlog":
+            # 决斗客户端错误上报：写 logs/clientlog.jsonl（按天轮转，保留 7 天）
+            append_clientlog(payload)
+            self.send_response(204)
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.end_headers()
 
         # ── 论坛社区 API (POST) ──
 

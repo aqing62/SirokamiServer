@@ -25,3 +25,10 @@ config.local.json
 # IDE
 .vscode/
 .idea/
+
+# 决斗客户端大表（由 tools/gen-duel-data.mjs 生成，体积大不进 git）
+data/duel-cards-text.json
+data/duel-strings.json
+
+# 决斗客户端错误上报日志
+logs/
