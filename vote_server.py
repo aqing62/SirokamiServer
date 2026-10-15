@@ -1279,21 +1279,6 @@ class VoteHandler(SimpleHTTPRequestHandler):
                     logger.warning(f"取最近卡组失败: {e}")
                 self._json_response(deck or {"name": None, "main": [], "extra": [], "side": []})
 
-        elif path == "/api/duel/enter":
-            # 进匹配（交接文档 §2.3）：房号由服务端给。
-            # 现阶段 srvpro2 侧的「票据校验 + M# 配对」还没做（GAP A4），
-            # 所以先返回天梯固定前缀 M#，客户端会用账号昵称自己进随机匹配队列。
-            creds = self._get_community_cookie()
-            if not creds:
-                self._json_response({"error": "未登录"}, status=401)
-            else:
-                self._json_response({
-                    "room": "M#",          # 客户端会自动补全/走随机匹配
-                    "ticket": None,        # 票据待 srvpro2 侧中间件就绪后再签发
-                    "expiresIn": 60,
-                    "name": creds[0],
-                })
-
         elif path == "/api/archetypes":
             # 字段（系列）表：setcode(16进制) → 字段名
             if self.headers.get("If-None-Match") == _archetypes_etag and _archetypes_etag:
@@ -1400,6 +1385,21 @@ class VoteHandler(SimpleHTTPRequestHandler):
             self.send_response(204)
             self.send_header("Access-Control-Allow-Origin", "*")
             self.end_headers()
+
+        elif path == "/api/duel/enter":
+            # 进匹配（交接文档 §2.3）：房号由服务端给。
+            # 现阶段 srvpro2 侧的「票据校验 + M# 配对」还没做（GAP A4），
+            # 所以先返回天梯固定前缀 M#，客户端用账号昵称自己进随机匹配队列。
+            creds = self._get_community_cookie()
+            if not creds:
+                self._json_response({"error": "未登录"}, status=401)
+            else:
+                self._json_response({
+                    "room": "M#",          # 客户端会自动走随机匹配队列
+                    "ticket": None,        # 票据待 srvpro2 侧中间件就绪后再签发
+                    "expiresIn": 60,
+                    "name": creds[0],
+                })
 
         # ── 论坛社区 API (POST) ──
 
