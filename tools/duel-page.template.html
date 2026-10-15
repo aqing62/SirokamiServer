@@ -92,7 +92,8 @@
   function msg(t) { var m = document.getElementById('deMsg'); if (m) m.textContent = t || ''; }
 
   // ?auto=1 = 已点过「开始匹配」→ 隐藏入口层，交给客户端自动进房
-  if (q.get('auto') === '1') { entry.classList.add('hidden'); return; }
+  // ?bare=1 = 直接裸奔客户端界面（自动化测试 / 别的页面嵌 iframe 时用）
+  if (q.get('auto') === '1' || q.get('bare') === '1') { entry.classList.add('hidden'); return; }
 
   fetch('/api/duel/whoami?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
     if (!d || !d.loggedIn) return renderLogin();

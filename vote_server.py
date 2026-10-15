@@ -475,6 +475,31 @@ def append_clientlog(payload) -> None:
         logger.warning(f"写入 clientlog 失败: {e}")
 
 
+def _ladder_decks_of(player: str) -> list:
+    """取某账号最近打过天梯的卡组（走游戏服的 /api/ladder/decks）。
+    返回 [{'name','main','extra','side'}, …]；任何异常都返回 []（前端要能兜底）。"""
+    if not player:
+        return []
+    try:
+        resp = urllib.request.urlopen(
+            "https://api.ygopro3.cn/api/ladder/decks?player="
+            + quote(player) + "&t=" + str(int(time.time() * 1000)),
+            timeout=8,
+        )
+        data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        logger.warning(f"取卡组列表失败({player}): {e}")
+        return []
+    items = data.get("decks") if isinstance(data, dict) else data
+    if not isinstance(items, list):
+        return []
+    out = []
+    for it in items:
+        if isinstance(it, dict) and isinstance(it.get("main"), list) and it["main"]:
+            out.append(it)
+    return out
+
+
 def refresh_cards_cache():
     """重新从 CDB 加载卡牌数据并更新缓存。
 
@@ -1283,25 +1308,47 @@ class VoteHandler(SimpleHTTPRequestHandler):
             else:
                 deck = None
                 try:
-                    resp = urllib.request.urlopen(
-                        "https://api.ygopro3.cn/api/ladder/decks?player="
-                        + quote(creds[0]) + "&t=" + str(int(time.time() * 1000)),
-                        timeout=8,
-                    )
-                    data = json.loads(resp.read().decode("utf-8"))
-                    items = data.get("decks") if isinstance(data, dict) else data
-                    if isinstance(items, list) and items:
-                        first = items[0]
-                        if isinstance(first, dict) and (first.get("main") or first.get("deck")):
-                            deck = {
-                                "name": first.get("name") or first.get("deckName") or "最近使用",
-                                "main": first.get("main") or [],
-                                "extra": first.get("extra") or [],
-                                "side": first.get("side") or [],
-                            }
+                    for d0 in _ladder_decks_of(creds[0])[:1]:
+                        deck = {
+                            "name": d0.get("name") or d0.get("deckName") or "最近使用",
+                            "main": d0.get("main") or [],
+                            "extra": d0.get("extra") or [],
+                            "side": d0.get("side") or [],
+                        }
                 except Exception as e:
                     logger.warning(f"取最近卡组失败: {e}")
                 self._json_response(deck or {"name": None, "main": [], "extra": [], "side": []})
+
+        elif path == "/api/decks":
+            # 决斗客户端的「卡组选择」下拉（契约：{dir, names:[…]}）。
+            # 站点没有「我的卡组」存储，所以用**账号最近打过天梯的卡组**顶上；
+            # 没有就返回空列表（客户端会只留「（内置默认卡组）」，导入按钮仍可用）。
+            creds = self._get_community_cookie()
+            decks = _ladder_decks_of(creds[0]) if creds else []
+            names = [f"卡组{i}（主{len(d.get('main') or [])}张）.ydk" for i, d in enumerate(decks, 1)]
+            self._json_response({"dir": "白神服 · 账号最近使用", "names": names})
+
+        elif path == "/api/deck":
+            # 读某个卡组（契约：{name, main, extra, side}）。name 用 /api/decks 给的那个。
+            creds = self._get_community_cookie()
+            raw = unquote(self.path.split("?", 1)[1]) if "?" in self.path else ""
+            want = ""
+            for part in raw.split("&"):
+                if part.startswith("name="):
+                    want = part[5:]
+            decks = _ladder_decks_of(creds[0]) if creds else []
+            deck = None
+            m = re.match(r"^卡组(\d+)", want)
+            if m:
+                idx = int(m.group(1)) - 1
+                if 0 <= idx < len(decks):
+                    d = decks[idx]
+                    deck = {"name": want, "main": d.get("main") or [],
+                            "extra": d.get("extra") or [], "side": d.get("side") or []}
+            if deck is None:
+                self._json_response({"error": "找不到卡组：" + want}, status=404)
+            else:
+                self._json_response(deck)
 
         elif path == "/api/archetypes":
             # 字段（系列）表：setcode(16进制) → 字段名
