@@ -500,6 +500,44 @@ def _ladder_decks_of(player: str) -> list:
     return out
 
 
+def _pg_exec(sql: str, variables: dict) -> None:
+    """执行一条写 SQL。变量用 psql 的 :'名字' 绑定（psql 自己做转义，避免注入）。"""
+    conf = _srvpro_db_config()
+    env = dict(os.environ)
+    if conf["password"]:
+        env["PGPASSWORD"] = conf["password"]
+    args = ["psql", "-h", conf["host"], "-p", str(conf["port"]), "-U", conf["user"],
+            "-d", conf["dbname"], "-v", "ON_ERROR_STOP=1"]
+    for k, v in variables.items():
+        args += ["-v", f"{k}={v}"]
+    args += ["-tAc", sql]
+    proc = subprocess.run(args, capture_output=True, text=True, timeout=25, env=env)
+    if proc.returncode != 0:
+        msg = (proc.stderr or "").strip().splitlines()
+        raise RuntimeError(msg[-1] if msg else "psql 执行失败")
+
+
+def pg_register_user(account: str, password: str, display_name: str) -> None:
+    """在游戏服账号表里建号（与游戏客户端 /register 走同一张表、同一套字段）。
+    ⚠ 只负责插库；登录/哈希等逻辑仍归游戏服，不在这里重复实现。"""
+    _pg_exec(
+        'INSERT INTO srv_user ("accountName", password, enabled, permissions, "displayName",\n'
+        '                      title, "lastIp", "ladderTitle", titles, "selectedTitle", "selectedTitle2",\n'
+        '                      "createTime", "updateTime")\n'
+        "VALUES (:'acct', :'pw', true, '', :'dname', '', '', '', '[]', '', '', now(), now())",
+        {"acct": account, "pw": password, "dname": display_name},
+    )
+
+
+def pg_user_exists(account: str) -> bool:
+    """账号是否已被注册（用 psql 变量绑定，避免引号注入）"""
+    rows = _pg_query(
+        'select count(*) from srv_user where "accountName" = :\'acct\'',
+        {"acct": account},
+    )
+    return bool(rows) and rows[0][0].strip().isdigit() and int(rows[0][0]) > 0
+
+
 def refresh_cards_cache():
     """重新从 CDB 加载卡牌数据并更新缓存。
 
@@ -952,17 +990,19 @@ def _srvpro_db_config():
     return conf
 
 
-def _pg_query(sql):
-    """用 psql 执行只读查询（不引入新依赖），返回二维列表"""
+def _pg_query(sql, variables=None):
+    """用 psql 执行只读查询（不引入新依赖），返回二维列表。
+    variables 里的值由 psql 的 :'名字' 绑定（自动转义，避免注入）。"""
     conf = _srvpro_db_config()
     env = dict(os.environ)
     if conf["password"]:
         env["PGPASSWORD"] = conf["password"]
-    proc = subprocess.run(
-        ["psql", "-h", conf["host"], "-p", str(conf["port"]), "-U", conf["user"],
-         "-d", conf["dbname"], "-tA", "-F", "\t", "-c", sql],
-        capture_output=True, text=True, timeout=25, env=env,
-    )
+    args = ["psql", "-h", conf["host"], "-p", str(conf["port"]), "-U", conf["user"],
+            "-d", conf["dbname"], "-tA", "-F", "\t"]
+    for k, v in (variables or {}).items():
+        args += ["-v", f"{k}={v}"]
+    args += ["-c", sql]
+    proc = subprocess.run(args, capture_output=True, text=True, timeout=25, env=env)
     if proc.returncode != 0:
         msg = (proc.stderr or "").strip().splitlines()
         raise RuntimeError(msg[-1] if msg else "psql 执行失败")
@@ -1471,6 +1511,43 @@ class VoteHandler(SimpleHTTPRequestHandler):
                     "expiresIn": 60,
                     "name": creds[0],
                 })
+
+        elif path == "/api/forum/register":
+            # 自助注册（交接文档 §0/§8.2）：名称 / 账号 / 密码 / 再次输入密码
+            # ⚠ 账号与密码**允许中文**（游戏服账号表就是这么存的：如「路基霸」）——
+            #    所以这里只挡控制字符和长度，不用只允许 ASCII 的正则。
+            account = (payload.get("username") or "").strip()
+            password = payload.get("password") or ""
+            password2 = payload.get("password2")
+            display_name = (payload.get("displayName") or "").strip() or account
+            if password2 is not None and password2 != password:
+                self._json_response({"ok": False, "error": "两次输入的密码不一致"}, status=400)
+                return
+            if not (2 <= len(account) <= 24):
+                self._json_response({"ok": False, "error": "账号长度需在 2~24 个字符之间"}, status=400)
+                return
+            if not (6 <= len(password) <= 64):
+                self._json_response({"ok": False, "error": "密码长度需在 6~64 个字符之间"}, status=400)
+                return
+            if len(display_name) > 64:
+                self._json_response({"ok": False, "error": "名称太长（最多 64 个字符）"}, status=400)
+                return
+            for value, label in ((account, "账号"), (display_name, "名称")):
+                if any(ord(ch) < 32 for ch in value):
+                    self._json_response({"ok": False, "error": f"{label}不能包含控制字符"}, status=400)
+                    return
+            try:
+                if pg_user_exists(account):
+                    self._json_response({"ok": False, "error": "该账号已被注册，换一个吧"}, status=400)
+                    return
+                pg_register_user(account, password, display_name)
+                logger.info(f"新账号已注册: {account}（名称 {display_name}）")
+            except Exception as e:
+                logger.error(f"注册失败 {account}: {e}")
+                self._json_response({"ok": False, "error": "注册失败，请稍后再试"}, status=500)
+                return
+            # 按文档 §0 的流程：注册完成 → 回到登录页（这里只回成功，不自动登录）
+            self._json_response({"ok": True, "account": account, "name": display_name})
 
         # ── 论坛社区 API (POST) ──
 
