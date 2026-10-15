@@ -14,10 +14,11 @@ body { margin:0; min-height:100vh; font-family:"Microsoft YaHei","PingFang SC",s
 a { color:#9ec4f0; text-decoration:none; }
 .wrap { max-width: 920px; margin: 0 auto; padding: 22px 16px 60px; }
 .top { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
-.avatar { flex:0 0 84px; width:84px; height:84px; border-radius:12px; overflow:hidden;
+.avatar { flex:0 0 84px; width:84px; height:84px; border-radius:12px; overflow:hidden; position:relative;
   border:2px solid var(--gold); background:linear-gradient(135deg,#1b2430,#0e141c 60%,#1b2430);
   display:flex; align-items:center; justify-content:center; }
-.avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+/* 图片绝对定位盖满整个框 —— 否则 flex 会把「占位 ⚔️」和真头像并排摆成左右两半 */
+.avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
 .avatar span { font-size:1.6rem; opacity:.55; }
 .title { font-size:1.25rem; font-weight:800; letter-spacing:1px;
   background:linear-gradient(135deg,var(--gold),var(--gold2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
