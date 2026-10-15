@@ -500,42 +500,51 @@ def _ladder_decks_of(player: str) -> list:
     return out
 
 
-def _pg_exec(sql: str, variables: dict) -> None:
-    """执行一条写 SQL。变量用 psql 的 :'名字' 绑定（psql 自己做转义，避免注入）。"""
+def _psql_run(sql: str, variables: dict, extra_args: list, timeout: int = 25):
+    """统一跑 psql。
+    ⚠ SQL 必须走 **stdin** —— psql 的 :'变量' 只在交互/stdin/文件模式做替换，
+      用 -c 时**不替换**，会把 :'名字' 当字面量（踩过一次：SQL 语法错误）。"""
     conf = _srvpro_db_config()
     env = dict(os.environ)
     if conf["password"]:
         env["PGPASSWORD"] = conf["password"]
     args = ["psql", "-h", conf["host"], "-p", str(conf["port"]), "-U", conf["user"],
             "-d", conf["dbname"], "-v", "ON_ERROR_STOP=1"]
-    for k, v in variables.items():
+    for k, v in (variables or {}).items():
         args += ["-v", f"{k}={v}"]
-    args += ["-tAc", sql]
-    proc = subprocess.run(args, capture_output=True, text=True, timeout=25, env=env)
+    args += extra_args
+    proc = subprocess.run(args, input=sql, capture_output=True, text=True,
+                          timeout=timeout, env=env)
     if proc.returncode != 0:
-        msg = (proc.stderr or "").strip().splitlines()
-        raise RuntimeError(msg[-1] if msg else "psql 执行失败")
+        err = [l for l in (proc.stderr or "").strip().splitlines() if l.strip()]
+        raise RuntimeError(err[0] if err else "psql 执行失败")
+    return proc.stdout
+
+
+def _pg_exec(sql: str, variables: dict) -> None:
+    """执行一条写 SQL。变量用 psql 的 :'名字' 绑定（psql 自己做转义，避免注入）。"""
+    _psql_run(sql, variables, ["-tA"])
 
 
 def pg_register_user(account: str, password: str, display_name: str) -> None:
     """在游戏服账号表里建号（与游戏客户端 /register 走同一张表、同一套字段）。
-    ⚠ 只负责插库；登录/哈希等逻辑仍归游戏服，不在这里重复实现。"""
+    ⚠ 只负责插库；登录/校验等逻辑仍归游戏服，不在这里重复实现。"""
     _pg_exec(
         'INSERT INTO srv_user ("accountName", password, enabled, permissions, "displayName",\n'
         '                      title, "lastIp", "ladderTitle", titles, "selectedTitle", "selectedTitle2",\n'
         '                      "createTime", "updateTime")\n'
-        "VALUES (:'acct', :'pw', true, '', :'dname', '', '', '', '[]', '', '', now(), now())",
+        "VALUES (:'acct', :'pw', true, '', :'dname', '', '', '', '[]', '', '', now(), now());\n",
         {"acct": account, "pw": password, "dname": display_name},
     )
 
 
 def pg_user_exists(account: str) -> bool:
     """账号是否已被注册（用 psql 变量绑定，避免引号注入）"""
-    rows = _pg_query(
-        'select count(*) from srv_user where "accountName" = :\'acct\'',
-        {"acct": account},
+    out = _psql_run(
+        'select count(*) from srv_user where "accountName" = :\'acct\';\n',
+        {"acct": account}, ["-tA"],
     )
-    return bool(rows) and rows[0][0].strip().isdigit() and int(rows[0][0]) > 0
+    return out.strip().isdigit() and int(out.strip()) > 0
 
 
 def refresh_cards_cache():
@@ -993,21 +1002,9 @@ def _srvpro_db_config():
 def _pg_query(sql, variables=None):
     """用 psql 执行只读查询（不引入新依赖），返回二维列表。
     variables 里的值由 psql 的 :'名字' 绑定（自动转义，避免注入）。"""
-    conf = _srvpro_db_config()
-    env = dict(os.environ)
-    if conf["password"]:
-        env["PGPASSWORD"] = conf["password"]
-    args = ["psql", "-h", conf["host"], "-p", str(conf["port"]), "-U", conf["user"],
-            "-d", conf["dbname"], "-tA", "-F", "\t"]
-    for k, v in (variables or {}).items():
-        args += ["-v", f"{k}={v}"]
-    args += ["-c", sql]
-    proc = subprocess.run(args, capture_output=True, text=True, timeout=25, env=env)
-    if proc.returncode != 0:
-        msg = (proc.stderr or "").strip().splitlines()
-        raise RuntimeError(msg[-1] if msg else "psql 执行失败")
+    out = _psql_run(sql, variables or {}, ["-tA", "-F", "\t"])
     rows = []
-    for line in proc.stdout.splitlines():
+    for line in out.splitlines():
         if line.strip():
             rows.append(line.split("\t"))
     return rows
