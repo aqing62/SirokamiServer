@@ -178,7 +178,7 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   fetch('/api/duel/whoami?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
     if (!d || !d.loggedIn) {
       $('who').innerHTML = '<a href="duel.html">未登录，点这里登录/注册 →</a>';
-      $('btnStart').disabled = true;
+      setStartEnabled(false);
       msg('登录后才能开始匹配');
       return;
     }
@@ -190,6 +190,7 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     av.onerror = function () { av.remove(); };            // 没头像就保持 ⚔️ 占位
     av.src = '/api/forum/avatar/' + encodeURIComponent(d.account || d.name) + '?v=' + Date.now();
     $('avatarBox').appendChild(av);
+    setStartEnabled(false);          // 先禁用，等卡组列表回来再决定
     loadDecks(); loadMine(d);
   }).catch(function () { $('who').textContent = '读取登录状态失败'; });
 
@@ -203,8 +204,10 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
         var o = document.createElement('option');
         o.value = ''; o.textContent = '（还没有卡组，点右边上传一个）';
         sel.appendChild(o);
+        setStartEnabled(false);            // 没卡组 → 不让开始匹配
         return;
       }
+      setStartEnabled(true);
       names.forEach(function (n) {
         var o = document.createElement('option');
         o.value = n; o.textContent = n.replace(/\.ydk$/i, '');
