@@ -90,7 +90,7 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       <div class="hint" id="startHint">点开始匹配 → 自动进房 → 自动准备 → 人齐自动开局</div>
     </div>
     <div class="mine" id="mine">
-      <span><i>积分</i><b id="mLadder">-</b></span>
+      <span><i>积分</i><b id="mRating">-</b></span>
       <span><i>段位</i><b id="mTier">-</b></span>
       <span><i>胜场</i><b id="mWins">-</b></span>
       <span><i>胜率</i><b id="mRate">-</b></span>
@@ -282,13 +282,13 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   function loadMine(me) {
     var L = (me && me.ladder) || {};
     function set(id, v) { var e = $(id); if (e) e.textContent = (v === undefined || v === null || v === '') ? '-' : v; }
-    set('mLadder', L.rating);
+    set('mRating', L.rating);
     set('mWins', L.wins);
     set('mRate', L.winRate === undefined || L.winRate === null ? null : L.winRate + '%');
     fetch('/api/forum/profile/ladder?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
       var d = (j && j.data) || j || {};
       set('mTier', d.tier || d.tierName);
-      if (L.rating === undefined) set('mLadder', d.rating);
+      if (L.rating === undefined) set('mRating', d.rating);
     }).catch(function () {});
   }
 
