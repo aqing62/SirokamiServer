@@ -15,6 +15,21 @@
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
 <link rel="stylesheet" href="css/duel-client.css">
+<script>
+/* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
+   放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
+   必须**在它加载之前**改好；用 replaceState 而不是跳转，避免丢掉"点击手势"。
+   nginx: api.ygopro3.cn/ws → srvpro2 wsPort（TLS 回源） */
+(function () {
+  try {
+    var q = new URLSearchParams(location.search);
+    if (!q.get('ws')) {
+      q.set('ws', 'wss://api.ygopro3.cn/ws');
+      history.replaceState(null, '', location.pathname + '?' + q.toString() + location.hash);
+    }
+  } catch (e) {}
+})();
+</script>
 <style>
 /* ── 入口层（本站自己的 UI；不动客户端产物） ── */
 #duelEntry { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center;
