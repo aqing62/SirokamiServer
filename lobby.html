@@ -95,15 +95,66 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
 .deck-sec { font-size:.78rem; color:#9a9aa4; margin:10px 0 6px; }
 .deck-sec:first-child { margin-top:0; }
 .deck-cards { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:5px; }
-/* 卡图：鼠标移上去「浮起来」——上浮 + 轻微上下飘 + 下方柔影 + 金边（**不放大**）
-   这个模块本身就是卡组展示，点它不再跳大窗口 */
-.deck-cards .card-img-wrapper { position:relative; }
-.deck-cards img { width:100%; aspect-ratio:421/614; object-fit:cover; display:block; border-radius:4px;
-  background:#101720; border:1px solid #2a3542; position:relative; z-index:1;
-  transition:transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
-.deck-cards img:hover {
-  z-index:30; border-color:var(--gold2); cursor:pointer;
-  box-shadow:0 12px 20px -6px rgba(0,0,0,.8), 0 0 10px rgba(255,215,0,.25); }
+/* ── 卡图容器 + 禁限分数角标 ── 以下数值与老站 css/player-ranking.css 完全一致（老站同款） */
+.deck-cards .card-img-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 42/61;
+  align-self: start;
+  overflow: hidden;
+  border-radius: 2px;
+}
+.deck-cards .card-img-wrapper .deck-card-img {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: auto;
+  display: block;
+  background: #101720;
+  transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+}
+.deck-cards .card-score-badge {
+  position: absolute;
+  bottom: 2px;
+  left: 2px;
+  min-width: 18px;
+  height: 17px;
+  line-height: 15px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.85);
+  color: #FFD700;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border: 1px solid var(--nx-red, #D81E44);
+  border-radius: 2px;
+  padding: 0 4px;
+  pointer-events: none;
+  z-index: 2;
+}
+.deck-cards .card-score-badge.forbidden {
+  font-size: 0.55rem;
+  min-width: 17px;
+  line-height: 15px;
+}
+.deck-cards .card-diy-badge {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  height: 14px;
+  line-height: 12px;
+  text-align: center;
+  background: rgba(0, 0, 0, 0.85);
+  color: #FFD700;
+  font-size: 0.5rem;
+  font-weight: 700;
+  border: 1px solid var(--nx-red, #D81E44);
+  border-radius: 2px;
+  padding: 0 3px;
+  pointer-events: none;
+  z-index: 2;
+}
+.deck-cards .card-img-wrapper:hover .deck-card-img {
+  box-shadow: 0 12px 20px -6px rgba(0,0,0,.8), 0 0 10px rgba(255,215,0,.25);
+  outline: 1px solid var(--gold2); }
 .deck-empty { font-size:.8rem; color:#7d7d86; }
 .msg { min-height:18px; font-size:.8rem; color:#ff9aa8; margin-top:10px; }
 .msg.ok { color:#8ee6a8; }
