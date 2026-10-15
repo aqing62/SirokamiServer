@@ -44,9 +44,16 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
 .btn:disabled { opacity:.5; cursor:not-allowed; }
 .start { width:100%; margin-top:6px; padding:14px; font-size:1.05rem; letter-spacing:2px; }
 .hint { font-size:.78rem; color:#7d7d86; }
-.deck-line { display:flex; align-items:baseline; justify-content:space-between; gap:12px; padding:12px 14px;
-  border:1px solid rgba(255,255,255,.1); border-radius:8px; margin-top:4px; }
-.deck-line b { color:var(--gold2); font-weight:700; }
+/* 当前使用卡组：直接把卡图画在框里（一行 10 张，和官网卡组界面一致） */
+.deck-box { border:1px solid rgba(255,255,255,.1); border-radius:8px; padding:12px 14px; margin-top:4px; }
+.deck-head { display:flex; align-items:baseline; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.deck-head b { color:var(--gold2); font-weight:700; }
+.deck-sec { font-size:.78rem; color:#9a9aa4; margin:10px 0 6px; }
+.deck-sec:first-child { margin-top:0; }
+.deck-cards { display:grid; grid-template-columns:repeat(10,minmax(0,1fr)); gap:5px; }
+.deck-cards img { width:100%; aspect-ratio:421/614; object-fit:cover; display:block; border-radius:4px;
+  background:#101720; border:1px solid #2a3542; cursor:pointer; }
+.deck-empty { font-size:.8rem; color:#7d7d86; }
 .msg { min-height:18px; font-size:.8rem; color:#ff9aa8; margin-top:10px; }
 .msg.ok { color:#8ee6a8; }
 .stat { display:grid; grid-template-columns:repeat(auto-fit,minmax(130px,1fr)); gap:10px; }
@@ -77,14 +84,12 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       <button class="btn ghost" id="btnUpload">上传 / 编辑卡组(.ydk)</button>
       <input type="file" id="ydkFile" accept=".ydk,text/plain" style="display:none">
     </div>
-    <div class="deck-line">
-      <span class="hint">当前使用卡组</span>
-      <b id="deckNow">读取中…</b>
-    </div>
-    <div class="row" style="margin-top:10px;margin-bottom:0">
-      <span class="k"></span>
-      <button class="btn ghost" id="btnViewDeck" disabled>查看卡组</button>
-      <span class="hint">（点这里看这套卡组的全部卡片，和官网看卡组是同一个窗口）</span>
+    <div class="deck-box">
+      <div class="deck-head">
+        <span class="hint">当前使用卡组</span>
+        <b id="deckNow">读取中…</b>
+      </div>
+      <div id="deckCards" class="deck-cards"></div>
     </div>
     <div class="msg" id="msg"></div>
   </div>
@@ -162,30 +167,66 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     });
     fetch('/api/duel/deck?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.name) {
-        curDeck = j;      // 存起来给「查看卡组」用（官网 DeckViewer 要的就是 {main,extra,side}）
+        curDeck = j;      // 存起来（画卡图 + 点卡开官网大窗口都用它）
         $('deckNow').textContent = j.name + '（主 ' + (j.main || []).length + ' / 额外 ' + (j.extra || []).length +
           ' / 副 ' + (j.side || []).length + '）';
-        $('btnViewDeck').disabled = false;
+        renderDeckCards(j);
       } else {
         curDeck = null;
         $('deckNow').textContent = '未设置';
-        $('btnViewDeck').disabled = true;
+        $('deckCards').innerHTML = '<div class="deck-empty">还没设置卡组 — 点右边「上传 / 编辑卡组(.ydk)」把你的卡组传上来</div>';
       }
     });
   }
 
-  // 「查看卡组」→ 直接用官网的卡组查看器（一模一样那个弹窗）
+  // ── 卡图（和官网同一条兜底链：OCG → SuperPre 先行卡 → 白神服 DIY）──
+  var CARD_PIC = [
+    'https://cdn.233.momobako.com/ygopro/pics/',
+    'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/',
+    'https://api.ygopro3.cn/pics/siro/',
+  ];
+  function deckCardImg(id) {
+    var img = document.createElement('img');
+    var step = 0;
+    img.loading = 'lazy';
+    img.title = '第 ' + id + ' 号卡（点开看大图和效果）';
+    img.onerror = function () {
+      step++;
+      if (step < CARD_PIC.length) img.src = CARD_PIC[step] + id + '.jpg';
+      else img.onerror = null;
+    };
+    img.src = CARD_PIC[0] + id + '.jpg';
+    img.onclick = function () { viewDeck(); };
+    return img;
+  }
+  function renderDeckCards(deck) {
+    var box = $('deckCards');
+    box.innerHTML = '';
+    function section(label, ids) {
+      if (!ids || !ids.length) return;
+      var t = document.createElement('div');
+      t.className = 'deck-sec';
+      t.textContent = label + '（' + ids.length + ' 张）';
+      box.appendChild(t);
+      var grid = document.createElement('div');
+      grid.className = 'deck-cards';
+      ids.forEach(function (id) { grid.appendChild(deckCardImg(id)); });
+      box.appendChild(grid);
+    }
+    section('主卡组', deck.main || []);
+    section('额外卡组', deck.extra || []);
+    section('副卡组', deck.side || []);
+    if (!box.children.length) box.innerHTML = '<div class="deck-empty">这套卡组是空的</div>';
+  }
+
+  // 点卡图 → 打开官网那个卡组大窗口（含总分/禁限角标/下载），不再是必点的按钮
   function viewDeck() {
-    if (!curDeck) { msg('还没有设置卡组'); return; }
-    if (!window.DeckViewer) { msg('卡组查看器还没加载好，稍后再点'); return; }
+    if (!curDeck || !window.DeckViewer) return;
     window.DeckViewer.showDeck(
       { main: curDeck.main || [], extra: curDeck.extra || [], side: curDeck.side || [] },
       curDeck.name || '当前使用卡组'
     );
   }
-  $('btnViewDeck').onclick = viewDeck;
-  $('deckNow').onclick = viewDeck;
-  $('deckNow').style.cursor = 'pointer';
 
   $('deckSel').onchange = function () {
     var v = this.value;
