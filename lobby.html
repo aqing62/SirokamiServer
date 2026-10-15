@@ -13,10 +13,15 @@ body { margin:0; min-height:100vh; font-family:"Microsoft YaHei","PingFang SC",s
   color:#e8e2d8; background: radial-gradient(1200px 600px at 50% 0%, #1a1420 0%, #0d0b12 60%, #08070b 100%); }
 a { color:#9ec4f0; text-decoration:none; }
 .wrap { max-width: 920px; margin: 0 auto; padding: 22px 16px 60px; }
-.top { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; }
+.top { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
+.avatar { flex:0 0 84px; width:84px; height:84px; border-radius:12px; overflow:hidden;
+  border:2px solid var(--gold); background:linear-gradient(135deg,#1b2430,#0e141c 60%,#1b2430);
+  display:flex; align-items:center; justify-content:center; }
+.avatar img { width:100%; height:100%; object-fit:cover; display:block; }
+.avatar span { font-size:1.6rem; opacity:.55; }
 .title { font-size:1.25rem; font-weight:800; letter-spacing:1px;
   background:linear-gradient(135deg,var(--gold),var(--gold2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
-.who { font-size:.82rem; color:#9a9aa4; }
+.who { font-size:.82rem; color:#9a9aa4; margin-top:4px; }
 .card { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:18px 20px; margin-bottom:16px; }
 .row { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
 .row:last-child { margin-bottom:0; }
@@ -48,8 +53,11 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
 <body>
 <div class="wrap">
   <div class="top">
-    <div class="title">⚔️ 决斗大厅</div>
-    <div class="who" id="who">…</div>
+    <div class="avatar" id="avatarBox"><span>⚔️</span></div>
+    <div>
+      <div class="title">决斗大厅</div>
+      <div class="who" id="who">…</div>
+    </div>
   </div>
 
   <div class="card">
@@ -114,6 +122,12 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       return;
     }
     $('who').textContent = '已登录：' + (d.name || d.account);
+    // 头像：用官网已有的 /api/forum/avatar/<账号>（和论坛/卡组社区同一个头像）
+    var av = document.createElement('img');
+    av.alt = '头像';
+    av.onerror = function () { av.remove(); };            // 没头像就保持 ⚔️ 占位
+    av.src = '/api/forum/avatar/' + encodeURIComponent(d.account || d.name) + '?v=' + Date.now();
+    $('avatarBox').appendChild(av);
     loadDecks(); loadLadder();
   }).catch(function () { $('who').textContent = '读取登录状态失败'; });
 
