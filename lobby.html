@@ -10,10 +10,34 @@
 <!-- 大厅页：照 MDPro3 房间面板的排版，但**只有两个模式**（天梯 M# / 比赛 D#）
      选卡组 = 打开本地文件夹挑 .ydk 上传存到账号 → 开始匹配时自动注入给客户端 -->
 <style>
-:root { --gold:#D4AF37; --gold2:#FFD700; --line:rgba(212,175,55,.3); --panel:rgba(20,18,26,.9); }
+/* 配色对齐「新引导」next.css：红为主、金为辅、背景 #0a0a0c */
+:root { --gold:#D4AF37; --gold2:#F0E68C; --line:rgba(216,30,68,.32); --panel:rgba(20,17,22,.86);
+  --nx-red:#D81E44; --nx-red-soft:rgba(216,30,68,.55); --nx-bg:#0a0a0c; --nx-bg2:#141116;
+  --nx-text:#ece9e4; --nx-dim:#9b97a1; }
 * { box-sizing: border-box; }
 body { margin:0; min-height:100vh; font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;
-  color:#e8e2d8; background: radial-gradient(1200px 600px at 50% 0%, #1a1420 0%, #0d0b12 60%, #08070b 100%); }
+  color:var(--nx-text); background:var(--nx-bg); }
+/* ── 背景：新引导那套漂浮光球 + 漂移红网格（只动 transform，可合成） ── */
+.nx-bg { position:fixed; inset:0; overflow:hidden; z-index:0; pointer-events:none; }
+.nx-orb { position:absolute; border-radius:50%; opacity:.5; will-change:transform;
+  animation:orbFloat 18s ease-in-out infinite; }
+.nx-orb-1 { width:46vmax; height:46vmax; left:-14vmax; top:-16vmax; background:radial-gradient(circle, rgba(216,30,68,.55), transparent 68%); }
+.nx-orb-2 { width:38vmax; height:38vmax; right:-12vmax; bottom:-14vmax; background:radial-gradient(circle, rgba(212,175,55,.34), transparent 70%); animation-delay:-6s; }
+.nx-orb-3 { width:30vmax; height:30vmax; left:42%; top:46%; background:radial-gradient(circle, rgba(216,30,68,.28), transparent 70%); animation-delay:-11s; }
+@keyframes orbFloat {
+  0%,100% { transform:translate3d(0,0,0) scale(1); }
+  33%     { transform:translate3d(4vmax,-3vmax,0) scale(1.08); }
+  66%     { transform:translate3d(-3vmax,3vmax,0) scale(.95); }
+}
+.nx-grid { position:absolute; inset:-64px; opacity:.16; will-change:transform;
+  background-image:linear-gradient(rgba(216,30,68,.35) 1px, transparent 1px),
+                   linear-gradient(90deg, rgba(216,30,68,.35) 1px, transparent 1px);
+  background-size:64px 64px;
+  mask-image:radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
+  -webkit-mask-image:radial-gradient(circle at 50% 40%, #000 0%, transparent 78%);
+  animation:gridDrift 26s linear infinite; }
+@keyframes gridDrift { to { transform:translate3d(64px,64px,0); } }
+.wrap { position:relative; z-index:1; }
 a { color:#9ec4f0; text-decoration:none; }
 .wrap { max-width: 920px; margin: 0 auto; padding: 22px 16px 60px; }
 .top { display:flex; align-items:center; gap:14px; margin-bottom:16px; }
@@ -43,7 +67,7 @@ a { color:#9ec4f0; text-decoration:none; }
 .avatar img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
 .avatar span { font-size:1.6rem; opacity:.55; }
 .title { font-size:1.25rem; font-weight:800; letter-spacing:1px;
-  background:linear-gradient(135deg,var(--gold),var(--gold2)); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  background:linear-gradient(135deg,var(--nx-gold-light, #F0E68C), var(--gold), #fff); -webkit-background-clip:text; background-clip:text; color:transparent; }
 .who { font-size:.82rem; color:#9a9aa4; margin-top:4px; }
 .card { border:1px solid var(--line); border-radius:12px; background:var(--panel); padding:18px 20px; margin-bottom:16px; }
 .row { display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
@@ -52,7 +76,8 @@ a { color:#9ec4f0; text-decoration:none; }
 .modes { display:flex; gap:10px; flex-wrap:wrap; }
 .mode { padding:9px 18px; border-radius:8px; border:1px solid rgba(255,255,255,.16); background:transparent;
   color:#cfc8bd; font-size:.92rem; cursor:pointer; font-weight:600; }
-.mode.on { background:linear-gradient(135deg,var(--gold),var(--gold2)); color:#1a1a2e; border-color:transparent; }
+.mode.on { background:linear-gradient(135deg,var(--nx-red),#a3122f); color:#fff; border-color:rgba(216,30,68,.9);
+  box-shadow:0 0 14px rgba(216,30,68,.45); }
 .mode:disabled { opacity:.45; cursor:not-allowed; }
 select, input[type=text] { padding:9px 12px; border-radius:8px; border:1px solid rgba(255,255,255,.14);
   background:rgba(255,255,255,.05); color:#f2eee6; font-size:.9rem; min-width:180px; }
@@ -93,6 +118,12 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
 </style>
 </head>
 <body>
+<div class="nx-bg">
+  <span class="nx-orb nx-orb-1"></span>
+  <span class="nx-orb nx-orb-2"></span>
+  <span class="nx-orb nx-orb-3"></span>
+  <div class="nx-grid"></div>
+</div>
 <div class="wrap">
   <div class="top">
     <div class="avatar" id="avatarBox"><span>⚔️</span></div>
