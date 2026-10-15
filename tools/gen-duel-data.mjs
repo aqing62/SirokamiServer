@@ -5,12 +5,13 @@
  *   ① cardtext（懒加载，约 5MB）：/<卡号> → { d:效果文本, r:种族位, a:属性位, s:setcode, t:type位 }
  *   ② strings（约 40KB）：{ system, victory, counter, setname }
  *
- * 数据源：
- *   - 站点自己的 DIY_Sirokami.cdb（**已是合并后的全卡库**，含 DIY 卡 ✓）
+ * 数据源（**顺序即优先级，先到先得** —— 与 srvpro2 的合并规则一致）：
+ *   - 站点自己的 DIY_Sirokami.cdb（2841 张 DIY 卡）
+ *   - 官方 cards_ocg.cdb（14981 张 OCG 卡）
  *   - 官方 strings.conf
  *
- * 用法: node tools/gen-duel-data.mjs [cdb] [strings.conf] [输出目录]
- *   默认（生产）：/root/servers/siro/DIY_Sirokami.cdb
+ * 用法: node tools/gen-duel-data.mjs [strings.conf] [输出目录]
+ *   默认（生产）：/root/servers/siro/DIY_Sirokami.cdb + cards_ocg.cdb
  *                 /root/servers/ygopro/ygopro-database/locales/zh-CN/strings.conf
  *                 /root/servers/siro/data
  *
@@ -21,9 +22,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
-const CDB = process.argv[2] || '/root/servers/siro/DIY_Sirokami.cdb';
-const STRINGS_CONF = process.argv[3] || '/root/servers/ygopro/ygopro-database/locales/zh-CN/strings.conf';
-const OUT_DIR = process.argv[4] || '/root/servers/siro/data';
+const CDBS = ['/root/servers/siro/DIY_Sirokami.cdb', '/root/servers/siro/cards_ocg.cdb'];
+const STRINGS_CONF = process.argv[2] || '/root/servers/ygopro/ygopro-database/locales/zh-CN/strings.conf';
+const OUT_DIR = process.argv[3] || '/root/servers/siro/data';
 
 // sql.js 从游戏服的 node_modules 里借（那边一定有）
 const SQLJS_DIR = '/root/servers/ygopro/srvpro-siro/node_modules/sql.js/dist';
@@ -32,25 +33,36 @@ const initSqlJs = require(path.join(SQLJS_DIR, 'sql-wasm.js'));
 
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
-// ── ① cards-text ──
+// ── ① cards-text（两个库合并，先到先得） ──
 {
   const SQL = await initSqlJs({ locateFile: (f) => path.join(SQLJS_DIR, f) });
-  const db = new SQL.Database(new Uint8Array(fs.readFileSync(CDB)));
   const out = {};
-  const stmt = db.prepare(
-    'SELECT d.id AS id, d.type AS type, d.race AS race, d.attribute AS attribute, d.setcode AS setcode, t.desc AS desc ' +
-    'FROM datas d LEFT JOIN texts t ON t.id = d.id',
-  );
   let n = 0;
-  while (stmt.step()) {
-    const r = stmt.getAsObject();
-    out[r.id] = { d: r.desc || '', r: r.race || 0, a: r.attribute || 0, s: r.setcode || 0, t: r.type || 0 };
-    n++;
+  for (const cdbPath of CDBS) {
+    if (!fs.existsSync(cdbPath)) {
+      console.log('  [警告] ' + cdbPath + ' 不存在，跳过');
+      continue;
+    }
+    const db = new SQL.Database(new Uint8Array(fs.readFileSync(cdbPath)));
+    const stmt = db.prepare(
+      'SELECT d.id AS id, d.type AS type, d.race AS race, d.attribute AS attribute, d.setcode AS setcode, t.desc AS desc ' +
+      'FROM datas d LEFT JOIN texts t ON t.id = d.id',
+    );
+    let added = 0;
+    while (stmt.step()) {
+      const r = stmt.getAsObject();
+      const id = Number(r.id);
+      if (out[id] !== undefined) continue;   // 先到先得：DIY 库优先
+      out[id] = { d: r.desc || '', r: r.race || 0, a: r.attribute || 0, s: r.setcode || 0, t: r.type || 0 };
+      added++;
+    }
+    db.close();
+    console.log('  ' + path.basename(cdbPath) + '：新增 ' + added + ' 张');
+    n += added;
   }
-  db.close();
   const file = path.join(OUT_DIR, 'duel-cards-text.json');
   fs.writeFileSync(file, JSON.stringify(out), 'utf8');
-  console.log(`✓ ${file}：${n} 张卡，${(fs.statSync(file).size / 1048576).toFixed(2)} MB`);
+  console.log(`✓ ${file}：合计 ${n} 张卡，${(fs.statSync(file).size / 1048576).toFixed(2)} MB`);
 }
 
 // ── ② strings ──
