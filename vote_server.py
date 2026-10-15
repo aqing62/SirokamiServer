@@ -1844,9 +1844,22 @@ class VoteHandler(SimpleHTTPRequestHandler):
                     display = rows[0][0].strip()
             except Exception as e:
                 logger.warning(f"取显示名失败({account}): {e}")
+            user = {"name": display, "account": account, "pass": creds[1]}
+            # 把「当前使用卡组」一起注入：客户端 ?auto=1 时直接用它上传+准备，
+            # 不再用内置默认卡组（玩家在决斗大厅 lobby.html 里选好再进来）
+            try:
+                store = duel_decks_load(account)
+                active = store.get("active") or (sorted(store["decks"].keys())[0] if store["decks"] else "")
+                dk = store["decks"].get(active) if active else None
+                if dk and dk.get("main"):
+                    user["deck"] = {"main": dk.get("main", []), "extra": dk.get("extra", []),
+                                    "side": dk.get("side", [])}
+                    user["deckName"] = active
+            except Exception as e:
+                logger.warning(f"注入当前卡组失败({account}): {e}")
             inject = (
                 "<script>window._duelUser="
-                + json.dumps({"name": display, "account": account, "pass": creds[1]}, ensure_ascii=False)
+                + json.dumps(user, ensure_ascii=False)
                 + ";window._communityUsername=" + json.dumps(account, ensure_ascii=False) + ";</script>"
             )
         else:

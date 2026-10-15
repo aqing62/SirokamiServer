@@ -330,9 +330,28 @@
 
   // ─────────────────────────────── 大厅
 
+  /**
+   * 官网注入的「当前使用卡组」（决斗大厅里选好的）→ 用它，而不是内置默认卡组。
+   * 没注入（未登录官网 / 本地联调）才退回内置默认卡组。
+   */
+  function deckFromInjection() {
+    var u = window._duelUser;
+    var d = u && u.deck;
+    if (!d || !d.main || !d.main.length) return null;
+    return { main: d.main.slice(), extra: (d.extra || []).slice(), side: (d.side || []).slice() };
+  }
+  function applyInjectedDeck() {
+    var d = deckFromInjection();
+    if (!d) return false;
+    state.deck = d;
+    logLine('已使用官网选定的卡组：' + ((window._duelUser && window._duelUser.deckName) || '当前使用卡组')
+      + '（主 ' + d.main.length + ' / 额外 ' + d.extra.length + ' / 副 ' + d.side.length + '）', 'rp-log-hint');
+    return true;
+  }
+
   function joinRoom() {
     if (!state.room) { setHud('请先填房间名', 'warn'); return; }
-    if (!state.deck) state.deck = deckFromCodes(DEFAULT_CODES);
+    if (!applyInjectedDeck() && !state.deck) state.deck = deckFromCodes(DEFAULT_CODES);
     loadStrings();                                    // 提示文案表（strings.conf → /api/strings）
     if (!state.cardsById) {
       fetch('/api/cards').then(function (r) { return r.ok ? r.json() : []; }).then(function (j) {
