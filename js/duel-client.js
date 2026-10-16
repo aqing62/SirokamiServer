@@ -483,12 +483,22 @@
     uploadDeckAndReady();
     // 备牌提交后，服务端如果**拒绝**这个卡组，在备牌阶段是没有提示的 → 玩家就"卡死"在这里。
     // 所以加个看门狗：8 秒内没有新对局开始，就当作卡组没通过校验，说清楚并退回大厅（别让人干等）。
+    // 备牌提交后服务端没开下一局 → **先重发**（备牌阶段的 ready 时序容易踩空：卡组先到、ready 被忽略），
+    // 连续 3 次都不行再退回大厅。原来一遇到就报"卡组不合规"并把人踢回大厅 ✗（用户实测：没改任何卡也被踢）
     if (state.sidingWatchdog) clearTimeout(state.sidingWatchdog);
-    state.sidingWatchdog = setTimeout(function () {
+    var _sdTries = 0;
+    state.sidingWatchdog = setTimeout(function _sdWatch() {
+      if (state.duelStarted) { state.sidingWatchdog = null; return; }
+      _sdTries++;
+      if (_sdTries <= 3) {
+        logLine('↻ 还没开始下一局 → 重发卡组 + 准备（第 ' + _sdTries + ' 次）', 'rp-log-phase');
+        try { uploadDeckAndReady(); } catch (e) {}
+        state.sidingWatchdog = setTimeout(_sdWatch, 6000);
+        return;
+      }
       state.sidingWatchdog = null;
-      if (state.duelStarted) return;
-      logLine('⚠ 提交备牌 8 秒后仍没有新对局：多半是卡组没通过服务器校验（备牌阶段被拒不会给提示）', 'rp-log-err');
-      abortMatch('备牌提交后没能开始下一局 —— 卡组可能不合规（张数/禁限/未知卡），请回大厅检查后再匹配');
+      logLine('⚠ 备牌提交后重发 3 次仍未开始下一局 → 退回大厅', 'rp-log-err');
+      abortMatch('备牌提交后一直没能开始下一局 —— 请回大厅重新匹配（如果是连续出现，请把日志发给维护者）');
     }, 8000);
   }
 
@@ -1351,6 +1361,9 @@
    *   出现"猜拳时房间 UI 没退场""进对局后看不见盘面"（实测被反馈）。现在**只有一个入口**。
    */
   function setUiPhase(phase) {
+    // 开局时手卡/卡组/额外"数量"要等到下一个事件才画出来（查看器只在事件里重绘）->
+    // 切到对局界面时轻轻戳一次重绘，让数量立刻显示（用户反馈：刚进游戏看不到数量）
+    if (phase === 'duel') { try { setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 120); } catch (e) {} }
     var lobby = $('lobby'), modal = $('replayModal');
     if (!lobby || !modal) return;
     if (state.uiPhase === phase) return;
@@ -2044,20 +2057,26 @@
         // ygopro 表示形式位：1=表侧攻击 2=里侧攻击 4=表侧守备 8=里侧守备 → 里侧 = (pos & (2|8))
         var pos0 = (info.position !== undefined ? info.position : info.pos) || 0;
         var faceDown = !!(pos0 & (0x2 | 0x8));
-        if (!faceDown) {
-          // 再看一眼场地模型：服务端没给 position 时，用查看器记的 faceDown 兜底
-          try {
-            var model = (window.__live && window.__live.cardsAt) ? window.__live.cardsAt(flipSeat(info.controller || 0), (info.location || 0) & 0x7f) : null;
-            if (model) for (var mi = 0; mi < model.length; mi++) if (model[mi].seq === info.sequence) { faceDown = !!model[mi].faceDown; break; }
-          } catch (e) {}
-        }
+        // 引擎给**选择项**里的卡信息时经常不带卡号（对手场上的表侧卡也是 0）✗
+        // → 从场地模型里取真实卡号（查看器的模型里表侧卡是有 code 的）+ 用它的 faceDown 兜底。
+        var codeUse = info.code || 0;
+        try {
+          var model = (window.__live && window.__live.cardsAt) ? window.__live.cardsAt(flipSeat(info.controller || 0), (info.location || 0) & 0x7f) : null;
+          if (model) for (var mi = 0; mi < model.length; mi++) {
+            if (model[mi].seq === info.sequence) {
+              if (model[mi].faceDown !== undefined) faceDown = !!model[mi].faceDown;
+              if (!codeUse && model[mi].code) codeUse = model[mi].code;
+              break;
+            }
+          }
+        } catch (e) {}
         // ⚠ 修正（用户反馈：选择对手场上的卡时显示"里侧表示"，但那其实是正面的）：
         //   引擎只在卡**公开**时才在卡信息里给卡号 —— 对手的盖卡/里侧卡给的是 0。
         //   所以"有卡号"就足够判定公开；原来多加了 && !faceDown，而 faceDown 会被上面
         //   "场地模型兜底"带偏（模型里对手的卡常被标成 faceDown）→ 把对手正面的卡显示成里侧 ✗
-        var known = !!info.code;
+        var known = !!codeUse;
         return {
-          label: known ? cardLabel(info.code) : '里侧卡片', code: known ? info.code : 0,
+          label: known ? cardLabel(codeUse) : '里侧卡片', code: known ? codeUse : 0,
           faceDown: !known,
           sub: (cd.fixed ? '固定 · ' : '') + where,
           index: cd.index, fixed: cd.fixed, onField: !!cd.el,
