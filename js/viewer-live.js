@@ -2020,6 +2020,28 @@ function initReplayViewer() {
                 if (!animSuppress) phaseBanner(phaseText);
                 break;
             }
+            case 'Set': {
+                // PATCH(白神服): 查看器原来**没有 Set 分支** ✗ —— 引擎盖卡发 MSG_SET，
+                //   所以盖下去的卡根本没进模型 → 场地上一片空白（用户实测："看到盖放动画，落地后就消失了" ✗）
+                //   这里补上：写进模型（faceDown）+ 刷新该格。
+                (function () {
+                    var f2 = m.f || m;
+                    var ctl = (f2.controller !== undefined) ? f2.controller : (f2.info ? f2.info.controller : undefined);
+                    var loc = ((f2.location !== undefined) ? f2.location : (f2.info ? f2.info.location : undefined));
+                    var seq = (f2.sequence !== undefined) ? f2.sequence : (f2.info ? f2.info.sequence : undefined);
+                    var code = (f2.code !== undefined) ? f2.code : 0;
+                    var pos = (f2.position !== undefined) ? f2.position : (f2.current !== undefined ? f2.current : 0x8);
+                    if (ctl === 0 || ctl === 1) {
+                        if (!field[ctl]) field[ctl] = {};
+                        var pl = (loc | 0) & 0x7f;
+                        field[ctl][pl + ':' + seq] = { code: code, faceDown: true, pos: pos, sequence: seq, position: pos };
+                        updateZone(ctl, pl);
+                        log(playerName(ctl) + ' 盖上 1 张卡（' + (pl === 4 ? '怪兽区' : '魔陷区') + ' ' + (seq + 1) + '）');
+                        updateAllZones && updateAllZones();
+                    }
+                })();
+                break;
+            }
             case 'PosChange': {
                 // 表示形式变更（守备↔攻击）
                 // payload: code(4) controller(1) location(1) sequence(1) previousPosition(1) currentPosition(1)
