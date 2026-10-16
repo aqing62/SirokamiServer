@@ -867,7 +867,8 @@
         Array.prototype.forEach.call(slots, function (el, i) {
           if (i < n) {
             el.classList.add('yp-opp-back');
-            el.style.background = '#2a2118';
+            // 用官网同一张卡背图（客户端常量 FACE_DOWN_IMG = cover2.jpg），别再拿纯色糊弄 ✗
+            el.style.background = '#101720 url("' + FACE_DOWN_IMG + '") center/cover no-repeat';
             el.style.border = '1px solid #4a3a28';
           } else {
             el.classList.remove('yp-opp-back');
@@ -1298,6 +1299,22 @@
       state.recentIds = state.recentIds || [];
       state.recentIds.push(id);
       if (state.recentIds.length > 40) state.recentIds.shift();
+      // 手牌进出：MSG_MOVE 含 from/to（LOC.HAND = 2）—— 只统计 MSG_DRAW 会漏"手牌回卡组"，
+      // 于是万宝槌 5→回3抽3 在对面看来只剩 2 张（用户实测 ✗）
+      if (msg.msg && msg.msg.constructor && msg.msg.constructor.name === 'YGOProMsgMove') {
+        try {
+          var _mf = msg.msg, HAND2 = 2;
+          var _dp3 = (_mf.player !== undefined) ? _mf.player : ((_mf.from !== undefined) ? undefined : undefined);
+          // 自解失败时会走库解码；player 字段在 f.player / f.info.controller 两处都试
+          if (_dp3 === undefined && _mf.info) _dp3 = _mf.info.controller;
+          if (_dp3 === 0 || _dp3 === 1) {
+            var _from = (_mf.from !== undefined) ? _mf.from : (_mf.info ? _mf.info.location : undefined);
+            var _to = _mf.to;
+            if (_from === HAND2 && _to !== HAND2) setCount(_dp3, 'hand', Math.max(0, (_cnt[_dp3].hand || 0) - 1));
+            else if (_to === HAND2 && _from !== HAND2) setCount(_dp3, 'hand', (_cnt[_dp3].hand || 0) + 1);
+          }
+        } catch (e) {}
+      }
       try { fillOpponentHand(); } catch (e) {}
       if (msg.msg && msg.msg.constructor && msg.msg.constructor.name === 'YGOProMsgDraw') {
         try {
