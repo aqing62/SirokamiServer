@@ -3487,6 +3487,13 @@
         pendingKind: (state && state.pending && state.pending.kind) || '',
         url: location.href, ua: navigator.userAgent, when: new Date().toISOString(), recentIds: recent,
       };
+      // ⚠ 之前只上报 detail/stack，而跨域脚本的异常是 "Script error." + 空 stack（什么都看不出）✗
+      //   这里把**文件名/行号/列号/出错的资源**也带上 —— 至少能知道是哪个文件、哪一行。
+      if (extra) for (var _k in extra) { try { if (extra[_k] !== '' && extra[_k] !== undefined) payload[_k] = extra[_k]; } catch (e) {} }
+      try {
+        var _last = (state && state.logTail && state.logTail.length) ? state.logTail.slice(-6) : null;
+        if (_last) payload.logTail = _last;
+      } catch (e) {}
       try { logLine('⚠ 客户端异常[' + kind + ']：' + payload.detail + '（已上报）', 'rp-log-err'); } catch (e) {}
       try {
         fetch('/api/clientlog', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
@@ -3494,7 +3501,14 @@
       } catch (e) {}
     }
     window.addEventListener('error', function (e) {
-      report('error', (e && e.message) || 'unknown', e && e.error && e.error.stack);
+      report('error', (e && e.message) || 'unknown', (e && e.error && e.error.stack) || '',
+        {
+          file: (e && e.filename) || '',
+          line: (e && e.lineno) || 0,
+          col: (e && e.colno) || 0,
+          // 资源加载失败（img/script）时 e.target 是那个元素，把它的 src 也带上
+          res: (e && e.target && e.target !== window && e.target.src) ? String(e.target.src).slice(0, 200) : '',
+        });
     });
     window.addEventListener('unhandledrejection', function (e) {
       var r = e && e.reason;
