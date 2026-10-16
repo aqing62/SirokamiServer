@@ -26,10 +26,10 @@ function initReplayViewer() {
 
     // 阶段（ocgcore phase 位标记值 → 中文）
     var PHASE_NAMES = {
-        1: '抽卡阶段', 2: '准备阶段', 4: '主要阶段1',
-        8: '战斗阶段', 16: '战斗步骤', 32: '伤害步骤',
-        64: '伤害计算', 128: '战斗阶段',
-        256: '主要阶段2', 512: '结束阶段',
+        1: '抽卡', 2: '准备', 4: '主一',
+        8: '战阶', 16: '战步', 32: '伤判',
+        64: '伤算', 128: '战阶',
+        256: '主二', 512: '结阶',
     };
 
     // 卡图源（与站内一致：DIY 图 → 官方 CDN）
@@ -277,10 +277,10 @@ function initReplayViewer() {
             + hand;
     }
 
-    // 中间回合标签：回合方 + 回合数（如 我方回合3）
+    // 中间回合标签：回合方 + 回合数（如 自己回合3）
     function renderTurnLabel() {
         if (!turnLabelEl) return;
-        var who = turnPlayer === 0 ? '我方' : '对方';
+        var who = turnPlayer === 0 ? '自己' : '对方';
         turnLabelEl.textContent = turnCount ? who + '回合' + turnCount : who + '回合';
     }
 
@@ -2928,7 +2928,7 @@ function initReplayViewer() {
                     var seatWinner = (data.players || []).find(function (p) { return p.winner; });
                     if (seatWinner) metaSwap = (winMsg.f.player !== seatWinner.pos);
                 }
-                // 显示顺序按决斗位（0 在前 = 我方）
+                // 显示顺序按决斗位（0 在前 = 自己）
                 var orderedPlayers = (data.players || []).slice().sort(function (a, b) {
                     return duelSeat(a.pos) - duelSeat(b.pos);
                 });

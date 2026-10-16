@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261016n">
+<link rel="stylesheet" href="css/duel-client.css?v=20261016w">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -70,6 +70,9 @@
    用户要求：**中间（场地）最大、固定比例、不要自适应**。
    老站是 flex + width: min(100%, calc((100vh-210px)*4/3)) 的自适应算法，手机上会算歪。
    这里直接改成固定三栏 grid，中间 1fr 吃掉剩余空间。 */
+/* 手机横屏：原来决斗区只占屏高一部分，下面一大片空白 —— 撑满视口 */
+#replayModal { height: 100vh !important; max-height: none !important; }
+#replayModal .replay-main { height: auto !important; flex: 1 1 auto !important; min-height: 0 !important; }
 #replayModal .replay-main {
   display: grid !important;
   grid-template-columns: 15% minmax(0, 1fr) 18% !important;   /* 左信息 / 中场地 / 右日志 */
@@ -232,8 +235,8 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261016a"></script>
-<script src="js/viewer-live.js?v=20261016r"></script>
-<script src="js/duel-client.js?v=20261016v"></script>
+<script src="js/viewer-live.js?v=20261016w"></script>
+<script src="js/duel-client.js?v=20261016w"></script>
 <script>
 /* 入口层逻辑：登录 / 显示当前卡组 / 开始匹配（不改客户端产物） */
 (function () {

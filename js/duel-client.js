@@ -2195,9 +2195,69 @@
     setTimeout(function () { try { inp.focus(); } catch (e) {} }, 50);
   }
 
+
+  /**
+   * 给选择盘加：① 顶部拖动条（拖走它才能点到被挡住的场上怪兽）② 最小化按钮（收成一条）。
+   * 用户手机实测：额外召唤选素材时，中间的窗口正好压在场上怪兽上面，点不到。
+   */
+  function decorateChooser(box) {
+    if (!box || box.querySelector('.yp-chooser-bar')) return;
+    var bar = document.createElement('div');
+    bar.className = 'yp-chooser-bar';
+    bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 4px 6px;cursor:move;'
+      + 'user-select:none;-webkit-user-select:none;border-bottom:1px solid rgba(255,255,255,.12);margin-bottom:6px';
+    bar.innerHTML = '<span style="font-size:12px;color:#9b97a1;flex:1">拖动这条可移动窗口</span>'
+      + '<button class="yp-chooser-min" title="最小化" style="padding:2px 10px;border-radius:6px;cursor:pointer;'
+      + 'border:1px solid rgba(255,255,255,.25);background:#1e2a38;color:#e6eef8;font-size:13px;font-family:inherit">—</button>';
+    box.insertBefore(bar, box.firstChild);
+    var collapsed = false;
+    var body = [];
+    Array.prototype.forEach.call(box.children, function (c) { if (c !== bar) body.push(c); });
+    bar.querySelector('.yp-chooser-min').onclick = function (ev) {
+      ev.stopPropagation();
+      collapsed = !collapsed;
+      body.forEach(function (c) { c.style.display = collapsed ? 'none' : ''; });
+      bar.querySelector('.yp-chooser-min').textContent = collapsed ? '□' : '—';
+      layoutChooser();
+    };
+    // 拖动（按下条 → 记录偏移 → 移动；松手后钉住位置，layoutChooser 不再自动摆）
+    var drag = null;
+    function onMove(ev) {
+      if (!drag) return;
+      var t = (ev.touches && ev.touches[0]) || ev;
+      var x = Math.max(4, Math.min(window.innerWidth - box.offsetWidth - 4, t.clientX - drag.dx));
+      var y = Math.max(4, Math.min(window.innerHeight - box.offsetHeight - 4, t.clientY - drag.dy));
+      box.style.left = Math.round(x) + 'px';
+      box.style.top = Math.round(y) + 'px';
+      state.chooserPinned = true;
+    }
+    function onUp() {
+      drag = null;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      document.removeEventListener('touchmove', onMove);
+      document.removeEventListener('touchend', onUp);
+    }
+    bar.addEventListener('mousedown', function (ev) {
+      if (ev.target && ev.target.className === 'yp-chooser-min') return;
+      var r = box.getBoundingClientRect();
+      drag = { dx: ev.clientX - r.left, dy: ev.clientY - r.top };
+      document.addEventListener('mousemove', onMove); document.addEventListener('mouseup', onUp);
+      ev.preventDefault();
+    });
+    bar.addEventListener('touchstart', function (ev) {
+      if (ev.target && ev.target.className === 'yp-chooser-min') return;
+      var t = ev.touches[0], r = box.getBoundingClientRect();
+      drag = { dx: t.clientX - r.left, dy: t.clientY - r.top };
+      document.addEventListener('touchmove', onMove, { passive: false }); document.addEventListener('touchend', onUp);
+    }, { passive: true });
+  }
+
   function layoutChooser() {
+    try { decorateChooser(chooserEl()); } catch (e) {}
     var box = chooserEl();
     if (!box) return;
+    if (state.chooserPinned) return;      // 玩家拖过 → 不再自动摆位（否则拖了等于白拖）
     var r = fieldRect();
     var w = box.offsetWidth, h = box.offsetHeight;
     var left = r ? r.left + (r.width - w) / 2 : (window.innerWidth - w) / 2;
