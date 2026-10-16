@@ -1951,10 +1951,48 @@
         break;
       }
       case 'counter': {
-        setHud('指示物：全部不选（0）');
-        showActions([{ t: '确定（移除 0）', f: function () {
-          respond(m.prepareResponse((m.cards || []).map(function (_, i) { return { card: YGO.IndexResponse(i), count: 0 }; })));
-        } }], '请选择要移除的指示物');
+        // ── 取除指示物（用户反馈：这类效果没适配，原来只给一个"移除 0"＝永远取除不了 ✗）──
+        // 协议：MSG_SELECT_COUNTER(22)，每张候选卡带 counterCount（该卡有多少个可移除）；
+        //      应答 = prepareResponse(每张卡的取除数数组)（每张都要给，不取除给 0）。
+        var cds = m.cards || [];
+        var maxN = 0;
+        cds.forEach(function (c) { maxN = Math.max(maxN, Number(c.counterCount || 0)); });
+        var cbtns = [];
+        if (cds.length === 1 && maxN > 0) {
+          // 常见情况：就一张卡 → 列出"取除 1..N 个"，从多到少排（取除多个更常用）
+          for (var ck = maxN; ck >= 1; ck--) {
+            cbtns.push({
+              t: '取除 ' + ck + ' 个' + (ck === maxN ? '（全部）' : ''),
+              f: (function (n) {
+                return function () {
+                  logLine('▸ 取除指示物 ' + n + ' 个（' + cardLabel(cds[0].code) + '）', 'rp-log-hint');
+                  respond(m.prepareResponse([{ card: YGO.IndexResponse(0), count: n }]));
+                };
+              })(ck),
+            });
+          }
+          setHud('指示物：这张卡上有 ' + maxN + ' 个可移除');
+        } else {
+          // 多张候选：给"每张各取除 1 个"（多数卡效果是每张 1 个）＋"全部不取除"
+          var allHave = cds.length > 0 && cds.every(function (c) { return Number(c.counterCount || 0) >= 1; });
+          if (allHave) {
+            cbtns.push({
+              t: '每张各取除 1 个（共 ' + cds.length + ' 张）',
+              f: function () {
+                logLine('▸ 取除指示物：' + cds.length + ' 张各 1 个', 'rp-log-hint');
+                respond(m.prepareResponse(cds.map(function (_, i) { return { card: YGO.IndexResponse(i), count: 1 }; })));
+              },
+            });
+          }
+          setHud('指示物：共 ' + cds.length + ' 张候选');
+        }
+        cbtns.push({
+          t: '不取除（0）',
+          f: function () {
+            respond(m.prepareResponse(cds.map(function (_, i) { return { card: YGO.IndexResponse(i), count: 0 }; })));
+          },
+        });
+        showActions(cbtns, '请选择要取除的指示物数量');
         break;
       }
       default: {
