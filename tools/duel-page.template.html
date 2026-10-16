@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261019p">
+<link rel="stylesheet" href="css/duel-client.css?v=20261019q">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -454,6 +454,21 @@
   #ypInfoStat   { grid-row: 3 !important; }
   #ypInfoSeries { grid-row: 4 !important; }
   #ypInfoText   { grid-row: 5 !important; }
+}
+</style>
+<style>
+/* siro-nof-flip */
+/* 对手的卡不再 180° 倒转 —— 倒转后卡图上印的**连接箭头**会出现在相反角，
+   玩家反馈对面怪兽的连接箭头反了 ✗。
+   ⚠ 只作用于决斗客户端（#replayModal 之内 ✓），老回放页面的样式不受影响 ✓
+   （回放/查看看器里 rp-flip 仍是 180°，那是它自己的观感 ✓） */
+#replayModal .rp-card.rp-flip,
+#replayModal .rp-fx-card.rp-flip {
+  transform: none !important;
+}
+/* 守备表示仍然横置（对手的守备方向也统一向右横 ✓ 不再镜像 ✗） */
+#replayModal .rp-card.rp-flip.rp-def {
+  transform: rotate(90deg) scale(0.68) !important;
 }
 </style>
 </head>
