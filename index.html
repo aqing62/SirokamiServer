@@ -979,9 +979,10 @@
   if (q.get('builder') === '1' || q.get('deck') || q.get('new')) {
     var want = q.get('deck');
     var isNew = q.get('new') === '1';
-    // 组卡器要加载卡池/分数，等它就绪
+    // ★ 立刻切到组卡器（原来延迟 2200ms 等卡池就绪 → 用户会先看到一下主页 ✗）
+    openBuilder();
+    // 卡池/分数要加载，等它就绪后再载入具体卡组
     setTimeout(function () {
-      openBuilder();
       if (isNew) {
         var cl = (window.DeckBuilder && (window.DeckBuilder.clear || window.DeckBuilder.clearAll));
         if (cl) { try { cl(); } catch (e) {} }
