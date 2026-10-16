@@ -1663,11 +1663,13 @@
     hideChooser(); hideTopBar();
     try { localStorage.removeItem('yp_duel_' + state.room); } catch (e) {}
     try { stopTurnCountdown(); } catch (e) {}
-    setUiPhase('room');                             // 回到房间界面（带转场）
-    renderLobby();
-    // 天梯形态（?auto=1）：打完直接回决斗大厅（用户要求）——先留 6 秒让玩家看清胜负
+    // 先判断是不是天梯形态（?auto=1）—— 天梯打完要**直接回决斗大厅** ✓ 不能先切房间界面 ✗
     var isAutoForm = false;
     try { isAutoForm = new URLSearchParams(location.search).get('auto') === '1'; } catch (e) {}
+    if (!isAutoForm) {
+      setUiPhase('room');                           // 手动进房间的流程才显示房间界面 ✓
+      renderLobby();
+    }
     if (isAutoForm) {
       setHud('对局结束 ' + (meWin ? '（你赢了）' : '（你输了）') + reason + ' —— 稍后自动回到决斗大厅', meWin ? 'ok' : 'warn');
       logLine('↩ 对局结束：等 10 秒看是否进备牌阶段（三局两胜会继续打）', 'rp-log-phase');
@@ -1677,8 +1679,10 @@
         if (state.sidingActive) return;              // 已进备牌界面 → 由它接管
         logLine('↩ 没有备牌提示 → 这局到此为止，回决斗大厅', 'rp-log-phase');
         leaveRoomGracefully();
-        setTimeout(function () { location.href = 'lobby.html'; }, 150);
-      }, 10000);
+        // 用 replace ✓（返回键不会再回到对局页 ✓）并且**清掉房间记忆**，免得大厅又被拉回房间 ✓
+        try { sessionStorage.removeItem('yp_room_saved'); sessionStorage.removeItem('yp_room_saved_at'); } catch (e) {}
+        setTimeout(function () { location.replace('lobby.html'); }, 200);
+      }, 4000);
       return;
     }
     setHud('对局结束 ' + (meWin ? '（你赢了）' : '（你输了）') + reason + ' —— 点「准备」可以再来一局', meWin ? 'ok' : 'warn');
