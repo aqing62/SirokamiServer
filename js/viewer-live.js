@@ -1895,6 +1895,14 @@ function initReplayViewer() {
                     if (p.mainc) deckCount[dp] = p.mainc;
                     if (p.extrac !== undefined && p.extrac !== null) extraCount[dp] = p.extrac;
                     if (p.handc !== undefined && p.handc !== null) handCountAtStart[dp] = p.handc;
+                    // PATCH(白神服 2026-10-17): 血量 —— MSG_START 的玩家信息里本来就有 lp ✓，
+                    //   但这里一直没读 ✗，而 lp 数组写死 [8000,8000] ✓
+                    //   → 玩家**刷新/重连**时服务端发的是全量快照(Start)，血量不会重发 LpUpdate ✗
+                    //   → 于是双方血量都显示回 8000（用户实测 ✗）。这里从快照里读回来 ✓
+                    if (p.lp !== undefined && p.lp !== null && (dp === 0 || dp === 1)) {
+                        lp[dp] = p.lp;
+                        try { if (lpEls[dp]) lpEls[dp].textContent = 'LP ' + lp[dp]; } catch (e) {}
+                    }
                 });
                 createFieldDOM();
                 log('对局开始（房间 ' + (meta.roomName || '') + '）');
