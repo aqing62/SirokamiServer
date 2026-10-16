@@ -882,7 +882,7 @@
       var slots = box.querySelectorAll('.rp-card');
       if (slots.length) {
         Array.prototype.forEach.call(slots, function (el, i) {
-          if (i < n) {
+          if (i < Math.min(n, slots.length)) {
             el.classList.add('yp-opp-back');
             // 用官网同一张卡背图（客户端常量 FACE_DOWN_IMG = cover2.jpg），别再拿纯色糊弄 ✗
             el.style.background = '#101720 url("' + FACE_DOWN_IMG + '") center/cover no-repeat';
@@ -978,7 +978,9 @@
           var el = document.querySelector('[data-pile="' + kind + ':' + seat + '"]');
           if (!el) return;
           var b = el.querySelector('.rp-pile-count');
-          if (b && b.textContent !== String(n)) b.textContent = String(n);
+          // ★ 只在"我们确实知道且大于 0"时才覆盖角标 ✓
+          //   否则会把查看器算好的数字冲成 0（用户截图里卡组/额外都显示 0 ✗）
+          if (b && n > 0 && b.textContent !== String(n)) b.textContent = String(n);
           // 有卡但没有牌面 → 补一张卡背（额外卡组对对手永远是里侧）
           if (n > 0 && !el.querySelector('img, .yp-pile-back')) {
             var d = document.createElement('div');
@@ -1933,7 +1935,19 @@
             var _to = _mf.to;
             var DECK2 = 1;   // LOC.DECK —— 抽卡时 MSG_DRAW 已经 +1 了 ✗ 这里再 +1 就重复
             if (_from === HAND2 && _to !== HAND2) setCount(_dp3, 'hand', Math.max(0, (_cnt[_dp3].hand || 0) - 1));
-            else if (_to === HAND2 && _from !== HAND2 && _from !== DECK2) setCount(_dp3, 'hand', (_cnt[_dp3].hand || 0) + 1);
+            else if (_to === HAND2 && _from !== HAND2 && _from !== DECK2
+                     && _from !== undefined && _from !== null) {
+              // ★ from 必须是**已知且非卡组**的来源才 +1 ✓
+              //   卡组→手牌(抽卡) 交给 MSG_DRAW 计数 ✓；from 解析不出来时**不计数** ✓
+              //   （原来 undefined !== DECK 判定为真 → 抽卡被算两次 → 手卡数翻倍 ✗ 用户实测 13 张 ✗）
+              setCount(_dp3, 'hand', (_cnt[_dp3].hand || 0) + 1);
+            } else if (_to === HAND2 && (_from === undefined || _from === null)) {
+              // 来源不明：不计数（避免和 MSG_DRAW 重复 ✓），但写一条日志便于排查 ✓
+              if (!state.__handMoveWarned) {
+                state.__handMoveWarned = true;
+                logLine('（手牌 +1 的来源未知，已跳过计数以免重复）', 'rp-log-hint');
+              }
+            }
             // ⚠ 卡组→手牌(抽卡)走 MSG_DRAW 计数 ✓ 否则每抽一张多算 1，时间一长手卡数会飘
             //   （用户实测：对手实际 3 张手卡，界面显示 14 张 ✗）
           }
