@@ -860,9 +860,26 @@
       var viewSeat = flipSeat(oppDuelPos);
       var box = document.querySelector('.rp-hand[data-zone="' + viewSeat + ':2"]');
       if (!box) return;
-      var have = box.querySelectorAll('.yp-opp-back').length;
-      if (have === n) return;
-      // 清掉我们之前补的，再按数量补
+      // ★ 查看器的手牌区**本来就摆好了固定数量的空位** —— 要"填充"它们，不能额外追加 ✗
+      //   （上一版我 append 了新元素 → 3 张卡背 + 3 个空位 = 看起来像 6 张手卡，用户实测反馈 ✗）
+      var slots = box.querySelectorAll('.rp-card');
+      if (slots.length) {
+        Array.prototype.forEach.call(slots, function (el, i) {
+          if (i < n) {
+            el.classList.add('yp-opp-back');
+            el.style.background = '#2a2118';
+            el.style.border = '1px solid #4a3a28';
+          } else {
+            el.classList.remove('yp-opp-back');
+            el.style.background = '';
+            el.style.border = '';
+          }
+        });
+        return;
+      }
+      // 极少数情况查看器没摆空位 → 才按数量追加
+      var el2 = box.querySelector('.yp-opp-back');
+      if (el2 && box.querySelectorAll('.yp-opp-back').length === n) return;
       Array.prototype.forEach.call(box.querySelectorAll('.yp-opp-back'), function (e) { e.remove(); });
       for (var i = 0; i < n; i++) {
         var d = document.createElement('div');
