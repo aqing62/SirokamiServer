@@ -1259,6 +1259,56 @@
     } catch (e) {}
   }
 
+
+  /**
+   * 禁止令这类"宣言卡名"→ 在**那张卡自己的卡图**上标出宣言内容（用户要求 ✓）。
+   * 做法：包一层 declareCardName 记住这次请求（含卡号 ✓），对话框关闭时读输入框里的卡名 ✓ 再标注。
+   * 复用 applyEffectTags 的渲染（贴卡图下方一条半透明文字条 ✓ 被重绘冲掉会按需重贴 ✓）。
+   */
+  function wrapDeclareForTag() {
+    try {
+      if (typeof declareCardName !== 'function' || declareCardName.__tagWrapped) return;
+      var _orig = declareCardName;
+      var _wrapped = function (m) {
+        try {
+          state.declareMsg = m || null;
+          var _t = setInterval(function () {
+            var box = document.getElementById('ypDeclare');
+            if (box) return;                       // 还在宣言 → 继续等
+            clearInterval(_t);
+            var name = (state.declareTyped || '').trim();
+            var code = (state.declareMsg && state.declareMsg.code) ? state.declareMsg.code : 0;
+            if (!name || !code) return;
+            state.fxTags = (state.fxTags || []).filter(function (x) { return x.code !== code; });
+            state.fxTags.push({ code: code, text: '宣言：' + name });
+            try { applyEffectTags(); } catch (e) {}
+            logLine('▸ 宣言标注：' + name, 'rp-log-hint');
+          }, 400);
+          setTimeout(function () { clearInterval(_t); }, 120000);   // 保险：2 分钟自动停
+        } catch (e) {}
+        return _orig.apply(this, arguments);
+      };
+      _wrapped.__tagWrapped = true;
+      declareCardName = _wrapped;
+      // 记录玩家在宣言框里输入的卡名（对话框里那个 input 的 id）
+      document.addEventListener('input', function (ev) {
+        try {
+          if (ev.target && ev.target.id === 'ypDeclareInput') state.declareTyped = ev.target.value || '';
+        } catch (e) {}
+      }, true);
+      document.addEventListener('click', function (ev) {
+        try {
+          var t = ev.target;
+          if (!t) return;
+          var box = document.getElementById('ypDeclare');
+          if (!box || !box.contains(t)) return;
+          var txt = (t.textContent || '').trim();
+          if (txt && txt.length <= 40 && /[\u4e00-\u9fa5A-Za-z]/.test(txt)) state.declareTyped = txt;
+        } catch (e) {}
+      }, true);
+    } catch (e) {}
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -4810,3 +4860,5 @@
     },
   };
 })();
+
+try { setTimeout(wrapDeclareForTag, 1200); } catch (e) {}
