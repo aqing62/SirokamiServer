@@ -542,6 +542,37 @@ window._communityAuth = null; // {username, password}
         });
     }
 
+    // 注册（用户要求：主页的登录也带上注册 ✓）
+    //   复用同一对输入框：先在上面填好想注册的账号 + 密码 → 点「注册一个」即注册，
+    //   成功后提示直接点「登录」进入。密码二次确认用同一个值（自助注册标准做法 ✓）
+    var glToReg = document.getElementById('glToReg');
+    if (glToReg) {
+        glToReg.addEventListener('click', function (ev) {
+            if (ev && ev.preventDefault) ev.preventDefault();
+            var u = (glUsername.value || '').trim();
+            var p = glPassword.value || '';
+            if (!u || !p) { showError('请先在上面填好想注册的账号和密码'); return; }
+            if (p.length < 6) { showError('密码至少 6 位'); return; }
+            glToReg.textContent = '注册中…';
+            fetch('/api/forum/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p, password2: p, displayName: u }),
+            }).then(function (r) { return r.json(); }).then(function (data) {
+                if (data && data.ok) {
+                    showError('注册成功！账号 ' + u + ' 已可用 —— 点下面的「登录」进入');
+                    if (glLoginBtn) glLoginBtn.focus();
+                } else {
+                    showError((data && data.error) || '注册失败');
+                }
+            }).catch(function () {
+                showError('网络错误');
+            }).finally(function () {
+                glToReg.textContent = '注册一个';
+            });
+        });
+    }
+
     // Enter 快捷登录
     if (glPassword) {
         glPassword.addEventListener('keydown', function (e) {
