@@ -1679,8 +1679,13 @@
         var places = m.getSelectablePlaces ? m.getSelectablePlaces() : [];
         highlightPlaces(P, places);
         if (places.length === 1 && m.count <= 1) setTimeout(function () { respond(m.prepareResponse([places[0]])); }, 60);
-        else showActions([{ t: '已选 ' + state.picked.length + '/' + m.count + '（点高亮格子）', f: function () {} }],
-                         '请选择要放置的位置');
+        else {
+          // 原来这里弹一个中间窗口（里面那个按钮点了什么都不做）——
+          // 位置选择是**点场上高亮格子**完成的，中间那块浮窗正好盖住格子（手机横屏尤其致命）。
+          // 进度已经在顶部提示条里了（"请选择位置 已选 0/1"），所以这里只收起浮窗，不再弹。
+          hidePrompt();
+          showTopBar(takeHint('请选择位置') + '　已选 ' + state.picked.length + '/' + m.count + '（点高亮格子）');
+        }
         break;
       }
       case 'position': {
