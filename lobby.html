@@ -385,12 +385,12 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     $('btnEdit').onclick = function () {
       var n = ($('deckSel') && $('deckSel').value) || '';
       if (!n) { msg('先在左边选一套卡组，再点「编辑」'); return; }
-      location.href = 'index.html?builder=1&deck=' + encodeURIComponent(n.replace(/\.ydk$/i, '')) + '&from=lobby';
+      location.href = 'index.html?builder=1&deck=' + encodeURIComponent(n.replace(/\.ydk$/i, '')) + '&from=lobby&t=' + Date.now();
     };
   }
   if ($('btnNew')) {
     $('btnNew').onclick = function () {
-      location.href = 'index.html?builder=1&new=1&from=lobby';
+      location.href = 'index.html?builder=1&new=1&from=lobby&t=' + Date.now();
     };
   }
 
