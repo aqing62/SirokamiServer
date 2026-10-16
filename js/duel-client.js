@@ -898,6 +898,23 @@
     // 对局中刷新页面：重放的消息先到，用记录把视角/座位补回来
     if (msg instanceof YGO.YGOProStocGameMsg || msg instanceof YGO.YGOProMsgResponseBase) restoreDuelPosIfNeeded();
 
+    // 对手（或自己）发动卡时把「谁发动了什么、在哪发动」写进日志。
+    // 关键：**手卡发动的卡**（灰流丽这类手坑）以前在这一层没有任何显示，对方玩家只能看到
+    // 后面进墓地的那条移动记录，不知道发动的是哪张。引擎给了 code 就说明是公开信息
+    // （没给 code=0 才是里侧卡），所以按 code 有无决定显不显示，不会泄露隐藏卡。
+    if (msg && msg.constructor && msg.constructor.name === 'YGOProMsgChaining') {
+      try {
+        var LOCN = { 0x01: '手卡', 0x02: '怪兽区', 0x04: '魔法陷阱区', 0x08: '墓地', 0x10: '除外区', 0x20: '额外卡组', 0x40: '卡组', 0x80: '灵摆区' };
+        (msg.chains || []).forEach(function (c) {
+          if (!c) return;
+          var who = (flipSeat(c.controler) === 0) ? '你' : '对方';
+          var where = LOCN[c.location] || ('位置' + c.location);
+          var what = (c.code ? ('『' + cardLabel({ code: c.code }) + '』') : '一张里侧卡片');
+          logLine('⚡ ' + who + '发动了 ' + what + '（' + where + '）', 'rp-log-chain');
+        });
+      } catch (e) { logLine('⚠ 连锁信息解析失败：' + (e && e.message), 'rp-log-err'); }
+    }
+
     if (msg instanceof YGO.YGOProStocJoinGame) {
       state.joined = true;
       $('roomInfo').textContent = '房间 ' + state.room;
