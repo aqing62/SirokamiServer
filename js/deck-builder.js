@@ -43,9 +43,13 @@
     // 卡图缓存：① 记住每张卡最终可用的图片地址（避免每次都走失败回退链）② 复用已加载的 <img> 节点
     var imgSrcCache = {};
     var imgNodePool = {};
+    // 卡图回退链：官方 OCG → 萌卡 SuperPre（**先行卡就靠这一档**）→ 白神服 DIY → 卡背
+    // ⚠ 原来只有 DIY + OCG 两档，缺了 SuperPre，导致先行卡（预发布卡）在组卡器里没图。
+    //    顺序对齐新引导 next.js 的 PIC_CHAIN（OCG → SuperPre → DIY），顺便让普通卡一次命中。
     var IMG_FALLBACK = [
-        function (id) { return 'https://api.ygopro3.cn/pics/siro/' + id + '.jpg'; },
         function (id) { return 'https://cdn.233.momobako.com/ygopro/pics/' + id + '.jpg'; },
+        function (id) { return 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + id + '.jpg'; },
+        function (id) { return 'https://api.ygopro3.cn/pics/siro/' + id + '.jpg'; },
         function () { return 'cover.jpg'; },
     ];
     function imgSrcFor(id) {
