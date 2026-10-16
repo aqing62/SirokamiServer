@@ -302,6 +302,107 @@
    * 只 close() 的话服务端会保留座位约 3 分钟，玩家马上再匹配可能被挤成观战者。
    * 消息类没导出，所以跟聊天帧一样手拼：send() 只要 identifier + toPayload()。
    */
+
+  /**
+   * 备牌阶段界面（M# 天梯房是三局两胜，第一局打完要换副卡组）。
+   * 触发：服务端进 Siding 阶段时发的聊天「你现在有 N 分钟来更换副卡组。」。
+   * 操作：点主卡组里的卡 → 进副卡组；点副卡组里的卡 → 回主卡组；「确定换牌」提交。
+   * 提交 = 与准备同一套动作（UPDATE_DECK + READY），所以直接复用 uploadDeckAndReady()。
+   */
+  function ensureSidingUI(minutes) {
+    var old = document.getElementById('ypSiding');
+    if (old) old.remove();
+    if (state.sidingTimer) { clearInterval(state.sidingTimer); state.sidingTimer = null; }
+    var d = document.createElement('div');
+    d.id = 'ypSiding';
+    d.style.cssText = 'position:fixed;inset:0;z-index:85;overflow:auto;background:#0a0a0c;'
+      + 'background-image:radial-gradient(900px 500px at 50% 0%, rgba(216,30,68,.18), rgba(10,10,12,0) 70%);'
+      + 'font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#ece9e4;padding:18px 20px 90px;';
+    d.innerHTML = '<div style="max-width:1180px;margin:0 auto">'
+      + '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:6px">'
+      + '<div style="font-size:19px;font-weight:800;letter-spacing:2px;color:#F0E68C">备牌阶段</div>'
+      + '<div style="font-size:13px;color:#9b97a1">点卡换边：主卡组 ⇄ 副卡组（换完点右下角「确定换牌」开始下一局）</div>'
+      + '<div id="ypSidingLeft" style="margin-left:auto;font-size:15px;font-weight:800;color:#FF8A8A"></div>'
+      + '</div>'
+      + '<div id="ypSidingBody"></div>'
+      + '</div>'
+      + '<div style="position:fixed;left:0;right:0;bottom:0;padding:12px 20px;background:rgba(10,10,12,.96);'
+      + 'border-top:1px solid rgba(216,30,68,.4);display:flex;gap:12px;justify-content:flex-end;align-items:center">'
+      + '<span id="ypSidingMsg" style="margin-right:auto;font-size:13px;color:#9b97a1">检查一下副卡组，别超分</span>'
+      + '<button id="ypSidingNo" style="padding:11px 22px;border-radius:999px;background:transparent;'
+      + 'border:2px solid rgba(216,30,68,.8);color:#F0E68C;font-weight:700;letter-spacing:2px;cursor:pointer;font-family:inherit">不换，直接开始</button>'
+      + '<button id="ypSidingOk" style="padding:11px 26px;border-radius:999px;border:none;cursor:pointer;'
+      + 'background:linear-gradient(135deg,#D4AF37,#FFD700);color:#1a1a2e;font-weight:800;letter-spacing:2px;font-family:inherit">确定换牌</button>'
+      + '</div>';
+    document.body.appendChild(d);
+    var lobby = document.getElementById('lobby'); if (lobby) lobby.style.display = 'none';
+    var mm = (minutes && minutes > 0) ? minutes : 3;
+    var endAt = Date.now() + mm * 60000;
+    state.sidingTimer = setInterval(function () {
+      var left = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+      var el = document.getElementById('ypSidingLeft');
+      if (el) el.textContent = '剩余 ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+      if (left <= 0) { clearInterval(state.sidingTimer); state.sidingTimer = null; }
+    }, 500);
+    renderSiding();
+    document.getElementById('ypSidingOk').onclick = function () { submitSiding('已提交换牌'); };
+    document.getElementById('ypSidingNo').onclick = function () { submitSiding('未换牌，直接开始下一局'); };
+  }
+
+  function sidingCardHtml(id, from) {
+    return '<img data-siding-id="' + id + '" data-siding-from="' + from + '" alt="' + id + '" loading="lazy"'
+      + ' src="https://cdn.233.momobako.com/ygopro/pics/' + id + '.jpg"'
+      + ' onerror="this.onerror=null;this.src=\'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + id + '.jpg\';'
+      + 'this.onerror=function(){this.onerror=null;this.src=\'https://api.ygopro3.cn/pics/siro/' + id + '.jpg\';'
+      + 'this.onerror=function(){this.src=\'cover.jpg\';}};"'
+      + ' style="width:100%;aspect-ratio:421/614;object-fit:cover;border-radius:4px;border:1px solid #2a3542;'
+      + 'background:#101720;cursor:pointer;display:block">';
+  }
+  function renderSiding() {
+    if (!state.deck) return;
+    var box = document.getElementById('ypSidingBody');
+    if (!box) return;
+    function sect(title, ids, from) {
+      var grid = ids.map(function (id) { return sidingCardHtml(id, from); }).join('');
+      return '<div style="font-size:13px;color:#9a9aa4;margin:14px 0 6px">' + title + '（' + ids.length + ' 张）</div>'
+        + '<div style="display:grid;grid-template-columns:repeat(10,minmax(0,1fr));gap:5px">' + grid + '</div>';
+    }
+    box.innerHTML = sect('主卡组', state.deck.main || [], 'main')
+      + sect('额外卡组', state.deck.extra || [], 'extra')
+      + sect('副卡组（点它换回主卡组）', state.deck.side || [], 'side');
+    box.querySelectorAll('img[data-siding-id]').forEach(function (im) {
+      im.onclick = function () {
+        var id = Number(im.getAttribute('data-siding-id'));
+        var from = im.getAttribute('data-siding-from');
+        var idx;
+        if (from === 'side') {
+          // 副 → 主
+          idx = state.deck.side.indexOf(id);
+          if (idx >= 0) { state.deck.side.splice(idx, 1); state.deck.main.push(id); }
+        } else {
+          // 主/额外 → 副（额外卡组的卡不进副卡组，这里也允许，服端会校验）
+          var arr = (from === 'extra') ? state.deck.extra : state.deck.main;
+          idx = arr.indexOf(id);
+          if (idx >= 0) { arr.splice(idx, 1); state.deck.side.push(id); }
+        }
+        var m = document.getElementById('ypSidingMsg');
+        if (m) m.textContent = '主 ' + state.deck.main.length + ' / 额外 ' + state.deck.extra.length + ' / 副 ' + state.deck.side.length;
+        renderSiding();
+      };
+    });
+  }
+  function submitSiding(why) {
+    var d = document.getElementById('ypSiding');
+    if (d) d.remove();
+    if (state.sidingTimer) { clearInterval(state.sidingTimer); state.sidingTimer = null; }
+    if (state.sidingFallbackTimer) { clearTimeout(state.sidingFallbackTimer); state.sidingFallbackTimer = null; }
+    state.sidingActive = false;
+    logLine('↩ 备牌：' + why + '（主 ' + (state.deck.main || []).length + ' / 额外 ' + (state.deck.extra || []).length
+      + ' / 副 ' + (state.deck.side || []).length + '）', 'rp-log-phase');
+    setUiPhase('duel');
+    uploadDeckAndReady();
+  }
+
   function leaveRoomGracefully() {
     try { send({ identifier: 19, toPayload: function () { return new Uint8Array(0); } }); } catch (e) {}
     setTimeout(function () { try { if (state.sock) state.sock.close(); } catch (e) {} }, 120);
@@ -554,11 +655,15 @@
     try { isAutoForm = new URLSearchParams(location.search).get('auto') === '1'; } catch (e) {}
     if (isAutoForm) {
       setHud('对局结束 ' + (meWin ? '（你赢了）' : '（你输了）') + reason + ' —— 稍后自动回到决斗大厅', meWin ? 'ok' : 'warn');
-      logLine('↩ 对局结束，6 秒后回决斗大厅（不再停在房间面板）', 'rp-log-phase');
-      setTimeout(function () {
+      logLine('↩ 对局结束：等 10 秒看是否进备牌阶段（三局两胜会继续打）', 'rp-log-phase');
+      setHud('对局结束 ' + (meWin ? '（你赢了）' : '（你输了）') + reason + ' —— 稍后自动继续', meWin ? 'ok' : 'warn');
+      state.sidingFallbackTimer = setTimeout(function () {
+        state.sidingFallbackTimer = null;
+        if (state.sidingActive) return;              // 已进备牌界面 → 由它接管
+        logLine('↩ 没有备牌提示 → 这局到此为止，回决斗大厅', 'rp-log-phase');
         leaveRoomGracefully();
         setTimeout(function () { location.href = 'lobby.html'; }, 150);
-      }, 6000);
+      }, 10000);
       return;
     }
     setHud('对局结束 ' + (meWin ? '（你赢了）' : '（你输了）') + reason + ' —— 点「准备」可以再来一局', meWin ? 'ok' : 'warn');
@@ -630,6 +735,16 @@
     if (msg instanceof YGO.YGOProStocChat) {
       logLine('[聊天] ' + msg.msg, 'rp-log-hint');
       // 自动登录的回执：服务端登录成功会发「登录成功！账号: X 显示名: Y 权限: Z」
+      // 服务端进备牌阶段（三局两胜第二局前）会发「你现在有 N 分钟来更换副卡组。」
+      if (msg.msg && (msg.msg.indexOf('更换副卡组') >= 0 || msg.msg.indexOf('side_timeout_part1') >= 0)) {
+        state.sidingActive = true;
+        if (state.sidingFallbackTimer) { clearTimeout(state.sidingFallbackTimer); state.sidingFallbackTimer = null; }
+        var mm = 3;
+        try { var mmMatch = msg.msg.match(/(\d+)\s*(分钟|minutes?)/i) || msg.msg.match(/limited to (\d+)/i); if (mmMatch) mm = Number(mmMatch[1]) || 3; } catch (e) {}
+        logLine('▸ 进入备牌界面（限 ' + mm + ' 分钟）', 'rp-log-phase');
+        ensureSidingUI(mm);
+        return;
+      }
       if (msg.msg && msg.msg.indexOf('登录成功') >= 0) {
         state.loggedInOk = true;
         setHud('已登录官网账号，本局计入天梯 ✓', 'ok');
@@ -2998,6 +3113,13 @@
 
   // 调试/自动化探针（也方便你自己在控制台里看状态）
   window.__yp = {
+    /** 手动开一次备牌界面（自动化验证/回归用；正常由服务端备牌提示触发） */
+    siding: function (minutes) { ensureSidingUI(minutes || 3); },
+    /** 备牌界面当前的主/额外/副数量（自动化断言用） */
+    sidingState: function () {
+      return state.deck ? { main: state.deck.main.length, extra: state.deck.extra.length, side: state.deck.side.length,
+        open: !!document.getElementById('ypSiding') } : null;
+    },
     state: function () {
       return {
         seat: state.mySeat, isHost: state.isHost, duelPos: state.myDuelPos,
