@@ -396,6 +396,9 @@
                             <button class="db-btn" id="dbImport">导入</button>
                             <button class="db-btn" id="dbCopy">复制</button>
                             <button class="db-btn" id="dbDownload">下载 ydk</button>
+                            <button class="db-btn db-btn-gold" id="dbSaveCloud" title="把当前卡组保存到你的账号（服务器），换电脑/手机也在">☁ 保存到账号</button>
+                            <button class="db-btn" id="dbLoadCloud" title="读取账号里保存的卡组">☁ 读取</button>
+                            <button class="db-btn db-danger" id="dbDelCloud" title="删除账号里保存的卡组">🗑</button>
                             <button class="db-btn db-danger" id="dbClear" title="清空卡组">清空</button>
                         </div>
                     </div>
@@ -880,5 +883,103 @@
             });
         });
     </script>
+
+<script>
+/* PATCH(白神服): 组卡器 ↔ 账号云端卡组通道（保存/读取/删除 + ?deck= / ?new=1 参数）
+   接口（站点已有 ✓）：/api/duel/decks(列表) /api/duel/deck(取一套) /api/duel/decks/upload(存) /api/duel/decks/delete(删) */
+(function () {
+  'use strict';
+  function $(i) { return document.getElementById(i); }
+  function toast(t) {
+    var old = $('dbToast'); if (old && old.parentNode) old.parentNode.removeChild(old);
+    var e = document.createElement('div'); e.id = 'dbToast'; e.textContent = t;
+    e.style.cssText = 'position:fixed;left:50%;top:60px;transform:translateX(-50%);background:rgba(30,30,30,.95);color:#fff;padding:10px 20px;border-radius:8px;border:1px solid rgba(216,30,68,.5);z-index:100020;font-size:.85rem';
+    document.body.appendChild(e); setTimeout(function () { if (e.parentNode) e.parentNode.removeChild(e); }, 2400);
+  }
+  function api(path, body) {
+    return fetch(path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+      : { cache: 'no-store' })
+      .then(function (r) { return r.json().catch(function () { return {}; }); });
+  }
+  function ydkOf() {
+    try { if (window.DeckBuilder && window.DeckBuilder.ydkText) return window.DeckBuilder.ydkText(); } catch (e) {}
+    try { if (window.DeckBuilder && window.DeckBuilder.ydk) return window.DeckBuilder.ydk(); } catch (e) {}
+    return '';
+  }
+  function loadYdk(text) {
+    try { if (window.DeckBuilder && window.DeckBuilder.loadYdkText) return window.DeckBuilder.loadYdkText(text); } catch (e) {}
+    return false;
+  }
+
+  // 保存
+  var b1 = $('dbSaveCloud');
+  if (b1) b1.addEventListener('click', function () {
+    var ydk = ydkOf();
+    if (!ydk) { toast('当前卡组是空的，先加点卡'); return; }
+    var name = (prompt('保存到账号，卡组名：', (window.__cloudDeckName || '')) || '').trim();
+    if (!name) return;
+    api('/api/duel/decks/upload', { name: name, ydk: ydk }).then(function (j) {
+      if (j && j.ok) { window.__cloudDeckName = name; toast('已保存到账号：' + name + '（主' + (j.main || 0) + '/额' + (j.extra || 0) + '/副' + (j.side || 0) + '）'); }
+      else toast('保存失败：' + ((j && j.error) || '未知错误'));
+    }).catch(function (e) { toast('保存失败：' + e.message); });
+  });
+
+  // 读取
+  var b2 = $('dbLoadCloud');
+  if (b2) b2.addEventListener('click', function () {
+    api('/api/duel/decks').then(function (j) {
+      var names = (j && j.names) || [];
+      if (!names.length) { toast('账号里还没有卡组，先点「保存到账号」'); return; }
+      var pick = prompt('读取哪一套？输入序号或名字：\n' + names.map(function (n, i) { return (i + 1) + '. ' + n.replace(/\.ydk$/i, ''); }).join('\n'), '1');
+      if (!pick) return;
+      var idx = parseInt(pick, 10);
+      var want = (!isNaN(idx) && idx >= 1 && idx <= names.length) ? names[idx - 1] : pick.trim();
+      api('/api/duel/deck?name=' + encodeURIComponent(want.replace(/\.ydk$/i, ''))).then(function (d) {
+        if (!d || !d.main) { toast('没读到这套卡组'); return; }
+        // 服务端返回 {main,extra,side} → 拼成 ydk 文本再载入 ✓
+        var txt = '#main\n' + (d.main || []).map(function (c) { return c; }).join('\n')
+          + '\n#extra\n' + (d.extra || []).join('\n') + '\n!side\n' + (d.side || []).join('\n');
+        var r = loadYdk(txt);
+        if (r) { window.__cloudDeckName = want.replace(/\.ydk$/i, ''); toast('已读取：' + window.__cloudDeckName + '（主' + r.main + '/额' + r.extra + '/副' + r.side + '）'); }
+        else toast('载入失败（组卡器未就绪）');
+      });
+    }).catch(function (e) { toast('读取失败：' + e.message); });
+  });
+
+  // 删除
+  var b3 = $('dbDelCloud');
+  if (b3) b3.addEventListener('click', function () {
+    api('/api/duel/decks').then(function (j) {
+      var names = (j && j.names) || [];
+      if (!names.length) { toast('账号里还没有卡组'); return; }
+      var pick = prompt('删除哪一套？（不可恢复）\n' + names.map(function (n, i) { return (i + 1) + '. ' + n.replace(/\.ydk$/i, ''); }).join('\n'), '1');
+      if (!pick) return;
+      var idx = parseInt(pick, 10);
+      var want = (!isNaN(idx) && idx >= 1 && idx <= names.length) ? names[idx - 1] : pick.trim();
+      if (!confirm('确定删除「' + want.replace(/\.ydk$/i, '') + '」？')) return;
+      api('/api/duel/decks/delete', { name: want.replace(/\.ydk$/i, '') }).then(function (r) {
+        toast(r && r.ok ? ('已删除，账号里还剩 ' + (r.remain || 0) + ' 套') : ('删除失败：' + ((r && r.error) || '')));
+      });
+    });
+  });
+
+  // URL 参数：?deck=名字 载入 / ?new=1 清空新建（大厅的「编辑 / 新建」按钮跳过来 ✓）
+  var q = new URLSearchParams(location.search);
+  if (q.get('builder') === '1' || q.get('deck') || q.get('new')) {
+    var want = q.get('deck');
+    setTimeout(function () {
+      if (q.get('new') === '1') { if (window.DeckBuilder && window.DeckBuilder.clear) { try { window.DeckBuilder.clear(); } catch (e) {} } toast('新建卡组：加好卡后点「☁ 保存到账号」'); return; }
+      if (!want) return;
+      api('/api/duel/deck?name=' + encodeURIComponent(want)).then(function (d) {
+        if (!d || !d.main) { toast('账号里没找到「' + want + '」'); return; }
+        var txt = '#main\n' + d.main.join('\n') + '\n#extra\n' + (d.extra || []).join('\n') + '\n!side\n' + (d.side || []).join('\n');
+        var r = loadYdk(txt);
+        window.__cloudDeckName = want;
+        toast(r ? ('已载入「' + want + '」（主' + r.main + '/额' + r.extra + '/副' + r.side + '），改完点「☁ 保存到账号」') : '载入失败（组卡器未就绪）');
+      });
+    }, 1800);
+  }
+})();
+</script>
 </body>
 </html>

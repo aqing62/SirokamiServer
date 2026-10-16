@@ -1746,6 +1746,22 @@
                 return { main: zones.main.list.slice(), extra: zones.extra.list.slice(), side: zones.side.list.slice() };
             },
             ydk: buildYdkText,
+            // PATCH(白神服): 供"从账号云端读取卡组"用 —— 把 ydk 文本载入当前卡组 ✓
+            //   复用 importDeck() 里那段（zones.*.list + renderAll + refreshScore），不碰内部结构 ✓
+            loadYdkText: function (text) {
+                try {
+                    var d = parseYdkText(text);
+                    if (!d || !d.main) return false;
+                    zones.main.list = (d.main || []).slice();
+                    zones.extra.list = (d.extra || []).slice();
+                    zones.side.list = (d.side || []).slice();
+                    renderAll();
+                    refreshScore();
+                    return { main: zones.main.list.length, extra: zones.extra.list.length, side: zones.side.list.length };
+                } catch (e) { return false; }
+            },
+            // 取当前卡组的 ydk 文本（保存到账号用 ✓）
+            ydkText: function () { try { return buildYdkText(); } catch (e) { return ''; } },
             setOfficialResults: function (list) { officialResults = list || []; },
             showOfficialDetail: showDetailForOfficial,
             showCommon: showCommonCards,
