@@ -941,6 +941,41 @@
     } catch (e) {}
   }
 
+
+  /**
+   * 额外卡组堆的数字：查看器用自己解析的 extraCount，而服务端对**对手**的额外数量
+   * 在它那条路径上解析成了 0 ✗（用户实测"对方额外显示0"）。
+   * 我们这边（数量条）算出来的是对的 → 直接覆盖那个数字，并在有卡但没画牌时补卡背。
+   * 查看器重绘会覆盖回来，所以每帧消息后按需重设（幂等、便宜）。
+   */
+  function fixPileCounts() {
+    try {
+      var me = (state.myDuelPos === 0 || state.myDuelPos === 1) ? state.myDuelPos : null;
+      if (me === null) return;
+      [0, 1].forEach(function (dp) {
+        var v = _cnt[dp] || {};
+        var seat = flipSeat(dp);                 // 查看器的视角座位
+        [['extra', v.extra], ['deck', v.deck]].forEach(function (pair) {
+          var kind = pair[0], n = pair[1];
+          if (n === null || n === undefined) return;
+          var el = document.querySelector('[data-pile="' + kind + ':' + seat + '"]');
+          if (!el) return;
+          var b = el.querySelector('.rp-pile-count');
+          if (b && b.textContent !== String(n)) b.textContent = String(n);
+          // 有卡但没有牌面 → 补一张卡背（额外卡组对对手永远是里侧）
+          if (n > 0 && !el.querySelector('img, .yp-pile-back')) {
+            var d = document.createElement('div');
+            d.className = 'yp-pile-back';
+            d.style.cssText = 'position:absolute;inset:0;border-radius:4px;z-index:2;'
+              + 'background:#101720 url("' + FACE_DOWN_IMG + '") center/cover no-repeat';
+            if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+            el.appendChild(d);
+          }
+        });
+      });
+    } catch (e) {}
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -1394,6 +1429,7 @@
         } catch (e) {}
       }
       try { fillOpponentHand(); } catch (e) {}
+      try { fixPileCounts(); } catch (e) {}
       if (msg.msg && msg.msg.constructor && msg.msg.constructor.name === 'YGOProMsgDraw') {
         try {
           var _dp = msg.msg.player, _n = msg.msg.count || ((msg.msg.cards || []).length) || 0;
