@@ -1055,8 +1055,27 @@
       el.style.fontSize = '18px';
     }
   }
-  function startTurnCountdown(sec) {
-    _cdLeft = (typeof sec === 'number' && sec > 0) ? sec : TURN_LIMIT_SEC;
+  function startTurnCountdown(sec, restore) {
+    if (restore) {
+      // 刷新/重连后恢复：读回"本回合截止时间"，算出还剩多少
+      try {
+        var dl = Number(localStorage.getItem('yp_turn_deadline') || 0);
+        var at = Number(localStorage.getItem('yp_turn_deadline_at') || 0);
+        if (dl > Date.now() && (Date.now() - at) < 360000) {
+          _cdLeft = Math.round((dl - Date.now()) / 1000);
+          logLine('⏱ 恢复本回合倒计时：还剩 ' + Math.floor(_cdLeft / 60) + ':' + String(_cdLeft % 60).padStart(2, '0') + '（刷新前剩这么多）', 'rp-log-hint');
+        } else {
+          _cdLeft = TURN_LIMIT_SEC;
+        }
+      } catch (e) { _cdLeft = TURN_LIMIT_SEC; }
+    } else {
+      _cdLeft = (typeof sec === 'number' && sec > 0) ? sec : TURN_LIMIT_SEC;
+      // 记下截止时间戳（刷新/重连后靠它接着跑）
+      try {
+        localStorage.setItem('yp_turn_deadline', String(Date.now() + _cdLeft * 1000));
+        localStorage.setItem('yp_turn_deadline_at', String(Date.now()));
+      } catch (e) {}
+    }
     renderCountdown();
     if (_cdTimer) clearInterval(_cdTimer);
     _cdTimer = setInterval(function () {
@@ -1481,7 +1500,14 @@
             logLine('（时限消息字段：' + (_ks.join(' ') || '(没有数字字段)') + '）', 'rp-log-hint');
           }
         } else {
-          if (typeof startTurnCountdown === 'function') { _cdLeft = Number(_sec); renderCountdown(); }   // 服务端绝对值优先
+          if (typeof startTurnCountdown === 'function') {
+            _cdLeft = Number(_sec);
+            try {   // 服务端权威值 → 同步截止时间戳，刷新后也按它算
+              localStorage.setItem('yp_turn_deadline', String(Date.now() + _cdLeft * 1000));
+              localStorage.setItem('yp_turn_deadline_at', String(Date.now()));
+            } catch (e) {}
+            renderCountdown();
+          }
         }
       } catch (e) {}
       return;
@@ -1896,7 +1922,8 @@
   function setUiPhase(phase) {
     // 开局时手卡/卡组/额外"数量"要等到下一个事件才画出来（查看器只在事件里重绘）->
     // 切到对局界面时轻轻戳一次重绘，让数量立刻显示（用户反馈：刚进游戏看不到数量）
-    if (phase === 'duel') { try { setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 120); } catch (e) {} }
+    if (phase === 'duel') {
+      try { if (typeof startTurnCountdown === 'function') startTurnCountdown(0, true); } catch (e) {} try { setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 120); } catch (e) {} }
     var lobby = $('lobby'), modal = $('replayModal');
     if (!lobby || !modal) return;
     if (state.uiPhase === phase) return;
