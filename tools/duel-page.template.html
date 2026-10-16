@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261018t">
+<link rel="stylesheet" href="css/duel-client.css?v=20261018z">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -341,6 +341,23 @@
   display: block !important;
 }
 #ypInfoImgHint { font-size: 12px !important; }
+</style>
+<style>
+/* siro-countdown-center */
+/* 倒计时与投降按钮重叠 → 倒计时改到**顶部正中（场地中间）**，投降保持右上
+   （#ypTimeLeft 的位置原本是脚本内联的 right/top 或我早期 CSS 的 left:6px，这里统一覆盖） */
+#ypTimeLeft {
+  left: 50% !important;
+  right: auto !important;
+  transform: translateX(-50%) !important;
+  top: 6px !important;
+  text-align: center !important;
+}
+@media (orientation: portrait) {
+  #ypTimeLeft { left: 50% !important; right: auto !important; transform: translateX(-50%) !important; top: 6px !important; }
+}
+#ypSurrender { right: 8px !important; left: auto !important; top: 6px !important; }
+/* 左上角数量条保持原位（它不会和中间/右边的冲突） */
 </style>
 </head>
 <body>
