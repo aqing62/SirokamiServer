@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261018b">
+<link rel="stylesheet" href="css/duel-client.css?v=20261018c">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -235,6 +235,7 @@
 </style>
 
 
+<style>
 /* ── ③ 阶段按钮（切洗手牌/进战阶/结束回合）挪到右侧黑边，别挡额外格子 ── */
 /* ypCtl-right-side */
 @media (orientation: portrait) {
@@ -383,7 +384,7 @@
 
 <script src="js/ygopro-web-browser.js?v=20261016a"></script>
 <script src="js/viewer-live.js?v=20261016w"></script>
-<script src="js/duel-client.js?v=20261018b"></script>
+<script src="js/duel-client.js?v=20261018c"></script>
 <script>
 /* 入口层逻辑：登录 / 显示当前卡组 / 开始匹配（不改客户端产物） */
 (function () {

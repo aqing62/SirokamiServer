@@ -1386,7 +1386,24 @@
     // ⚠ MSG_START 的 player0/player1 是**绝对决斗位**（参考客户端 game.cpp:LocalPlayer 印证：
     //   客户端自己按 isFirst 换位）。所以"我"的卡组数是 player[myDuelPos]，不是永远 player0
     //   —— 之前写死 player0 会让决斗位 1 的玩家（P2）看到自己的卡组数与对手对调。
-    var myInfo = state.myDuelPos === 1 ? m.player1 : m.player0;
+// ★ 开局记下双方数量（用户反馈看不到对方手卡/卡组/额外）
+      // 字段名在不同版本叫法不同：player0/1 或 players[]；deckCount/mainc、handCount/handc、extraCount/extrac
+      try {
+        var _infos = [];
+        if (m.player0 || m.player1) { _infos.push({ dp: 0, inf: m.player0 }, { dp: 1, inf: m.player1 }); }
+        (m.players || []).forEach(function (pl) {
+          var dp2 = (pl.pos !== undefined) ? pl.pos : pl.player;
+          if (dp2 === 0 || dp2 === 1) _infos.push({ dp: dp2, inf: pl });
+        });
+        _infos.forEach(function (it) {
+          var f = it.inf || {};
+          setCount(it.dp, 'deck', f.deckCount !== undefined ? f.deckCount : f.mainc);
+          setCount(it.dp, 'hand', f.handCount !== undefined ? f.handCount : f.handc);
+          setCount(it.dp, 'extra', f.extraCount !== undefined ? f.extraCount : f.extrac);
+        });
+        if (!_infos.length) logLine('（开局没解出双方数量字段，先按抽卡增量更新）', 'rp-log-hint');
+      } catch (e) {}
+          var myInfo = state.myDuelPos === 1 ? m.player1 : m.player0;
     var opInfo = state.myDuelPos === 1 ? m.player0 : m.player1;
     // 重连时服务端重放的 MSG_START 里卡组数是 0（实测）→ 别把已经显示的卡组数冲成 0：
     // 我方用自己的牌组长度兜底，对手沿用上一局的已知值。
