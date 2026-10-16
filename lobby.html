@@ -408,7 +408,12 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     set('mRate', L.winRate === undefined || L.winRate === null ? null : L.winRate + '%');
     fetch('/api/forum/profile/ladder?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
       var d = (j && j.data) || j || {};
-      set('mTier', d.tier || d.tierName);
+      // 段位：用当前赛季(S3)按排名百分位算的值 ✓（库里 ladderTitle 是上季结算头衔 ✗）
+      // 见 vote_server.py 的 ladder_tier_of()：S3 巅峰/大师/钻石/黄金/白银/参战者
+      var lt = (d && d.ladder) || {};
+      var tierText = lt.tier || d.tier || d.tierName || '-';
+      if (lt.tier && lt.rank && lt.total) tierText += '（第' + lt.rank + '/' + lt.total + '名）';
+      set('mTier', tierText);
       if (L.rating === undefined) set('mRating', d.rating);
     }).catch(function () {});
   }
