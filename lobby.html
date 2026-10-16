@@ -323,8 +323,45 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     fetch('/api/duel/deck?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (j) {
       if (j && j.name) {
         curDeck = j;      // 存起来（画卡图 + 点卡开官网大窗口都用它）
-        $('deckNow').textContent = j.name + '（主 ' + (j.main || []).length + ' / 额外 ' + (j.extra || []).length +
-          ' / 副 ' + (j.side || []).length + '）';
+        // 分数表可能还没加载完 → 等它到位再算总分 ✓（否则会算成 0 ✗）
+        var _needScores = (scoreMap === null);
+        var _paint = function () {
+          var sum = 0, miss = 0, ban = 0;
+          ['main', 'extra', 'side'].forEach(function (k) {
+            (j[k] || []).forEach(function (c) {
+              var e = scoreMap ? scoreMap[c] : null;
+              var v = (typeof e === 'number') ? e : (e && typeof e.score === 'number' ? e.score : null);
+              if (v === null || v === undefined) { miss++; return; }
+              sum += v;
+              if (e && (e.forbidden || e.ban)) ban++;
+            });
+          });
+          var txt = j.name + '（主 ' + (j.main || []).length + ' / 额外 ' + (j.extra || []).length +
+            ' / 副 ' + (j.side || []).length + '）';
+          var el = $('deckNow');
+          if (!el) return;
+          el.innerHTML = '';
+          el.appendChild(document.createTextNode(txt + '  ·  总分 '));
+          var b = document.createElement('b');
+          b.textContent = sum + '/100';
+          b.style.color = (sum > 100) ? '#ff6b6b' : '#FFD700';       // 超 100 变红 ✓
+          b.style.fontSize = '1.05em';
+          el.appendChild(b);
+          if (ban > 0) {
+            var w = document.createElement('span');
+            w.textContent = '  ⚠ 含 ' + ban + ' 张禁用卡';
+            w.style.color = '#ff6b6b';
+            el.appendChild(w);
+          }
+          if (miss > 0) {
+            var m = document.createElement('span');
+            m.textContent = '（' + miss + ' 张无分值数据）';
+            m.style.color = '#9b97a1';
+            m.style.fontSize = '0.9em';
+            el.appendChild(m);
+          }
+        };
+        if (_needScores) loadScores().then(_paint); else _paint();
         renderDeckCards(j);
       } else {
         curDeck = null;
