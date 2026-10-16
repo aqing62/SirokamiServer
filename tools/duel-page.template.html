@@ -60,6 +60,30 @@
 .de-foot a { color: #9ec4f0; text-decoration: none; }
 #duelEntry .de-back { position: absolute; left: 16px; top: 14px; font-size: .8rem; color: #9a9aa4; text-decoration: none; }
 </style>
+
+<style>
+/* ── 决斗界面手感微调（只作用于 duel.html；老页面与回放查看器不受影响）──
+   用户反馈：①手卡太小 ②发动/盖放按钮太小容易按错 ③右侧日志太大 */
+#replayModal .rp-hand .rp-card { width: 62px; height: 89px; }   /* 手卡 46×66 → 62×89 */
+#replayModal .rp-hand { gap: 4px; }
+#ypCardMenu .yp-menu { gap: 8px !important; }
+#ypCardMenu .yp-menu-item {                                       /* 发动/盖放：触控友好 */
+  min-height: 46px; min-width: 104px; padding: 12px 18px !important; font-size: 15px !important;
+}
+#replayModal .replay-log { flex: 0 1 190px !important; max-width: 210px; }   /* 日志收窄 */
+#replayModal .replay-log-body { padding: 8px 10px !important; }
+#replayModal .rp-log-line { font-size: .78rem; line-height: 1.6; }
+
+@media (orientation: landscape) and (max-height: 560px) {   /* 手机横屏（20:9 之类）再紧凑一档 */
+  #replayModal .rp-hand .rp-card { width: 54px; height: 78px; }
+  #replayModal .rp-hand { gap: 3px; }
+  #ypCardMenu .yp-menu-item { min-height: 42px; min-width: 92px; padding: 10px 14px !important; font-size: 14px !important; }
+  #replayModal .replay-log { flex: 0 1 150px !important; max-width: 168px; }
+  #replayModal .replay-log-body { padding: 6px 8px !important; }
+  #replayModal .rp-log-line { font-size: .72rem; line-height: 1.5; }
+  #replayModal .replay-log-title { font-size: .78rem; }
+}
+</style>
 </head>
 <body>
 
