@@ -267,15 +267,6 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     setStartEnabled(false);          // 先禁用，等卡组列表回来再决定
     loadDecks(); loadMine(d);
   })
-    // 段位：whoami 现在返回 ladder（当前赛季 S3 按排名百分位算 ✓ + 名次）
-    // 原来依赖 /api/forum/profile/ladder —— 站点没有这个路由(404) → 段位一直显示库里上季结算头衔(S2) ✗
-    try {
-      var _lt = d.ladder || {};
-      if (_lt.tier) {
-        set('mTier', _lt.tier + (_lt.rank && _lt.total ? ('（第' + _lt.rank + '/' + _lt.total + '名）') : ''));
-      }
-      if (_lt.rating !== undefined && _lt.rating !== null) set('mRating', _lt.rating + '分');
-    } catch (e) {}
   .catch(function () { $('who').textContent = '读取登录状态失败'; });
 
   // ── 卡组库 ──
@@ -421,7 +412,14 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       // 段位：用当前赛季(S3)按排名百分位算的值 ✓（库里 ladderTitle 是上季结算头衔 ✗）
       // 见 vote_server.py 的 ladder_tier_of()：S3 巅峰/大师/钻石/黄金/白银/参战者
       var lt = (d && d.ladder) || {};
-      var tierText = lt.tier || d.tier || d.tierName || '-';
+      // ★ whoami 的 ladder.tier（当前赛季 S3 按排名百分位算 ✓）**优先** ✗
+      //   社区资料接口返回的 d.tierName 是库里 ladderTitle = 上季(S2)结算头衔 ✗
+      //   原来写的是 lt.tier || d.tier || d.tierName → 两个来源都不对时显示 '-'，
+      //   而且这个 then 在 whoami 之后执行 → 会把正确的 S3 段位覆盖成 S2 ✗（用户实测"还是S2" ✗）
+      var who = (me && me.ladder) || {};
+      var tierText = who.tier
+        ? (who.tier + (who.rank && who.total ? ('（第' + who.rank + '/' + who.total + '名）') : ''))
+        : (lt.tier || d.tier || d.tierName || '-');
       if (lt.tier && lt.rank && lt.total) tierText += '（第' + lt.rank + '/' + lt.total + '名）';
       set('mTier', tierText);
       if (L.rating === undefined) set('mRating', d.rating);
