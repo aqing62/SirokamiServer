@@ -2500,7 +2500,9 @@
     //   → 键 = 标签 | 类型 | 卡号 | 区域 | 序号：同卡同型的重复去掉 ✓，不同卡各自保留 ✓
     function dupKeyOf(a) {
       var info = a.info || {};
-      return [a.label, a.type, info.code, info.location, info.sequence].join('|');
+      // ⚠ 必须带上 a.index：同一个卡的两个可发动效果，上面这些字段完全相同，
+      //   不带 index 会把「发动效果①②」压成一个（玩家实测选不到第二个效果 ✗）
+      return [a.label, a.type, info.code, info.location, info.sequence, a.index].join('|');
     }
     acts.forEach(function (list, el) {
       var seen = {}, kept = [];
@@ -2614,6 +2616,10 @@
     // 打开卡片菜单时，顺手把这张卡的信息显示到左侧（真实客户端也是这个手感）
     var firstInfo = actions[0] && actions[0].info;
     if (firstInfo && firstInfo.code) showCardInfo(firstInfo.code);
+    // ── 一张卡有多个可发动效果时：把多个「发动效果」收成一个「发动效果」按钮 ──
+    //    点它弹选择框，里面用 CDB 的提示文本标注（如转生炎兽的意志：① 特殊召唤1只怪兽 / ② 特殊召唤连接标记数量的怪兽）。
+    //    实现上不重做映射：选中后直接点对应的原按钮（原按钮隐藏但保留），索引/应答逻辑完全不动。
+    if (firstInfo && firstInfo.code) collapseEffectItems(box, firstInfo.code);
     // 菜单出现在**鼠标位置**（参照真实客户端），右/下放不下就翻到另一侧
     var mx = pt && pt.x !== undefined ? pt.x : null;
     var my = pt && pt.y !== undefined ? pt.y : null;
@@ -2630,6 +2636,55 @@
     box.style.left = Math.round(left) + 'px';
     box.style.top = Math.round(top) + 'px';
     state.menuFor = el;
+  }
+
+
+  /** 卡号 → 效果提示文本（CDB texts.str1..str8，懒加载 + 缓存） */
+  var hintCache = {};
+  function fetchHints(code) {
+    var k = String(code);
+    if (hintCache[k]) return hintCache[k];
+    hintCache[k] = [];                                    // 先占位，避免并发重复请求
+    try {
+      fetch('/api/cardhints?ids=' + k).then(function (r) { return r.ok ? r.json() : {}; }).then(function (j) {
+        hintCache[k] = (j && j[k]) || [];
+        if (typeof state.onHintsReady === 'function') state.onHintsReady();
+      }).catch(function () {});
+    } catch (e) {}
+    return hintCache[k];
+  }
+
+  /**
+   * 把卡菜单里多个「发动效果」收成一个按钮：
+   * 点击 → showChooser 列出每个效果（①/② + CDB 提示文本）→ 选中后点原来的按钮提交。
+   * 原来一张卡有两个效果时菜单会出现两个一模一样的「发动效果」✗（玩家不知道点哪个）。
+   */
+  function collapseEffectItems(box, code) {
+    var items = Array.prototype.slice.call(box.querySelectorAll('.yp-menu-item'));
+    var eff = items.filter(function (b) { return (b.textContent || '').indexOf('发动效果') >= 0; });
+    if (eff.length < 2) return;
+    eff.forEach(function (b) { b.style.display = 'none'; });   // 隐藏但保留（选中后由它提交）
+    var btn = document.createElement('div');
+    btn.className = 'yp-menu-item';
+    btn.textContent = '发动效果（' + eff.length + ' 个）';
+    btn.onclick = function (ev) {
+      if (ev && ev.stopPropagation) ev.stopPropagation();
+      hideCardMenu();
+      var hints = fetchHints(code);
+      var items2 = eff.map(function (b, i) {
+        var num = '①②③④⑤⑥⑦⑧⑨'[i] || ('(' + (i + 1) + ')');
+        var hint = hints[i] || b.textContent || '';
+        return { label: num + ' ' + hint, f: function () {
+          logLine('▸ 发动效果' + num + '：' + (hints[i] || '(无提示)'), 'rp-log-hint');
+          b.click();                                          // 走原来的提交路径（不做任何重映射）
+        } };
+      });
+      if (!hints.length) {
+        logLine('（这张卡没有 CDB 效果提示，先按序号选）', 'rp-log-hint');
+      }
+      showChooser('选择要发动的效果', items2);
+    };
+    box.insertBefore(btn, eff[0]);                            // 放在原来那批的位置
   }
 
   /** 手柄日志用的可读名 */
