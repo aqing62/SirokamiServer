@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261018s">
+<link rel="stylesheet" href="css/duel-client.css?v=20261018t">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -325,6 +325,22 @@
   #ypCtl { padding-right: 0 !important; grid-template-columns: none !important; }
   .rp-turn-label, .rp-phase { text-align: left !important; margin-left: 0 !important; }
 }
+</style>
+<style>
+/* siro-cardinfo-img-fix */
+/* 卡片信息栏的卡图：上一版我给它加了 max-height:100% ✗ 而它在 grid 行里、
+   行高又由内容撑 → 循环依赖导致图片被压成 0 高（PC 端看不到卡图，用户反馈）。
+   这里用固定高度（跟随面板高度的一半左右）并去掉那个百分比上限。 */
+#ypCardInfo #ypInfoImg, #ypInfoImg {
+  max-height: 26dvh !important;
+  height: auto !important;
+  width: auto !important;
+  max-width: 100% !important;
+  align-self: start !important;
+  object-fit: contain !important;
+  display: block !important;
+}
+#ypInfoImgHint { font-size: 12px !important; }
 </style>
 </head>
 <body>
