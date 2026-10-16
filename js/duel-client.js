@@ -926,6 +926,19 @@
     if (msg instanceof YGO.YGOProStocChat) {
       logLine('[聊天] ' + msg.msg, 'rp-log-hint');
       // 自动登录的回执：服务端登录成功会发「登录成功！账号: X 显示名: Y 权限: Z」
+      // 自己被系统请出房间（挂机超时 / 备牌超时 等）→ 天梯形态下说清原因并回大厅，
+      // 否则玩家会盯着一个已经没自己座位的房间界面发呆。
+      if (msg.msg && msg.msg.indexOf('被系统请出了房间') >= 0) {
+        var selfKick = false;
+        try {
+          var myName = accountName();
+          selfKick = myName && msg.msg.indexOf(myName) >= 0;
+        } catch (e) {}
+        if (selfKick) {
+          abortMatch('你被系统请出了房间（挂机超时 / 备牌超时等）');
+          return;
+        }
+      }
       // 服务端进备牌阶段（三局两胜第二局前）会发「你现在有 N 分钟来更换副卡组。」
       if (msg.msg && (msg.msg.indexOf('更换副卡组') >= 0 || msg.msg.indexOf('side_timeout_part1') >= 0)) {
         state.sidingActive = true;
@@ -1370,6 +1383,22 @@
     var bothReady = !!(state.ready[0] && state.ready[1]);
     // 不禁用「开始决斗」：禁用按钮点了毫无反应，玩家会以为界面坏了（实测被反馈）。
     // 保持可点，点下去由 onclick 告诉你"差什么"（你还没准备 / 对手还没准备）。
+    // 天梯形态：对手不见了（断线/被请出）时说清楚，并保留「取消匹配」按钮；
+    // 房间还在，随机匹配可能补进新对手，所以不强制退，但要玩家知道自己在等什么。
+    try {
+      var autoForm = new URLSearchParams(location.search).get('auto') === '1';
+      if (autoForm && state.joined && !state.duelStarted) {
+        var nPlayers = Object.keys(state.playerNames || {}).length;
+        if (nPlayers < 2 && !state.oppLeftNoticed) {
+          state.oppLeftNoticed = true;
+          logLine('⚠ 对手已不在房间里（断线或已被请出）→ 正在等新对手', 'rp-log-err');
+          ensureMatchingOverlay('对手已离开房间，正在等新对手…');
+        } else if (nPlayers >= 2 && state.oppLeftNoticed) {
+          state.oppLeftNoticed = false;
+          logLine('↻ 房里又有人了，继续', 'rp-log-phase');
+        }
+      }
+    } catch (e) {}
     $('btnStart').disabled = false;
     $('btnStart').title = bothReady ? '开始决斗'
       : ('还不能开始：' + ((state.mySeat >= 0 && state.ready[state.mySeat]) ? '对手还没准备' : '你还没点「准备」'));
