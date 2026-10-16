@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261018c">
+<link rel="stylesheet" href="css/duel-client.css?v=20261018e">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -254,6 +254,22 @@
 }
 .rp-turn-label { margin: 0 0 2px 0 !important; }
 .rp-phase { margin: 0 !important; }
+</style>
+<style>
+/* siro-overlay-zindex */
+/* 客户端自建浮层统一抬到场地(z-index 9000)之上 —— audit 发现它们原本都在 71~90 ✗
+   （备牌界面 85 / 亮牌 88 / 时点 72 / 数量条 71 / 投降 70 / 宣告 90 全被盖住过） */
+#ypSiding    { z-index: 9550 !important; }
+#ypCounts    { z-index: 9500 !important; }
+#ypReveal    { z-index: 9600 !important; }
+#ypTimeLeft  { z-index: 9700 !important; }
+#ypSurrender { z-index: 9700 !important; }
+#ypPrompt    { z-index: 9500 !important; }
+#ypDeclare   { z-index: 9550 !important; }
+#ypCardMenu  { z-index: 9450 !important; }
+#ypChooser   { z-index: 9400 !important; }
+/* 匹配遮罩例外：它本来就该在场地之下（只是盖住房间面板），保持低层 */
+#ypMatching  { z-index: 12 !important; }
 </style>
 </head>
 <body>
