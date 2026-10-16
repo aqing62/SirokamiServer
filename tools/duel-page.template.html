@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261017e">
+<link rel="stylesheet" href="css/duel-client.css?v=20261017f">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -106,10 +106,13 @@
     max-height: none !important; margin: 0 !important; padding: 4px !important;
     display: flex !important; flex-direction: column !important; background: #0a0a0c !important;
   }
-  /* 主区必须真的长满：flex-basis 用 0% 才会按剩余空间伸展（之前 282/432 ✗ 还空着 67px） */
+  /* 主区用**绝对定位**硬钉在顶栏下面 —— 模态框和它之间还有包装层，flex 作用不到（实测只长到 282/432 ✗）
+     用户反馈"上下变黑底、像锁了比例"，就是这个原因。 */
   #replayModal .replay-main {
-    flex: 1 1 0% !important; height: auto !important; min-height: 0 !important; max-height: none !important;
-    grid-template-columns: 8% minmax(0, 1fr) 16% !important;
+    position: absolute !important; left: 5px !important; right: 5px !important;
+    top: 74px !important; bottom: 4px !important;
+    width: auto !important; height: auto !important; max-height: none !important; aspect-ratio: auto !important;
+    grid-template-columns: 7% minmax(0, 1fr) 15% !important; gap: 6px !important;
   }
   #replayModal #ypCardInfo { max-width: none !important; width: auto !important; overflow: hidden !important; font-size: 10px !important; }
   #replayModal .replay-log { max-width: none !important; width: auto !important; min-width: 0 !important; flex: 0 0 auto !important; }
