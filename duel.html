@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261019r">
+<link rel="stylesheet" href="css/duel-client.css?v=20261020a">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -476,6 +476,78 @@
 /* 左上角数量条（对方/自己的 手·卡·额）—— 用户要求去掉：没什么用 ✓
    隐藏而不是删代码：手卡数仍然在后台统计 ✓ 对手手卡的卡背数量还靠它 ✓ 想恢复删掉这段即可 */
 #ypCounts { display: none !important; }
+</style>
+<style>
+/* siro-gold-glow */
+/* ── 可操作目标的金色粒子发光（用户要求）──
+   覆盖四种情况：额外卡组可特召 / 墓地可发动 / 场上卡可发动 / 手卡可发动
+   客户端本来就会给这些目标加类 ✓ 这里只升级它们的样式：
+     .yp-act / .yp-act-multi → 候选卡（场上/手卡/墓地候选）
+     .yp-pile-glow           → 可点的牌堆（墓地/额外/除外）
+   作用域限定在 #replayModal（决斗界面）✓ 老回放页面不受影响 ✓ */
+
+@keyframes ypGoldPulse {
+  0%, 100% { box-shadow: 0 0 6px 2px rgba(255,215,0,.60), inset 0 0 7px rgba(255,215,0,.30); }
+  50%      { box-shadow: 0 0 18px 7px rgba(255,215,0,1), inset 0 0 14px rgba(255,215,0,.65); }
+}
+@keyframes ypGoldFloat {
+  0%   { background-position: 0 0, 0 0, 0 0, 0 0, 0 0; opacity: .55; }
+  50%  { opacity: 1; }
+  100% { background-position: 0 -26px, 0 -18px, 0 -32px, 0 -22px, 0 -28px; opacity: .55; }
+}
+
+#replayModal .yp-act,
+#replayModal .yp-act-multi {
+  position: relative;
+  border-radius: 6px;
+  border: 2px solid rgba(255,215,0,.95) !important;
+  animation: ypGoldPulse 1.25s ease-in-out infinite !important;
+}
+/* 金色粒子：用 ::after 铺几颗小光点往上飘 ✓（不加 DOM ✓ 不吃点击 ✓） */
+#replayModal .yp-act::after,
+#replayModal .yp-act-multi::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9px;
+  pointer-events: none;
+  z-index: 5;
+  background-image:
+    radial-gradient(circle, rgba(255,235,150,.95) 0 1.4px, transparent 2px),
+    radial-gradient(circle, rgba(255,215,0,.85) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle, rgba(255,245,200,.9) 0 1.6px, transparent 2.2px),
+    radial-gradient(circle, rgba(255,205,60,.8) 0 1px, transparent 1.6px),
+    radial-gradient(circle, rgba(255,230,130,.9) 0 1.3px, transparent 2px);
+  background-size: 46px 26px, 38px 22px, 52px 32px, 34px 20px, 42px 28px;
+  background-position: 4px 20px, 14px 26px, 26px 18px, 34px 24px, 20px 28px;
+  background-repeat: repeat;
+  animation: ypGoldFloat 1.9s linear infinite;
+}
+
+/* 牌堆（墓地/额外）可点时：整格金色发光 + 同样的粒子 */
+#replayModal .yp-pile-glow {
+  border-radius: 6px;
+  animation: ypGoldPulse 1.25s ease-in-out infinite !important;
+  outline: 2px solid rgba(255,215,0,.85);
+  outline-offset: 1px;
+}
+#replayModal .yp-pile-glow::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 9px;
+  pointer-events: none;
+  z-index: 5;
+  background-image:
+    radial-gradient(circle, rgba(255,235,150,.95) 0 1.4px, transparent 2px),
+    radial-gradient(circle, rgba(255,215,0,.85) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle, rgba(255,245,200,.9) 0 1.6px, transparent 2.2px);
+  background-size: 48px 28px, 36px 22px, 54px 34px;
+  background-repeat: repeat;
+  animation: ypGoldFloat 1.9s linear infinite;
+}
+
+/* 竖屏/横屏都适用；不改变任何尺寸与点击区域 ✓ */
 </style>
 </head>
 <body>
