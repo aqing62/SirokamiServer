@@ -317,7 +317,8 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
     try:
         rows = conn.execute(
             "SELECT datas.id, texts.name, datas.type, datas.atk, datas.def, "
-            "datas.level, datas.race, datas.attribute, texts.desc, datas.alias, datas.setcode "
+            "datas.level, datas.race, datas.attribute, texts.desc, datas.alias, datas.setcode, "
+                    "texts.str1, texts.str2, texts.str3, texts.str4, texts.str5, texts.str6, texts.str7, texts.str8 "
             "FROM datas JOIN texts ON datas.id = texts.id"
         ).fetchall()
     finally:
@@ -325,7 +326,8 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
 
     cards = []
     for row in rows:
-        card_id, name, type_val, atk, def_, level, race, attr, desc, alias, setcode = row
+        (card_id, name, type_val, atk, def_, level, race, attr, desc, alias, setcode,
+         h1, h2, h3, h4, h5, h6, h7, h8) = row[:19]
         type_info = _parse_type(type_val)
         cards.append({
             "id": card_id,
@@ -338,6 +340,8 @@ def load_cards_from_cdb(cdb_path: Path) -> list:
             "race": race,
             "attribute": attr,
             "desc": desc,
+            # CDB 的效果提示文本（每个可选效果一条，如转生炎兽的意志：str1=特殊召唤1只怪兽 / str2=特殊召唤连接标记数量的怪兽）
+            "hints": [x for x in (h1, h2, h3, h4, h5, h6, h7, h8) if x],
             "alias": alias or 0,
             "setcode": setcode or 0,   # 字段（系列）编号，配合 /api/archetypes 映射为字段名
             "typeInfo": type_info,
@@ -1372,6 +1376,25 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 logger.error(f"先后手统计失败: {e}")
                 self._json_response({"ok": False, "error": str(e)}, status=502)
 
+        elif path == "/api/cardhints":
+            # 按卡号批量取「效果提示文本」（CDB texts.str1..str8）。
+            # 客户端在一张卡有多个可选效果时，用它把「发动效果①/②」标出来（很轻，按需取）。
+            try:
+                _q = unquote(self.path.split("?", 1)[1]) if "?" in self.path else ""
+                ids_raw = ""
+                for _kv in _q.split("&"):
+                    if _kv.startswith("ids="):
+                        ids_raw = _kv[4:]
+                want = [int(x) for x in ids_raw.split(",") if x.strip().isdigit()][:60]
+            except Exception:
+                want = []
+            _byid = {int(c.get("id")): c for c in (_cards_cache or [])}
+            _out = {}
+            for _cid in want:
+                _c = _byid.get(_cid)
+                if _c and _c.get("hints"):
+                    _out[str(_cid)] = _c["hints"]
+            self._json_response(_out)
         elif path == "/api/cardtext":
             # 决斗客户端的卡文表（约 6.8MB → gzip，客户端懒加载；首次请求才读盘）
             cache = _load_duel_json("duel-cards-text.json", _duel_text, "卡文表")
