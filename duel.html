@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261018e">
+<link rel="stylesheet" href="css/duel-client.css?v=20261018f">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -270,6 +270,36 @@
 #ypChooser   { z-index: 9400 !important; }
 /* 匹配遮罩例外：它本来就该在场地之下（只是盖住房间面板），保持低层 */
 #ypMatching  { z-index: 12 !important; }
+</style>
+<style>
+/* siro-cardinfo-layout */
+/* 卡片信息一栏：左卡图 / 右（卡名 → 基本信息 → 效果文本）——
+   原来六个元素排成多列，卡名被挤成一列竖字 ✗ */
+#ypCardInfo {
+  display: grid !important;
+  grid-template-columns: auto minmax(0, 1fr) !important;
+  gap: 4px 10px !important;
+  align-items: start !important;
+  align-content: start !important;
+  overflow: hidden !important;
+}
+#ypInfoImg {
+  grid-column: 1 !important; grid-row: 1 / span 5 !important;
+  max-height: 100% !important; width: auto !important; align-self: start !important;
+}
+#ypInfoName {
+  grid-column: 2 !important; grid-row: 1 !important;
+  font-size: 15px !important; font-weight: 800 !important;
+  white-space: normal !important; word-break: break-word !important; line-height: 1.3 !important;
+}
+#ypInfoType   { grid-column: 2 !important; grid-row: 2 !important; font-size: 12.5px !important; white-space: normal !important; }
+#ypInfoStat   { grid-column: 2 !important; grid-row: 3 !important; font-size: 12.5px !important; white-space: normal !important; }
+#ypInfoSeries { grid-column: 2 !important; grid-row: 4 !important; font-size: 12px !important; white-space: normal !important; color: #9b97a1 !important; }
+#ypInfoText {
+  grid-column: 2 !important; grid-row: 5 !important;
+  font-size: 12px !important; line-height: 1.55 !important;
+  overflow: auto !important; max-height: 100% !important; white-space: pre-wrap !important;
+}
 </style>
 </head>
 <body>
