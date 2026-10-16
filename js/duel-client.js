@@ -1443,6 +1443,57 @@
     }
   }
 
+
+  /**
+   * 单卡分值（用户要求：左侧卡片信息栏显示分值 ✓）
+   *   数据来自 /api/scores（组卡器/大厅用的是同一份 ✓）→ 取一次缓存 ✓
+   *   返回 {score, forbidden} 或 null
+   */
+  var _scoreMap = null, _scorePromise = null;
+  function loadScoreMap() {
+    if (_scorePromise) return _scorePromise;
+    _scorePromise = fetch('/api/scores?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : {}; })
+      .then(function (j) { _scoreMap = (j && !j.error) ? j : {}; return _scoreMap; })
+      .catch(function () { _scoreMap = {}; return _scoreMap; });
+    return _scorePromise;
+  }
+  function scoreOfCard(code) {
+    try {
+      if (!_scoreMap) { loadScoreMap(); return null; }
+      var e = _scoreMap[code] || _scoreMap[String(code)];
+      if (e === undefined || e === null) return null;
+      if (typeof e === 'number') return { score: e, forbidden: false };
+      return { score: (typeof e.score === 'number' ? e.score : null), forbidden: !!(e.forbidden || e.ban) };
+    } catch (e2) { return null; }
+  }
+  /** 把分值写到卡片信息栏（新加一行，插在"系列"后面 ✓ 幂等 ✓） */
+  function paintCardInfoScore(code) {
+    try {
+      var box = $('ypCardInfo');
+      if (!box) return;
+      var el = document.getElementById('ypInfoScore');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'ypInfoScore';
+        el.style.cssText = 'grid-column:1 / -1;font:700 12.5px/1.5 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;'
+          + 'color:#FFD700;margin-top:2px';
+        var series = document.getElementById('ypInfoSeries');
+        if (series && series.parentNode) series.parentNode.insertBefore(el, series.nextSibling);
+        else box.appendChild(el);
+      }
+      var s = scoreOfCard(code);
+      if (s && s.score !== null) {
+        el.textContent = '分值 ' + s.score + (s.forbidden ? '　⚠ 禁用卡' : '');
+        el.style.color = s.forbidden ? '#ff6b6b' : '#FFD700';
+      } else {
+        el.textContent = _scoreMap ? '分值 —（不在分值表里）' : '分值 读取中…';
+        el.style.color = '#9b97a1';
+        if (!_scoreMap) loadScoreMap().then(function () { if (state.infoCode === code) paintCardInfoScore(code); });
+      }
+    } catch (e) {}
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -4242,6 +4293,8 @@
     var sets = setNames(txt ? txt.s : 0);
     $('ypInfoSeries').textContent = sets.length ? ('系列：' + sets.join('、')) : '';
     $('ypInfoText').textContent = txt ? String(txt.d || '（无效果文本）').replace(/\r/g, '') : '（正在加载效果文本…）';
+    // 分值（用户要求 ✓ 左侧信息栏显示这张卡的分值）
+    try { paintCardInfoScore(code); } catch (e) {}
     layoutCardInfo();
     if (!txt) loadCardTexts().then(function () { if (state.infoCode === code) showCardInfo(code); });
   }
