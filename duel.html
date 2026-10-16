@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261019m">
+<link rel="stylesheet" href="css/duel-client.css?v=20261019n">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -398,6 +398,44 @@
 #ypInfoImg { opacity: 1 !important; }
 #ypInfoImg:not([src]), #ypInfoImg[src="] { opacity: 0 !important; }
 </style>
+<style>
+/* siro-cardinfo-pc-stack */
+/* 卡片信息栏布局按屏幕区分（用户明确要求）：
+     · PC / 横屏宽屏：**上图下字**（卡图在上，卡名/信息/效果文本在下）
+     · 手机竖屏：**左图右字**（左卡图、右文字）
+   上一版我把左图右字写成了全局 ✗ → PC 也变成左右了 ✗ */
+#ypCardInfo {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;   /* PC：单列 → 图在上、文字在下 ✓ */
+  grid-template-rows: auto auto auto auto auto auto !important;
+  gap: 3px 0 !important;
+  align-items: start !important;
+  align-content: start !important;
+  overflow: hidden !important;
+}
+#ypInfoImgBox {
+  grid-column: 1 !important;
+  grid-row: auto !important;        /* PC：不再跨 5 行 → 图自成一行 ✓ */
+  width: 100% !important;
+  max-width: 190px !important;      /* 卡图不要太大 ✓ 靠左 ✓ */
+  height: auto !important;
+  overflow: hidden !important;
+}
+#ypInfoImg { width: 100% !important; height: auto !important; max-height: 26dvh !important; object-fit: contain !important; display: block !important; }
+#ypInfoName, #ypInfoType, #ypInfoStat, #ypInfoSeries, #ypInfoText { grid-column: 1 !important; }
+#ypInfoName { font-size: 15px !important; font-weight: 800 !important; white-space: normal !important; word-break: break-word !important; }
+#ypInfoText { overflow: auto !important; max-height: 30dvh !important; }
+
+/* 手机竖屏 / 窄屏：回到左图右字 ✓ */
+@media (orientation: portrait), (max-width: 780px) {
+  #ypCardInfo {
+    grid-template-columns: min(38%, 190px) minmax(0, 1fr) !important;
+    gap: 4px 10px !important;
+  }
+  #ypInfoImgBox { grid-column: 1 !important; grid-row: 1 / span 5 !important; max-width: none !important; }
+  #ypInfoName, #ypInfoType, #ypInfoStat, #ypInfoSeries, #ypInfoText { grid-column: 2 !important; }
+}
+</style>
 </head>
 <body>
 
@@ -527,7 +565,7 @@
 
 <script src="js/ygopro-web-browser.js?v=20261016a"></script>
 <script src="js/viewer-live.js?v=20261019g"></script>
-<script src="js/duel-client.js?v=20261019m"></script>
+<script src="js/duel-client.js?v=20261019n"></script>
 <script>
 /* 入口层逻辑：登录 / 显示当前卡组 / 开始匹配（不改客户端产物） */
 (function () {

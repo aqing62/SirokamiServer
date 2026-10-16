@@ -1784,8 +1784,11 @@
               }
             } catch (e) {}
             var _to = _mf.to;
+            var DECK2 = 1;   // LOC.DECK —— 抽卡时 MSG_DRAW 已经 +1 了 ✗ 这里再 +1 就重复
             if (_from === HAND2 && _to !== HAND2) setCount(_dp3, 'hand', Math.max(0, (_cnt[_dp3].hand || 0) - 1));
-            else if (_to === HAND2 && _from !== HAND2) setCount(_dp3, 'hand', (_cnt[_dp3].hand || 0) + 1);
+            else if (_to === HAND2 && _from !== HAND2 && _from !== DECK2) setCount(_dp3, 'hand', (_cnt[_dp3].hand || 0) + 1);
+            // ⚠ 卡组→手牌(抽卡)走 MSG_DRAW 计数 ✓ 否则每抽一张多算 1，时间一长手卡数会飘
+            //   （用户实测：对手实际 3 张手卡，界面显示 14 张 ✗）
           }
         } catch (e) {}
       }
