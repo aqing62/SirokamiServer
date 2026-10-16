@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261018z">
+<link rel="stylesheet" href="css/duel-client.css?v=20261019j">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -358,6 +358,39 @@
 }
 #ypSurrender { right: 8px !important; left: auto !important; top: 6px !important; }
 /* 左上角数量条保持原位（它不会和中间/右边的冲突） */
+</style>
+<style>
+/* siro-cardinfo-img-fix2 */
+/* 卡片信息栏的卡图 —— 实测根因（PC 端无头量测）：
+   面板 cols = 0px 181.75px ✗ 第一列宽度是 0 → 卡图被压成 0x0 ✓
+   原因：我给第一列写了 auto，而列内是 max-width:100% 的图片 + overflow:hidden → 循环依赖 → 解析成 0 ✗
+   而且 grid-row: 1/span 5 我写在了 <img> 上 ✗ —— 它是包在 #ypInfoImgBox 里的，定位要写在**盒子**上 ✓ */
+#ypCardInfo {
+  grid-template-columns: min(38%, 190px) minmax(0, 1fr) !important;   /* ★ 第一列给**固定**宽度，不用 auto ✗ */
+  align-items: start !important;
+  align-content: start !important;
+  gap: 4px 10px !important;
+  overflow: hidden !important;
+}
+#ypInfoImgBox {                     /* 卡图的盒子才是 grid 子元素 ✓ */
+  grid-column: 1 !important;
+  grid-row: 1 / span 5 !important;
+  width: 100% !important;
+  height: auto !important;
+  max-height: 100% !important;
+  overflow: hidden !important;
+  align-self: start !important;
+}
+#ypInfoImg {
+  width: 100% !important;
+  height: auto !important;
+  max-width: 100% !important;
+  max-height: 26dvh !important;
+  object-fit: contain !important;
+  display: block !important;
+}
+#ypInfoName, #ypInfoType, #ypInfoStat, #ypInfoSeries, #ypInfoText { grid-column: 2 !important; }
+#ypInfoText { overflow: auto !important; }
 </style>
 </head>
 <body>
