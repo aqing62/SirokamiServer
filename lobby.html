@@ -167,6 +167,20 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
 .row-inline .k-gap { margin-left:22px; }
 .row-inline select { min-width:150px; max-width:230px; flex:0 1 auto; }
 .row-inline .mode { padding:8px 16px; font-size:.88rem; }
+
+/* ── 手机竖屏：整体缩到 75%（用户要求）+ 顶部改纵向，避免被挤成"一列竖字" ── */
+@media (orientation: portrait), (max-width: 780px) {
+  html { zoom: .75; }                     /* 整体 75%（Chrome/Edge/手机浏览器都支持）*/
+  .wrap { max-width: none; padding-left: 6px; padding-right: 6px; }
+  .top { flex-wrap: wrap; row-gap: 8px; }
+  .top-mid { flex: 1 1 100%; min-width: 0; order: 2; }
+  .mine { flex: 1 1 100%; order: 3; justify-content: flex-start; }
+  .btn.start-top { order: 1; margin-left: auto; }
+  .title { font-size: 1.15rem; }
+  .who, .hint { white-space: normal; line-height: 1.5; }
+  .row-inline { flex-wrap: wrap; row-gap: 8px; }
+  .deck-cards { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+}
 </style>
 </head>
 <body>
