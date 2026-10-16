@@ -72,7 +72,8 @@ function initReplayViewer() {
     var turnCount = 0;        // 当前回合数（每次 NewTurn +1）
     var phaseText = '';
     var deckCount = [0, 0];  // 剩余卡组张数：开局=mainc，抽卡/移出卡组递减，回卡组递增
-    var extraCount = [0, 0]; // 额外卡组张数（开局按 UpdateData(64) 列表，出场/回收增减）
+    var extraCount = [0, 0];
+    var handCountAtStart = [0, 0];   // PATCH(白神服): 开局手卡数（对手手卡只给数量，卡面是背面） // 额外卡组张数（开局按 UpdateData(64) 列表，出场/回收增减）
     var inBattle = false;        // 是否处于伤害步骤（战斗消息上下文）
     var animSuppress = false;    // 进度条大跳等批量处理时关闭动画
     var preloading = false;      // 卡图预加载中
@@ -1882,9 +1883,18 @@ function initReplayViewer() {
                 // 卡组张数 = 开局主卡组数(mainc)，此后由 Draw/Move 增减
                 deckCount = [0, 0];
                 extraCount = [0, 0];
+                handCountAtStart = [0, 0];
+                // PATCH(白神服 2026-10-16): 原来这里只读 p.mainc（主卡组数），**漏了 p.extrac**，
+                //   于是「刚进游戏时看不到对手的额外卡组数量」（手卡同理：p.handc 也没读）。
+                //   MSG_START 的每个玩家本来就有 mainc/handc/extrac 三个数，重放/重连那条路径
+                //   （下面的 reinit）也是两个都读的 —— 只有开局这条路径漏了。
+                handCountAtStart = [0, 0];
                 (meta && meta.players || []).forEach(function (p) {
                     var dp = duelSeat(p.pos);
-                    if ((dp === 0 || dp === 1) && p.mainc) deckCount[dp] = p.mainc;
+                    if (dp !== 0 && dp !== 1) return;
+                    if (p.mainc) deckCount[dp] = p.mainc;
+                    if (p.extrac !== undefined && p.extrac !== null) extraCount[dp] = p.extrac;
+                    if (p.handc !== undefined && p.handc !== null) handCountAtStart[dp] = p.handc;
                 });
                 createFieldDOM();
                 log('对局开始（房间 ' + (meta.roomName || '') + '）');
