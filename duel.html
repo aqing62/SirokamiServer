@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261018h">
+<link rel="stylesheet" href="css/duel-client.css?v=20261018s">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -300,6 +300,30 @@
   grid-column: 2 !important; grid-row: 5 !important;
   font-size: 12px !important; line-height: 1.55 !important;
   overflow: auto !important; max-height: 100% !important; white-space: pre-wrap !important;
+}
+</style>
+<style>
+/* siro-ctl-right-pc */
+/* PC / 横屏：阶段按钮组与回合标签挪到右侧 —— 放场地正中太容易误触(用户要求)
+   竖屏那套(#ypCtl 底部横排)在 portrait 媒体查询里，这里只作用于非竖屏 */
+#ypCtl {
+  grid-template-columns: 1fr auto !important;
+  padding-right: 22px !important;
+  box-sizing: border-box !important;
+}
+#ypCtl > #ypCtlMid  { justify-self: end !important; }
+#ypCtl > #ypCtlRight { justify-self: end !important; }
+#ypCtl > .yp-ctl-left { justify-self: start !important; }
+/* 回合/阶段标签：靠右对齐并推到右侧（原来是场地正中） */
+.rp-turn-label, .rp-phase {
+  text-align: right !important;
+  margin-left: auto !important;
+  margin-right: 4px !important;
+}
+@media (orientation: portrait) {
+  /* 竖屏保持不变（按钮在底部横排，标签照旧） */
+  #ypCtl { padding-right: 0 !important; grid-template-columns: none !important; }
+  .rp-turn-label, .rp-phase { text-align: left !important; margin-left: 0 !important; }
 }
 </style>
 </head>
