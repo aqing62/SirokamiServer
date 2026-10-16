@@ -1256,6 +1256,7 @@
       state.fxTags.push({ code: code, text: text });
       logLine('▸ ' + text + '（' + cardLabel({ code: code }) + '）', 'rp-log-hint');
       try { applyEffectTags(); } catch (e) {}
+      try { paintMaterialBadges(); } catch (e) {}
     } catch (e) {}
   }
 
@@ -1342,6 +1343,85 @@
             .catch(function () {});
         });
     } catch (e) {}
+  }
+
+
+  /* ═══════════ 超量素材（OVERLAY = 0x80）═══════════
+     用户要求：① 超量怪上要能看见素材 ② 点超量怪弹「查看列表」 ③ 点开能看到素材列表
+     客户端原来完全没跟踪素材 ✗；查看器只有个很小的 ◆N 且统计的是"召唤前叠放"，召唤完常为 0 ✗
+     这里：用 MSG_MOVE 的 to/from = OVERLAY(128) 记录到宿主格位 ✓ 再画角标 + 提供菜单 ✓ */
+  function matZoneKey(info) {
+    try {
+      var ctl = info.controller !== undefined ? info.controller : info.controler;
+      var loc = info.location, seq = info.sequence;
+      if (loc === undefined || seq === undefined) return null;
+      if ((loc & 0x7f) !== 4 && (loc & 0x7f) !== 8) return null;      // 只关心 怪兽区/魔陷区 上的宿主
+      return flipSeat(ctl) + ':' + (loc & 0x7f) + ':' + seq;          // 与查看器 data-zone 同口径 ✓
+    } catch (e) { return null; }
+  }
+  function matKeyOfMove(f) {
+    try {
+      var ctl = (f.controller !== undefined) ? f.controller : (f.info ? f.info.controller : undefined);
+      var loc = (f.location !== undefined) ? f.location : (f.info ? f.info.location : undefined);
+      var seq = (f.sequence !== undefined) ? f.sequence : (f.info ? f.info.sequence : undefined);
+      if (ctl === undefined || loc === undefined || seq === undefined) return null;
+      return flipSeat(ctl) + ':' + ((loc | 0) & 0x7f) + ':' + seq;
+    } catch (e) { return null; }
+  }
+  /** 记一笔素材变化（to=OVERLAY 加、from=OVERLAY 减） */
+  function trackMaterial(code, from, to, hostInfo) {
+    try {
+      state.mats = state.mats || {};          // zoneKey → [code, ...]
+      var key = null;
+      if (to !== undefined && (to & 0x80)) key = matZoneKey(hostInfo || {});
+      if (!key) return;
+      var arr = state.mats[key] = state.mats[key] || [];
+      if (from !== undefined && (from & 0x80)) {
+        // 从宿主里拿走一张
+        var idx = arr.lastIndexOf(code);
+        if (idx >= 0) arr.splice(idx, 1); else if (arr.length) arr.pop();
+      } else {
+        arr.push(code);
+      }
+      paintMaterialBadges();
+    } catch (e) {}
+  }
+  /** 在所有宿主格位上画「⬢N 素材」角标（幂等，可反复调用 ✓ 查看器重绘后会补回来 ✓） */
+  function paintMaterialBadges() {
+    try {
+      var mats = state.mats || {};
+      Object.keys(mats).forEach(function (key) {
+        var list = mats[key] || [];
+        var cell = document.querySelector('.rp-cell[data-zone="' + key + '"]');
+        if (!cell) return;
+        var old = cell.querySelector('.yp-mats');
+        if (!list.length) { if (old) old.remove(); return; }
+        if (old) { if (old.textContent !== ('⬢' + list.length)) old.textContent = '⬢' + list.length; return; }
+        if (getComputedStyle(cell).position === 'static') cell.style.position = 'relative';
+        var b = document.createElement('div');
+        b.className = 'yp-mats';
+        b.textContent = '⬢' + list.length;
+        b.title = '超量素材 ' + list.length + ' 张（点这张怪 → 查看超量素材）';
+        b.style.cssText = 'position:absolute;right:2px;bottom:2px;z-index:16;padding:1px 6px;border-radius:9px;'
+          + 'background:linear-gradient(135deg,#2b1d05,#4a3208);color:#FFD700;border:1px solid rgba(255,215,0,.9);'
+          + 'font:800 11px/1.5 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;pointer-events:none;'
+          + 'box-shadow:0 0 6px rgba(255,215,0,.55)';
+        cell.appendChild(b);
+      });
+    } catch (e) {}
+  }
+  /** 超量素材列表（复用选择盘的外观：只读，点一项看卡图） */
+  function showMaterialList(zoneKey, hostCode) {
+    try {
+      var list = (state.mats && state.mats[zoneKey]) || [];
+      if (!list.length) { logLine('这只怪身上没有超量素材', 'rp-log-hint'); return; }
+      var items = list.slice().reverse().map(function (code) {
+        return { t: cardLabel({ code: code }), img: code, tip: '超量素材' };
+      });
+      showChooser((hostCode ? cardLabel({ code: hostCode }) + '：' : '') + '超量素材（' + list.length + ' 张）', items, {});
+    } catch (e) {
+      try { logLine('素材列表打开失败', 'rp-log-err'); } catch (e2) {}
+    }
   }
 
   function scheduleReconnect() {
@@ -1797,6 +1877,21 @@
               markFaceDown(_c3, (_from3 | 0) & 0x7f, _s3, false);
             }
           }
+        } catch (e) {}
+      }
+      // ★ 超量素材：from/to 带 0x80(OVERLAY) 时记一笔 ✓（用户要求：看得见素材、能列出来）
+      if (msg.msg && msg.msg.constructor && msg.msg.constructor.name === 'YGOProMsgMove') {
+        try {
+          var _mm = msg.msg;
+          var _mInfo = _mm.info || {};
+          var _host = (_mm.to !== undefined && (_mm.to & 0x80))
+            ? { controller: _mInfo.controller, location: _mInfo.location, sequence: _mInfo.sequence }
+            : { controller: _mm.player, location: _mm.toSequence !== undefined ? _mm.to : undefined, sequence: _mm.toSequence };
+          if (_mm.to !== undefined && (_mm.to & 0x80) && _host.location === undefined) {
+            // 去向=素材时，宿主信息在 info.location/sequence（该怪所在格）✓
+            _host.location = _mInfo.location; _host.sequence = _mInfo.sequence;
+          }
+          trackMaterial(_mm.code || 0, _mm.from, _mm.to, _host);
         } catch (e) {}
       }
       // 手牌进出：MSG_MOVE 含 from/to（LOC.HAND = 2）—— 只统计 MSG_DRAW 会漏"手牌回卡组"，
@@ -3566,6 +3661,33 @@
     if (m && m.parentNode) m.parentNode.removeChild(m);
     state.menuFor = null;
   }
+
+  // 包装卡片菜单：点的是"带超量素材的怪"时，追加一条「查看超量素材(N)」✓（用户要求 ✓）
+  try {
+    if (typeof showCardMenu === 'function' && !showCardMenu.__matWrapped) {
+      var _origShowCardMenu = showCardMenu;
+      var _wrappedMenu = function (el, actions, pt) {
+        try {
+          var key = null, hostCode = 0;
+          var node = el;
+          while (node && node !== document.body) {
+            if (node.getAttribute && node.getAttribute('data-zone')) { key = node.getAttribute('data-zone'); break; }
+            node = node.parentNode;
+          }
+          if (key && state.mats && state.mats[key] && state.mats[key].length) {
+            var im = el.querySelector ? el.querySelector('img') : null;
+            if (im && im.src) { var mm = String(im.src).match(/(\d{1,9})\.jpg/); if (mm) hostCode = Number(mm[1]); }
+            actions = (actions || []).slice();
+            actions.push({ t: '查看超量素材（' + state.mats[key].length + '）', f: function () { showMaterialList(key, hostCode); } });
+          }
+        } catch (e) {}
+        return _origShowCardMenu.call(this, el, actions, pt);
+      };
+      _wrappedMenu.__matWrapped = true;
+      showCardMenu = _wrappedMenu;
+    }
+  } catch (e) {}
+
   function showCardMenu(el, actions, pt) {
     hideCardMenu();
     var box = document.createElement('div');
