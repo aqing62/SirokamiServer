@@ -266,7 +266,17 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     $('avatarBox').appendChild(av);
     setStartEnabled(false);          // 先禁用，等卡组列表回来再决定
     loadDecks(); loadMine(d);
-  }).catch(function () { $('who').textContent = '读取登录状态失败'; });
+  })
+    // 段位：whoami 现在返回 ladder（当前赛季 S3 按排名百分位算 ✓ + 名次）
+    // 原来依赖 /api/forum/profile/ladder —— 站点没有这个路由(404) → 段位一直显示库里上季结算头衔(S2) ✗
+    try {
+      var _lt = d.ladder || {};
+      if (_lt.tier) {
+        set('mTier', _lt.tier + (_lt.rank && _lt.total ? ('（第' + _lt.rank + '/' + _lt.total + '名）') : ''));
+      }
+      if (_lt.rating !== undefined && _lt.rating !== null) set('mRating', _lt.rating + '分');
+    } catch (e) {}
+  .catch(function () { $('who').textContent = '读取登录状态失败'; });
 
   // ── 卡组库 ──
   function loadDecks() {
