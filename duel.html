@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261017q">
+<link rel="stylesheet" href="css/duel-client.css?v=20261017s">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -193,6 +193,13 @@
 #replayModal { z-index: 10 !important; }
 #ypReveal { z-index: 201 !important; }
 #ypTimeLeft, #ypSurrender { z-index: 205 !important; }
+
+/* ── 卡图加载提示不能挡住操作（命中测试实测：它盖在猜拳按钮上面 ✗）──
+   .rp-loading-tip 一直浮在场地中央，pointer-events 默认 auto → 猜拳/连锁/选择全点不到 */
+/* rp-loading-tip-noblock */
+.rp-loading-tip, #rpLoadingTip, .replay-loading-tip {
+  pointer-events: none !important; z-index: 5 !important; opacity: .85 !important;
+}
 </head>
 <body>
 
