@@ -891,6 +891,56 @@
     } catch (e) {}
   }
 
+
+  /**
+   * 场地上的**里侧卡（盖卡）**：引擎给的是 code = 0，而查看器按卡号画牌 → 一片空白 ✗
+   * （用户实测：对手后场 2 张盖卡一张都没画，只画了表侧那张 ✓）
+   * 这里客户端自己跟踪：MSG_SET 盖上 → 贴卡背；翻面(POS_CHANGE)/离场(MOVE) → 摘掉。
+   * 用官网同一张卡背图 cover2.jpg，和对手手卡的补法一致。
+   */
+  function fdZoneEl(ctl, loc, seq) {
+    var tries = [
+      ctl + ':' + loc + ':' + seq,
+      flipSeat(ctl) + ':' + loc + ':' + seq,
+    ];
+    for (var i = 0; i < tries.length; i++) {
+      var el = document.querySelector('.rp-cell[data-zone="' + tries[i] + '"]');
+      if (el) return el;
+    }
+    return null;
+  }
+  function markFaceDown(ctl, loc, seq, on) {
+    try {
+      if (ctl !== 0 && ctl !== 1) return;
+      var el = fdZoneEl(ctl, loc, seq);
+      if (!el) return;
+      var cur = el.querySelector('.yp-fd-back');
+      if (on) {
+        if (cur) return;
+        var d = document.createElement('div');
+        d.className = 'yp-fd-back';
+        d.style.cssText = 'position:absolute;inset:0;border-radius:3px;z-index:3;'
+          + 'background:#101720 url("' + FACE_DOWN_IMG + '") center/cover no-repeat;'
+          + 'box-shadow:0 0 0 1px rgba(120,90,60,.6) inset';
+        if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+        el.appendChild(d);
+        // 位置键记下来，翻面/离场时按它摘（避免 seq 被查看器重排后找不到）
+        state.fdZones = state.fdZones || {};
+        state.fdZones[ctl + ':' + loc + ':' + seq] = 1;
+      } else if (cur) {
+        cur.remove();
+        if (state.fdZones) delete state.fdZones[ctl + ':' + loc + ':' + seq];
+      }
+    } catch (e) {}
+  }
+  /** 全清（新一局/快照重建时用） */
+  function clearFaceDowns() {
+    try {
+      Array.prototype.forEach.call(document.querySelectorAll('.yp-fd-back'), function (e) { e.remove(); });
+      state.fdZones = {};
+    } catch (e) {}
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -1299,6 +1349,34 @@
       state.recentIds = state.recentIds || [];
       state.recentIds.push(id);
       if (state.recentIds.length > 40) state.recentIds.shift();
+      // 场地盖卡：MSG_SET = 盖下去（引擎给 code=0，查看器画不出来）；翻面/离场则摘掉卡背
+      if (msg.msg && msg.msg.constructor) {
+        var _cn = msg.msg.constructor.name, _f = msg.msg;
+        try {
+          if (_cn === 'YGOProMsgSet') {
+            var _c1 = (_f.controller !== undefined) ? _f.controller : (_f.info ? _f.info.controller : undefined);
+            var _l1 = (_f.location !== undefined) ? _f.location : (_f.info ? _f.info.location : undefined);
+            var _s1 = (_f.sequence !== undefined) ? _f.sequence : (_f.info ? _f.info.sequence : undefined);
+            markFaceDown(_c1, (_l1 | 0) & 0x7f, _s1, true);
+          } else if (_cn === 'YGOProMsgPosChange') {
+            var _c2 = (_f.controller !== undefined) ? _f.controller : (_f.info ? _f.info.controller : undefined);
+            var _l2 = (_f.location !== undefined) ? _f.location : (_f.info ? _f.info.location : undefined);
+            var _s2 = (_f.sequence !== undefined) ? _f.sequence : (_f.info ? _f.info.sequence : undefined);
+            var _cur2 = (_f.current !== undefined) ? _f.current : _f.position;
+            // 翻成表侧 → 摘掉卡背（0x2/0x8 是里侧）
+            if (_cur2 !== undefined && !(_cur2 & 0x2) && !(_cur2 & 0x8)) markFaceDown(_c2, (_l2 | 0) & 0x7f, _s2, false);
+            else markFaceDown(_c2, (_l2 | 0) & 0x7f, _s2, true);
+          } else if (_cn === 'YGOProMsgMove') {
+            var _c3 = (_f.player !== undefined) ? _f.player : (_f.info ? _f.info.controller : undefined);
+            var _from3 = (_f.from !== undefined) ? _f.from : (_f.info ? _f.info.location : undefined);
+            var _s3 = (_f.fromSequence !== undefined) ? _f.fromSequence : (_f.info ? _f.info.sequence : undefined);
+            // 从怪兽区/魔陷区离开 → 摘掉卡背
+            if (_from3 !== undefined && (((_from3 | 0) & 0x7f) === 4 || ((_from3 | 0) & 0x7f) === 8)) {
+              markFaceDown(_c3, (_from3 | 0) & 0x7f, _s3, false);
+            }
+          }
+        } catch (e) {}
+      }
       // 手牌进出：MSG_MOVE 含 from/to（LOC.HAND = 2）—— 只统计 MSG_DRAW 会漏"手牌回卡组"，
       // 于是万宝槌 5→回3抽3 在对面看来只剩 2 张（用户实测 ✗）
       if (msg.msg && msg.msg.constructor && msg.msg.constructor.name === 'YGOProMsgMove') {
