@@ -483,6 +483,12 @@
     state.sidingActive = false;
     logLine('↩ 备牌：' + why + '（主 ' + (state.deck.main || []).length + ' / 额外 ' + (state.deck.extra || []).length
       + ' / 副 ' + (state.deck.side || []).length + '）', 'rp-log-phase');
+    // ⚠ 备牌结束后是**新的一局**：把上一局的痕迹清掉 ——
+    //   客户端会把对局状态存进 localStorage('yp_duel_<room>')，重连/重放时会拿它重建场地；
+    //   不清的话新一局可能把上一局的盘面重建出来（用户反馈"备牌结束之后场地没有刷新"）。
+    try { localStorage.removeItem('yp_duel_' + state.room); } catch (e) {}
+    state.picked = []; state.pending = null; state.duelStarted = false;
+    state.myDuelPos = -1; state.lastPosChange = null; state.lastSearch = null;
     setUiPhase('duel');
     uploadDeckAndReady();
   }
@@ -851,6 +857,35 @@
    * 服务端在胜负后会把房间退回"准备"状态（players 的 READY 被清掉），
    * 但如果客户端不把 duelStarted 复位，renderLobby 会一直早退 → 玩家看到的就是"打完了还卡在场上"。
    */
+
+  /** 播报对局结果（等服务端「X 获胜!」到达后再播，避免和服务端说反） */
+  function announceDuelEnd() {
+    var d = state.duelEndInfo;
+    if (!d || d.done) return;
+    d.done = true;
+    logLine('★ 对局结束：' + (d.meWin ? '你赢了' : '你输了') + d.reason
+      + (d.byServer ? '（按服务端判定）' : ''), 'rp-log-win');
+  }
+
+  /** 服务端播报「『某人』 获胜!」时调用：以它为准纠正结论 */
+  function onServerWinAnnounce(text) {
+    var me = '';
+    try { me = accountName() || ''; } catch (e) {}
+    if (!me) return;
+    var iWin = text.indexOf(me) >= 0;
+    var d = state.duelEndInfo;
+    if (d && !d.done) {
+      if (d.meWin !== iWin) {
+        d.meWin = iWin;
+        logLine('（结论以服务端为准：' + (iWin ? '你赢了' : '你输了') + ' —— 客户端自己算的与它不一致）', 'rp-log-hint');
+      }
+      d.byServer = true;
+      announceDuelEnd();
+    } else {
+      logLine('🏁 服务端判定：' + (iWin ? '你赢了' : '你输了'), 'rp-log-win');
+    }
+  }
+
   function onDuelEnd(m) {
     var meWin = m && m.player !== undefined && flipSeat(m.player) === 0;
     var reason = '';
@@ -858,7 +893,11 @@
       var vt = victoryText(m.type);                 // strings.conf 的 !victory 表：0=投降 1=基本分变成0 …
       reason = vt ? ('（' + vt + '）') : '';
     }
-    logLine('★ 对局结束：' + (meWin ? '你赢了' : '你输了') + reason, 'rp-log-win');
+    // ⚠ 原来这里立刻播报"你赢了/你输了"，实测出现过和服务端相反（说反）✗
+    //   服务端随后会播报「『X』 获胜!」——那是服务端自己判的，最权威。
+    //   所以：先把结论存下来，等 2.5 秒；服务端播报一到就按它改，然后再播报。
+    state.duelEndInfo = { meWin: !!meWin, reason: reason, byServer: false, done: false };
+    setTimeout(announceDuelEnd, 2500);
     state.duelStarted = false;
     state.myDuelPos = -1;
     state.readySent = false;               // 回大厅后可以再准备下一局
@@ -993,6 +1032,10 @@
         logLine('▸ 进入备牌界面（限 ' + mm + ' 分钟）', 'rp-log-phase');
         ensureSidingUI(mm);
         return;
+      }
+      // 服务端赛果播报（最权威，用来纠正客户端自己的胜负判断）
+      if (msg.msg && msg.msg.indexOf('获胜') >= 0 && msg.msg.indexOf('[Server]') < 0) {
+        onServerWinAnnounce(msg.msg);
       }
       if (msg.msg && msg.msg.indexOf('登录成功') >= 0) {
         state.loggedInOk = true;
@@ -1766,12 +1809,9 @@
         } else if (m.identifier === 143) {    // 数字：提交下标
           ab = (m.numbers || []).map(function (n, k) { return { t: '数字 ' + n, f: (function (idx) { return function () { respond(m.prepareResponse(idx)); }; })(k) }; });
         } else if (m.identifier === 142) {    // 卡名宣言（如「禁止令」）
-          var inp = '';
-          try { inp = prompt('宣言卡名（输入卡号；留空＝宣言一个不存在的名字）', '') || ''; } catch (e) { inp = ''; }
-          var code = inp ? Number(inp) : 0;
-          // ⚠ prompt 被浏览器拦截或玩家取消时**必须照样应答**，否则对局就永远卡在这一问
-          if (!code) logLine('（没输入卡号 → 按"宣言一个不存在的名字"继续，避免卡死）', 'rp-log-hint');
-          respond(m.prepareResponse(code));
+          // 卡名输入 + 候选列表（原来用原生 prompt 且要输卡号 ✗）
+          // ⚠ 无论玩家怎么操作都必须发应答，否则对局永远卡在这一问
+          declareCardName(m);
           return;
         }
         showActions(ab.slice(0, 40), '请宣言');
@@ -2149,6 +2189,86 @@
       + ' line-height:14px; width:14px; text-align:center; border-radius:3px; }';
     document.head.appendChild(st);
   })();
+
+
+  /**
+   * 卡名宣言（禁止令、王家的财宝等）：输入**卡名**边打边出候选，点一条即选中。
+   * 原来用的是浏览器原生 prompt 且要求输**卡号**（玩家根本记不住），体验差且易卡死。
+   * 兼容：输入纯数字仍按卡号处理；输入空/找不到 → 宣言一个不存在的名字（code=0）。
+   */
+  function declareCardName(m) {
+    var old = document.getElementById('ypDeclare');
+    if (old) old.remove();
+    var all = Object.keys(state.cardsById || {}).map(function (id) {
+      var c = state.cardsById[id] || {};
+      return { id: Number(id), name: c.name || c.cn_name || c.sc_name || '' };
+    }).filter(function (x) { return x.name; });
+    var box = document.createElement('div');
+    box.id = 'ypDeclare';
+    box.style.cssText = 'position:fixed;inset:0;z-index:90;display:flex;align-items:flex-start;justify-content:center;'
+      + 'background:rgba(6,6,8,.72);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#ece9e4;padding:6vh 12px';
+    box.innerHTML = '<div style="width:min(560px,96vw);background:#141116;border:1px solid rgba(216,30,68,.5);'
+      + 'border-radius:12px;padding:16px 18px;box-shadow:0 20px 60px rgba(0,0,0,.7)">'
+      + '<div style="font-size:16px;font-weight:800;letter-spacing:1px;color:#F0E68C;margin-bottom:4px">宣言卡名</div>'
+      + '<div style="font-size:12.5px;color:#9b97a1;margin-bottom:10px">输入卡名会实时列出候选（如输入「真红眼」）· 也可以直接输卡号</div>'
+      + '<input id="ypDeclareInput" autocomplete="off" placeholder="卡名 或 卡号"'
+      + ' style="width:100%;box-sizing:border-box;padding:11px 12px;font-size:15px;border-radius:8px;'
+      + 'border:1px solid #2a3542;background:#0d1117;color:#ece9e4;font-family:inherit">'
+      + '<div id="ypDeclareList" style="max-height:44vh;overflow:auto;margin-top:8px"></div>'
+      + '<div style="display:flex;gap:10px;justify-content:flex-end;margin-top:12px">'
+      + '<button id="ypDeclareSkip" style="padding:10px 16px;border-radius:999px;background:transparent;'
+      + 'border:2px solid rgba(216,30,68,.75);color:#F0E68C;font-weight:700;cursor:pointer;font-family:inherit">宣言不存在的卡名</button>'
+      + '<button id="ypDeclareOk" style="padding:10px 22px;border-radius:999px;border:none;cursor:pointer;'
+      + 'background:linear-gradient(135deg,#D4AF37,#FFD700);color:#1a1a2e;font-weight:800;font-family:inherit">确定</button>'
+      + '</div></div>';
+    document.body.appendChild(box);
+    var inp = document.getElementById('ypDeclareInput');
+    var list = document.getElementById('ypDeclareList');
+    function submit(code) {
+      box.remove();
+      logLine('宣言：' + (code ? ('卡 ' + code + (state.cardsById[code] ? '（' + state.cardsById[code].name + '）' : '')) : '一个不存在的卡名'), 'rp-log-phase');
+      respond(m.prepareResponse(code));
+    }
+    function render() {
+      var q = (inp.value || '').trim();
+      if (!q) { list.innerHTML = '<div style="font-size:12.5px;color:#6f6f78;padding:6px 2px">开始输入…（共 ' + all.length + ' 张卡可宣言）</div>'; return; }
+      if (/^\d+$/.test(q)) {
+        var c0 = state.cardsById[q];
+        list.innerHTML = '<div data-dec="' + q + '" style="padding:9px 10px;border-radius:6px;cursor:pointer;background:#1b2430">'
+          + '卡号 ' + q + (c0 ? '　' + c0.name : '（卡表里没有这张）') + '</div>';
+      } else {
+        var hit = all.filter(function (x) { return x.name.indexOf(q) >= 0; }).slice(0, 40);
+        list.innerHTML = hit.length
+          ? hit.map(function (x) { return '<div data-dec="' + x.id + '" style="padding:8px 10px;border-radius:6px;cursor:pointer">'
+              + x.name + '<span style="color:#6f6f78;font-size:11.5px">　' + x.id + '</span></div>'; }).join('')
+          : '<div style="font-size:12.5px;color:#FF8A8A;padding:6px 2px">没有名字含「' + q + '」的卡 —— 点「确定」＝宣言一个不存在的名字</div>';
+      }
+      Array.prototype.forEach.call(list.querySelectorAll('[data-dec]'), function (el) {
+        el.onmouseenter = function () { el.style.background = '#243040'; };
+        el.onmouseleave = function () { el.style.background = 'transparent'; };
+        el.onclick = function () { submit(Number(el.getAttribute('data-dec'))); };
+      });
+    }
+    inp.oninput = render;
+    inp.onkeydown = function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); pickOrSubmit(); }
+      if (ev.key === 'Escape') { ev.preventDefault(); submit(0); }
+    };
+    function pickOrSubmit() {
+      var q = (inp.value || '').trim();
+      if (!q) { submit(0); return; }
+      if (/^\d+$/.test(q)) { submit(Number(q)); return; }
+      var exact = all.filter(function (x) { return x.name === q; })[0];
+      if (exact) { submit(exact.id); return; }
+      var first = list.querySelector('[data-dec]');
+      if (first) { submit(Number(first.getAttribute('data-dec'))); return; }
+      submit(0);
+    }
+    document.getElementById('ypDeclareOk').onclick = pickOrSubmit;
+    document.getElementById('ypDeclareSkip').onclick = function () { submit(0); };
+    render();
+    setTimeout(function () { try { inp.focus(); } catch (e) {} }, 50);
+  }
 
   function layoutChooser() {
     var box = chooserEl();
