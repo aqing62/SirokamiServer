@@ -536,13 +536,24 @@
     }, 3000);
   }
 
+
+  /** 对局界面是不是真的显示着 —— fixed 元素的 offsetParent 恒为 null，不能用它判断 ✗ */
+  function modalShowing() {
+    var m = document.getElementById('replayModal');
+    if (!m) return false;
+    var cs = getComputedStyle(m);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return false;
+    var r = m.getBoundingClientRect();
+    return r.width > 0 && r.height > 0;
+  }
+
   function ensureMatchingOverlay(noticeText) {
     if (document.getElementById('ypMatching')) return;
     var lobby = document.getElementById('lobby');
     if (lobby) lobby.style.display = 'none';          // 藏掉「决斗准备」面板
     var d = document.createElement('div');
     d.id = 'ypMatching';
-    d.style.cssText = 'position:fixed;inset:0;z-index:80;display:flex;align-items:center;justify-content:center;'
+    d.style.cssText = 'position:fixed;inset:0;z-index:12;display:flex;align-items:center;justify-content:center;'
       + 'background:#0a0a0c;background-image:radial-gradient(900px 500px at 50% 30%, rgba(216,30,68,.18), rgba(10,10,12,0) 70%);'
       + 'pointer-events:auto;opacity:0;transform:scale(.985);transition:opacity .42s ease, transform .42s ease;';
     d.innerHTML = '<div style="text-align:center">'
@@ -580,7 +591,9 @@
     // 盘面一显示（= 猜拳切对局界面）就立刻撤掉并把定时器停掉。
     var timer = setInterval(function () {
       var el = document.getElementById('ypMatching');
-      if (state.duelStarted || (document.getElementById('replayModal') && document.getElementById('replayModal').offsetParent !== null)) {
+      // ⚠ 用 modalShowing() 而不是 offsetParent：对局区现在是 position:fixed，
+      //   offsetParent 恒为 null → 判断永远不成立 → 遮罩永远不撤，把猜拳/弹窗全盖住(实测踩到 ✗)
+      if (state.duelStarted || modalShowing()) {
         if (el) el.remove();
         clearInterval(timer);
         return;
