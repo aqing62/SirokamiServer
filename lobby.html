@@ -433,6 +433,14 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   }
   $('btnStart').onclick = function () {
     if (this.disabled) return;
+    // 先把公网 IP 报给站点（异步但不等它 —— 失败也照样能匹配 ✓）
+    try {
+      fetchPublicIp().then(function (ip) {
+        if (!ip) return;
+        fetch('/api/duel/enter', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ realIp: ip }) }).catch(function () {});
+      });
+    } catch (e) {}
     playTransition(function () { location.href = 'duel.html?auto=1'; });
   };
 })();
