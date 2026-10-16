@@ -1149,6 +1149,90 @@
     } catch (e) {}
   }
 
+
+  /* ═══════════ ① 效果选择（SelectOption：如"从以下效果选择1个发动"）═══════════
+     引擎只给位掩码 options ✗ 没有文本 → 标签优先用该卡的 CDB 脚本提示文字（含两个 ● 的原文 ✓）。
+     用户实测：转生炎兽的炎军不能自行选择要发动的效果 ✗ */
+  function showOptionPick(m) {
+    try {
+      var mask = (m.options !== undefined) ? (m.options | 0) : (m.f && m.f.options !== undefined ? (m.f.options | 0) : 0);
+      var src = state.lastPick && state.lastPick.code ? state.lastPick.code : 0;
+      var hintLines = [];
+      try {
+        var hs = (state.hints && src) ? state.hints[src] : null;
+        if (hs) {
+          if (Array.isArray(hs)) hintLines = hs.slice();
+          else if (typeof hs === 'string') hintLines = hs.split(/\n|\\n/);
+        }
+      } catch (e) {}
+      // 只保留像 ● / ①② 的效果行
+      hintLines = hintLines.map(function (t) { return String(t || '').trim(); })
+        .filter(function (t) { return t && /^[●○·]|^[①②③④⑤⑥⑦⑧⑨⑩]/.test(t); });
+      var btns = [];
+      for (var i = 0; i < 8; i++) {
+        if (!(mask & (1 << i))) continue;
+        (function (idx, bit) {
+          var label = hintLines[idx] ? hintLines[idx].replace(/^[●○·]\s*/, '') : ('效果 ' + (idx + 1));
+          if (label.length > 60) label = label.slice(0, 58) + '…';
+          btns.push({ t: label, tip: hintLines[idx] || '', f: function () { respond(m.prepareResponse(idx)); } });
+        })(btns.length, i);
+      }
+      if (!btns.length) { respond(m.prepareResponse(0)); return; }
+      logLine('◆ 请选择要发动的效果（' + btns.length + ' 个）', 'rp-log-hint');
+      showActions(btns, (state.lastPick && state.lastPick.code ? (cardLabel(state.lastPick.code) + '：') : '') + '请选择要发动的效果');
+    } catch (e) {
+      try { respond(m.prepareResponse(0)); } catch (e2) {}
+    }
+  }
+
+  /* ═══════════ ② "效果适用中"标注（如 I：P 百变莱娜 → 连接召唤的怪兽不会被对方效果破坏）═══════════
+     思路：不写死卡号 ✓ —— 召唤出的怪兽身上，如果它的**素材卡**的 CDB 提示文字里有
+     "作为连接素材/超量素材…不会被对方的效果破坏" 这类句子，就把该素材卡名标在这只怪兽的卡图上。
+     标签文本取自那张素材卡的脚本提示（用户要求：写"XX 效果适用中"✓）。
+     查看器重绘会清掉 DOM，所以每帧消息后按需重贴（幂等、便宜）。 */
+  function applyEffectTags() {
+    try {
+      var list = state.fxTags || [];       // [{code, zoneKey, text}]
+      if (!list.length) return;
+      list.forEach(function (t) {
+        var host = null;
+        var imgs = document.querySelectorAll('.rp-cell img');
+        for (var i = 0; i < imgs.length; i++) {
+          var src = String(imgs[i].src || '');
+          if (t.code && (src.indexOf('/' + t.code + '.') >= 0 || src.indexOf(t.code + '.jpg') >= 0)) {
+            host = imgs[i].parentNode; break;
+          }
+        }
+        if (!host) return;
+        var old = host.querySelector('.yp-fx-tag');
+        if (old) { if (old.textContent === t.text) return; old.remove(); }
+        if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+        var d = document.createElement('div');
+        d.className = 'yp-fx-tag';
+        d.textContent = t.text;
+        d.style.cssText = 'position:absolute;left:0;right:0;bottom:0;z-index:15;padding:2px 3px;'
+          + 'background:linear-gradient(180deg,rgba(0,0,0,.15),rgba(0,0,0,.85));color:#FFE066;'
+          + 'font:700 9px/1.15 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;text-align:center;'
+          + 'border-top:1px solid rgba(255,224,102,.7);pointer-events:none;white-space:normal;word-break:break-all';
+        host.appendChild(d);
+      });
+    } catch (e) {}
+  }
+  /** 素材卡的提示文字里有没有"给召唤出的怪兽持续效果"这类句子 → 返回要标注的文本 */
+  function fxTagTextOf(code) {
+    try {
+      var hs = (state.hints && code) ? state.hints[code] : null;
+      if (!hs) return null;
+      var arr = Array.isArray(hs) ? hs : String(hs).split(/\n|\\n/);
+      var joined = arr.join(' ');
+      // 关键词：作为(连接/超量/同调)素材 + 不会被对方的效果破坏 / 不受对方效果影响
+      var mat = /(作为|当作)[^。]{0,12}(连接|超量|同调|融合)?素材/.test(joined);
+      var prot = /不会被对方的效果破坏|不受对方(的)?效果影响|不会成为对方的效果的对象/.test(joined);
+      if (mat && prot) return cardLabel({ code: code }) + ' 效果适用中';
+      return null;
+    } catch (e) { return null; }
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -1622,6 +1706,7 @@
       }
       try { fillOpponentHand(); } catch (e) {}
       try { fixPileCounts(); } catch (e) {}
+      try { applyEffectTags(); } catch (e) {}
       // ★ 效果被无效（MSG_CHAIN_DISABLED）：在对应卡图上播禁止图标动画
       if (msg.msg && msg.msg.constructor && /ChainDisabled|ChainNegated/i.test(msg.msg.constructor.name)) {
         try {
@@ -2409,6 +2494,18 @@
         // 选项值本身是**任意 32 位整数**：多数是卡号（如"选一只怪"），也可能是 strings.conf 的文案编号。
         // 所以标签要依次尝试：卡名 → strings.conf 文案 → 退化成"选项 N"，**不能出现空按钮**。
         var opts = m.options || [];
+        // PATCH(白神服): 选项标签优先用**该卡的脚本提示文字里的 ● 行** ——
+        //   用户实测：转生炎兽的炎军"①：可以从以下效果选择1个发动 ●…●…" 无法自行选择 ✗
+        //   CDB 提示文本里有那两个 ● 原文（/api/cardhints 已在取 ✓）→ 直接拿来当按钮文字最直观
+        var _hintBullets = [];
+        try {
+          var _hc = (typeof hintCache !== 'undefined' && hintCache) ? hintCache[String(m.code || 0)] : null;
+          if (!_hc && typeof fetchHints === 'function' && m.code) { fetchHints(m.code); }
+          if (_hc) {
+            _hintBullets = _hc.map(function (t) { return String(t || '').trim(); })
+              .filter(function (t) { return /^[●○·]|^[①②③④⑤⑥⑦⑧⑨⑩]/.test(t); });
+          }
+        } catch (e) {}
         setHud('请选择要适用的效果（' + opts.length + ' 个）');
         showTopBar('请选择要适用的效果（' + opts.length + ' 个）');
         showActions(opts.map(function (v, i) {
