@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261017z">
+<link rel="stylesheet" href="css/duel-client.css?v=20261018a">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -213,6 +213,7 @@
 #ypTimeLeft, #ypSurrender { z-index: 9700 !important; }
 </style>
 
+<style>
 /* ── 竖屏：卡片选择改成"一行往右滑"（用户反馈竖着滑违反习惯 + 卡片太小）── */
 /* yp-chooser-hscroll */
 @media (orientation: portrait) {
@@ -231,6 +232,7 @@
   #ypChooser .yp-chooser-grid img { height: 17dvh !important; width: auto !important; max-height: none !important; }
   #ypChooser .yp-chooser-item { min-width: 0 !important; }
 }
+</style>
 </style>
 </head>
 <body>
