@@ -963,13 +963,32 @@
     });
   });
 
-  // URL 参数：?deck=名字 载入 / ?new=1 清空新建（大厅的「编辑 / 新建」按钮跳过来 ✓）
+  // ── 打开组卡器（大厅的「编辑 / 新建」跳过来 ✓）
+  //   首页是**区块切换**（全局 showSection ✓）+ 组卡器是**模式切换**（#deckBuilderToggle ✓）
+  //   上一版我只弹了个提示 ✗ 没有切页面 → 用户看到的是"变成主页" ✗（这次真的切过去 ✓）
+  function openBuilder() {
+    try { if (typeof showSection === 'function') showSection('section-card-pool'); } catch (e) {}
+    try {
+      var tg = document.getElementById('deckBuilderToggle');
+      if (tg && !tg.classList.contains('active')) tg.click();      // 点它自己 → 走它自己的切换逻辑 ✓
+    } catch (e) {}
+    try { window.scrollTo({ top: 0, behavior: 'instant' in window ? 'auto' : 'auto' }); } catch (e) {}
+  }
+
   var q = new URLSearchParams(location.search);
   if (q.get('builder') === '1' || q.get('deck') || q.get('new')) {
     var want = q.get('deck');
+    var isNew = q.get('new') === '1';
+    // 组卡器要加载卡池/分数，等它就绪
     setTimeout(function () {
-      if (q.get('new') === '1') { if (window.DeckBuilder && window.DeckBuilder.clear) { try { window.DeckBuilder.clear(); } catch (e) {} } toast('新建卡组：加好卡后点「☁ 保存到账号」'); return; }
-      if (!want) return;
+      openBuilder();
+      if (isNew) {
+        var cl = (window.DeckBuilder && (window.DeckBuilder.clear || window.DeckBuilder.clearAll));
+        if (cl) { try { cl(); } catch (e) {} }
+        toast('新建卡组：加好卡后点「☁ 保存到账号」');
+        return;
+      }
+      if (!want) { toast('已打开组卡器'); return; }
       api('/api/duel/deck?name=' + encodeURIComponent(want)).then(function (d) {
         if (!d || !d.main) { toast('账号里没找到「' + want + '」'); return; }
         var txt = '#main\n' + d.main.join('\n') + '\n#extra\n' + (d.extra || []).join('\n') + '\n!side\n' + (d.side || []).join('\n');
@@ -977,7 +996,7 @@
         window.__cloudDeckName = want;
         toast(r ? ('已载入「' + want + '」（主' + r.main + '/额' + r.extra + '/副' + r.side + '），改完点「☁ 保存到账号」') : '载入失败（组卡器未就绪）');
       });
-    }, 1800);
+    }, 2200);
   }
 })();
 </script>

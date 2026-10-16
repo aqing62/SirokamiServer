@@ -1761,6 +1761,8 @@
                 } catch (e) { return false; }
             },
             // 取当前卡组的 ydk 文本（保存到账号用 ✓）
+            clearAll: clearAll,
+            clear: clearAll,
             ydkText: function () { try { return buildYdkText(); } catch (e) { return ''; } },
             setOfficialResults: function (list) { officialResults = list || []; },
             showOfficialDetail: showDetailForOfficial,
