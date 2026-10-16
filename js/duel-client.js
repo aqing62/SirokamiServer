@@ -296,10 +296,21 @@
    * 中止匹配：服务器拒了卡组（或这次匹配）→ 断开连接 → 把原因大字显示在遮罩上 →
    * 带原因退回大厅。天梯形态下"卡组不合规还继续等人"是错的：玩家会一直干等。
    */
+  /**
+   * 优雅退房：先发一条明确的「离开房间」（CTOS_LEAVE_GAME = 19，空载荷），
+   * 让服务端立刻释放座位，再断开连接。
+   * 只 close() 的话服务端会保留座位约 3 分钟，玩家马上再匹配可能被挤成观战者。
+   * 消息类没导出，所以跟聊天帧一样手拼：send() 只要 identifier + toPayload()。
+   */
+  function leaveRoomGracefully() {
+    try { send({ identifier: 19, toPayload: function () { return new Uint8Array(0); } }); } catch (e) {}
+    setTimeout(function () { try { if (state.sock) state.sock.close(); } catch (e) {} }, 120);
+  }
+
   function abortMatch(reasonText) {
     if (state.matchAborted) return;
     state.matchAborted = true;
-    try { if (state.sock) state.sock.close(); } catch (e) {}
+    leaveRoomGracefully();
     var safe = String(reasonText || '').replace(/[<>&"]/g, '');
     var ov = document.getElementById('ypMatching');
     if (ov) {
@@ -346,8 +357,8 @@
     if (cancelBtn) cancelBtn.onclick = function () {
       cancelBtn.disabled = true;
       cancelBtn.textContent = '正在取消…';
-      try { if (state.sock) state.sock.close(); } catch (e) {}
-      setTimeout(function () { location.href = 'lobby.html'; }, 250);
+      leaveRoomGracefully();
+      setTimeout(function () { location.href = 'lobby.html'; }, 350);
     };
     // 等了多久（让玩家知道不是卡住）
     var t0 = Date.now();
@@ -538,6 +549,18 @@
     try { localStorage.removeItem('yp_duel_' + state.room); } catch (e) {}
     setUiPhase('room');                             // 回到房间界面（带转场）
     renderLobby();
+    // 天梯形态（?auto=1）：打完直接回决斗大厅（用户要求）——先留 6 秒让玩家看清胜负
+    var isAutoForm = false;
+    try { isAutoForm = new URLSearchParams(location.search).get('auto') === '1'; } catch (e) {}
+    if (isAutoForm) {
+      setHud('对局结束 ' + (meWin ? '（你赢了）' : '（你输了）') + reason + ' —— 稍后自动回到决斗大厅', meWin ? 'ok' : 'warn');
+      logLine('↩ 对局结束，6 秒后回决斗大厅（不再停在房间面板）', 'rp-log-phase');
+      setTimeout(function () {
+        leaveRoomGracefully();
+        setTimeout(function () { location.href = 'lobby.html'; }, 150);
+      }, 6000);
+      return;
+    }
     setHud('对局结束 ' + (meWin ? '（你赢了）' : '（你输了）') + reason + ' —— 点「准备」可以再来一局', meWin ? 'ok' : 'warn');
     logLine('↩ 已回到大厅：点「准备」开下一局（房间里可以继续打多局）', 'rp-log-phase');
   }
