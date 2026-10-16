@@ -1021,6 +1021,62 @@
     } catch (e) {}
   }
 
+
+  /**
+   * 对局倒计时（本地兜底）。
+   * 用户反馈"选手老是不知道快到时间了" —— 服务端的 STOC_TIME_LIMIT 不一定发/字段名不定，
+   * 所以这里每回合开始时按服务器时限(config hostinfoTimeLimit = 300 秒)本地自己倒计时；
+   * 服务端真发了绝对值就覆盖它（以服务端为准）。剩 60 秒变橙、30 秒变红并闪烁。
+   */
+  var TURN_LIMIT_SEC = 300;
+  var _cdTimer = null, _cdLeft = 0;
+  function renderCountdown() {
+    var el = document.getElementById('ypTimeLeft');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ypTimeLeft';
+      el.style.cssText = 'position:fixed;right:10px;top:8px;z-index:9700;padding:8px 14px;border-radius:10px;'
+        + 'background:rgba(10,10,12,.92);border:2px solid rgba(212,175,55,.8);color:#F0E68C;'
+        + 'font:800 18px/1 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-variant-numeric:tabular-nums;'
+        + 'pointer-events:none;letter-spacing:1px';
+      document.body.appendChild(el);
+    }
+    var s = Math.max(0, Math.floor(_cdLeft));
+    var mm = Math.floor(s / 60), ss = s % 60;
+    el.textContent = '⏱ ' + mm + ':' + String(ss).padStart(2, '0');
+    if (s <= 30) {
+      el.style.borderColor = '#ff5050'; el.style.color = '#fff'; el.style.background = 'rgba(150,20,25,.95)';
+      el.style.fontSize = '21px';
+    } else if (s <= 60) {
+      el.style.borderColor = '#ffb347'; el.style.color = '#ffd9a0'; el.style.background = 'rgba(60,40,10,.95)';
+      el.style.fontSize = '19px';
+    } else {
+      el.style.borderColor = 'rgba(212,175,55,.8)'; el.style.color = '#F0E68C'; el.style.background = 'rgba(10,10,12,.92)';
+      el.style.fontSize = '18px';
+    }
+  }
+  function startTurnCountdown(sec) {
+    _cdLeft = (typeof sec === 'number' && sec > 0) ? sec : TURN_LIMIT_SEC;
+    renderCountdown();
+    if (_cdTimer) clearInterval(_cdTimer);
+    _cdTimer = setInterval(function () {
+      _cdLeft -= 1;
+      if (_cdLeft <= 0) {
+        _cdLeft = 0;
+        renderCountdown();
+        clearInterval(_cdTimer); _cdTimer = null;
+        try { logLine('⏱ 本回合时限到（服务端会按超时处理）', 'rp-log-err'); } catch (e) {}
+        return;
+      }
+      renderCountdown();
+    }, 1000);
+  }
+  function stopTurnCountdown() {
+    if (_cdTimer) { clearInterval(_cdTimer); _cdTimer = null; }
+    var el = document.getElementById('ypTimeLeft');
+    if (el) el.textContent = '';
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -1189,7 +1245,7 @@
     clearPending();
     hideChooser(); hideTopBar();
     try { localStorage.removeItem('yp_duel_' + state.room); } catch (e) {}
-    try { var _te = document.getElementById('ypTimeLeft'); if (_te) _te.textContent = ''; } catch (e) {}
+    try { stopTurnCountdown(); } catch (e) {}
     setUiPhase('room');                             // 回到房间界面（带转场）
     renderLobby();
     // 天梯形态（?auto=1）：打完直接回决斗大厅（用户要求）——先留 6 秒让玩家看清胜负
@@ -1425,7 +1481,7 @@
             logLine('（时限消息字段：' + (_ks.join(' ') || '(没有数字字段)') + '）', 'rp-log-hint');
           }
         } else {
-          showTimeLeft(Number(_sec));
+          if (typeof startTurnCountdown === 'function') { _cdLeft = Number(_sec); renderCountdown(); }   // 服务端绝对值优先
         }
       } catch (e) {}
       return;
@@ -1599,6 +1655,7 @@
         animateZoneKey(pcCtl, pcLoc, pcSeq, (pcCur & 0x4) ? 'rot-def' : 'rot-atk');
       }
       else if (id === 40) {                                  // 新回合：提示是谁的回合
+        try { startTurnCountdown(); } catch (e) {}   // 新回合 → 时限重置
         var tp = msg.msg.player;                             // 绝对决斗位 → 翻到我的视角
         window.__myTurn = (flipSeat(tp) === 0);
         if (window.__myTurn) setHud('★ 你的回合', 'ok');
