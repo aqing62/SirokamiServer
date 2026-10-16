@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261019n">
+<link rel="stylesheet" href="css/duel-client.css?v=20261019p">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -434,6 +434,26 @@
   }
   #ypInfoImgBox { grid-column: 1 !important; grid-row: 1 / span 5 !important; max-width: none !important; }
   #ypInfoName, #ypInfoType, #ypInfoStat, #ypInfoSeries, #ypInfoText { grid-column: 2 !important; }
+}
+</style>
+<style>
+/* siro-cardinfo-rows */
+/* 修正：PC 分支里必须给**显式行号** —— 更早那版给文字元素写了 grid-row:1~5 ✗，
+   而我把图盒设成 grid-row:auto ✗ → 自动排布把图排到了第 6 行 → 变成上字下图 ✗（用户实测） */
+#ypInfoImgBox { grid-row: 1 !important; }      /* 卡图 → 第 1 行 ✓ */
+#ypInfoName   { grid-row: 2 !important; }
+#ypInfoType   { grid-row: 3 !important; }
+#ypInfoStat   { grid-row: 4 !important; }
+#ypInfoSeries { grid-row: 5 !important; }
+#ypInfoText   { grid-row: 6 !important; }
+@media (orientation: portrait), (max-width: 780px) {
+  /* 竖屏：左图右字（图跨 1~5 行 ✓ 文字在右列 ✓） */
+  #ypInfoImgBox { grid-row: 1 / span 5 !important; }
+  #ypInfoName   { grid-row: 1 !important; }
+  #ypInfoType   { grid-row: 2 !important; }
+  #ypInfoStat   { grid-row: 3 !important; }
+  #ypInfoSeries { grid-row: 4 !important; }
+  #ypInfoText   { grid-row: 5 !important; }
 }
 </style>
 </head>
