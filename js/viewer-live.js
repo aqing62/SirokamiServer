@@ -2025,10 +2025,13 @@ function initReplayViewer() {
                 //   所以盖下去的卡根本没进模型 → 场地上一片空白（用户实测："看到盖放动画，落地后就消失了" ✗）
                 //   这里补上：写进模型（faceDown）+ 刷新该格。
                 (function () {
-                    var f2 = m.f || m;
-                    var ctl = (f2.controller !== undefined) ? f2.controller : (f2.info ? f2.info.controller : undefined);
-                    var loc = ((f2.location !== undefined) ? f2.location : (f2.info ? f2.info.location : undefined));
-                    var seq = (f2.sequence !== undefined) ? f2.sequence : (f2.info ? f2.info.sequence : undefined);
+                    var f2 = (typeof f !== 'undefined' && f) ? f : m;
+                    var ctl = (f2.controller !== undefined) ? f2.controller
+                        : (m && m.hex ? hexU8(m.hex, 5) : (f2.info ? f2.info.controller : undefined));
+                    var loc = ((f2.location !== undefined) ? f2.location
+                        : (m && m.hex ? hexU8(m.hex, 6) : (f2.info ? f2.info.location : undefined)));
+                    var seq = (f2.sequence !== undefined) ? f2.sequence
+                        : (m && m.hex ? hexU8(m.hex, 7) : (f2.info ? f2.info.sequence : undefined));
                     var code = (f2.code !== undefined) ? f2.code : 0;
                     var pos = (f2.position !== undefined) ? f2.position : (f2.current !== undefined ? f2.current : 0x8);
                     if (ctl === 0 || ctl === 1) {
@@ -2052,6 +2055,30 @@ function initReplayViewer() {
                 var pcPrev = hexU8(m.hex, 8);
                 var pcCur = hexU8(m.hex, 9) || (f.currentPosition || 0);
                 var pcName = cardName(pcCode) || ('#' + pcCode);
+                // PATCH(白神服): 表示形式变更里**里侧**要同步到模型 ——
+                //   0x8 = 里侧守备（0x2 = 表侧?/里侧攻击，按需一并处理）→ 不同步的话
+                //   "怪变里侧守备会直接消失"（用户实测 ✗）：模型里 faceDown=false，卡面按正面去画但取不到卡图 → 空白
+                try {
+                    var _fd = !!((pcCur | 0) & 0x8);
+                    var _pc = (field[pcCtl] ? field[pcCtl][pcLoc + ':' + pcSeq] : null);
+                    if (!_pc && pcCode) {
+                        // 按卡号在场上扫一遍
+                        [0, 1].forEach(function (c) {
+                            if (!field[c]) return;
+                            Object.keys(field[c]).forEach(function (k) {
+                                if (field[c][k] && field[c][k].code === pcCode) _pc = field[c][k];
+                            });
+                        });
+                    }
+                    if (_pc) {
+                        _pc.faceDown = _fd;
+                        _pc.pos = (pcCur | 0);
+                        _pc.position = (pcCur | 0);
+                        if (_fd) _pc.code = _pc.code || pcCode;   // 保留卡号（我们知道自己盖的是什么）
+                        updateZone(pcCtl, pcLoc);
+                    }
+                } catch (e) {}
+
                 // 先按 (controller,location,sequence) 精确找，找不到再按卡号在场上扫
                 var pcCard = field[pcCtl] ? field[pcCtl][pcLoc + ':' + pcSeq] : null;
                 if (!pcCard || (pcCard.code && pcCard.code !== pcCode)) {
