@@ -1309,6 +1309,41 @@
     } catch (e) {}
   }
 
+
+  /**
+   * 方案B 补漏：真实 IP 也要由**决斗客户端**上报 ✓
+   *   原来只做在"大厅点开始匹配"那里 ✗ 但大家是**直接打开 duel.html?auto=1** 的 ✓
+   *   → 从来没上报过 → 库里 lastIp 还是 127.0.0.1 → 服务端"同IP不计分"把每局都拦了
+   *   （用户实测：今晚连打 4 把，duel_record 里有记录但一分没加 ✗）
+   * 做法：浏览器直连回显服务取自己的公网 IP → POST 给站点 → 站点写 srv_user.lastIp ✓
+   *       游戏服登录时若发现是回环就改用这个真实 IP ✓（login-service 已有该逻辑 ✓）
+   */
+  function reportRealIpOnce() {
+    try {
+      if (state.__ipReported) return;
+      state.__ipReported = true;
+      var send = function (ip) {
+        try {
+          if (!ip) return;
+          fetch('/api/duel/enter', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ realIp: String(ip).trim() }),
+          }).catch(function () {});
+          logLine('（已上报公网 IP 供天梯计分判定：' + String(ip).trim() + '）', 'rp-log-hint');
+        } catch (e) {}
+      };
+      fetch('https://api.ipify.org?format=json', { cache: 'no-store' })
+        .then(function (r) { return r.json(); })
+        .then(function (j) { send(j && j.ip); })
+        .catch(function () {
+          return fetch('https://ifconfig.me/ip', { cache: 'no-store' })
+            .then(function (r) { return r.text(); })
+            .then(function (t) { send(t); })
+            .catch(function () {});
+        });
+    } catch (e) {}
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
