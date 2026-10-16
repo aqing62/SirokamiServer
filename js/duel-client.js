@@ -304,6 +304,197 @@
    */
 
   /**
+   * 备牌阶段界面（M# 天梯房 = 三局两胜，第一局打完要换副卡组）。
+   * 触发：服务端进 Siding 阶段时发的聊天「你现在有 N 分钟来更换副卡组。」。
+   *
+   * 规则（用户定的）：
+   *   · 主卡组、额外卡组、副卡组的**张数必须与改前一致**，否则不能确认
+   *   · 单击：主/额外 → 副卡组；副卡组 → 回它原来那一区（主或额外）
+   *   · 也支持拖动：把卡拖到某一区就进那一区（各区都是放置区）
+   *   · 只换不换都行：没改动＝张数本来就一致，可以直接确认
+   */
+  function ensureSidingUI(minutes) {
+    var old = document.getElementById('ypSiding');
+    if (old) old.remove();
+    if (state.sidingTimer) { clearInterval(state.sidingTimer); state.sidingTimer = null; }
+    // 记录改前张数 + 每张卡原本属于哪一区（副卡组的卡要能回原来那一区）
+    var deck = state.deck || { main: [], extra: [], side: [] };
+    state.sidingBase = { main: (deck.main || []).length, extra: (deck.extra || []).length, side: (deck.side || []).length };
+    state.sidingOrigin = {};
+    (deck.main || []).forEach(function (id) { if (state.sidingOrigin[id] === undefined) state.sidingOrigin[id] = 'main'; });
+    (deck.extra || []).forEach(function (id) { if (state.sidingOrigin[id] === undefined) state.sidingOrigin[id] = 'extra'; });
+    (deck.side || []).forEach(function (id) { if (state.sidingOrigin[id] === undefined) state.sidingOrigin[id] = 'side'; });
+    var d = document.createElement('div');
+    d.id = 'ypSiding';
+    d.style.cssText = 'position:fixed;inset:0;z-index:85;overflow:auto;background:#0a0a0c;'
+      + 'background-image:radial-gradient(900px 500px at 50% 0%, rgba(216,30,68,.18), rgba(10,10,12,0) 70%);'
+      + 'font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#ece9e4;padding:18px 20px 96px;';
+    d.innerHTML = '<div style="max-width:1180px;margin:0 auto">'
+      + '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px">'
+      + '<div style="font-size:19px;font-weight:800;letter-spacing:2px;color:#F0E68C">备牌阶段</div>'
+      + '<div style="font-size:13px;color:#9b97a1">单击换边（主/额外 ⇄ 副）· 也可以直接把卡拖到目标区域 · 三区张数要和改前一致才能确认</div>'
+      + '<div id="ypSidingLeft" style="margin-left:auto;font-size:15px;font-weight:800;color:#FF8A8A"></div>'
+      + '</div>'
+      + '<div id="ypSidingBody"></div>'
+      + '</div>'
+      + '<div style="position:fixed;left:0;right:0;bottom:0;padding:12px 20px;background:rgba(10,10,12,.97);'
+      + 'border-top:1px solid rgba(216,30,68,.4);display:flex;gap:12px;justify-content:flex-end;align-items:center">'
+      + '<span id="ypSidingMsg" style="margin-right:auto;font-size:13px;color:#9b97a1"></span>'
+      + '<button id="ypSidingNo" style="padding:11px 22px;border-radius:999px;background:transparent;'
+      + 'border:2px solid rgba(216,30,68,.8);color:#F0E68C;font-weight:700;letter-spacing:2px;cursor:pointer;font-family:inherit">不换，直接开始</button>'
+      + '<button id="ypSidingOk" style="padding:11px 26px;border-radius:999px;border:none;cursor:pointer;'
+      + 'background:linear-gradient(135deg,#D4AF37,#FFD700);color:#1a1a2e;font-weight:800;letter-spacing:2px;font-family:inherit">确定换牌</button>'
+      + '</div>';
+    document.body.appendChild(d);
+    var lobby = document.getElementById('lobby'); if (lobby) lobby.style.display = 'none';
+    var mm = (minutes && minutes > 0) ? minutes : 3;
+    var endAt = Date.now() + mm * 60000;
+    state.sidingTimer = setInterval(function () {
+      var left = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+      var el = document.getElementById('ypSidingLeft');
+      if (el) el.textContent = '剩余 ' + Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+      if (left <= 0) { clearInterval(state.sidingTimer); state.sidingTimer = null; }
+    }, 500);
+    renderSiding();
+    document.getElementById('ypSidingOk').onclick = function () {
+      if (this.disabled) return;
+      submitSiding('已提交换牌');
+    };
+    document.getElementById('ypSidingNo').onclick = function () { submitSiding('未换牌，直接开始下一局'); };
+  }
+
+  function sidingCardHtml(id, from) {
+    return '<img draggable="true" data-siding-id="' + id + '" data-siding-from="' + from + '" alt="' + id + '" loading="lazy"'
+      + ' src="https://cdn.233.momobako.com/ygopro/pics/' + id + '.jpg"'
+      + ' onerror="this.onerror=null;this.src=\'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + id + '.jpg\';'
+      + 'this.onerror=function(){this.onerror=null;this.src=\'https://api.ygopro3.cn/pics/siro/' + id + '.jpg\';'
+      + 'this.onerror=function(){this.src=\'cover.jpg\';}};"'
+      + ' style="width:100%;aspect-ratio:421/614;object-fit:cover;border-radius:4px;border:1px solid #2a3542;'
+      + 'background:#101720;cursor:grab;display:block">';
+  }
+
+  /** 把一张卡从 from 区移到 to 区 */
+  function sidingMove(id, from, to) {
+    if (!state.deck || from === to) return false;
+    var src = state.deck[from], dst = state.deck[to];
+    if (!src || !dst) return false;
+    var idx = src.indexOf(id);
+    if (idx < 0) return false;
+    src.splice(idx, 1);
+    dst.push(id);
+    return true;
+  }
+
+  /** 张数是否与改前一致；不一致时给出人话说明 */
+  function sidingCheck() {
+    var b = state.sidingBase || { main: 0, extra: 0, side: 0 };
+    var d = state.deck || { main: [], extra: [], side: [] };
+    var bad = [];
+    [['主卡组', 'main'], ['额外卡组', 'extra'], ['副卡组', 'side']].forEach(function (pair) {
+      var want = b[pair[1]], now = (d[pair[1]] || []).length;
+      if (want !== now) bad.push(pair[0] + '要 ' + want + ' 张（现在 ' + now + '）');
+    });
+    return { ok: bad.length === 0, bad: bad };
+  }
+
+  function renderSiding() {
+    if (!state.deck) return;
+    var box = document.getElementById('ypSidingBody');
+    if (!box) return;
+    var b = state.sidingBase || {};
+    var chk = sidingCheck();
+    function sect(title, key, ids, tip) {
+      var want = b[key];
+      var now = ids.length;
+      var color = (want === undefined || want === now) ? '#9a9aa4' : '#FF8A8A';
+      return '<div style="font-size:13px;color:' + color + ';margin:14px 0 6px">' + title
+        + '（' + now + (want === undefined || want === now ? '' : ' / 应为 ' + want) + ' 张）'
+        + (tip ? '<span style="color:#6f6f78">　' + tip + '</span>' : '') + '</div>'
+        + '<div data-siding-zone="' + key + '" style="display:grid;grid-template-columns:repeat(10,minmax(0,1fr));'
+        + 'gap:5px;min-height:40px;padding:4px;border-radius:6px;border:1px dashed rgba(216,30,68,.35)">'
+        + ids.map(function (id) { return sidingCardHtml(id, key); }).join('') + '</div>';
+    }
+    box.innerHTML = sect('主卡组', 'main', state.deck.main || [], '点一下 / 拖到副卡组 = 换出去')
+      + sect('额外卡组', 'extra', state.deck.extra || [], '点一下 / 拖到副卡组 = 换出去')
+      + sect('副卡组', 'side', state.deck.side || [], '点一下 = 回它原来那一区');
+    // 单击
+    box.querySelectorAll('img[data-siding-id]').forEach(function (im) {
+      im.onclick = function () {
+        var id = Number(im.getAttribute('data-siding-id'));
+        var from = im.getAttribute('data-siding-from');
+        if (from === 'side') {
+          var origin = (state.sidingOrigin || {})[id] || 'main';   // 副卡组 → 回原区（主或额外）
+          if (origin === 'side') origin = 'main';
+          sidingMove(id, 'side', origin);
+        } else {
+          sidingMove(id, from, 'side');                            // 主/额外 → 副卡组
+        }
+        renderSiding();
+      };
+      // 拖动
+      im.ondragstart = function (ev) {
+        state.sidingDrag = { id: Number(im.getAttribute('data-siding-id')), from: im.getAttribute('data-siding-from') };
+        try { ev.dataTransfer.setData('text/plain', String(state.sidingDrag.id)); ev.dataTransfer.effectAllowed = 'move'; } catch (e) {}
+      };
+    });
+    // 各区都是放置区
+    box.querySelectorAll('[data-siding-zone]').forEach(function (zone) {
+      zone.ondragover = function (ev) { ev.preventDefault(); zone.style.borderColor = 'rgba(255,215,0,.8)'; };
+      zone.ondragleave = function () { zone.style.borderColor = 'rgba(216,30,68,.35)'; };
+      zone.ondrop = function (ev) {
+        ev.preventDefault();
+        zone.style.borderColor = 'rgba(216,30,68,.35)';
+        var drag = state.sidingDrag;
+        if (!drag) return;
+        var to = zone.getAttribute('data-siding-zone');
+        if (to === 'side' || to === drag.from) {
+          // 拖进副卡组：主/额外都行；拖回自己那区：从副卡组回去也可以
+          if (to === drag.from) return;
+          if (to === 'side') { sidingMove(drag.id, drag.from, 'side'); state.sidingDrag = null; renderSiding(); return; }
+        }
+        // 拖到 主/额外：只有当卡现在在副卡组里才允许（等于"回哪一区"）
+        if (drag.from === 'side' && (to === 'main' || to === 'extra')) { sidingMove(drag.id, 'side', to); renderSiding(); }
+        state.sidingDrag = null;
+      };
+    });
+    // 底部校验状态
+    var ok = document.getElementById('ypSidingOk');
+    var msgEl = document.getElementById('ypSidingMsg');
+    if (ok) {
+      ok.disabled = !chk.ok;
+      ok.style.opacity = chk.ok ? '1' : '.45';
+      ok.style.cursor = chk.ok ? 'pointer' : 'not-allowed';
+    }
+    if (msgEl) {
+      msgEl.textContent = chk.ok
+        ? ('✓ 张数与改前一致（主 ' + (state.deck.main || []).length + ' / 额外 ' + (state.deck.extra || []).length + ' / 副 ' + (state.deck.side || []).length + '），可以确认')
+        : ('✗ 还不能确认：' + chk.bad.join('；'));
+      msgEl.style.color = chk.ok ? '#8ee6a8' : '#FF8A8A';
+    }
+  }
+
+  function submitSiding(why) {
+    var chk = sidingCheck();
+    if (!chk.ok) { logLine('⚠ 备牌张数不对：' + chk.bad.join('；'), 'rp-log-err'); return; }
+    var d = document.getElementById('ypSiding');
+    if (d) d.remove();
+    if (state.sidingTimer) { clearInterval(state.sidingTimer); state.sidingTimer = null; }
+    if (state.sidingFallbackTimer) { clearTimeout(state.sidingFallbackTimer); state.sidingFallbackTimer = null; }
+    state.sidingActive = false;
+    logLine('↩ 备牌：' + why + '（主 ' + (state.deck.main || []).length + ' / 额外 ' + (state.deck.extra || []).length
+      + ' / 副 ' + (state.deck.side || []).length + '）', 'rp-log-phase');
+    setUiPhase('duel');
+    uploadDeckAndReady();
+  }
+
+  /**
+   * 优雅退房：先发一条明确的「离开房间」（CTOS_LEAVE_GAME = 19，空载荷），
+   * 让服务端立刻释放座位，再断开连接。
+   * 只 close() 的话服务端会保留座位约 3 分钟，玩家马上再匹配可能被挤成观战者。
+   * 消息类没导出，所以跟聊天帧一样手拼：send() 只要 identifier + toPayload()。
+   */
+
+  /**
    * 备牌阶段界面（M# 天梯房是三局两胜，第一局打完要换副卡组）。
    * 触发：服务端进 Siding 阶段时发的聊天「你现在有 N 分钟来更换副卡组。」。
    * 操作：点主卡组里的卡 → 进副卡组；点副卡组里的卡 → 回主卡组；「确定换牌」提交。
