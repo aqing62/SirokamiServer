@@ -697,6 +697,23 @@
 
   /** 投降按钮（CTOS_SURRENDER = 20）。原来客户端没有投降入口，只能等超时。 */
   function ensureSurrenderBtn() {
+    // PATCH(白神服): 投降按钮挪到**场地框内的左上角空白处**（用户要求 ✓）
+    //   原来 fixed 在右上角 ✓ 会和倒计时/场地边角挤在一起
+    //   这里把它挂进 #replayField（场地容器 ✓）用 absolute 定位到左上角 ✓
+    //   （场地祖先有 transform，fixed 会退化成 absolute，所以挂在容器里反而更准 ✓）
+    try {
+      var _fld = document.getElementById('replayField');
+      var _sb = document.getElementById('ypSurrender');
+      if (_fld && _sb) {
+        if (_sb.parentNode !== _fld) _fld.appendChild(_sb);
+        if (getComputedStyle(_fld).position === 'static') _fld.style.position = 'relative';
+        _sb.style.cssText = 'position:absolute;left:10px;top:8px;right:auto;bottom:auto;z-index:9700;'
+          + 'padding:6px 14px;border-radius:999px;border:1.5px solid rgba(216,30,68,.85);'
+          + 'background:rgba(24,10,14,.82);color:#ff8a9b;font:700 13px/1 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;'
+          + 'cursor:pointer;letter-spacing:1px';
+      }
+    } catch (e) {}
+
     if (document.getElementById('ypSurrender')) return;
     var b = document.createElement('button');
     b.id = 'ypSurrender';
