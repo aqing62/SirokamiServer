@@ -812,6 +812,38 @@
     });
   }
 
+
+  /**
+   * 双方数量条：手卡 / 卡组 / 额外。
+   * 用户反馈「开局/重连看不到对方的手卡卡组额外」——查看器那套数字依赖它自己的重绘时机，
+   * 这里由客户端直接按消息更新，稳定可见（横竖屏都在，放左上角下面一行）。
+   */
+  var _cnt = { 0: { hand: null, deck: null, extra: null }, 1: { hand: null, deck: null, extra: null } };
+  function renderCountsStrip() {
+    var el = document.getElementById('ypCounts');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'ypCounts';
+      el.style.cssText = 'position:fixed;left:6px;top:8px;z-index:71;padding:5px 10px;border-radius:8px;'
+        + 'background:rgba(10,10,12,.9);border:1px solid rgba(212,175,55,.5);color:#F0E68C;'
+        + 'font:600 12px/1.5 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;pointer-events:none;white-space:pre';
+      document.body.appendChild(el);
+    }
+    function side(mine, who) {
+      var v = _cnt[mine ? state.myDuelPos : (1 - (state.myDuelPos || 0))] || {};
+      return who + ' 手' + (v.hand === null ? '?' : v.hand)
+        + ' 卡' + (v.deck === null ? '?' : v.deck)
+        + ' 额' + (v.extra === null ? '?' : v.extra);
+    }
+    try { el.textContent = side(false, '对方') + '\n' + side(true, '自己'); } catch (e) {}
+  }
+  function setCount(dp, which, val) {
+    if (dp !== 0 && dp !== 1) return;
+    if (val === undefined || val === null) return;
+    _cnt[dp][which] = Number(val);
+    renderCountsStrip();
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -1183,6 +1215,14 @@
                   '请选择先后攻', { vertical: true });
       return;
     }
+    // ★ 服务端的权威数量（STOC_DECK_COUNT：主/额外/副）
+    if (msg && msg.constructor && msg.constructor.name === 'YGOProStocDeckCount') {
+      try {
+        var _p0 = msg.player0DeckCount || {}, _p1 = msg.player1DeckCount || {};
+        setCount(0, 'deck', _p0.main); setCount(0, 'extra', _p0.extra);
+        setCount(1, 'deck', _p1.main); setCount(1, 'extra', _p1.extra);
+      } catch (e) {}
+    }
     if (msg instanceof YGO.YGOProStocTimeLimit) {
       // 只有被点名的玩家回；交互模式下无脑回也无害（服务端按状态机忽略错的）
       send(new YGO.YGOProCtosTimeConfirm());
@@ -1212,6 +1252,15 @@
       state.recentIds = state.recentIds || [];
       state.recentIds.push(id);
       if (state.recentIds.length > 40) state.recentIds.shift();
+      if (msg.msg && msg.msg.constructor && msg.msg.constructor.name === 'YGOProMsgDraw') {
+        try {
+          var _dp = msg.msg.player, _n = msg.msg.count || ((msg.msg.cards || []).length) || 0;
+          if (_dp === 0 || _dp === 1) {
+            if (_cnt[_dp].hand !== null) setCount(_dp, 'hand', _cnt[_dp].hand + _n);
+            if (_cnt[_dp].deck !== null) setCount(_dp, 'deck', Math.max(0, _cnt[_dp].deck - _n));
+          }
+        } catch (e) {}
+      }
       if (id === 4) onDuelStart(msg.msg);
       else if (id === 5) onDuelEnd(msg.msg);                 // MSG_WIN：回大厅
       if (YGO.isMapped(id)) {

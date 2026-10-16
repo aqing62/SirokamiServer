@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261017u">
+<link rel="stylesheet" href="css/duel-client.css?v=20261017z">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -212,6 +212,26 @@
 #ypReveal   { z-index: 9600 !important; }
 #ypTimeLeft, #ypSurrender { z-index: 9700 !important; }
 </style>
+
+/* ── 竖屏：卡片选择改成"一行往右滑"（用户反馈竖着滑违反习惯 + 卡片太小）── */
+/* yp-chooser-hscroll */
+@media (orientation: portrait) {
+  #ypChooser {
+    position: fixed !important; left: 4px !important; right: 4px !important;
+    top: auto !important; bottom: 4px !important; max-height: 30dvh !important;
+    overflow: hidden !important;
+  }
+  #ypChooser .yp-chooser-grid {
+    display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important;
+    overflow-x: auto !important; overflow-y: hidden !important; gap: 8px !important;
+    padding-bottom: 6px !important; -webkit-overflow-scrolling: touch !important;
+    scroll-snap-type: x proximity !important;
+  }
+  #ypChooser .yp-chooser-grid > * { flex: 0 0 auto !important; scroll-snap-align: start !important; }
+  #ypChooser .yp-chooser-grid img { height: 17dvh !important; width: auto !important; max-height: none !important; }
+  #ypChooser .yp-chooser-item { min-width: 0 !important; }
+}
+</style>
 </head>
 <body>
 
@@ -341,7 +361,7 @@
 
 <script src="js/ygopro-web-browser.js?v=20261016a"></script>
 <script src="js/viewer-live.js?v=20261016w"></script>
-<script src="js/duel-client.js?v=20261017y"></script>
+<script src="js/duel-client.js?v=20261017z"></script>
 <script>
 /* 入口层逻辑：登录 / 显示当前卡组 / 开始匹配（不改客户端产物） */
 (function () {
