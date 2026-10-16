@@ -2051,7 +2051,11 @@
             if (model) for (var mi = 0; mi < model.length; mi++) if (model[mi].seq === info.sequence) { faceDown = !!model[mi].faceDown; break; }
           } catch (e) {}
         }
-        var known = !!info.code && !faceDown;
+        // ⚠ 修正（用户反馈：选择对手场上的卡时显示"里侧表示"，但那其实是正面的）：
+        //   引擎只在卡**公开**时才在卡信息里给卡号 —— 对手的盖卡/里侧卡给的是 0。
+        //   所以"有卡号"就足够判定公开；原来多加了 && !faceDown，而 faceDown 会被上面
+        //   "场地模型兜底"带偏（模型里对手的卡常被标成 faceDown）→ 把对手正面的卡显示成里侧 ✗
+        var known = !!info.code;
         return {
           label: known ? cardLabel(info.code) : '里侧卡片', code: known ? info.code : 0,
           faceDown: !known,
