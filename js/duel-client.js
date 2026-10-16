@@ -4026,6 +4026,25 @@
     var loc = locMap[kind];
     if (!loc) return false;
     var cards = (window.__live && window.__live.cardsAt) ? window.__live.cardsAt(ctlView, loc) : [];
+    // PATCH(白神服): 卡组列表补候选 —— 卡组平时是隐藏的，查看器模型里没有卡号 ✗
+    //   而"从卡组特召/检索"这类请求会把候选**带卡号**发过来 ✓ → 用它们填列表，
+    //   否则点卡组「查看列表」会是空的（用户要求：能看见卡组里可操作的那些卡 ✓）
+    try {
+      var _P0 = state.pending;
+      if (!cards.length && _P0 && _P0.cands) {
+        var _seen = {};
+        _P0.cands.forEach(function (cd) {
+          var info = cd.info || {};
+          if ((info.location & 0x7f) !== loc) return;
+          if (flipSeat(info.controller || 0) !== ctlView) return;
+          var sq = info.sequence;
+          if (_seen[sq]) return;
+          _seen[sq] = 1;
+          cards.push({ seq: sq, code: cd.code || (cd.info && cd.info.code) || 0, pos: info.position || 0, faceDown: false });
+        });
+        cards.sort(function (a, b) { return (a.seq || 0) - (b.seq || 0); });
+      }
+    } catch (e) {}
     // 额外卡组：查看器只记数量、不存卡号（历史遗留），改从查看器补丁写入的侧通道取
     if (loc === LOC.EXTRA && !cards.length && window.__ypExtra && window.__ypExtra[ctlView]) {
       cards = window.__ypExtra[ctlView].map(function (code, i) { return { seq: i, code: code, pos: 0, faceDown: false }; });
