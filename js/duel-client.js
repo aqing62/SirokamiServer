@@ -816,6 +816,13 @@
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
     state.reconnectTries = (state.reconnectTries || 0) + 1;
+    // 连太多次就停：防止"忘了关的页面"永远重连、永远占房间（实测踩过：一堆默认名僵尸房 ✗）
+    if (state.reconnectTries > 5) {
+      state.reconnectStopped = true;
+      setHud('连接一直重连不上 —— 请回决斗大厅重新开始', 'err');
+      logLine('⚠ 自动重连已尝试 5 次仍失败 → 停止重连（避免一直占着房间）', 'rp-log-err');
+      return;
+    }
     var delay = Math.min(1500 * Math.pow(2, state.reconnectTries - 1), 10000);
     setHud('连接断开，' + Math.round(delay / 1000) + ' 秒后自动重连…（第 ' + state.reconnectTries + ' 次）', 'warn');
     logLine('↻ 连接断开 → ' + Math.round(delay / 1000) + ' 秒后自动重连（第 ' + state.reconnectTries + ' 次）', 'rp-log-phase');
@@ -2865,6 +2872,19 @@
       box.appendChild(b);
     });
     document.body.appendChild(box);
+    // 牌堆菜单（墓地/除外）里的「发动效果」也贴 CDB 提示
+    try {
+      var _pairs = [];
+      actions.forEach(function (a) { if (a && a.pileCode) _pairs.push({ btn: null, code: a.pileCode, idx: 0 }); });
+      if (_pairs.length) {
+        var _btns = Array.prototype.slice.call(box.querySelectorAll('.yp-menu-item'));
+        var _k = 0;
+        _btns.forEach(function (b) {
+          if ((b.textContent || '').indexOf('发动效果') >= 0 && _pairs[_k]) { _pairs[_k].btn = b; _k++; }
+        });
+        decoratePileHints(null, _pairs);
+      }
+    } catch (e) {}
     // 打开卡片菜单时，顺手把这张卡的信息显示到左侧（真实客户端也是这个手感）
     var firstInfo = actions[0] && actions[0].info;
     if (firstInfo && firstInfo.code) showCardInfo(firstInfo.code);
@@ -3126,7 +3146,7 @@
           var kindName = pileKey.split(':')[0] === 'grave' ? '墓地' : pileKey.split(':')[0] === 'removed' ? '除外' : '这里';
           showChooser('可发动的效果（' + kindName + '，' + acts.length + ' 张）', acts.map(function (cd) {
             return {
-              label: cardLabel(cd.info.code), code: cd.info.code,
+              label: cardLabel(cd.info.code), code: cd.info.code, pileCode: cd.info.code,
               sub: kindName + '[' + ((cd.info.sequence === undefined ? 0 : cd.info.sequence) + 1) + ']',
               f: function () {
                 hideChooser();
@@ -3852,7 +3872,10 @@
     }
     if (q.get('auto') === '1') { ensureMatchingOverlay(); setTimeout(function () { joinRoom(); setTimeout(uploadDeckAndReady, 1500); }, 300); }
     // 天梯：没有 ?room=（即不是本地联调）就**自动进匹配队列**，玩家不需要点任何按钮
-    if (!q.get('room')) setTimeout(function () {
+    // ⚠ 只有来自决斗大厅（?auto=1）才自动进匹配队列 ——
+    //   直接打开 duel.html（无 ?room= 无 ?auto=1，比如忘了关的旧标签页/测试页面）不再自动进房，
+    //   否则会留下"默认名玩家1698/9977"这种僵尸房（实测踩过 ✗）。
+    if (q.get('auto') === '1' && !q.get('room')) setTimeout(function () {
       // ⚠ 刷新必须回到**同一个房间**：原来每次加载都重新生成随机房名，
     //   于是"备牌完刷新"就变成了进新房间打新的 Bo1（用户实测踩到 ✗）。
     //   存 sessionStorage：同一标签页刷新/重连都复用；回大厅时清掉（见 leaveRoomGracefully）。
