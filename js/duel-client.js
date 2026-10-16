@@ -3774,7 +3774,10 @@
     var info = cd.info || {};
     var plain = (info.location === undefined ? 0 : info.location) & 0x7f;
     var viewCtl = flipSeat(info.controller || 0);
-    var kind = plain === LOC.GRAVE ? 'grave' : plain === LOC.REMOVED ? 'removed' : plain === LOC.EXTRA ? 'extra' : null;
+    // PATCH(白神服): 卡组也要算一类牌堆 —— 像「凭依觉醒-螺旋龙」这种"从卡组特殊召唤"的候选
+    //   原来 plain=LOC.DECK 落到 null → 卡组堆永远不高亮、点不到（用户要求加发光 ✓）
+    var kind = plain === LOC.GRAVE ? 'grave' : plain === LOC.REMOVED ? 'removed'
+      : plain === LOC.EXTRA ? 'extra' : plain === LOC.DECK ? 'deck' : null;
     return kind ? (kind + ':' + viewCtl) : null;
   }
   /** 用当前请求里"没有格位"的候选，给对应牌堆加发光/角标 */
@@ -3853,7 +3856,7 @@
     });
     if (P) P.pileActs = byPile;
   }
-  var PILE_KINDS = ['grave', 'removed', 'extra', 'deck'];
+  var PILE_KINDS = ['deck', 'grave', 'removed', 'extra', 'deck'];
 
   /** 统一的"提交这一条"：候选条目用 index，动作条目用 type+index */
   function submitPileEntry(P, e) {
