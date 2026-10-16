@@ -511,6 +511,7 @@
 
   function leaveRoomGracefully() {
     state.leaving = true;
+    try { sessionStorage.removeItem('yp_room_saved'); } catch (e) {}   // 换新房间要重新抽房名
     try { send({ identifier: 19, toPayload: function () { return new Uint8Array(0); } }); } catch (e) {}
     setTimeout(function () { try { if (state.sock) state.sock.close(); } catch (e) {} }, 120);
   }
@@ -3676,7 +3677,14 @@
     if (q.get('auto') === '1') { ensureMatchingOverlay(); setTimeout(function () { joinRoom(); setTimeout(uploadDeckAndReady, 1500); }, 300); }
     // 天梯：没有 ?room=（即不是本地联调）就**自动进匹配队列**，玩家不需要点任何按钮
     if (!q.get('room')) setTimeout(function () {
-      state.room = ladderRoom();
+      // ⚠ 刷新必须回到**同一个房间**：原来每次加载都重新生成随机房名，
+    //   于是"备牌完刷新"就变成了进新房间打新的 Bo1（用户实测踩到 ✗）。
+    //   存 sessionStorage：同一标签页刷新/重连都复用；回大厅时清掉（见 leaveRoomGracefully）。
+    var _savedRoom = '';
+    try { _savedRoom = sessionStorage.getItem('yp_room_saved') || ''; } catch (e) {}
+    state.room = _savedRoom || ladderRoom();
+    try { sessionStorage.setItem('yp_room_saved', state.room); } catch (e) {}
+    if (_savedRoom) logLine('↻ 复用上次的房间名：' + state.room + '（刷新/重连回到同一局）', 'rp-log-phase');
       // ⚠ 昵称按**房间**固定：否则换名重进会在房间里留下"另一个我"（服务端按昵称保留席位 ✗）
       state.name = nameForRoom(state.room);
       logLine('天梯：自动进入匹配（房间 ' + state.room + '，账号 ' + state.name + '）', 'rp-log-phase');
