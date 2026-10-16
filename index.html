@@ -967,12 +967,23 @@
   //   首页是**区块切换**（全局 showSection ✓）+ 组卡器是**模式切换**（#deckBuilderToggle ✓）
   //   上一版我只弹了个提示 ✗ 没有切页面 → 用户看到的是"变成主页" ✗（这次真的切过去 ✓）
   function openBuilder() {
+    // ① 区块切换（全站通用 ✓）
     try { if (typeof showSection === 'function') showSection('section-card-pool'); } catch (e) {}
-    try {
-      var tg = document.getElementById('deckBuilderToggle');
-      if (tg && !tg.classList.contains('active')) tg.click();      // 点它自己 → 走它自己的切换逻辑 ✓
-    } catch (e) {}
-    try { window.scrollTo({ top: 0, behavior: 'instant' in window ? 'auto' : 'auto' }); } catch (e) {}
+    // ② 组卡器模式：点它自己那个开关 ✓
+    //    ⚠ "立刻点"时组卡器的 JS 可能还没就绪 → 点击会被忽略（实测 ✗）
+    //    → 重试几次，**只在自己还没激活时点** ✓（不会点两次又关掉 ✓）
+    var tries = 0;
+    function tryToggle() {
+      try {
+        var tg = document.getElementById('deckBuilderToggle');
+        if (!tg) return;
+        if (tg.classList.contains('active')) return;          // 已经开了 → 停 ✓
+        tg.click();
+        if (++tries < 6) setTimeout(tryToggle, 400);          // 最多重试 6 次（2.4 秒）
+      } catch (e) {}
+    }
+    tryToggle();
+    try { window.scrollTo(0, 0); } catch (e) {}
   }
 
   var q = new URLSearchParams(location.search);
