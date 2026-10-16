@@ -844,6 +844,35 @@
     renderCountsStrip();
   }
 
+
+  /**
+   * 对手手卡补卡背：引擎对对手手卡只给数量不给卡号，查看器按卡号渲染 → 一片空白 ✗
+   * 这里按我们记的数量，往对手手卡容器里补 N 张卡背（纯 DOM，查看器重绘会清掉，所以每次消息都补一次）
+   */
+  function fillOpponentHand() {
+    try {
+      var me = (state.myDuelPos === 0 || state.myDuelPos === 1) ? state.myDuelPos : null;
+      if (me === null) return;
+      var oppDuelPos = 1 - me;
+      var n = _cnt[oppDuelPos] ? _cnt[oppDuelPos].hand : null;
+      if (n === null || n < 0) return;
+      // 查看器的视角座位：自己是 0，对手是 1（flipSeat 的语义）
+      var viewSeat = flipSeat(oppDuelPos);
+      var box = document.querySelector('.rp-hand[data-zone="' + viewSeat + ':2"]');
+      if (!box) return;
+      var have = box.querySelectorAll('.yp-opp-back').length;
+      if (have === n) return;
+      // 清掉我们之前补的，再按数量补
+      Array.prototype.forEach.call(box.querySelectorAll('.yp-opp-back'), function (e) { e.remove(); });
+      for (var i = 0; i < n; i++) {
+        var d = document.createElement('div');
+        d.className = 'rp-card yp-opp-back';
+        d.style.cssText = 'background:#2a2118;border:1px solid #4a3a28;border-radius:3px';
+        box.appendChild(d);
+      }
+    } catch (e) {}
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -1252,6 +1281,7 @@
       state.recentIds = state.recentIds || [];
       state.recentIds.push(id);
       if (state.recentIds.length > 40) state.recentIds.shift();
+      try { fillOpponentHand(); } catch (e) {}
       if (msg.msg && msg.msg.constructor && msg.msg.constructor.name === 'YGOProMsgDraw') {
         try {
           var _dp = msg.msg.player, _n = msg.msg.count || ((msg.msg.cards || []).length) || 0;
@@ -1403,7 +1433,7 @@
             f.hand !== undefined ? f.hand :
             f.handCount !== undefined ? f.handCount :
             f.handc !== undefined ? f.handc :
-            (f.handCards ? f.handCards.length : undefined));
+            (f.handCards ? f.handCards.length : 5));   // 兜底用起始手卡数(服务器 hostinfoStartHand=5)，之后再按抽卡增减
           setCount(it.dp, 'extra', f.extraCount !== undefined ? f.extraCount : f.extrac);
           if (!state._countFieldsLogged) {
             state._countFieldsLogged = true;
