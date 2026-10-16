@@ -2014,6 +2014,26 @@
   }
 
   function renderPending() {
+    // 选择界面自愈：用户反馈"刷新一下效果才能用" ✗ = 客户端有时没把选择界面弹出来。
+    // 这里挂个看门狗：20 秒后如果还是同一个请求、且界面上没有任何可点的选择界面 → 自动重渲染一次。
+    try {
+      var _P0 = state.pending;
+      if (_P0) {
+        clearTimeout(state.selfHealTimer);
+        state.selfHealTimer = setTimeout(function () {
+          try {
+            if (state.pending !== _P0) return;                       // 已经换了请求 → 不管
+            var vis = document.getElementById('ypChooser') || document.getElementById('ypPrompt') || document.getElementById('ypCardMenu');
+            var hasUi = false;
+            if (vis && getComputedStyle(vis).display !== 'none' && vis.getBoundingClientRect().height > 0) hasUi = true;
+            if (hasUi) return;                                        // 界面在 → 正常
+            logLine('↻ 选择界面 20 秒没出现 → 自动重渲染一次（自愈）', 'rp-log-err');
+            renderPending();
+          } catch (e) {}
+        }, 20000);
+      }
+    } catch (e) {}
+
     // 同步多选确定按钮（万宝槌这类任意数量选择也能中途确定）
     try { setTimeout(syncPickConfirm, 60); } catch (e) {}
     var P = state.pending;
