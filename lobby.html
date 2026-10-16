@@ -211,8 +211,10 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     <!-- 只有天梯一种形态（比赛模式已按用户决定去掉）→ 不再需要模式选择，卡组行独自成行 -->
     <div class="row row-inline">
       <span class="k">卡组</span>
-      <select id="deckSel"><option value="">（还没有卡组，先上传一个）</option></select>
-      <button class="btn ghost" id="btnUpload">上传 / 编辑卡组(.ydk)</button>
+      <select id="deckSel"><option value="">（还没有卡组，点右边新建或上传）</option></select>
+      <button class="btn ghost" id="btnUpload" title="从电脑里选一个 .ydk 文件存到账号">上传</button>
+      <button class="btn ghost" id="btnEdit" title="在组卡器里打开选中的卡组（改完可直接保存到账号）">编辑</button>
+      <button class="btn ghost" id="btnNew" title="打开组卡器新建一套卡组（可保存到账号）">新建</button>
       <input type="file" id="ydkFile" accept=".ydk,text/plain" style="display:none">
     </div>
     <div class="deck-box">
@@ -277,7 +279,7 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       var names = (j && j.names) || [];
       if (!names.length) {
         var o = document.createElement('option');
-        o.value = ''; o.textContent = '（还没有卡组，点右边上传一个）';
+        o.value = ''; o.textContent = '（还没有卡组，点右边新建或上传）';
         sel.appendChild(o);
         setStartEnabled(false);            // 没卡组 → 不让开始匹配
         return;
@@ -299,7 +301,7 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       } else {
         curDeck = null;
         $('deckNow').textContent = '未设置';
-        $('deckCards').innerHTML = '<div class="deck-empty">还没设置卡组 — 点右边「上传 / 编辑卡组(.ydk)」把你的卡组传上来</div>';
+        $('deckCards').innerHTML = '<div class="deck-empty">还没设置卡组 — 点右边的「新建」在组卡器里建一套，或「上传」一个 .ydk</div>';
       }
     });
   }
@@ -376,6 +378,21 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
         else msg((j && j.error) || '切换失败');
       });
   };
+
+  // ── 编辑 / 新建 → 打开组卡器（组卡器里可直接保存/删除到账号 ✓）
+  //    ?deck=<名字> 让组卡器载入指定卡组；?new=1 新建空卡组；?from=lobby 保存后能一键回大厅 ✓
+  if ($('btnEdit')) {
+    $('btnEdit').onclick = function () {
+      var n = ($('deckSel') && $('deckSel').value) || '';
+      if (!n) { msg('先在左边选一套卡组，再点「编辑」'); return; }
+      location.href = 'deck-builder.html?deck=' + encodeURIComponent(n.replace(/\.ydk$/i, '')) + '&from=lobby';
+    };
+  }
+  if ($('btnNew')) {
+    $('btnNew').onclick = function () {
+      location.href = 'deck-builder.html?new=1&from=lobby';
+    };
+  }
 
   // ── 上传 .ydk（打开本地文件夹自选）──
   $('btnUpload').onclick = function () { $('ydkFile').click(); };
