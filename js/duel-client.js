@@ -4904,5 +4904,8 @@
       };
     },
   };
+
+  // 方案B 补漏：决斗客户端启动时上报一次真实公网 IP（不能只靠大厅 ✗ 大家都是直接开 duel.html?auto=1 的 ✓）
+  try { setTimeout(reportRealIpOnce, 1200); } catch (e) {}
 })();
 
