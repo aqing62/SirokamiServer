@@ -4010,6 +4010,15 @@
       if (hint) hint.style.display = 'none';
     };
     probe.onerror = function () { ci++; if (ci < chain.length) probe.src = chain[ci]; };
+    // PATCH(白神服 2026-10-17): 图片**已在缓存**时 onload 不一定触发 →
+    //   卡图会永远停在隐藏状态(用户实测：PC 端"卡片信息里没有卡图" ✗)。这里补上"已完成"判断 ✓
+    if (probe.complete && probe.naturalWidth) {
+      im.src = probe.src;
+      im.classList.add('ready');
+      if (hint) hint.style.display = 'none';
+    } else {
+      probe.onload = probe.onload || null;
+    }
     if (hint && !im.classList.contains('ready')) hint.style.display = '';
     probe.src = chain[0];
     var meta = metaOf(code);

@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261019k">
+<link rel="stylesheet" href="css/duel-client.css?v=20261019m">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -390,6 +390,14 @@
 #ypInfoName, #ypInfoType, #ypInfoStat, #ypInfoSeries, #ypInfoText { grid-column: 2 !important; }
 #ypInfoText { overflow: auto !important; }
 </style>
+<style>
+/* siro-cardinfo-img-visible */
+/* 卡片信息栏的卡图可见性兜底 —— 客户端是预加载完成才显示(.ready)，而图片命中缓存时
+   onload 不一定触发 → 卡图永远 opacity:0（PC 端实测卡片信息里没有卡图 ✗）。
+   JS 那边我已补已完成判断 ✓，这里再加一道 CSS 兜底，保证有图就一定看得见 ✓ */
+#ypInfoImg { opacity: 1 !important; }
+#ypInfoImg:not([src]), #ypInfoImg[src="] { opacity: 0 !important; }
+</style>
 </head>
 <body>
 
@@ -407,7 +415,7 @@
 
 <script src="js/ygopro-web-browser.js?v=20261016a"></script>
 <script src="js/viewer-live.js?v=20261019g"></script>
-<script src="js/duel-client.js?v=20261019i"></script>
+<script src="js/duel-client.js?v=20261019m"></script>
 <script>
 /* 入口层逻辑：登录 / 显示当前卡组 / 开始匹配（不改客户端产物） */
 (function () {
