@@ -2450,7 +2450,7 @@
     }).filter(function (x) { return x.name; });
     var box = document.createElement('div');
     box.id = 'ypDeclare';
-    box.style.cssText = 'position:fixed;inset:0;z-index:90;display:flex;align-items:flex-start;justify-content:center;'
+    box.style.cssText = 'position:fixed;inset:0;z-index:9550;display:flex;align-items:flex-start;justify-content:center;'
       + 'background:rgba(6,6,8,.72);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#ece9e4;padding:6vh 12px';
     box.innerHTML = '<div style="width:min(560px,96vw);background:#141116;border:1px solid rgba(216,30,68,.5);'
       + 'border-radius:12px;padding:16px 18px;box-shadow:0 20px 60px rgba(0,0,0,.7)">'
