@@ -595,6 +595,7 @@
   }
 
   function leaveRoomGracefully() {
+    state.leaving = true;
     try { send({ identifier: 19, toPayload: function () { return new Uint8Array(0); } }); } catch (e) {}
     setTimeout(function () { try { if (state.sock) state.sock.close(); } catch (e) {} }, 120);
   }
@@ -739,6 +740,31 @@
     return true;
   }
 
+
+  /**
+   * 自动重连。
+   * 手机锁屏 / 切后台 / 换网 / 刷新都会把 WS 断掉；原来 onclose 只显示"连接已断开"就死在那，
+   * 玩家只能自己刷新（用户反馈"手机刷新后断开无法重连"就是这个）。
+   * 这里按 1.5s→3s→6s→10s 退避重连；连上后重新进房 ——
+   * 服务端按昵称把"未完成的对局"放回原座位，客户端已实现收到提示就自动 UPDATE_DECK + READY。
+   */
+  function scheduleReconnect() {
+    if (state.matchAborted || state.leaving || state.reconnectStopped) return;
+    if (state.reconnectTimer) return;
+    state.reconnectTries = (state.reconnectTries || 0) + 1;
+    var delay = Math.min(1500 * Math.pow(2, state.reconnectTries - 1), 10000);
+    setHud('连接断开，' + Math.round(delay / 1000) + ' 秒后自动重连…（第 ' + state.reconnectTries + ' 次）', 'warn');
+    logLine('↻ 连接断开 → ' + Math.round(delay / 1000) + ' 秒后自动重连（第 ' + state.reconnectTries + ' 次）', 'rp-log-phase');
+    state.reconnectTimer = setTimeout(function () {
+      state.reconnectTimer = null;
+      if (state.matchAborted || state.leaving) return;
+      try { joinRoom(); } catch (e) {
+        logLine('重连失败：' + (e && e.message), 'rp-log-err');
+        scheduleReconnect();
+      }
+    }, delay);
+  }
+
   function joinRoom() {
     if (!state.room) { setHud('请先填房间名', 'warn'); return; }
     if (!applyInjectedDeck() && !state.deck) state.deck = deckFromCodes(DEFAULT_CODES);
@@ -755,6 +781,8 @@
     state.sock.binaryType = 'arraybuffer';
     state.scanner = new YGO.FrameScanner({ onError: function (e) { console.warn(e.message); } });
     state.sock.onopen = function () {
+      if (state.reconnectTries) logLine('✓ 重连成功（第 ' + state.reconnectTries + ' 次尝试）', 'rp-log-ok');
+      state.reconnectTries = 0;
       send(new YGO.YGOProCtosPlayerInfo().fromPartial({ name: state.name }));
       // lflist：卡表序号。服务端 `room.js` 的判定是：
       //   `hostinfo.lflist >= 0` → 取 lflist.conf 里第 N 个表（**从 0 开始数**）；**`-1` → 空表 = 无禁限**。
@@ -770,8 +798,8 @@
       var frames = state.scanner.push(new Uint8Array(ev.data));
       for (var i = 0; i < frames.length; i++) onFrame(frames[i]);
     };
-    state.sock.onclose = function () { setHud('连接已断开', 'err'); };
-    state.sock.onerror = function () { setHud('连接错误', 'err'); };
+    state.sock.onclose = function () { setHud('连接已断开', 'err'); scheduleReconnect(); };
+    state.sock.onerror = function () { setHud('连接错误', 'err'); scheduleReconnect(); };
   }
 
   /**
