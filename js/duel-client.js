@@ -2451,21 +2451,6 @@
         }
         // 没有可连锁项且不强制 → 自动跳过连锁，不弹窗
         if (!chains.length && !forced) {
-          // ★ 连锁窗口自动跳过诊断：如果引擎其实给了可连锁项而本地解不出来（自解布局或库解码出错），
-          //   玩家就会"完全看不到可选项、效果永远发不动"（用户实测：电子界小男巫③ 这类触发效果没得选 ✗）。
-          //   这里把原始报文和两种解码结果都打出来，一条日志就能定性。
-          try {
-            var _raw = (m && (m.raw || m.rawBytes || m.bytes)) || null;
-            var _hex = '';
-            if (_raw && _raw.length) {
-              for (var _i = 0; _i < Math.min(_raw.length, 64); _i++) _hex += _raw[_i].toString(16).padStart(2, '0') + ' ';
-            }
-            logLine('⚠ 连锁窗口自动跳过（诊断）：rawLen=' + (_raw ? _raw.length : '?')
-              + ' 自解=' + (state.lastChainDecode || 'null')
-              + ' 库解=' + (m && m.chains ? m.chains.length : '?')
-              + (state.lastFrameHex ? (' 原始=' + state.lastFrameHex.slice(0, 64) + '（' + state.lastFrameLen + 'B）') : ' 原始=?'),
-              'rp-log-err');
-          } catch (e) {}
           logLine('（没有可连锁的效果 → 自动不连锁）', 'rp-log-hint');
           respond(m.prepareResponse(null));
           return;
