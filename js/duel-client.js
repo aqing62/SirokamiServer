@@ -2069,12 +2069,37 @@
             disabled: function () { return state.picked.length < (m.min || 0) || (m.sumVal !== undefined && sumGateUsable(P) && !pickedSumOk(m, state.picked)); },   // 数量没够 / 合计没凑满就禁用（否则点了会被引擎拒）
             f: function () { hideChooser(); submitMulti(P); },
           },
+          { t: '清空已选', f: function () {
+              if (!state.picked.length) return;
+              state.picked.forEach(function (cd) { if (cd.el) cd.el.classList.remove('yp-picked'); });
+              state.picked = [];
+              state.sumVal = 0;
+              renderActionCount();
+            } },
           { t: '取消', f: function () { hideChooser(); if (m.cancelable) respond(m.prepareResponse(null)); else renderPending(); } },
         ],
       },
     );
     return true;
   }
+  /** 张数门槛：合计型选择（连接召唤/同调等 SELECT_SUM）不看张数，只看合计够不够 */
+  function countGateOk(P, m) {
+    if (state.sumVal !== undefined && sumGateUsable(P)) return true;
+    return state.picked.length >= (m.min || 0);
+  }
+
+  (function injectPickedStyle() {
+    if (document.getElementById('yp-picked-dim-style')) return;
+    var st = document.createElement('style');
+    st.id = 'yp-picked-dim-style';
+    // 已选素材：压暗 + 去色 + 打勾角标 —— 一眼能看出哪些选过了（原来只是高亮，看多了会乱）
+    st.textContent = '.yp-picked { opacity:.32 !important; filter:grayscale(.7) brightness(.8); }'
+      + '.yp-picked::after { content:"✓"; position:absolute; right:2px; top:2px; z-index:3;'
+      + ' background:rgba(212,175,55,.95); color:#1a1a2e; font-weight:900; font-size:11px;'
+      + ' line-height:14px; width:14px; text-align:center; border-radius:3px; }';
+    document.head.appendChild(st);
+  })();
+
   function layoutChooser() {
     var box = chooserEl();
     if (!box) return;
