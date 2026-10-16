@@ -4278,6 +4278,15 @@
       if (hint) hint.style.display = 'none';
     };
     probe.onerror = function () { ci++; if (ci < chain.length) probe.src = chain[ci]; };
+    // PATCH(白神服): "假 200" —— 8080 文件服务对不存在的图返回 200 + 错误页(167 字节) ✗
+    //   → 浏览器不触发 onerror → 兜底链断掉 → 显示坏图（用户实测"先行卡图没了" ✗）
+    //   这里：onload 时检查 naturalWidth，为 0 就当失败继续兜底 ✓
+    probe.__fake200Checked = true;
+    var _origOnload = probe.onload;
+    probe.onload = function () {
+      if (probe.naturalWidth === 0 && ci + 1 < chain.length) { ci++; probe.src = chain[ci]; return; }
+      if (typeof _origOnload === 'function') return _origOnload.apply(this, arguments);
+    };
     // PATCH(白神服 2026-10-17): 图片**已在缓存**时 onload 不一定触发 →
     //   卡图会永远停在隐藏状态(用户实测：PC 端"卡片信息里没有卡图" ✗)。这里补上"已完成"判断 ✓
     if (probe.complete && probe.naturalWidth) {

@@ -80,7 +80,12 @@
         var idx = 0;
         img.setAttribute('data-src-idx', '0');
         img.src = chain[0];
-        img.onerror = function () {
+        // PATCH(白神服): "假 200"（源站对缺失图返回 200+错误页）→ onerror 不触发 → 兜底断掉
+    //   加载成功但尺寸为 0 时也当作失败，继续下一档 ✓
+    img.onload = function () {
+        if (this.naturalWidth < 2 && id && step < IMG_FALLBACK.length) { this.src = IMG_FALLBACK[step++](id); }
+    };
+    img.onerror = function () {
             idx++;
             if (idx < chain.length) {
                 img.setAttribute('data-src-idx', String(idx));
