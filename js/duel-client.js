@@ -2679,6 +2679,7 @@
     opts = opts || {};
     var box = document.createElement('div');
     box.id = 'ypChooser';
+    state.chooserPinned = false;      // 新列表 → 恢复自动摆位（拖动钉住只对当前列表有效）
     box.className = 'yp-chooser';
     var head = document.createElement('div');
     head.className = 'yp-chooser-title';
@@ -2952,6 +2953,10 @@
    */
   function decorateChooser(box) {
     if (!box || box.querySelector('.yp-chooser-bar')) return;
+    // ★ 新的选择列表出现 → 重置"钉住"标记 ✗
+    //   原来钉住是全局的：拖动一次之后，**后续每一个新列表都不再被摆位** →
+    //   它们出现在默认位置（屏幕外/左上角）→ 玩家看到"选择列表不出现了"（用户实测 ✗）
+    state.chooserPinned = false;
     var bar = document.createElement('div');
     bar.className = 'yp-chooser-bar';
     bar.style.cssText = 'display:flex;align-items:center;gap:8px;padding:2px 4px 6px;cursor:move;'
