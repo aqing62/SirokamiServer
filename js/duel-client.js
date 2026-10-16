@@ -1096,6 +1096,59 @@
     if (el) el.textContent = '';
   }
 
+
+  /**
+   * 「效果被无效」动画：在对应卡图上盖一个禁止图标（🚫），播 ~1.6 秒自动消失。
+   * 用户要求：C1 发动强欲之壶、C2 灰流丽 → 处理连锁时强欲之壶卡图上出现禁止图标，动画要会消失。
+   * 数据来源：MSG_CHAINING 记下每个连锁项 → MSG_CHAIN_DISABLED（连锁被无效）指出第几项 → 找那张卡。
+   */
+  var _chainLinks = [];      // [{code, ctl, loc, seq}]
+  function showNegatedAnim(code, ctl, loc, seq) {
+    try {
+      var host = null;
+      // ① 先按卡号找场上的卡图（最稳：不看 data-zone 约定）
+      if (code) {
+        var imgs = document.querySelectorAll('#replayModal img, .replay-field img, .rp-cell img');
+        for (var i = 0; i < imgs.length; i++) {
+          var src = String(imgs[i].src || '');
+          if (src.indexOf('/' + code + '.') >= 0 || src.indexOf(code + '.jpg') >= 0) { host = imgs[i].parentNode; break; }
+        }
+      }
+      // ② 退而求其次：按区域+序号找格位
+      if (!host && ctl !== undefined && loc !== undefined && seq !== undefined) {
+        var seat = flipSeat(ctl);
+        host = document.querySelector('.rp-cell[data-zone="' + seat + ':' + (loc & 0x7f) + ':' + seq + '"]')
+            || document.querySelector('.rp-cell[data-zone="' + ctl + ':' + (loc & 0x7f) + ':' + seq + '"]');
+      }
+      if (!host) { logLine('▸ 效果被无效（没找到卡图，仅提示）', 'rp-log-err'); return; }
+      if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+      var d = document.createElement('div');
+      d.className = 'yp-negated';
+      d.style.cssText = 'position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;'
+        + 'pointer-events:none;opacity:0;transition:opacity .18s ease';
+      d.innerHTML = '<div style="position:absolute;inset:0;background:rgba(120,10,20,.42)"></div>'
+        + '<div style="position:relative;width:62%;aspect-ratio:1;border-radius:50%;border:4px solid #ff4d4d;'
+        + 'background:rgba(20,4,6,.85);display:flex;align-items:center;justify-content:center;'
+        + 'box-shadow:0 0 14px rgba(255,60,60,.9);animation:ypNegPop .38s cubic-bezier(.2,1.4,.4,1) both">'
+        + '<svg viewBox="0 0 24 24" width="72%" height="72%"><circle cx="12" cy="12" r="9" fill="none" stroke="#ff4d4d" stroke-width="2.4"/>'
+        + '<line x1="5.6" y1="18.4" x2="18.4" y2="5.6" stroke="#ff4d4d" stroke-width="2.4" stroke-linecap="round"/></svg>'
+        + '</div>';
+      var st = document.createElement('style');
+      st.textContent = '@keyframes ypNegPop{0%{transform:scale(.4);opacity:0}60%{transform:scale(1.12)}100%{transform:scale(1);opacity:1}}'
+        + '@keyframes ypNegOut{to{opacity:0;transform:scale(1.15)}}';
+      d.appendChild(st);
+      host.appendChild(d);
+      requestAnimationFrame(function () { d.style.opacity = '1'; });
+      logLine('🚫 效果被无效：' + (code ? cardLabel({ code: code }) : '（无卡号）'), 'rp-log-err');
+      setTimeout(function () {
+        try {
+          d.style.animation = 'ypNegOut .35s ease both';
+          setTimeout(function () { if (d.parentNode) d.parentNode.removeChild(d); }, 400);
+        } catch (e) { if (d.parentNode) d.parentNode.removeChild(d); }
+      }, 1600);      // 播 1.6 秒后自动消失
+    } catch (e) {}
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -1319,8 +1372,11 @@
     if (msg && msg.constructor && msg.constructor.name === 'YGOProMsgChaining') {
       try {
         var LOCN = { 0x01: '手卡', 0x02: '怪兽区', 0x04: '魔法陷阱区', 0x08: '墓地', 0x10: '除外区', 0x20: '额外卡组', 0x40: '卡组', 0x80: '灵摆区' };
+        _chainLinks = [];
         (msg.chains || []).forEach(function (c) {
           if (!c) return;
+          try { _chainLinks.push({ code: c.code, ctl: c.controler, loc: c.location, seq: c.sequence }); } catch (e) {}
+          
           var who = (flipSeat(c.controler) === 0) ? '你' : '对方';
           var where = LOCN[c.location] || ('位置' + c.location);
           var what = (c.code ? ('『' + cardLabel({ code: c.code }) + '』') : '一张里侧卡片');
@@ -1566,6 +1622,15 @@
       }
       try { fillOpponentHand(); } catch (e) {}
       try { fixPileCounts(); } catch (e) {}
+      // ★ 效果被无效（MSG_CHAIN_DISABLED）：在对应卡图上播禁止图标动画
+      if (msg.msg && msg.msg.constructor && /ChainDisabled|ChainNegated/i.test(msg.msg.constructor.name)) {
+        try {
+          var _f9 = msg.msg;
+          var _idx = (_f9.chainCount !== undefined) ? _f9.chainCount : (_f9.chainIndex !== undefined ? _f9.chainIndex : 1);
+          var _lk = _chainLinks[_idx - 1] || _chainLinks[_chainLinks.length - 1] || {};
+          showNegatedAnim(_lk.code, _lk.ctl, _lk.loc, _lk.seq);
+        } catch (e) {}
+      }
       if (msg.msg && msg.msg.constructor && msg.msg.constructor.name === 'YGOProMsgDraw') {
         try {
           var _dp = msg.msg.player, _n = msg.msg.count || ((msg.msg.cards || []).length) || 0;
