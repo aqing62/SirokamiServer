@@ -1313,8 +1313,10 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 })
                 rooms = data.get("rooms", [])
                 for room in rooms:
-                    # 天梯 = M# 前缀 + 双方都已登录
-                    isM = room.get("roomname", "").startswith("M#")
+                    # 天梯 = M 模式房（M# 或 M,…#，例如随机匹配房实际叫 "M,RANDOM#xxxx"）+ 双方都已登录
+                    # ⚠ 原来只认 startswith("M#")，把随机匹配房（M,RANDOM#…）全判成了非天梯
+                    _rname = room.get("roomname", "") or ""
+                    isM = _rname.startswith("M#") or _rname.startswith("M,")
                     users = room.get("users", [])
                     p0 = next((u for u in users if u.get("pos") == 0), None)
                     p1 = next((u for u in users if u.get("pos") == 1), None)
