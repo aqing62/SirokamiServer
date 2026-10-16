@@ -1531,6 +1531,36 @@
         }
       }
     } catch (e) {}
+    // ── 在房里等太久没开局 → 自己重抽房间 ──
+    //   用户反馈"一直在等待进房"：可能是进了一个配对不上的房间（比如存下来的旧房间）。
+    //   正常随机匹配几秒内就会配上；超过 40 秒还只有自己 → 换个房间重试（最多 2 次）。
+    try {
+      var _auto2 = new URLSearchParams(location.search).get('auto') === '1';
+      var _nP = Object.keys(state.playerNames || {}).length;
+      if (_auto2 && state.joined && !state.duelStarted && _nP < 2) {
+        if (!state.waitRerollTimer) {
+          state.waitRerollTimer = setTimeout(function () {
+            state.waitRerollTimer = null;
+            if (state.duelStarted) return;
+            if (Object.keys(state.playerNames || {}).length >= 2) return;
+            state.rerollCount = (state.rerollCount || 0) + 1;
+            if (state.rerollCount > 2) {
+              logLine('⚠ 换了 ' + (state.rerollCount - 1) + ' 次房间仍没配上对手 → 不再重试，请点「取消匹配」回大厅重来', 'rp-log-err');
+              setHud('一直没配上对手 —— 建议取消匹配后重新开始', 'warn');
+              return;
+            }
+            logLine('↻ 进房 40 秒还没开局 → 换一个房间重试（第 ' + state.rerollCount + ' 次）', 'rp-log-phase');
+            try { sessionStorage.removeItem('yp_room_saved'); sessionStorage.removeItem('yp_room_saved_at'); } catch (e) {}
+            leaveRoomGracefully();
+            setTimeout(function () { location.href = 'duel.html?auto=1&r=' + Date.now(); }, 400);
+          }, 40000);
+        }
+      } else if (state.waitRerollTimer && (state.duelStarted || _nP >= 2)) {
+        clearTimeout(state.waitRerollTimer);
+        state.waitRerollTimer = null;
+        state.rerollCount = 0;
+      }
+    } catch (e) {}
     $('btnStart').disabled = false;
     $('btnStart').title = bothReady ? '开始决斗'
       : ('还不能开始：' + ((state.mySeat >= 0 && state.ready[state.mySeat]) ? '对手还没准备' : '你还没点「准备」'));
@@ -3724,10 +3754,15 @@
       // ⚠ 刷新必须回到**同一个房间**：原来每次加载都重新生成随机房名，
     //   于是"备牌完刷新"就变成了进新房间打新的 Bo1（用户实测踩到 ✗）。
     //   存 sessionStorage：同一标签页刷新/重连都复用；回大厅时清掉（见 leaveRoomGracefully）。
-    var _savedRoom = '';
-    try { _savedRoom = sessionStorage.getItem('yp_room_saved') || ''; } catch (e) {}
+    var _savedRoom = '', _savedAt = 0;
+    try { _savedRoom = sessionStorage.getItem('yp_room_saved') || ''; _savedAt = Number(sessionStorage.getItem('yp_room_saved_at') || 0); } catch (e) {}
+    // ⚠ 只在 3 分钟内复用（刷新/重连窗口）—— 存太久会一直等在一个早就没了的房间(用户反馈"一直在等待进房")
+    if (_savedRoom && (Date.now() - _savedAt) > 180000) {
+      logLine('（上次的房间名已过期 ' + Math.round((Date.now() - _savedAt) / 1000) + ' 秒 → 重新抽一个）', 'rp-log-hint');
+      _savedRoom = '';
+    }
     state.room = _savedRoom || ladderRoom();
-    try { sessionStorage.setItem('yp_room_saved', state.room); } catch (e) {}
+    try { sessionStorage.setItem('yp_room_saved', state.room); sessionStorage.setItem('yp_room_saved_at', String(Date.now())); } catch (e) {}
     if (_savedRoom) logLine('↻ 复用上次的房间名：' + state.room + '（刷新/重连回到同一局）', 'rp-log-phase');
       // ⚠ 昵称按**房间**固定：否则换名重进会在房间里留下"另一个我"（服务端按昵称保留席位 ✗）
       state.name = nameForRoom(state.room);
