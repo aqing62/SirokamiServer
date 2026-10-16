@@ -976,6 +976,51 @@
     } catch (e) {}
   }
 
+
+  /**
+   * 独立的「确定」浮动按钮（多选类请求用）。
+   * 用户实测：万宝槌「把手卡任意数量回卡组」这种选择**没有确定按钮** ✗ → 只能按上限选完，
+   * 没法"只回 1 张抽 1 张" ✓。
+   * 多选的确定原本分散在几处 footer 里，有的路径没给 / 或被挤到可视区外 → 这里给一个
+   * 始终可见、不依赖 footer 的确定按钮：已选 ≥ min 就能点，点了和 footer 的确定等价。
+   */
+  function syncPickConfirm() {
+    try {
+      var P = state.pending, m = P && P.msg;
+      var el = document.getElementById('ypPickOk');
+      var need = (m && typeof m.min === 'number') ? m.min : 1;
+      var isMulti = !!(P && (P.kind === 'card' || P.kind === 'tribute' || P.kind === 'sum' || P.kind === 'unselect'));
+      var picked = (state.picked || []).length;
+      if (!isMulti || state.duelStarted === false) { if (el) el.style.display = 'none'; return; }
+      if (!el) {
+        el = document.createElement('button');
+        el.id = 'ypPickOk';
+        el.style.cssText = 'position:fixed;right:10px;bottom:74px;z-index:9480;padding:12px 22px;border-radius:999px;'
+          + 'border:2px solid rgba(212,175,55,.9);background:linear-gradient(135deg,#D4AF37,#FFD700);color:#1a1a2e;'
+          + 'font:800 15px/1 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;cursor:pointer;letter-spacing:1px;'
+          + 'box-shadow:0 6px 18px rgba(0,0,0,.6)';
+        el.onclick = function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          var _P = state.pending, _m = _P && _P.msg;
+          if (!_P || !_m) return;
+          var _need = (typeof _m.min === 'number') ? _m.min : 1;
+          if ((state.picked || []).length < _need) return;
+          hideChooser();
+          logLine('▸ 确定（已选 ' + (state.picked || []).length + '）', 'rp-log-hint');
+          if (typeof submitMulti === 'function') submitMulti(_P);
+          else respond(_m.prepareResponse((state.picked || []).map(function (cd) { return cd.index; })));
+        };
+        document.body.appendChild(el);
+      }
+      el.style.display = '';
+      var ok = picked >= need;
+      el.textContent = ok ? ('确定（已选 ' + picked + '）') : ('还需选 ' + (need - picked) + ' 张');
+      el.style.opacity = ok ? '1' : '.45';
+      el.style.cursor = ok ? 'pointer' : 'not-allowed';
+      el.disabled = !ok;
+    } catch (e) {}
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -1898,7 +1943,8 @@
 
   // ─────────────────────────────── 交互层
 
-  function clearPending() { state.pending = null; state.armed = null; state.picked = []; state.lastPick = null; hideCardMenu(); hideChooser(); hideTopBar(); clearHighlights(); showActions([]); syncCtl(); setHud(''); }
+  function clearPending() {
+    try { var _pk = document.getElementById("ypPickOk"); if (_pk) _pk.style.display = "none"; } catch (e) {} state.pending = null; state.armed = null; state.picked = []; state.lastPick = null; hideCardMenu(); hideChooser(); hideTopBar(); clearHighlights(); showActions([]); syncCtl(); setHud(''); }
 
   /** 记住"玩家刚选了什么"（召唤/特召/发动哪张卡）—— 下一次选素材时用它给提示标题点名，
    *  玩家就能看出"这是黑翼强袭龙的（除外同调调整＋黑翼龙）那种特召" */
@@ -1959,6 +2005,8 @@
   }
 
   function renderPending() {
+    // 同步多选确定按钮（万宝槌这类任意数量选择也能中途确定）
+    try { setTimeout(syncPickConfirm, 60); } catch (e) {}
     var P = state.pending;
     if (!P) return;
     var m = P.msg;
@@ -3720,6 +3768,7 @@
   }
 
   function renderActionCount() {
+    try { syncPickConfirm(); } catch (e) {}
     var P = state.pending;
     if (!P) return;
     var min = (P.msg && typeof P.msg.min === 'number') ? P.msg.min : 0;
