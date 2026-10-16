@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261018f">
+<link rel="stylesheet" href="css/duel-client.css?v=20261018h">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -239,11 +239,12 @@
 /* ── ③ 阶段按钮（切洗手牌/进战阶/结束回合）挪到右侧黑边，别挡额外格子 ── */
 /* ypCtl-right-side */
 @media (orientation: portrait) {
+  /* 竖屏：盘面几乎占满宽度，右侧没有黑边 → 阶段按钮放到**盘面下方的空白带**（横排居中） */
   #ypCtl {
-    left: auto !important; right: 4px !important; top: 50% !important;
-    transform: translateY(-50%) !important;
-    display: flex !important; flex-direction: column !important; align-items: flex-end !important;
-    gap: 8px !important; width: auto !important; grid-template-columns: none !important;
+    left: 4px !important; right: 4px !important; top: auto !important; bottom: 6px !important;
+    transform: none !important;
+    display: flex !important; flex-direction: row !important; justify-content: center !important;
+    align-items: center !important; gap: 10px !important; width: auto !important; grid-template-columns: none !important;
   }
   #ypCtl > * { justify-self: auto !important; }
   #ypCtl .yp-btn { padding: 8px 12px !important; font-size: 13px !important; }
