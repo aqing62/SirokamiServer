@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261017i">
+<link rel="stylesheet" href="css/duel-client.css?v=20261017k">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -136,6 +136,51 @@
   #replayModal #ypCardInfo { font-size: 11px !important; }
 }
 </style>
+
+/* ══ 竖屏（手机主打）：按用户画的四段式 —— 日志 / 卡图+卡片效果 / 选择列表 / 对局 ══
+   对局放最下面并占满剩余空间（最大）；上面三段各自限高，避免把场地挤没。 */
+@media (orientation: portrait) {
+  html, body { height: 100% !important; overflow: hidden !important; }
+  #replayModal {
+    position: fixed !important; inset: 0 !important; width: 100% !important;
+    height: 100dvh !important; max-height: none !important; margin: 0 !important; padding: 4px !important;
+    display: flex !important; flex-direction: column !important; background: #0a0a0c !important; box-sizing: border-box !important;
+  }
+  #replayModal .replay-main {
+    display: flex !important; flex-direction: column !important; gap: 5px !important;
+    width: 100% !important; height: auto !important; flex: 1 1 auto !important; min-height: 0 !important;
+    max-height: none !important; aspect-ratio: auto !important;
+    grid-template-columns: none !important;
+  }
+  /* ① 日志（最上，占 18%） */
+  #replayModal .replay-log {
+    order: 1 !important; width: 100% !important; max-width: none !important;
+    height: 18dvh !important; max-height: 18dvh !important; flex: 0 0 auto !important;
+  }
+  #replayModal .replay-log-body { padding: 6px 8px !important; }
+  #replayModal .rp-log-line { font-size: 11.5px !important; line-height: 1.5 !important; }
+  /* ② 卡图 | 卡片效果（并排，占 22%） */
+  #replayModal #ypCardInfo {
+    order: 2 !important; width: 100% !important; max-width: none !important;
+    height: 22dvh !important; max-height: 22dvh !important; flex: 0 0 auto !important;
+    display: flex !important; flex-direction: row !important; gap: 8px !important; overflow: hidden !important;
+  }
+  #replayModal #ypCardInfo img { max-height: 21dvh !important; width: auto !important; flex: 0 0 auto !important; }
+  /* ③ 选择列表（选择盘）—— 竖屏时固定在第 40%~62% 那一条，别盖住场地 */
+  #ypChooser {
+    position: fixed !important; left: 4px !important; right: 4px !important;
+    top: 41dvh !important; bottom: auto !important; max-height: 21dvh !important; overflow: auto !important;
+    z-index: 87 !important;
+  }
+  #ypChooser .yp-chooser-grid img { max-height: 12dvh !important; width: auto !important; }
+  /* ④ 对局（最下，占满剩余 —— 最大的一块） */
+  #replayModal .replay-field, #replayModal #replayField {
+    order: 4 !important; width: 100% !important; flex: 1 1 auto !important; min-height: 0 !important; height: auto !important;
+  }
+  /* 投降按钮和时点别叠在一起：竖屏投降挪到右上、时点放左上 */
+  #ypSurrender { top: 6px !important; right: 6px !important; padding: 7px 13px !important; }
+  #ypTimeLeft { top: 6px !important; right: auto !important; left: 6px !important; }
+}
 </head>
 <body>
 
