@@ -685,6 +685,55 @@
     document.body.appendChild(b);
   }
 
+
+  /**
+   * 亮牌浮层：对方（或自己）从卡组检索/亮出的卡，在**下一个操作之前**显示出来。
+   * 用户实测：对手检索了什么看不见，只能看到他手牌多了一张 ✗
+   * 数据来源：MSG_CONFIRM_CARDS(31) / MSG_CONFIRM_DECKTOP(30) / MSG_CONFIRM_EXTRATOP(42)。
+   */
+  var _revealEls = [];
+  function showCardReveal(code, who) {
+    if (!code) return;
+    var box = document.getElementById('ypReveal');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'ypReveal';
+      box.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:64px;z-index:88;display:flex;'
+        + 'gap:10px;flex-wrap:wrap;justify-content:center;pointer-events:none;'
+        + 'font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif';
+      document.body.appendChild(box);
+    }
+    var it = document.createElement('div');
+    it.style.cssText = 'background:rgba(10,10,12,.94);border:1px solid rgba(212,175,55,.75);border-radius:10px;'
+      + 'padding:8px 10px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.7);pointer-events:auto';
+    it.innerHTML = '<img alt="' + code + '" style="width:88px;aspect-ratio:421/614;object-fit:cover;border-radius:4px;display:block"'
+      + ' src="https://cdn.233.momobako.com/ygopro/pics/' + code + '.jpg"'
+      + ' onerror="this.onerror=null;this.src=\'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + code + '.jpg\';'
+      + 'this.onerror=function(){this.onerror=null;this.src=\'https://api.ygopro3.cn/pics/siro/' + code + '.jpg\';'
+      + 'this.onerror=function(){this.src=\'cover.jpg\';}};">'
+      + '<div style="font-size:11.5px;color:#F0E68C;margin-top:5px;max-width:96px;overflow:hidden;text-overflow:ellipsis;'
+      + 'white-space:nowrap">' + (who ? ('[' + who + '] ') : '') + cardLabel({ code: code }) + '</div>';
+    box.appendChild(it);
+    _revealEls.push(it);
+    logLine('👁 ' + (who || '') + ' 亮出：' + cardLabel({ code: code }) + '（' + code + '）', 'rp-log-hint');
+    // 最多同时显示 4 张，多的把最老的挤掉；每张 6 秒后自动消失
+    while (_revealEls.length > 4) { var old = _revealEls.shift(); if (old && old.parentNode) old.parentNode.removeChild(old); }
+    setTimeout(function () {
+      var i = _revealEls.indexOf(it);
+      if (i >= 0) _revealEls.splice(i, 1);
+      if (it.parentNode) it.parentNode.removeChild(it);
+    }, 6000);
+  }
+
+  /** 从亮牌类消息里把卡号捞出来（不同消息字段名不一样，都兜一下） */
+  function revealFromMsg(msg, who) {
+    var arr = msg.cards || msg.info || msg.list || [];
+    arr.forEach(function (c) {
+      if (typeof c === 'number') { showCardReveal(c, who); return; }
+      if (c && c.code) showCardReveal(c.code, who);
+    });
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -867,6 +916,14 @@
 
     // 对局中刷新页面：重放的消息先到，用记录把视角/座位补回来
     if (msg instanceof YGO.YGOProStocGameMsg || msg instanceof YGO.YGOProMsgResponseBase) restoreDuelPosIfNeeded();
+
+    // 亮牌（检索/翻开）：在下一个操作之前把卡显示出来
+    if (msg && msg.constructor && /^YGOProMsg(ConfirmCards|ConfirmDecktop|ConfirmExtratop)$/.test(msg.constructor.name)) {
+      try {
+        var _who = /Decktop|Extratop/.test(msg.constructor.name) ? '' : '';
+        revealFromMsg(msg, _who);
+      } catch (e) {}
+    }
 
     // 对手（或自己）发动卡时把「谁发动了什么、在哪发动」写进日志。
     // 关键：**手卡发动的卡**（灰流丽这类手坑）以前在这一层没有任何显示，对方玩家只能看到
