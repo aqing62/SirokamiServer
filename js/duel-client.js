@@ -2286,6 +2286,26 @@
       + '<button class="yp-chooser-min" title="最小化" style="padding:2px 10px;border-radius:6px;cursor:pointer;'
       + 'border:1px solid rgba(255,255,255,.25);background:#1e2a38;color:#e6eef8;font-size:13px;font-family:inherit">—</button>';
     box.insertBefore(bar, box.firstChild);
+    // 可取消的选择（例如「翻开3张，可以拿1张」的转生炎兽 狐狸①）→ 顶栏加「取消」= 放弃这次效果
+    // 加在公共顶栏上，所有选择窗（含卡图网格）都能用，不用改各自的候选列表代码
+    try {
+      var _P = state.pending, _m = _P && _P.msg;
+      if (_m && _m.cancelable && !bar.querySelector('.yp-chooser-cancel')) {
+        var _cb = document.createElement('button');
+        _cb.className = 'yp-chooser-cancel';
+        _cb.textContent = '取消';
+        _cb.title = '放弃这次选择（等于不发动/不拿）';
+        _cb.style.cssText = 'padding:2px 12px;border-radius:6px;cursor:pointer;border:1px solid rgba(216,30,68,.8);'
+          + 'background:#2a1620;color:#FF8A8A;font-size:13px;font-family:inherit;margin-right:6px';
+        _cb.onclick = function (ev) {
+          if (ev && ev.stopPropagation) ev.stopPropagation();
+          hideChooser();
+          try { respond(_m.prepareResponse(null)); } catch (e) {}
+          logLine('（取消选择 → 放弃这次效果）', 'rp-log-hint');
+        };
+        bar.insertBefore(_cb, bar.querySelector('.yp-chooser-min'));
+      }
+    } catch (e) {}
     var collapsed = false;
     var body = [];
     Array.prototype.forEach.call(box.children, function (c) { if (c !== bar) body.push(c); });
