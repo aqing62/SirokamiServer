@@ -182,11 +182,10 @@
   #ypSurrender { top: 6px !important; right: 6px !important; padding: 7px 13px !important; }
   #ypTimeLeft { top: 6px !important; right: auto !important; left: 6px !important; }
 }
-</style>
-
+<style>
 /* ── 提示弹层（猜拳/连锁/宣告…）必须盖在钉满全屏的对局区之上 ──
    实测：把 #replayModal 改成 position:fixed 占满全屏之后，猜拳弹窗被它盖住 → 手机上"看不到猜拳"(用户反馈) */
-<style>
+
 /* ypPrompt-zfix */
 #ypPrompt { position: fixed !important; z-index: 200 !important; }
 #ypChooser { z-index: 198 !important; }
@@ -195,7 +194,6 @@
 #ypReveal { z-index: 201 !important; }
 #ypTimeLeft, #ypSurrender { z-index: 205 !important; }
 
-<style>
 /* ── 卡图加载提示不能挡住操作（命中测试实测：它盖在猜拳按钮上面 ✗）──
    .rp-loading-tip 一直浮在场地中央，pointer-events 默认 auto → 猜拳/连锁/选择全点不到 */
 /* rp-loading-tip-noblock */
