@@ -775,6 +775,26 @@
     }
   }
 
+
+  /** 给"发动效果"类按钮贴 CDB 提示（牌堆菜单/连锁选项复用） */
+  function decoratePileHints(root, pairs) {
+    // pairs: [{btn, code, idx}] —— 懒加载回来后逐个贴
+    pairs.forEach(function (it) {
+      if (!it || !it.btn || !it.code) return;
+      var apply = function () {
+        var hs = hintCache[String(it.code)] || [];
+        var h = hs[it.idx || 0];
+        if (!h) return;
+        var base = (it.btn.textContent || '').replace(/^发动效果[：:]?/, '');
+        it.btn.textContent = '发动效果：' + h + (base && base.indexOf('（') >= 0 ? base.slice(base.indexOf('（')) : '');
+        it.btn.title = h;
+      };
+      fetchHints(it.code);
+      apply();
+      setTimeout(apply, 900);
+    });
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -2839,7 +2859,21 @@
   function collapseEffectItems(box, code) {
     var items = Array.prototype.slice.call(box.querySelectorAll('.yp-menu-item'));
     var eff = items.filter(function (b) { return (b.textContent || '').indexOf('发动效果') >= 0; });
-    if (eff.length < 2) return;
+    if (!eff.length) return;
+    // ★ 只有 1 个效果时也把 CDB 提示挂上去（用户反馈：很多卡只显示泛泛的"发动效果"很奇怪）
+    if (eff.length === 1) {
+      var one = eff[0];
+      var h1 = fetchHints(code);
+      var apply1 = function () {
+        var hs = hintCache[String(code)] || [];
+        if (!hs.length) return;
+        one.textContent = '发动效果：' + hs[0];
+        one.title = hs[0];
+      };
+      apply1();
+      if (!(hintCache[String(code)] || []).length) setTimeout(apply1, 900);   // 提示是懒加载的，回来再贴
+      return;
+    }
     eff.forEach(function (b) { b.style.display = 'none'; });   // 隐藏但保留（选中后由它提交）
     var btn = document.createElement('div');
     btn.className = 'yp-menu-item';
