@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261016l">
+<link rel="stylesheet" href="css/duel-client.css?v=20261016m">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -61,24 +61,30 @@
 #duelEntry .de-back { position: absolute; left: 16px; top: 14px; font-size: .8rem; color: #9a9aa4; text-decoration: none; }
 </style>
 
+
+
 <style>
-/* ── 决斗界面手感微调（只作用于 duel.html；老页面与回放查看器不受影响）──
-   用户反馈：①手卡太小 ②发动/盖放按钮太小容易按错 ③右侧日志太大 */
-#replayModal .rp-hand .rp-card { width: 62px; height: 89px; }   /* 手卡 46×66 → 62×89 */
+/* ── 决斗界面手感（只作用于 duel.html）──
+   ① 手卡放大 ② 发动/盖放按钮放大但**禁止竖排** ③ 日志限宽
+   ④ 手机横屏：盘面宽度公式要重算 —— 老站是 calc((100vh - 210px)*4/3)，
+      手机横屏高度只有 ~400px CSS，减 210 后只剩 250px，盘面会被压成细条。 */
+#replayModal .rp-hand .rp-card { width: 62px; height: 89px; }
 #replayModal .rp-hand { gap: 4px; }
-#ypCardMenu .yp-menu { gap: 8px !important; }
-#ypCardMenu .yp-menu-item {                                       /* 发动/盖放：触控友好 */
-  min-height: 46px; min-width: 104px; padding: 12px 18px !important; font-size: 15px !important;
+#ypCardMenu .yp-menu-item {
+  padding: 12px 18px !important; font-size: 15px !important;
+  white-space: nowrap !important; min-width: 0 !important;   /* nowrap：不许逐字换行成竖排 */
 }
-#replayModal .replay-log { flex: 0 1 190px !important; max-width: 210px; }   /* 日志收窄 */
+#replayModal .replay-log { max-width: 200px; }
 #replayModal .replay-log-body { padding: 8px 10px !important; }
 #replayModal .rp-log-line { font-size: .78rem; line-height: 1.6; }
 
-@media (orientation: landscape) and (max-height: 560px) {   /* 手机横屏（20:9 之类）再紧凑一档 */
+@media (orientation: landscape) and (max-height: 620px) {
+  /* 盘面：把留给上下的余量从 210px 降到 92px，横屏手机上盘面几乎铺满可用宽 */
+  #replayModal .replay-main { width: min(100%, calc((100vh - 92px) * 4 / 3)) !important; }
   #replayModal .rp-hand .rp-card { width: 54px; height: 78px; }
   #replayModal .rp-hand { gap: 3px; }
-  #ypCardMenu .yp-menu-item { min-height: 42px; min-width: 92px; padding: 10px 14px !important; font-size: 14px !important; }
-  #replayModal .replay-log { flex: 0 1 150px !important; max-width: 168px; }
+  #ypCardMenu .yp-menu-item { padding: 10px 16px !important; font-size: 14px !important; white-space: nowrap !important; }
+  #replayModal .replay-log { max-width: 150px; }
   #replayModal .replay-log-body { padding: 6px 8px !important; }
   #replayModal .rp-log-line { font-size: .72rem; line-height: 1.5; }
   #replayModal .replay-log-title { font-size: .78rem; }
@@ -213,7 +219,7 @@
 
 <script src="js/ygopro-web-browser.js?v=20261016a"></script>
 <script src="js/viewer-live.js?v=20261016a"></script>
-<script src="js/duel-client.js?v=20261016l"></script>
+<script src="js/duel-client.js?v=20261016m"></script>
 <script>
 /* 入口层逻辑：登录 / 显示当前卡组 / 开始匹配（不改客户端产物） */
 (function () {
