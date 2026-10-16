@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261017n">
+<link rel="stylesheet" href="css/duel-client.css?v=20261017q">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -183,6 +183,16 @@
   #ypTimeLeft { top: 6px !important; right: auto !important; left: 6px !important; }
 }
 </style>
+
+/* ── 提示弹层（猜拳/连锁/宣告…）必须盖在钉满全屏的对局区之上 ──
+   实测：把 #replayModal 改成 position:fixed 占满全屏之后，猜拳弹窗被它盖住 → 手机上"看不到猜拳"(用户反馈) */
+/* ypPrompt-zfix */
+#ypPrompt { position: fixed !important; z-index: 200 !important; }
+#ypChooser { z-index: 198 !important; }
+#ypCardMenu { z-index: 199 !important; }
+#replayModal { z-index: 10 !important; }
+#ypReveal { z-index: 201 !important; }
+#ypTimeLeft, #ypSurrender { z-index: 205 !important; }
 </head>
 <body>
 
