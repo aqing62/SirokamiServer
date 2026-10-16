@@ -3095,6 +3095,19 @@
     function submit(code) {
       box.remove();
       logLine('宣言：' + (code ? ('卡 ' + code + (state.cardsById[code] ? '（' + state.cardsById[code].name + '）' : '')) : '一个不存在的卡名'), 'rp-log-phase');
+      // 宣言标注（直连提交行）：把「宣言：XX」标到那张卡（禁止令这类）的卡图上 ✓
+      //   ⚠ 上一版我把它做成"包装 declareCardName + 监听对话框关闭" ✗ 而且调用点写在了 IIFE 之外 ✗
+      //     → 函数在那个作用域里是 undefined → 从未执行 → 用户反馈"禁止令没显示卡名" ✓ 现在直连 ✓
+      try {
+        var _dc = (m && m.code) ? m.code : (state.lastPick && state.lastPick.code ? state.lastPick.code : 0);
+        var _dn = (typeof cardLabel === 'function') ? cardLabel({ code: code }) : String(code);
+        if (_dc && _dn) {
+          state.fxTags = (state.fxTags || []).filter(function (x) { return x.code !== _dc; });
+          state.fxTags.push({ code: _dc, text: '宣言：' + _dn });
+          try { applyEffectTags(); } catch (e) {}
+          logLine('▸ 宣言标注：' + _dn + ' → ' + (typeof cardLabel === 'function' ? cardLabel({ code: _dc }) : _dc), 'rp-log-hint');
+        }
+      } catch (e) {}
       respond(m.prepareResponse(code));
     }
     function render() {
@@ -4861,4 +4874,3 @@
   };
 })();
 
-try { setTimeout(wrapDeclareForTag, 1200); } catch (e) {}
