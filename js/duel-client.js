@@ -481,6 +481,23 @@
     state.myDuelPos = -1; state.lastPosChange = null; state.lastSearch = null;
     setUiPhase('duel');
     uploadDeckAndReady();
+    // ★ 备牌后强制刷新页面：新一局的场地**从零重建** ✓
+    //   为什么用刷新：查看器只在收到 MSG_START 时重置模型，而实测备牌后第二局场地仍是上一局的
+    //   (用户多次反馈)。刷新后客户端会重连回**同一房间**(房间名已持久化)，服务端发完整快照
+    //   (MSG_START + 各区 UpdateData 全量) → 查看器重建，场地必然干净，不用去猜是哪一步没生效。
+    //   先给 1.2 秒把"卡组+准备"发出去，服务端记住我们的状态后再刷新。
+    if (!state.sidingReloading) {
+      state.sidingReloading = true;
+      logLine('↻ 备牌已提交 → 1.2 秒后刷新页面让新一局场地从零重建', 'rp-log-phase');
+      setTimeout(function () {
+        try {
+          var u = new URL(location.href);
+          u.searchParams.set('auto', '1');
+          u.searchParams.set('r', String(Date.now()));
+          location.replace(u.toString());
+        } catch (e) { location.reload(); }
+      }, 1200);
+    }
     // 备牌提交后，服务端如果**拒绝**这个卡组，在备牌阶段是没有提示的 → 玩家就"卡死"在这里。
     // 所以加个看门狗：8 秒内没有新对局开始，就当作卡组没通过校验，说清楚并退回大厅（别让人干等）。
     // 备牌提交后服务端没开下一局 → **先重发**（备牌阶段的 ready 时序容易踩空：卡组先到、ready 被忽略），
