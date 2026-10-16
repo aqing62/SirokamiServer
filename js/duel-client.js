@@ -918,10 +918,18 @@
     if (msg instanceof YGO.YGOProStocGameMsg || msg instanceof YGO.YGOProMsgResponseBase) restoreDuelPosIfNeeded();
 
     // 亮牌（检索/翻开）：在下一个操作之前把卡显示出来
-    if (msg && msg.constructor && /^YGOProMsg(ConfirmCards|ConfirmDecktop|ConfirmExtratop)$/.test(msg.constructor.name)) {
+    // ⚠ 类名是 YGOProMsgConfirmDeckTop（大写 T）/ 也可能有 ConfirmExtraTop —— 用不区分大小写的匹配，
+    //   之前写成 ConfirmDecktop 导致正则**完全没匹配上**，双方都看不到翻开的卡 ✗
+    if (msg && msg.constructor && /^YGOProMsgConfirm/i.test(msg.constructor.name)) {
       try {
-        var _who = /Decktop|Extratop/.test(msg.constructor.name) ? '' : '';
+        var _who = '';
+        try {
+          var _pl = (msg.player !== undefined) ? msg.player : (msg.player0 !== undefined ? msg.player0 : (msg.cards && msg.cards[0] ? msg.cards[0].controller : undefined));
+          if (_pl !== undefined) _who = (flipSeat(_pl) === 0) ? '自己' : '对方';
+        } catch (e2) {}
         revealFromMsg(msg, _who);
+        // 翻开的张数（有些消息带 count）—— 兜底：把控制器/位置也写进日志，方便确认"是不是全翻了"
+        if (msg.count) logLine('👁 翻开/确认 ' + msg.count + ' 张（' + (msg.constructor.name) + '）', 'rp-log-hint');
       } catch (e) {}
     }
 
