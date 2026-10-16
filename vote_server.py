@@ -1067,6 +1067,42 @@ def _srvpro_db_config():
     return conf
 
 
+# ── 当前赛季段位（按排名百分位；阈值与服务端 ladder-service.js 的 S3 表一致）──
+LADDER_TIERS = [("巅峰", 0.0), ("大师", 0.08), ("钻石", 0.18), ("黄金", 0.35), ("白银", 0.60), ("参战者", 1.0)]
+
+def ladder_tier_of(account: str):
+    """返回 (段位名, 名次, 总人数)，如 ("S3 钻石", 12, 180)。
+
+    ⚠ 不用 srv_user.ladderTitle：那是**赛季末结算**才写入的头衔，赛季进行中还停留在上一季
+      （玩家反馈：S3 期间大厅显示 S2 黄金 ✗）。player_rating 在赛季开始时被重置过，
+      所以它的 rating 就是**当前赛季**的积分 ✓
+    """
+    try:
+        rows = _pg_query(
+            'with r as (select pr."accountName" as acct, pr.rating as rating, '
+            'row_number() over (order by pr.rating desc, pr."accountName") as rn, '
+            'count(*) over () as total from player_rating pr '
+            'where pr.rating > 0 and pr."accountName" not like \'%$%\') '
+            'select acct, rn, total from r where acct = :\'acct\'',
+            {"acct": account},
+        )
+    except Exception as e:
+        logger.warning(f"算段位失败({account}): {e}")
+        return None, None, None
+    if not rows:
+        return None, None, None
+    rn, total = int(rows[0][1]), int(rows[0][2])
+    if total <= 0:
+        return None, None, None
+    pct = (rn - 1) / float(total)
+    name = LADDER_TIERS[-1][0]
+    for tier_name, th in LADDER_TIERS:
+        if pct <= th:
+            name = tier_name
+            break
+    return "S3 " + name, rn, total
+
+
 def _pg_query(sql, variables=None):
     """用 psql 执行只读查询（不引入新依赖），返回二维列表。
     variables 里的值由 psql 的 :'名字' 绑定（自动转义，避免注入）。"""
@@ -1445,11 +1481,15 @@ class VoteHandler(SimpleHTTPRequestHandler):
                     if rows:
                         rating, wins, losses = int(rows[0][0]), int(rows[0][1]), int(rows[0][2])
                         games = wins + losses
+                        _tier, _rank, _tot = ladder_tier_of(account)
                         out["ladder"] = {
                             "rating": rating,
                             "wins": wins,
                             "losses": losses,
                             "winRate": round(100.0 * wins / games, 1) if games else None,
+                            "tier": _tier,
+                            "rank": _rank,
+                            "total": _tot,
                         }
                 except Exception as e:
                     logger.warning(f"取天梯战绩失败({account}): {e}")
@@ -1624,6 +1664,23 @@ class VoteHandler(SimpleHTTPRequestHandler):
             if not creds:
                 self._json_response({"error": "未登录"}, status=401)
             else:
+                # PATCH(siro): 优先用前端上报的公网 IP ——
+                #   本机 nginx 是 stream(L4) → 127.0.0.1:445 → HTTP，真实 IP 在 HTTP 层永远是 127.0.0.1 ✗
+                #   （开 PROXY protocol 要改 20+ vhost，动共享 nginx 风险太大 ✗）
+                #   → 由大厅页面直连回显服务取自己的公网 IP，随本请求报上来 ✓ 用它写 srv_user.lastIp ✓
+                try:
+                    import re as _re
+                    _posted = str((payload or {}).get("realIp") or "").strip()
+                    if _posted and not _re.fullmatch(r"[0-9a-fA-F:.]{3,45}", _posted):
+                        _posted = ""
+                    _ip2 = _posted or self.get_client_ip()
+                    logger.warning(f"[IP诊断] account={creds[0]} posted={_posted!r} 采用={_ip2!r}")
+                    if _ip2 and "127.0.0.1" not in _ip2 and "::1" not in _ip2:
+                        _psql_run('update srv_user set "lastIp" = :\'ip\' where "accountName" = :\'acct\'',
+                                  {"ip": _ip2, "acct": creds[0]}, [])
+                        logger.warning(f"[IP诊断] 已写入 lastIp={_ip2!r}")
+                except Exception as e:
+                    logger.warning(f"[IP诊断] 写 lastIp 失败: {e}")
                 self._json_response({
                     "room": "M#",          # 客户端会自动走随机匹配队列
                     "ticket": None,        # 票据待 srvpro2 侧中间件就绪后再签发
