@@ -23,6 +23,25 @@
             visibility: hidden;
         }
     </style>
+    <!-- 登录/注册弹窗（套用决斗页 duel.html 那一套：登录 ⇄ 注册 两个视图 ✓）
+         样式前缀加 #glModalOverlay 作用域，避免影响首页其它地方 ✓ -->
+    <style>
+    #glModalOverlay #glBody .de-title { font-size: 1.15rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px;
+      background: linear-gradient(135deg,#D4AF37,#FFD700); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    #glModalOverlay #glBody .de-sub { font-size: .78rem; color: #8d8d96; margin-bottom: 18px; }
+    #glModalOverlay #glBody .de-field { margin-bottom: 12px; }
+    #glModalOverlay #glBody .de-field label { display: block; font-size: .78rem; color: #a9a9b3; margin-bottom: 5px; }
+    #glModalOverlay #glBody .de-field input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: #f2eee6; font-size: .92rem; }
+    #glModalOverlay #glBody .de-field input:focus { outline: none; border-color: rgba(212,175,55,.6); }
+    #glModalOverlay #glBody .de-btn { width: 100%; padding: 11px 14px; border-radius: 8px; border: none; cursor: pointer;
+      font-size: .95rem; font-weight: 700; letter-spacing: 1px; background: linear-gradient(135deg,#D4AF37,#FFD700); color: #1a1a2e; }
+    #glModalOverlay #glBody .de-btn:disabled { opacity: .5; cursor: not-allowed; }
+    #glModalOverlay #glBody .de-msg { min-height: 18px; font-size: .78rem; color: #ff9aa8; margin-top: 8px; }
+    #glModalOverlay #glBody .de-msg.ok { color: #8ee6a8; }
+    #glModalOverlay #glBody .de-foot { margin-top: 14px; font-size: .75rem; color: #7d7d86; text-align: center; }
+    #glModalOverlay #glBody .de-foot a { color: #9ec4f0; text-decoration: none; cursor: pointer; }
+    </style>
 </head>
 <body class="loading">
     <canvas id="bgCanvas"></canvas>
@@ -777,13 +796,7 @@
                 <span class="gl-modal-title">登录账号</span>
                 <button class="gl-modal-close" id="glModalClose">&times;</button>
             </div>
-            <div class="gl-modal-body">
-                <input type="text" class="gl-input" id="glUsername" placeholder="游戏账号">
-                <input type="password" class="gl-input" id="glPassword" placeholder="密码">
-                <button class="gl-btn" id="glLoginBtn">登录</button>
-                <div class="gl-error" id="glError" style="display:none;"></div>
-                <div class="gl-hint">还没有账号？<a href="#" id="glToReg" style="color:#FFD700;text-decoration:underline;cursor:pointer">注册一个</a>（账号与密码都支持中文）</div>
-            </div>
+            <div class="gl-modal-body" id="glBody"><!-- 由 js/script.js 渲染：登录 / 注册 两个视图（套用决斗页那一套） --></div>
         </div>
     </div>
 

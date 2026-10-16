@@ -542,36 +542,91 @@ window._communityAuth = null; // {username, password}
         });
     }
 
-    // 注册（用户要求：主页的登录也带上注册 ✓）
-    //   复用同一对输入框：先在上面填好想注册的账号 + 密码 → 点「注册一个」即注册，
-    //   成功后提示直接点「登录」进入。密码二次确认用同一个值（自助注册标准做法 ✓）
-    var glToReg = document.getElementById('glToReg');
-    if (glToReg) {
-        glToReg.addEventListener('click', function (ev) {
-            if (ev && ev.preventDefault) ev.preventDefault();
-            var u = (glUsername.value || '').trim();
-            var p = glPassword.value || '';
-            if (!u || !p) { showError('请先在上面填好想注册的账号和密码'); return; }
-            if (p.length < 6) { showError('密码至少 6 位'); return; }
-            glToReg.textContent = '注册中…';
-            fetch('/api/forum/register', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username: u, password: p, password2: p, displayName: u }),
-            }).then(function (r) { return r.json(); }).then(function (data) {
-                if (data && data.ok) {
-                    showError('注册成功！账号 ' + u + ' 已可用 —— 点下面的「登录」进入');
-                    if (glLoginBtn) glLoginBtn.focus();
-                } else {
-                    showError((data && data.error) || '注册失败');
-                }
-            }).catch(function () {
-                showError('网络错误');
-            }).finally(function () {
-                glToReg.textContent = '注册一个';
-            });
-        });
+    // ═══ 登录 / 注册（套用决斗页 duel.html 那一套 ✓ 用户要求）
+    //   两个视图：登录（账号+密码）⇄ 注册（名称/账号/密码/再次密码），文案与校验顺序照搬决斗页 ✓
+    //   登录成功后走首页自己的 closeLoginModal + 刷新（首页原有的登录态逻辑 ✓）
+    var glBody = document.getElementById('glBody');
+    var glTitleEl = document.querySelector('.gl-modal-title');
+    function glMsg(t, ok) {
+        var m = glBody && glBody.querySelector('#deMsg');
+        if (m) { m.textContent = t || ''; m.className = 'de-msg' + (ok ? ' ok' : ''); }
     }
+    function glShow(html) { if (glBody) glBody.innerHTML = html; }
+
+    function glRenderLogin(notice) {
+        if (!glBody) return;
+        if (glTitleEl) glTitleEl.textContent = '登录';
+        glShow(
+            '<div class="de-title">登录</div>' +
+            '<div class="de-sub">用白神服账号登录后即可开始匹配</div>' +
+            '<div class="de-field"><label>账号</label><input id="deUser" autocomplete="username"></div>' +
+            '<div class="de-field"><label>密码</label><input id="dePass" type="password" autocomplete="current-password"></div>' +
+            '<button class="de-btn" id="deLogin">登录</button>' +
+            '<div class="de-msg" id="deMsg"></div>' +
+            '<div class="de-foot">还没有账号？<a id="deToReg">注册一个</a></div>'
+        );
+        if (notice) glMsg(notice, true);
+        var go = function () {
+            var u = document.getElementById('deUser').value.trim();
+            var p = document.getElementById('dePass').value;
+            if (!u || !p) return glMsg('请输入账号和密码');
+            glMsg('登录中…');
+            fetch('/api/forum/login', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p }),
+            }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (r) {
+                    if (!r.ok || !r.j || r.j.ok === false) return glMsg((r.j && r.j.error) || '账号或密码错误');
+                    if (typeof closeLoginModal === 'function') closeLoginModal();
+                    location.reload();
+                }).catch(function (e) { glMsg('登录失败：' + e.message); });
+        };
+        document.getElementById('deLogin').onclick = go;
+        document.getElementById('dePass').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+        var toReg = document.getElementById('deToReg');
+        if (toReg) toReg.onclick = function (e) { if (e && e.preventDefault) e.preventDefault(); glRenderRegister(); };
+    }
+
+    function glRenderRegister() {
+        if (!glBody) return;
+        if (glTitleEl) glTitleEl.textContent = '注册';
+        glShow(
+            '<div class="de-title">注册</div>' +
+            '<div class="de-sub">注册后回到登录页 · 账号与密码都支持中文</div>' +
+            '<div class="de-field"><label>名称（游戏里显示的名字，可留空=账号）</label><input id="deName" maxlength="64"></div>' +
+            '<div class="de-field"><label>账号（2~24 个字符，支持中文）</label><input id="deUser" autocomplete="username" maxlength="24"></div>' +
+            '<div class="de-field"><label>密码（6~64 个字符，支持中文）</label><input id="dePass" type="password" autocomplete="new-password"></div>' +
+            '<div class="de-field"><label>再次输入密码</label><input id="dePass2" type="password" autocomplete="new-password"></div>' +
+            '<button class="de-btn" id="deReg">注册</button>' +
+            '<div class="de-msg" id="deMsg"></div>' +
+            '<div class="de-foot">已有账号？<a id="deToLogin">去登录</a></div>'
+        );
+        var go = function () {
+            var u = document.getElementById('deUser').value.trim();
+            var p = document.getElementById('dePass').value;
+            var p2 = document.getElementById('dePass2').value;
+            var nm = document.getElementById('deName').value.trim();
+            if (!u || !p) return glMsg('请填写账号和密码');
+            if (p !== p2) return glMsg('两次输入的密码不一致');
+            glMsg('注册中…');
+            fetch('/api/forum/register', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username: u, password: p, password2: p2, displayName: nm }),
+            }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+                .then(function (r) {
+                    if (!r.ok || !r.j || r.j.ok === false) return glMsg((r.j && r.j.error) || '注册失败');
+                    glRenderLogin('注册成功！账号 ' + u + '，请登录');
+                }).catch(function (e) { glMsg('注册失败：' + e.message); });
+        };
+        document.getElementById('deReg').onclick = go;
+        document.getElementById('dePass2').onkeydown = function (e) { if (e.key === 'Enter') go(); };
+        var toLogin = document.getElementById('deToLogin');
+        if (toLogin) toLogin.onclick = function (e) { if (e && e.preventDefault) e.preventDefault(); glRenderLogin(); };
+    }
+
+    // 打开弹窗时渲染登录视图 ✓（原有 openLoginModal 负责显示，这里只负责内容 ✓）
+    if (glLoginTrigger) glLoginTrigger.addEventListener('click', function () { setTimeout(glRenderLogin, 0); });
+    glRenderLogin();
 
     // Enter 快捷登录
     if (glPassword) {
