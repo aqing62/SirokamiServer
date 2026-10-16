@@ -735,6 +735,33 @@
     });
   }
 
+
+  /** 剩余时间小条（"时点"）：固定在右上角，横竖屏都在，秒数 < 30 变红闪烁提示 */
+  var _timeEl = null;
+  function showTimeLeft(sec) {
+    if (!_timeEl) {
+      _timeEl = document.createElement('div');
+      _timeEl.id = 'ypTimeLeft';
+      _timeEl.style.cssText = 'position:fixed;right:10px;top:8px;z-index:72;padding:6px 12px;border-radius:999px;'
+        + 'background:rgba(10,10,12,.9);border:1px solid rgba(212,175,55,.75);color:#F0E68C;'
+        + 'font:800 15px/1 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-variant-numeric:tabular-nums;'
+        + 'pointer-events:none;letter-spacing:1px';
+      document.body.appendChild(_timeEl);
+    }
+    var s = Math.max(0, Math.floor(sec));
+    var mm = Math.floor(s / 60), ss = s % 60;
+    _timeEl.textContent = '⏱ ' + mm + ':' + String(ss).padStart(2, '0');
+    if (s <= 30) {
+      _timeEl.style.borderColor = 'rgba(255,80,80,.95)';
+      _timeEl.style.color = '#FF8A8A';
+      _timeEl.style.background = 'rgba(60,10,14,.92)';
+    } else {
+      _timeEl.style.borderColor = 'rgba(212,175,55,.75)';
+      _timeEl.style.color = '#F0E68C';
+      _timeEl.style.background = 'rgba(10,10,12,.9)';
+    }
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -887,6 +914,7 @@
     clearPending();
     hideChooser(); hideTopBar();
     try { localStorage.removeItem('yp_duel_' + state.room); } catch (e) {}
+    try { var _te = document.getElementById('ypTimeLeft'); if (_te) _te.textContent = ''; } catch (e) {}
     setUiPhase('room');                             // 回到房间界面（带转场）
     renderLobby();
     // 天梯形态（?auto=1）：打完直接回决斗大厅（用户要求）——先留 6 秒让玩家看清胜负
@@ -1101,6 +1129,22 @@
     if (msg instanceof YGO.YGOProStocTimeLimit) {
       // 只有被点名的玩家回；交互模式下无脑回也无害（服务端按状态机忽略错的）
       send(new YGO.YGOProCtosTimeConfirm());
+      // ★ 显示剩余时间（"时点"）。原来只回包不显示 ✗ —— 竖屏靠查看器画的能看见，
+      //   横屏那块被裁掉了就完全看不到。这里在客户端画一个**两种方向都在**的小条。
+      try {
+        var _sec = (msg.seconds !== undefined) ? msg.seconds
+                 : (msg.time !== undefined) ? msg.time
+                 : (msg.leftSeconds !== undefined) ? msg.leftSeconds : undefined;
+        if (_sec === undefined) {
+          if (!state.timeLimitLogged) {
+            state.timeLimitLogged = true;
+            var _ks = []; for (var _k in msg) { try { if (typeof msg[_k] === 'number') _ks.push(_k + '=' + msg[_k]); } catch (e) {} }
+            logLine('（时限消息字段：' + (_ks.join(' ') || '(没有数字字段)') + '）', 'rp-log-hint');
+          }
+        } else {
+          showTimeLeft(Number(_sec));
+        }
+      } catch (e) {}
       return;
     }
 
