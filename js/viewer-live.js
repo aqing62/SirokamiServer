@@ -2343,7 +2343,8 @@ function initReplayViewer() {
             }
             case 'Recover': {
                 var rpl = f.player;
-                lp[rpl] = Math.min(8000, (lp[rpl] || 8000) + (f.value || 0));
+                // PATCH(白神服): 去掉 8000 上限 —— 8000 只是**起始**血量不是上限，成金哥布林/黄金城这类卡就是要把 LP 涨过 8000；原来 Math.min 导致有飘字但数字不变(用户实测)
+            lp[rpl] = (lp[rpl] || 8000) + (f.value || 0);
                 renderPlayerHead(rpl);
                 dmgFloat(rpl, f.value, '+');   // +N 提示
                 log(playerName(rpl) + ' 恢复 ' + f.value + ' LP');
