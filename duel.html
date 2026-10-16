@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261017g">
+<link rel="stylesheet" href="css/duel-client.css?v=20261017h">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -109,11 +109,11 @@
   /* 主区用**绝对定位**硬钉在顶栏下面 —— 模态框和它之间还有包装层，flex 作用不到（实测只长到 282/432 ✗）
      用户反馈"上下变黑底、像锁了比例"，就是这个原因。 */
   #replayModal .replay-main {
-    /* 必须用 fixed 而不是 absolute：中间还有一层**定位过的**包装（实测它只到 y=369），
-       absolute 会缩在那层里 → 高度反而更小(228)。fixed 直接参照视口，最稳。 */
-    position: fixed !important; left: 5px !important; right: 5px !important;
-    top: 74px !important; bottom: 4px !important;
-    width: auto !important; height: auto !important; max-height: none !important; aspect-ratio: auto !important;
+    /* ⚠ 有祖先带 transform（客户端的阶段切换动画）→ fixed 会"退化成 absolute"（实测 top:74 变成 y=137、高度缩到 228）
+       所以不靠定位，改成在正常流里用 vh 撑高度：最省事也最稳。 */
+    position: static !important;
+    height: calc(100vh - 82px) !important; min-height: 0 !important; max-height: none !important; aspect-ratio: auto !important;
+    width: 100% !important; margin: 0 !important;
     grid-template-columns: 7% minmax(0, 1fr) 15% !important; gap: 6px !important;
   }
   #replayModal #ypCardInfo { max-width: none !important; width: auto !important; overflow: hidden !important; font-size: 10px !important; }
