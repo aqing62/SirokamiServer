@@ -1233,6 +1233,32 @@
     } catch (e) { return null; }
   }
 
+
+  /**
+   * 召唤成功 → 检查刚才送去墓地的**素材卡**里有没有"作为素材给持续效果"的（如 I：P 百变莱娜 ✓）：
+   *   有就把「<素材卡名> 效果适用中」标在这只召唤出的怪兽卡图上（用户要求 ✓）。
+   * 触发：MSG_SUMMONED / MSG_SP_SUMMONED（引擎在召唤完成后发 ✓）；素材来自 state.recentToGrave ✓
+   */
+  function tagEffectOnSummon(code) {
+    try {
+      if (!code) return;
+      var now = Date.now();
+      var mats = (state.recentToGrave || []).filter(function (g) { return now - g.t < 4000; });
+      var text = null;
+      for (var i = mats.length - 1; i >= 0; i--) {
+        var t = fxTagTextOf(mats[i].code);
+        if (t) { text = t; break; }
+      }
+      if (!text) return;
+      state.fxTags = state.fxTags || [];
+      // 同一只怪只留一条
+      state.fxTags = state.fxTags.filter(function (x) { return x.code !== code; });
+      state.fxTags.push({ code: code, text: text });
+      logLine('▸ ' + text + '（' + cardLabel({ code: code }) + '）', 'rp-log-hint');
+      try { applyEffectTags(); } catch (e) {}
+    } catch (e) {}
+  }
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
     if (state.reconnectTimer) return;
@@ -1698,11 +1724,30 @@
           if (_dp3 === undefined && _mf.info) _dp3 = _mf.info.controller;
           if (_dp3 === 0 || _dp3 === 1) {
             var _from = (_mf.from !== undefined) ? _mf.from : (_mf.info ? _mf.info.location : undefined);
+            // 记录"刚被送去墓地的卡" —— 连接/同调素材就是它们，用来推断"素材给效果"（如 I：P 百变莱娜 ✓）
+            try {
+              var _to2 = _mf.to;
+              if (_to2 !== undefined && ((_to2 | 0) & 0x7f) === 0x10) {   // 16 = 墓地
+                state.recentToGrave = state.recentToGrave || [];
+                state.recentToGrave.push({ code: _mf.code || 0, t: Date.now() });
+                if (state.recentToGrave.length > 20) state.recentToGrave.shift();
+              }
+            } catch (e) {}
             var _to = _mf.to;
             if (_from === HAND2 && _to !== HAND2) setCount(_dp3, 'hand', Math.max(0, (_cnt[_dp3].hand || 0) - 1));
             else if (_to === HAND2 && _from !== HAND2) setCount(_dp3, 'hand', (_cnt[_dp3].hand || 0) + 1);
           }
         } catch (e) {}
+      }
+      // ★ 召唤成功 → 素材给效果的话，在召唤出的怪兽卡图上标注（I：P 百变莱娜这类 ✓）
+      if (msg.msg && msg.msg.constructor) {
+        var _cn2 = msg.msg.constructor.name;
+        if (_cn2 === 'YGOProMsgSummoned' || _cn2 === 'YGOProMsgSpSummoned' || _cn2 === 'YGOProMsgSpecialSummoned') {
+          try {
+            var _sc = msg.msg.code || (msg.msg.info ? msg.msg.info.code : 0);
+            tagEffectOnSummon(_sc);
+          } catch (e) {}
+        }
       }
       try { fillOpponentHand(); } catch (e) {}
       try { fixPileCounts(); } catch (e) {}
