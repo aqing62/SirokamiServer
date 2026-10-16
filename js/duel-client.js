@@ -1397,9 +1397,20 @@
         });
         _infos.forEach(function (it) {
           var f = it.inf || {};
+          // 手卡的字段名各版本不一（hand / handCount / handc / handCards…）全试一遍
           setCount(it.dp, 'deck', f.deckCount !== undefined ? f.deckCount : f.mainc);
-          setCount(it.dp, 'hand', f.handCount !== undefined ? f.handCount : f.handc);
+          setCount(it.dp, 'hand',
+            f.hand !== undefined ? f.hand :
+            f.handCount !== undefined ? f.handCount :
+            f.handc !== undefined ? f.handc :
+            (f.handCards ? f.handCards.length : undefined));
           setCount(it.dp, 'extra', f.extraCount !== undefined ? f.extraCount : f.extrac);
+          if (!state._countFieldsLogged) {
+            state._countFieldsLogged = true;
+            var ks = [];
+            for (var kk in f) { try { if (typeof f[kk] === 'number') ks.push(kk + '=' + f[kk]); } catch (e) {} }
+            logLine('（开局玩家信息里的数字字段：' + (ks.join(' ') || '(没有数字字段)') + '）', 'rp-log-hint');
+          }
         });
         if (!_infos.length) logLine('（开局没解出双方数量字段，先按抽卡增量更新）', 'rp-log-hint');
       } catch (e) {}
