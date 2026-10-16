@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261019q">
+<link rel="stylesheet" href="css/duel-client.css?v=20261019r">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -470,6 +470,12 @@
 #replayModal .rp-card.rp-flip.rp-def {
   transform: rotate(90deg) scale(0.68) !important;
 }
+</style>
+<style>
+/* siro-hide-counts */
+/* 左上角数量条（对方/自己的 手·卡·额）—— 用户要求去掉：没什么用 ✓
+   隐藏而不是删代码：手卡数仍然在后台统计 ✓ 对手手卡的卡背数量还靠它 ✓ 想恢复删掉这段即可 */
+#ypCounts { display: none !important; }
 </style>
 </head>
 <body>
