@@ -1077,6 +1077,15 @@
     state.sock.onmessage = function (ev) {
       var frames = state.scanner.push(new Uint8Array(ev.data));
       for (var i = 0; i < frames.length; i++) onFrame(frames[i]);
+    // 记录最近一帧的原始字节（十六进制）—— 连锁窗口诊断用（解码后的对象里没有原始 bytes ✗）
+    try {
+      if (frames.length) {
+        var _f0 = frames[frames.length - 1], _h = '';
+        for (var _bi = 0; _bi < Math.min(_f0.length, 48); _bi++) _h += _f0[_bi].toString(16).padStart(2, '0');
+        state.lastFrameHex = _h; state.lastFrameLen = _f0.length;
+      }
+    } catch (e) {}
+
     };
     state.sock.onclose = function () { setHud('连接已断开', 'err'); scheduleReconnect(); };
     state.sock.onerror = function () { setHud('连接错误', 'err'); scheduleReconnect(); };
@@ -2105,7 +2114,7 @@
             logLine('⚠ 连锁窗口自动跳过（诊断）：rawLen=' + (_raw ? _raw.length : '?')
               + ' 自解=' + (state.lastChainDecode || 'null')
               + ' 库解=' + (m && m.chains ? m.chains.length : '?')
-              + (state.lastChainRawHex ? (' 上次原始=' + state.lastChainRawHex) : ''),
+              + (state.lastFrameHex ? (' 原始=' + state.lastFrameHex.slice(0, 64) + '（' + state.lastFrameLen + 'B）') : ' 原始=?'),
               'rp-log-err');
           } catch (e) {}
           logLine('（没有可连锁的效果 → 自动不连锁）', 'rp-log-hint');
