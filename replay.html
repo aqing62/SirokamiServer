@@ -230,6 +230,19 @@
   }
   /* 盘面本身（查看器里的两层包裹）保持原尺寸、不拉伸 ✓ */
   #replayField > * { flex: 0 0 auto !important; }
+
+  /* siro-info-align2 —— 左栏底部与场地/log 严格对齐 ✓（之前用视口定位多出 26px ✗）
+     #rpStage 高度 = calc(100dvh - 52px - 6px)；左栏也用同样的算式，保证三块完全等高 ✓ */
+  #rpCardInfo, body.rp-embed #rpCardInfo {
+    top: 52px !important;
+    bottom: auto !important;
+    height: calc(100dvh - 58px) !important;
+    max-height: calc(100dvh - 58px) !important;
+  }
+  #rpStage .replay-side {
+    height: 100% !important;
+    box-sizing: border-box !important;
+  }
 </style>
 </head>
 <body>
@@ -293,7 +306,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021f"></script>
+<script src="js/viewer-live.js?v=20261021g"></script>
 <script>
 (function () {
   'use strict';
