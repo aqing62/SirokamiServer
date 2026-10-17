@@ -408,17 +408,20 @@ function enrichPoolCards() {
     const M = window._poolMeta;
 
     // 先收集官方卡（用来判断「这张先行卡是不是已经正式出过」）
-    // ⚠ 白神服的先行版编号 = 正式版卡号 **−1**（实测 32 张：1264319/1264320、1498449/1498450…），
-    //   所以「卡号完全相同」是永远命中不了的；
-    //   同时再用「官方有同名卡」兜一层（防止编号不连续的情况）。
-    //   翻译改动导致两边卡名不一样时，靠 id+1 这条照样能排掉。
-    const ocgIds = new Set();
+    // 判定依据（实测过全量数据）：
+    //   · 卡号**完全相同**的先行/官方卡：0 张 —— 所以按卡号拦是空操作 ✗
+    //   · 真正重复的 26 张：卡名相同**且效果文本完全相同**（官方版卡号 = 先行版卡号 +1）
+    //   · ⚠ 不能只用「卡号 +1」判断：另有 6 张先行卡的下一个卡号恰好是**衍生物**（如
+    //     35167375 惊喜融合 → 35167376 惊喜衍生物），会把没出过的先行卡误藏 ✗
+    //   · 卡名有时会改翻译（玩家反馈）→ 所以**卡名或效果文本任一相同**都算同一张卡
     const ocgNames = new Set();
+    const ocgDescs = new Set();
     for (let i = 0; i < allCards.length; i++) {
         const c = allCards[i];
         if ((c.source || 'diy') !== 'ocg') continue;
-        ocgIds.add(parseInt(c.id, 10));
         if (c.name) ocgNames.add(normalizeCardName(c.name));
+        const d = normalizeCardName(c.desc);
+        if (d) ocgDescs.add(d);
     }
 
     for (let i = 0; i < allCards.length; i++) {
@@ -429,8 +432,15 @@ function enrichPoolCards() {
         c._limit = M.limit.has(id) ? M.limit.get(id) : null;
         c._forbidden = M.forbidden.has(id);
         c._new = poolNewIds.has(id);
-        // 官方已出过的先行卡 → 保留官方版，这张整个卡池都不再显示
-        c._dupOfOfficial = (c._src === 'pre') && (ocgIds.has(id + 1) || (!!c.name && ocgNames.has(normalizeCardName(c.name))));
+        // 官方已出过的先行卡 → 保留官方版，这张先行版任何视图都不显示
+        if (c._src === 'pre') {
+            const sameName = !!c.name && ocgNames.has(normalizeCardName(c.name));
+            const dsc = normalizeCardName(c.desc);
+            const sameDesc = !!dsc && ocgDescs.has(dsc);
+            c._dupOfOfficial = sameName || sameDesc;
+        } else {
+            c._dupOfOfficial = false;
+        }
     }
 }
 
