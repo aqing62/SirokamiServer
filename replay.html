@@ -206,10 +206,25 @@
       表现：**刚刷新是空场，过一会冒出一堆卡背** ✓✓
       场上的卡改由 Move / Summoning / Set / PosChange 这些**带卡号**的消息来建 ✓
       （实测：这样能出来真卡面 ✓） */
-  var SKIP_MSGS = { UpdateData: 1, UpdateCard: 0, ShuffleDeck: 1, ShuffleHand: 1 };
+  var SKIP_MSGS = { ShuffleDeck: 1, ShuffleHand: 1 };
+  /** UpdateData 的布局和 Move 不同：[id][玩家][区域]...（不是 [id][code×4][ctl][loc][seq] ✗）
+      它负责**卡组/额外张数** ✓ 所以不能整条丢掉 ✗
+      但也**不能**带上 cards（会把场上塞满卡 → 卡背 ✗）
+      → 只补 { player, location }：数量角标会更新 ✓ 场上不会多出卡 ✓ */
+  function fillUpdateData(m) {
+    var o = {};
+    var p = hexU8(m.hex, 1), loc = hexU8(m.hex, 2);
+    if (p !== undefined && p <= 1) o.player = p;
+    if (loc !== undefined) o.location = loc;
+    return o;
+  }
   function feed(m) {
     if (!m || !m.name) return;
-    if (SKIP_MSGS[m.name]) return;                       // 跳过 ✗
+    if (SKIP_MSGS[m.name]) return;                       // 只跳过洗牌类 ✓
+    if (m.name === 'UpdateData') {
+      try { window.__live.push({ name: 'UpdateData', hex: m.hex, len: m.len, f: fillUpdateData(m) }); window.__live.flush(); } catch (e) {}
+      return;
+    }
     try {
       window.__live.push({ name: m.name, hex: m.hex, len: m.len, f: fillFields(m) });
       window.__live.flush();
