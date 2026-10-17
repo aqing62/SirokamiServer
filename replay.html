@@ -345,7 +345,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021i"></script>
+<script src="js/viewer-live.js?v=20261021j"></script>
 <script>
 (function () {
   'use strict';
@@ -606,7 +606,22 @@
     return Promise.all([
       fetch('/api/cards?t=' + Date.now()).then(function (r) { return r.json(); }).catch(function () { return {}; }),
       fetch('/api/cardtext?t=' + Date.now()).then(function (r) { return r.json(); }).catch(function () { return {}; }),
-    ]).then(function (a) { cards = a[0] || {}; texts = a[1] || {}; });
+    ]).then(function (a) {
+      // siro-cardinfo-full: /api/cards 是**数组** ✗（之前当成对象取 → 永远查不到 ✗）
+      var raw = a[0];
+      var map = {};
+      if (Array.isArray(raw)) {
+        raw.forEach(function (it) {
+          if (!it) return;
+          var k = it.code !== undefined ? it.code : (it.id !== undefined ? it.id : null);
+          if (k !== null) map[k] = it;
+        });
+      } else if (raw && typeof raw === 'object') {
+        map = raw;
+      }
+      cards = map;
+      texts = a[1] || {};
+    });
   }
   function nameOf(code) {
     // ★ 优先用查看器的卡名 —— 它内部有完整卡表（含 DIY/先行 ✓），/api/cards 只有 OCG 卡 ✗
@@ -640,13 +655,29 @@
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
   }
+  /* siro-cardinfo-full: 位掩码解码表（和 ygopro 一致 ✓） */
+  var ATTR_NAME = { 1: '光', 2: '暗', 4: '炎', 8: '水', 16: '风', 32: '地', 64: '神' };
+  var RACE_NAME = {
+    1: '战士族', 2: '魔法师族', 4: '天使族', 8: '恶魔族', 16: '不死族', 32: '机械族', 64: '水族',
+    128: '炎族', 256: '岩石族', 512: '鸟兽族', 1024: '植物族', 2048: '昆虫族', 4096: '雷族',
+    8192: '龙族', 16384: '兽族', 32768: '兽战士族', 65536: '恐龙族', 131072: '鱼族',
+    262144: '海龙族', 524288: '爬虫类族', 1048576: '念动力族', 2097152: '幻神兽族',
+    4194304: '创造神族', 8388608: '幻龙族', 16777216: '电子界族'
+  };
+  var TYPE_NAME = { 1: '怪兽', 2: '魔法', 4: '陷阱' };
   function typeLineOf(code) {
     var t = textOf(code);
     var c = cards && (cards[code] || cards[String(code)]);
     var parts = [];
-    // ⚠ t.t 是位掩码（数字）✗ 直接显示会很怪（实测出现 "33" ✗）→ 不显示它 ✓
+    // siro-cardinfo-full: 用 cardtext 的位掩码解出 种类/属性/种族 ✓（之前只靠 /api/cards 查不到 → 无基础信息 ✗）
+    if (t) {
+      var kind = TYPE_NAME[(t.t || 0) & 7];
+      if (kind) parts.push(kind);
+      if (t.a && ATTR_NAME[t.a]) parts.push('属性：' + ATTR_NAME[t.a]);
+      if (t.r && RACE_NAME[t.r]) parts.push(RACE_NAME[t.r]);
+    }
     if (c && c.level) parts.push('★' + c.level);
-    if (c && c.race) parts.push('种族 ' + c.race);
+    else if (c && c.lvl) parts.push('★' + c.lvl);
     if (c && c.atk !== undefined) parts.push('ATK ' + c.atk + ' / DEF ' + (c.def === undefined ? '?' : c.def));
     if (t && t.s) { var sets = setNamesOf(t.s); if (sets.length) parts.push('系列：' + sets.join('、')); }
     return parts.join('　·　') || '（无基础信息）';
