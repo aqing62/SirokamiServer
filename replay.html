@@ -313,6 +313,112 @@
     height: 0 !important;
     display: none !important;
   }
+
+  /* ══════════════════════════════════════════════════════════════
+     siro-mobile-replay —— 手机端排版，参照对局页（duel.html 竖屏）：
+       上 ① 对局日志   20%
+       中 ② 卡片信息   30%
+       下 ③ 对局场地   50%
+     顶栏 #rpTop 本来就是 fixed 56px，三块都从 56px 往下算，用 bottom 依次垒上去
+     （不用 display:contents 穿透 modal 外壳：查看器会用 inline display 切换显隐，穿透会和它打架）
+     ══════════════════════════════════════════════════════════════ */
+  @media (orientation: portrait), (max-width: 860px) {
+    :root {
+      /* 可用高度 = 视口 − 顶栏 56 − 底边 4 − 两处间隙 10 */
+      --rp-avail: calc(100dvh - 70px);
+    }
+    html, body { height: 100dvh !important; overflow: hidden !important; }
+
+    /* 顶栏：一行放不下就横向滑动，别换行把三块挤下去 */
+    html body #rpTop {
+      height: 56px !important;
+      flex-wrap: nowrap !important;
+      overflow-x: auto !important;
+      overflow-y: hidden !important;
+      padding: 0 8px !important;
+      gap: 6px !important;
+      scrollbar-width: none !important;
+    }
+    html body #rpTop::-webkit-scrollbar { height: 0 !important; display: none !important; }
+    html body #rpTop #rpSeek { width: 88px !important; }
+    html body #rpTop > a, html body #rpTop #rpLoad { white-space: nowrap !important; font-size: 12px !important; }
+    html body #rpTop #rpInfo { display: none !important; }   /* 手机窄屏：进度文字省掉，进度条还在 */
+
+    /* 外层容器不再占位（三块都用 fixed 定位） */
+    html body #rpStage, html body.rp-embed #rpStage {
+      position: static !important;
+      left: auto !important; right: auto !important; top: auto !important; bottom: auto !important;
+      width: auto !important; height: auto !important;
+      overflow: visible !important;
+    }
+
+    /* ③ 对局场地（最下，50%） */
+    html body #rpStage #replayField, html body.rp-embed #rpStage #replayField {
+      position: fixed !important;
+      left: 4px !important; right: 4px !important;
+      bottom: 4px !important; top: auto !important;
+      width: auto !important; margin: 0 !important;
+      height: calc(var(--rp-avail) * 0.50) !important;
+      max-height: calc(var(--rp-avail) * 0.50) !important;
+      min-height: 0 !important;
+    }
+
+    /* ② 卡片信息（中间，30%）—— 手机上原本是 display:none，这里恢复并改成横向排 */
+    html body #rpCardInfo, html body.rp-embed #rpCardInfo {
+      display: flex !important;
+      flex-direction: row !important;
+      gap: 8px !important;
+      position: fixed !important;
+      left: 4px !important; right: 4px !important;
+      width: auto !important; margin: 0 !important;
+      top: auto !important;
+      bottom: calc(4px + var(--rp-avail) * 0.50 + 5px) !important;
+      height: calc(var(--rp-avail) * 0.30) !important;
+      max-height: calc(var(--rp-avail) * 0.30) !important;
+      overflow: hidden !important;
+      padding: 8px 10px !important;
+      box-sizing: border-box !important;
+      z-index: 60 !important;
+    }
+    /* 左小图 + 右文本（文本自己滚，滚动条隐藏） */
+    html body #rpCardInfo .rp-ci-img {
+      width: 30% !important;
+      max-width: 92px !important;
+      flex: 0 0 auto !important;
+      margin-bottom: 0 !important;
+      align-self: flex-start !important;
+    }
+    html body #rpCardInfo .rp-ci-main {
+      flex: 1 1 auto !important;
+      min-width: 0 !important;
+      overflow-y: auto !important;
+      scrollbar-width: none !important;
+      -ms-overflow-style: none !important;
+    }
+    html body #rpCardInfo .rp-ci-main::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
+    html body #rpCardInfo .rp-ci-name { font-size: 13px !important; }
+    html body #rpCardInfo .rp-ci-type { font-size: 11px !important; margin-bottom: 5px !important; }
+    html body #rpCardInfo .rp-ci-text { font-size: 11.5px !important; line-height: 1.55 !important; }
+
+    /* ① 对局日志（最上，20%） */
+    html body #rpStage .replay-side {
+      position: fixed !important;
+      left: 4px !important; right: 4px !important;
+      width: auto !important; margin: 0 !important;
+      top: auto !important;
+      bottom: calc(4px + var(--rp-avail) * 0.80 + 10px) !important;
+      height: calc(var(--rp-avail) * 0.20) !important;
+      max-height: calc(var(--rp-avail) * 0.20) !important;
+      padding: 6px 8px !important;
+      box-sizing: border-box !important;
+      z-index: 60 !important;
+    }
+    html body #rpStage .replay-side .replay-log-title { font-size: 11px !important; padding: 0 0 4px !important; border-bottom: 0 !important; }
+    html body #rpStage .rp-log-line { font-size: 11px !important; line-height: 1.5 !important; }
+
+    /* 牌堆列表弹窗（点牌堆查看）也压在三块之上，别被日志/信息挡住 */
+    #rpList { left: 8px !important; right: 8px !important; width: auto !important; top: 62px !important; bottom: 8px !important; z-index: 200 !important; }
+  }
 </style>
 </head>
 <body>
