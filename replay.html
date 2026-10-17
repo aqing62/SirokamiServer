@@ -172,9 +172,18 @@
     for (var i = 0; i < 4; i++) { if (b[i] === undefined) return undefined; }
     return ((b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)) >>> 0);
   }
+  /** 只有**确实**用 {code,controller,location,sequence} 布局的消息才补 ✓
+      其它消息（抽卡/阶段/胜负/提示…）布局不同 ✗ 乱补会把 player/count 等字段顶掉 ✗
+      → 之前实测：日志变成「Pundefined 抽卡 0 张」「阶段undefined」✗ ✓ */
+  var CODE_LAYOUT_MSGS = {
+    Move: 1, Set: 1, Summoning: 1, SpSummoning: 1, Summoned: 1,
+    PosChange: 1, Chaining: 1, Chained: 1, ChainSolving: 1, ChainEnd: 1,
+    Flip: 1, Equip: 1, Draw: 0
+  };
   function fillFields(m) {
     var f = m.f || {};
     if (f.code !== undefined && typeof f.code !== 'object') return f;   // 已有合法字段 → 不动 ✓
+    if (!CODE_LAYOUT_MSGS[m.name]) return f;                           // 不在白名单 → 原样返回（空）✓
     var o = {};
     var code = hexU32(m.hex, 1);
     if (code !== undefined && code > 0) o.code = code;
