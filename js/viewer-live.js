@@ -467,6 +467,14 @@ function initReplayViewer() {
         w.className = 'rp-card';
         if (!card) { w.className += ' rp-card-empty'; return w; }
         if (card.faceDown) { w.className += ' rp-card-down'; w.title = '盖牌'; }
+        else if (!card.code) {
+            // PATCH(白神服): **code 为 0 且不是里侧** → 这是"没有这张卡的数据"（引擎对未知/空位给 0 ✓）
+            //   原来这里照样去取图 ✗ → picChain(0) 拿到一张**卡背** ✗
+            //   → 表现：**场上本该空着的格子显示卡背**（用户一眼看出来 ✓）
+            //   现在画成空格子 ✓（真正的盖卡走上面的 faceDown 分支 ✓ 不受影响 ✓）
+            w.className = 'rp-card rp-card-empty';
+            w.title = '';
+        }
         else {
             var nm = cardName(card.code);
             w.title = escapeHtml(nm || card.code);
