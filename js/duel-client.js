@@ -489,6 +489,8 @@
     if (!state.sidingReloading) {
       state.sidingReloading = true;
       logLine('↻ 备牌已提交 → 1.2 秒后刷新页面让新一局场地从零重建', 'rp-log-phase');
+      // ★ 打标记：刷新重连后显示"等待对手备牌"界面（用户要求 ✓ 原来会退回匹配画面 ✗）
+      try { sessionStorage.setItem('yp_wait_siding', String(Date.now())); } catch (e) {}
       setTimeout(function () {
         try {
           var u = new URL(location.href);
@@ -1492,6 +1494,64 @@
         if (!_scoreMap) loadScoreMap().then(function () { if (state.infoCode === code) paintCardInfoScore(code); });
       }
     } catch (e) {}
+  }
+
+
+  /* ═══════════ 备牌等待界面（用户要求）═══════════
+     场景：Bo3 第一局打完 → 双方备牌 ✓ 我先提交 → 页面刷新重连 ✓
+     这时服务端在等对手备牌结束 ✗ 原来的界面退回"匹配/房间"画面 ✗ 有误导性（以为要重新匹配 ✓）
+     做法：提交备牌前打一个 sessionStorage 标记（刷新后还在 ✓）→ 重连后显示等待浮层 ✓
+          下一局一开始（MSG_START / 盘面出现待应答）就自动收起 ✓ */
+  function showSidingWait() {
+    try {
+      if (document.getElementById('ypWaitSiding')) return;
+      var d = document.createElement('div');
+      d.id = 'ypWaitSiding';
+      d.style.cssText = 'position:fixed;inset:0;z-index:9600;display:flex;align-items:center;justify-content:center;'
+        + 'background:radial-gradient(900px 500px at 50% 10%, rgba(216,30,68,.22), rgba(8,8,10,.96) 70%);'
+        + 'font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#ece9e4;text-align:center';
+      d.innerHTML = '<div>'
+        + '<div style="width:54px;height:54px;margin:0 auto 20px;border-radius:50%;'
+        + 'border:3px solid rgba(212,175,55,.25);border-top-color:#FFD700;animation:ypWaitSpin 1s linear infinite"></div>'
+        + '<div style="font-size:22px;font-weight:800;letter-spacing:3px;color:#F0E68C;margin-bottom:8px">等待对手备牌</div>'
+        + '<div style="font-size:13px;color:#9b97a1;line-height:1.9">你的备牌已提交 ✓　对手还在调整副卡组<br>'
+        + '对手确认后会自动开始下一局，请不要关闭页面</div>'
+        + '<div id="ypWaitSec" style="margin-top:16px;font-size:12px;color:#7d7d86">已等待 0 秒</div>'
+        + '<div style="margin-top:18px"><button id="ypWaitLeave" style="padding:8px 18px;border-radius:999px;'
+        + 'border:1px solid rgba(216,30,68,.7);background:rgba(24,10,14,.8);color:#ff8a9b;cursor:pointer;'
+        + 'font:700 13px/1 inherit">离开对局（回大厅）</button></div>'
+        + '</div>'
+        + '<style>@keyframes ypWaitSpin{to{transform:rotate(360deg)}}</style>';
+      document.body.appendChild(d);
+      var t0 = Date.now();
+      var el = d.querySelector('#ypWaitSec');
+      d.__timer = setInterval(function () {
+        var s = Math.floor((Date.now() - t0) / 1000);
+        if (el) el.textContent = '已等待 ' + s + ' 秒' + (s >= 60 ? '（对手可能超时了，服务端会按备牌时限处理）' : '');
+        // 下一局开始了就自动收起 ✓
+        if (state.duelStarted || state.sidingActive || (state.pending && state.pending.kind && state.pending.kind !== 'idle')) hideSidingWait();
+      }, 1000);
+      var btn = d.querySelector('#ypWaitLeave');
+      if (btn) btn.onclick = function () { hideSidingWait(); abortMatch('你已离开备牌等待，回大厅重新匹配'); };
+      logLine('⏳ 自己的备牌已提交 → 显示等待对手备牌界面', 'rp-log-phase');
+    } catch (e) {}
+  }
+  function hideSidingWait() {
+    try {
+      var d = document.getElementById('ypWaitSiding');
+      if (d) { if (d.__timer) clearInterval(d.__timer); d.remove(); }
+      sessionStorage.removeItem('yp_wait_siding');
+    } catch (e) {}
+  }
+  function maybeShowSidingWait() {
+    try {
+      var t = Number(sessionStorage.getItem('yp_wait_siding') || 0);
+      if (!t) return false;
+      if (Date.now() - t > 180000) { sessionStorage.removeItem('yp_wait_siding'); return false; }  // 超 3 分钟算过期 ✓
+      if (state.duelStarted) { sessionStorage.removeItem('yp_wait_siding'); return false; }
+      showSidingWait();
+      return true;
+    } catch (e) { return false; }
   }
 
   function scheduleReconnect() {
@@ -5148,5 +5208,15 @@
 
   // 方案B 补漏：决斗客户端启动时上报一次真实公网 IP（不能只靠大厅 ✗ 大家都是直接开 duel.html?auto=1 的 ✓）
   try { setTimeout(reportRealIpOnce, 1200); } catch (e) {}
+
+  // 备牌等待：如果上次刷新前提交过备牌 → 显示等待界面（用户要求 ✓）
+  try { setTimeout(maybeShowSidingWait, 900); setTimeout(maybeShowSidingWait, 2500); } catch (e) {}
+  // 对局真正开始 / 又进备牌 → 收起等待界面 ✓
+  try {
+    setInterval(function () {
+      if (!document.getElementById('ypWaitSiding')) return;
+      if (state.duelStarted || state.sidingActive) hideSidingWait();
+    }, 1000);
+  } catch (e) {}
 })();
 
