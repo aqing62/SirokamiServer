@@ -193,8 +193,15 @@
     if (seq !== undefined) o.sequence = seq;
     return o;
   }
+  /** 回放里**跳过** UpdateData 消息（用户实测定位 ✓）
+      回放里 UpdateData 有 400+ 条（占一半）✗ 而它的卡号解不出来 → 全画成 cover2 卡背 ✗
+      表现：**刚刷新是空场，过一会冒出一堆卡背** ✓✓
+      场上的卡改由 Move / Summoning / Set / PosChange 这些**带卡号**的消息来建 ✓
+      （实测：这样能出来真卡面 ✓） */
+  var SKIP_MSGS = { UpdateData: 1, UpdateCard: 0, ShuffleDeck: 1, ShuffleHand: 1 };
   function feed(m) {
     if (!m || !m.name) return;
+    if (SKIP_MSGS[m.name]) return;                       // 跳过 ✗
     try {
       window.__live.push({ name: m.name, hex: m.hex, len: m.len, f: fillFields(m) });
       window.__live.flush();
