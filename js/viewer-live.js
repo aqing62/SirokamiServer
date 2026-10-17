@@ -2206,10 +2206,10 @@ function initReplayViewer() {
                                 var linkCell = cellElFor(mConC, cRawM, mSeqC);
                                 if (linkCell) fxHoldCell(linkCell, 1800);
                             }
-                            // 灵摆怪：召唤前先起钟摆（怪兽照常立即上场，不做隐藏）
-                            if (!animSuppress && landType === 'pendulum') {
-                                if (!pendFx.batchOpen) pendBegin(mConC);
-                            }
+                            // 灵摆动画不在这里触发 ✗（原来按"这张卡是不是灵摆怪"就起钟摆 →
+                            //   普通召唤/效果特召一只灵摆怪也会播灵摆召唤动画，用户实测 ✗）
+                            //   正确做法：只有引擎的**灵摆召唤**事件（SpSummoning 且 summonType=7）才播 ✓
+                            //   见下面 SpSummoning 分支。
                         }
                         // 素材进缓冲：场上/手牌/卡组 → 墓地（非战斗破坏）
                         if (!animSuppress && !inBattle && cPlain === LOC.GRAVE
@@ -2297,7 +2297,16 @@ function initReplayViewer() {
                 if (!animSuppress && lastLand && lastLand.code === f.code && idx - lastLand.idx <= 6) {
                     var st = summonTypeOf(f.code);
                     var extraType = st === 'fusion' || st === 'synchro' || st === 'xyz' || st === 'link';
-                    if ((extraType && lastLand.fromExtra) || st === 'pendulum') {
+                    // ★ 灵摆：必须看**引擎的召唤类型**（用户要求：绑事件、不绑卡 ✗）
+                    //   MSG_SPSUMMONING 的 summonType：7 = 灵摆召唤（SUMMON_TYPE_PENDULUM）✓
+                    //   原来用 summonTypeOf(卡号)（按卡的类别）→ 普通召唤一只灵摆怪也会播灵摆动画 ✗
+                    var _stRaw = (f.summonType !== undefined) ? f.summonType
+                        : (f.summonTypeRaw !== undefined ? f.summonTypeRaw : undefined);
+                    var isPendSummon = (_stRaw !== undefined) && (((_stRaw | 0) & 0xff) === 7);
+                    // 消息里没有 summonType（解码没带这个字段）→ 沿用原来的"卡是灵摆怪"判断 ✓
+                    //   （只在 SpSummoning 这条路径上 ✓ 普通召唤走的是 Summoning/Summoned ✗ 不会进这里 ✓）
+                    if (_stRaw === undefined && st === 'pendulum') isPendSummon = true;
+                    if ((extraType && lastLand.fromExtra) || isPendSummon) {
                         var sRect = rectAt(lastLand.ctl, lastLand.rawLoc, lastLand.seq);
                         var sCell = cellElFor(lastLand.ctl, lastLand.rawLoc, lastLand.seq);
                         var sCard = field[lastLand.ctl] ? field[lastLand.ctl][(lastLand.rawLoc & 0x7f) + ':' + lastLand.seq] : null;
