@@ -2836,8 +2836,19 @@ initReplayViewer();
   var main = document.getElementById('replayMain');
   if (!modal || !input || !btn || !main) return;
 
+  var pendingId = null, tries = 0;
+  // 重试挂载：旧代码可能在之后又动了 DOM（实测一次挂载会被冲掉 ✗）
+  function ensureMounted() {
+    if (!pendingId || tries > 30) return;
+    tries++;
+    var f = document.getElementById('rpNewFrame');
+    if (!f) { mount(pendingId); }
+    else if (main && main.style.display === 'none') { main.style.display = 'block'; }
+    setTimeout(ensureMounted, 150);
+  }
   function mount(id) {
     if (!id) return;
+    pendingId = id;
     if (!main.querySelector('.rp-newframe')) {
       main.innerHTML = '<div class="rp-newframe" style="position:relative;height:min(80vh,820px);">'
         + '<iframe id="rpNewFrame" style="border:0;width:100%;height:100%;display:block;background:#08070b;"'
@@ -2846,6 +2857,7 @@ initReplayViewer();
     main.style.display = 'block';
     var f = document.getElementById('rpNewFrame');
     if (f) f.src = 'replay.html?r=' + encodeURIComponent(id) + '&embed=1&t=' + Date.now();
+    setTimeout(ensureMounted, 120);
   }
   function pick() {
     var m = /R#?(\d+)/i.exec(input.value || '');
