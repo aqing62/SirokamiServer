@@ -29,11 +29,44 @@
   .rp-ctl.gold { background: linear-gradient(135deg,#D4AF37,#FFD700); color: #1a1a2e; border: none; font-weight: 700; }
   #rpInfo { font-size: 12px; color: #9b97a1; }
   #rpStage { position: absolute; top: 56px; left: 0; right: 0; bottom: 0; overflow: auto; }
-  #rpStage #replayModal { position: relative !important; inset: auto !important; display: block !important;
-    height: calc(100dvh - 56px) !important; z-index: 1 !important; }
+
+  /* ── 卡片效果栏（左栏，常驻 ✓ 用户要求）── */
+  #rpCardInfo { position: fixed; left: 0; top: 56px; bottom: 0; width: 268px; z-index: 50;
+    background: rgba(14,12,18,.97); border-right: 1px solid rgba(212,175,55,.28);
+    padding: 12px; overflow: auto; font-size: 12.5px; line-height: 1.6; }
+  #rpCardInfo .rp-ci-empty { color: #7d7d86; font-size: 12px; padding: 10px 2px; }
+  #rpCardInfo .rp-ci-img { width: 100%; border-radius: 8px; overflow: hidden; margin-bottom: 10px;
+    background: #0b0a0e; border: 1px solid rgba(255,255,255,.1); }
+  #rpCardInfo .rp-ci-img img { width: 100%; display: block; }
+  #rpCardInfo .rp-ci-name { font-size: 15px; font-weight: 800; color: #F0E68C; margin-bottom: 4px; }
+  #rpCardInfo .rp-ci-code { font-size: 11px; color: #6f6f78; font-weight: 400; }
+  #rpCardInfo .rp-ci-type { font-size: 12px; color: #9ec4f0; margin-bottom: 8px; }
+  #rpCardInfo .rp-ci-text { font-size: 12px; color: #d8d3ca; white-space: pre-wrap; }
+
+  /* ── 查看列表（点牌堆弹出）── */
+  #rpList { position: fixed; left: 278px; top: 66px; bottom: 0; width: 420px; z-index: 60;
+    background: rgba(16,14,20,.98); border: 1px solid rgba(212,175,55,.35); border-radius: 10px;
+    padding: 12px; overflow: auto; display: none; box-shadow: 0 18px 50px rgba(0,0,0,.6); }
+  #rpList .rp-li-title { font-size: 13px; font-weight: 700; color: #FFD700; margin-bottom: 8px; }
+  #rpList .rp-li-empty { color: #7d7d86; font-size: 12px; }
+  #rpList .rp-li-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(74px, 1fr)); gap: 8px; }
+  #rpList .rp-li-item { cursor: pointer; text-align: center; }
+  #rpList .rp-li-item img { width: 100%; border-radius: 5px; display: block; background: #0b0a0e; }
+  #rpList .rp-li-item span { display: block; font-size: 10px; color: #b9b4ab; margin-top: 3px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 场地往右让出左栏（信息栏 268px ✓）*/
+  #rpStage { left: 268px !important; }
+  #rpStage #replayModal { height: calc(100dvh - 56px) !important; }
+
   #rpMsg { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 9999;
     background: rgba(20,18,26,.96); border: 1px solid rgba(212,175,55,.4); border-radius: 12px;
     padding: 22px 26px; text-align: center; font-size: 14px; line-height: 1.9; max-width: 78vw; }
+  @media (orientation: portrait), (max-width: 860px) {
+    #rpCardInfo { display: none; }                 /* 手机上信息栏收起，靠点卡看（列表仍可用 ✓） */
+    #rpStage { left: 0 !important; }
+    #rpList { left: 8px; right: 8px; width: auto; top: 66px; }
+  }
 </style>
 </head>
 <body>
@@ -73,6 +106,10 @@
 </div>
 
 <div id="rpStage">
+  <!-- 卡片效果栏（左栏常驻 ✓） -->
+  <div id="rpCardInfo"><div class="rp-ci-empty">把鼠标移到场上的卡上（或点牌堆里的卡）查看详情</div></div>
+  <!-- 查看列表（点牌堆弹出 ✓） -->
+  <div id="rpList"></div>
   <div class="rp-modal" id="replayModal" style="display:none;">
     <div class="rp-modal-box">
       <div class="rp-modal-head"><span class="rp-modal-title">对局回放</span></div>
@@ -181,6 +218,126 @@
     var r = q.get('r') || q.get('id') || '';
     if (r) { $('rpInput').value = r; setTimeout(function () { load(r); }, 800); }
   } catch (e) {}
+})();
+
+/* ═══════════ 卡片效果栏 + 查看列表（用户要求：回放里也要有 ✓）═══════════
+   数据来源：
+     · 卡名/文本：站点的 /api/cards（{id:{name,…}}）+ /api/cardtext（{id:{d:效果,s:系列,…}}）
+     · 区域里的卡：查看器已经暴露的 __live.cardsAt(视角座位, 区域) ✓（实时/回放同一份模型 ✓）
+   交互：
+     · 悬停/点击场上的卡 → 左侧信息栏显示 卡名 / 类型攻守 / 效果文本 ✓
+     · 点牌堆（卡组/额外/墓地/除外）→ 弹列表，列出该区域所有卡 ✓，点某项也显示详情 ✓ */
+(function () {
+  'use strict';
+  var $ = function (i) { return document.getElementById(i); };
+  var cards = null, texts = null;
+
+  var LOC = { DECK: 1, HAND: 2, MZONE: 4, SZONE: 8, GRAVE: 16, REMOVED: 32, EXTRA: 64 };
+  var PILE_LOC = { deck: LOC.DECK, extra: LOC.EXTRA, grave: LOC.GRAVE, removed: LOC.REMOVED };
+
+  function loadCardsDB() {
+    if (cards) return Promise.resolve();
+    return Promise.all([
+      fetch('/api/cards?t=' + Date.now()).then(function (r) { return r.json(); }).catch(function () { return {}; }),
+      fetch('/api/cardtext?t=' + Date.now()).then(function (r) { return r.json(); }).catch(function () { return {}; }),
+    ]).then(function (a) { cards = a[0] || {}; texts = a[1] || {}; });
+  }
+  function nameOf(code) {
+    var c = cards && (cards[code] || cards[String(code)]);
+    return (c && (c.name || c.cn_name)) || ('#' + code);
+  }
+  function textOf(code) {
+    var t = texts && (texts[code] || texts[String(code)]);
+    return t || null;
+  }
+
+  /** 卡片效果栏（左侧常驻） */
+  function showInfo(code) {
+    var box = $('rpCardInfo');
+    if (!box) return;
+    if (!code) { box.innerHTML = '<div class="rp-ci-empty">把鼠标移到场上的卡上（或点牌堆里的卡）查看详情</div>'; return; }
+    box.innerHTML = '<div class="rp-ci-img"><img src="https://api.ygopro3.cn/pics/siro/' + code + '.jpg"'
+      + ' onerror="this.onerror=null;this.src=\'https://cdn.233.momobako.com/ygopro/pics/' + code + '.jpg\'"></div>'
+      + '<div class="rp-ci-main">'
+      + '<div class="rp-ci-name">' + escapeHtml(nameOf(code)) + ' <span class="rp-ci-code">[' + code + ']</span></div>'
+      + '<div class="rp-ci-type">' + escapeHtml(typeLineOf(code)) + '</div>'
+      + '<div class="rp-ci-text">' + escapeHtml(descOf(code)) + '</div>'
+      + '</div>';
+  }
+  function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+  }
+  function typeLineOf(code) {
+    var t = textOf(code);
+    var c = cards && (cards[code] || cards[String(code)]);
+    var parts = [];
+    if (t && t.t) parts.push(t.t);
+    if (c && c.atk !== undefined) parts.push('ATK ' + c.atk + ' / DEF ' + (c.def === undefined ? '?' : c.def));
+    if (t && t.s) { var sets = setNamesOf(t.s); if (sets.length) parts.push('系列：' + sets.join('、')); }
+    return parts.join('　·　') || '（无基础信息）';
+  }
+  function setNamesOf(mask) {
+    // 系列位掩码 → 名字：站点 /api/strings 里有；拿不到就不显示 ✓
+    var out = [];
+    try {
+      var st = window.__rpStrings;
+      if (!st || !st.setcode) return out;
+      (st.setcode || []).forEach(function (e) { if (mask & e.bits) out.push(e.name); });
+    } catch (e) {}
+    return out;
+  }
+  function descOf(code) {
+    var t = textOf(code);
+    if (!t) return '（正在加载效果文本…）';
+    return String(t.d || '（无效果文本）').replace(/\r/g, '');
+  }
+
+  /** 查看列表：点牌堆弹列表（卡组/额外/墓地/除外/手牌） */
+  function showList(pileKey) {
+    var parts = String(pileKey).split(':');
+    var kind = parts[0], seat = Number(parts[1] || 0);
+    var loc = PILE_LOC[kind];
+    if (!loc && kind !== 'hand') { showInfo(0); return; }
+    var arr = [];
+    try {
+      var cardsAt = (window.__live && window.__live.cardsAt) ? window.__live.cardsAt(seat, loc) : [];
+      arr = cardsAt || [];
+    } catch (e) { arr = []; }
+    var box = $('rpList');
+    if (!box) return;
+    if (!arr.length) { showInfo(0); box.innerHTML = '<div class="rp-li-empty">这个区域现在是空的</div>'; return; }
+    var title = { deck: '卡组', extra: '额外卡组', grave: '墓地', removed: '除外' }[kind] || '列表';
+    box.innerHTML = '<div class="rp-li-title">' + title + '（' + arr.length + ' 张）· 点一张看详情</div>'
+      + '<div class="rp-li-grid">' + arr.map(function (c) {
+        var code = c.code || 0;
+        return '<div class="rp-li-item" data-code="' + code + '">'
+          + '<img loading="lazy" src="https://api.ygopro3.cn/pics/siro/' + code + '.jpg"'
+          + ' onerror="this.onerror=null;this.src=\'https://cdn.233.momobako.com/ygopro/pics/' + code + '.jpg\'">'
+          + '<span>' + escapeHtml(nameOf(code)) + '</span></div>';
+      }).join('') + '</div>';
+    box.style.display = '';
+    showInfo(arr[0] ? (arr[0].code || 0) : 0);
+  }
+
+  // 事件委托：悬停看卡、点牌堆看列表、点列表项看详情
+  document.addEventListener('mouseover', function (ev) {
+    var im = ev.target && ev.target.closest ? ev.target.closest('#replayField img') : null;
+    if (!im) return;
+    var m = String(im.src || '').match(/(\d{1,9})\.jpg/);
+    if (m) showInfo(Number(m[1]));
+  }, true);
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (!t || !t.closest) return;
+    var pile = t.closest('[data-pile]');
+    if (pile) { showList(pile.getAttribute('data-pile')); return; }
+    var item = t.closest('.rp-li-item');
+    if (item) { showInfo(Number(item.getAttribute('data-code') || 0)); return; }
+    var im2 = t.closest('#replayField img');
+    if (im2) { var m2 = String(im2.src || '').match(/(\d{1,9})\.jpg/); if (m2) showInfo(Number(m2[1])); }
+  }, true);
+
+  loadCardsDB().then(function () { showInfo(0); });
 })();
 </script>
 </body>
