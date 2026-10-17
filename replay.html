@@ -214,6 +214,22 @@
   #rpStage .replay-main { height: 100% !important; }
   #rpStage .rp-modal-body { height: 100% !important; }
   #rpCardInfo { top: 6px !important; bottom: 6px !important; }
+
+  /* siro-field-fill —— 场地框要**占满容器高度** ✓（实测：容器 674，场地只有 502 ✗ 因为查看器按宽度缩放 ✗）
+     做法：用**最高优先级**的规则把 #replayField 的高度撑满 ✓ 并把盘面在里面垂直居中 ✓
+     这样三块框真的等高 ✓ 下方不再空出那 172px（你圈的 ? ? ?）✓ */
+  #replayField, #rpStage #replayField, body.rp-embed #replayField {
+    height: 100% !important;
+    min-height: 100% !important;
+    max-height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;     /* 盘面在框内垂直居中 ✓ 上下留白均分 ✓ */
+    align-items: center !important;
+    box-sizing: border-box !important;
+  }
+  /* 盘面本身（查看器里的两层包裹）保持原尺寸、不拉伸 ✓ */
+  #replayField > * { flex: 0 0 auto !important; }
 </style>
 </head>
 <body>
@@ -277,7 +293,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021e"></script>
+<script src="js/viewer-live.js?v=20261021f"></script>
 <script>
 (function () {
   'use strict';
