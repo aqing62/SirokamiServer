@@ -139,10 +139,43 @@
   function showMsg(html) { $('rpMsg').style.display = ''; $('rpMsg').innerHTML = html; }
   function hideMsg() { $('rpMsg').style.display = 'none'; }
 
-  /** 把一条回放消息喂给查看器（格式正好一致：{name, hex, len, f} ✓） */
+  /** 把一条回放消息喂给查看器（格式：{name, hex, len, f} ✓）
+      ⚠ 回放接口里 **f 是空的**（实测 f: {} ✗）→ 查看器只能靠 hex 硬解 ✗
+        而回放的 hex 解析起点与实战不一致 → 解出的卡号变成"对象" ✗
+        → picChain(对象) 取不到图 → 全退成 cover2 卡背 ✗
+        → 表现：**场上所有格子都显示卡背**（用户实测，连有真卡的格子也是 ✓）
+      修法：按 ygopro 标准布局把 f 补出来（查看器内部也是这个布局 ✓）
+        byte0 = 消息 id · 1..4 = code(u32 LE) · 5 = controller · 6 = location · 7 = sequence */
+  function hexU8(hex, off) {
+    if (hex === undefined || hex === null) return undefined;
+    var s = String(hex).replace(/[^0-9a-fA-F]/g, '');
+    if (s.length < (off + 1) * 2) return undefined;
+    var v = parseInt(s.substr(off * 2, 2), 16);
+    return isNaN(v) ? undefined : v;
+  }
+  function hexU32(hex, off) {
+    var b = [hexU8(hex, off), hexU8(hex, off + 1), hexU8(hex, off + 2), hexU8(hex, off + 3)];
+    for (var i = 0; i < 4; i++) { if (b[i] === undefined) return undefined; }
+    return ((b[0] | (b[1] << 8) | (b[2] << 16) | (b[3] << 24)) >>> 0);
+  }
+  function fillFields(m) {
+    var f = m.f || {};
+    if (f.code !== undefined && typeof f.code !== 'object') return f;   // 已有合法字段 → 不动 ✓
+    var o = {};
+    var code = hexU32(m.hex, 1);
+    if (code !== undefined && code > 0) o.code = code;
+    var ctl = hexU8(m.hex, 5), loc = hexU8(m.hex, 6), seq = hexU8(m.hex, 7);
+    if (ctl !== undefined) o.controller = ctl;
+    if (loc !== undefined) o.location = loc;
+    if (seq !== undefined) o.sequence = seq;
+    return o;
+  }
   function feed(m) {
     if (!m || !m.name) return;
-    try { window.__live.push({ name: m.name, hex: m.hex, len: m.len, f: m.f || {} }); window.__live.flush(); } catch (e) {}
+    try {
+      window.__live.push({ name: m.name, hex: m.hex, len: m.len, f: fillFields(m) });
+      window.__live.flush();
+    } catch (e) {}
   }
 
   /** 从第 0 条重放到 idx（改步骤/拖动进度时用） */
