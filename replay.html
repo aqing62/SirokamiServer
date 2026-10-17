@@ -352,6 +352,22 @@
       overflow: visible !important;
     }
 
+    /* ⚠ 关键：modal 外壳上的 transform / backdrop-filter 会给 fixed 子元素**造新的包含块**
+       （实测 .rp-modal-box 有 transform、#replayModal 有 backdrop-filter:blur(7px)）
+       → 场地/日志的 fixed 就相对那个盒子算，位置跑到视口外（实测 top=-788）✗
+       这里把两者在手机端关掉，fixed 才真正相对视口 ✓ */
+    html body #rpStage #replayModal, html body.rp-embed #rpStage #replayModal {
+      transform: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+      filter: none !important;
+    }
+    html body #rpStage .rp-modal-box {
+      transform: none !important;
+      filter: none !important;
+      backdrop-filter: none !important;
+    }
+
     /* ③ 对局场地（最下，50%） */
     html body #rpStage #replayField, html body.rp-embed #rpStage #replayField {
       position: fixed !important;
