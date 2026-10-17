@@ -398,6 +398,26 @@ body {
     font-weight: 600;
     white-space: nowrap;
 }
+/* 公告正文（包一层 span 才能在手机上换到下一行占满宽度） */
+.ann-text {
+    min-width: 0;
+}
+
+/* 手机端：日期+版本号占第一行，正文换行占满整行
+   （长公告在窄屏上挤成一条细柱子的问题） */
+@media (max-width: 768px) {
+    .announcement-item {
+        flex-wrap: wrap;
+        row-gap: 4px;
+    }
+    .ann-text {
+        flex: 1 1 100%;
+    }
+    .ann-date {
+        min-width: 0;
+    }
+}
+
 .announcement-toggle {
     color: var(--light-gold);
     cursor: pointer;
