@@ -134,6 +134,16 @@ function initReplayViewer() {
     }
 
     // ── 日志（右侧，每步插到底部并自动滚下）──
+    // siro-log-follow：自动跟到底部，但**用户往上翻看时不打扰**
+    //   离底部超过 60px 就不自动跟（否则想回头看旧日志会被一直拽回底部）
+    //   回放页的日志框靠 CSS 撑出固定高度才滚得动（replay.html 的 siro-log-scroll）
+    function keepLogBottom() {
+        try {
+            if (!logBody) return;
+            var gap = logBody.scrollHeight - logBody.scrollTop - logBody.clientHeight;
+            if (gap < 60) logBody.scrollTop = logBody.scrollHeight;
+        } catch (e) {}
+    }
     function log(line, cls) {
         var div = document.createElement('div');
         div.className = 'rp-log-line' + (cls ? ' ' + cls : '');
@@ -141,7 +151,7 @@ function initReplayViewer() {
         logBody.appendChild(div);
         // 保留最近 500 条
         while (logBody.children.length > 500) logBody.removeChild(logBody.firstChild);
-        logBody.scrollTop = logBody.scrollHeight;
+        keepLogBottom();
     }
 
     function logHtml(html) {
@@ -150,7 +160,7 @@ function initReplayViewer() {
         div.innerHTML = html;
         logBody.appendChild(div);
         while (logBody.children.length > 500) logBody.removeChild(logBody.firstChild);
-        logBody.scrollTop = logBody.scrollHeight;
+        keepLogBottom();
     }
 
     // ── 场地渲染：持久 DOM + 分区局部更新（避免整场重建导致卡图闪烁）──
