@@ -1529,7 +1529,7 @@
         var s = Math.floor((Date.now() - t0) / 1000);
         if (el) el.textContent = '已等待 ' + s + ' 秒' + (s >= 60 ? '（对手可能超时了，服务端会按备牌时限处理）' : '');
         // 下一局开始了就自动收起 ✓
-        if (state.duelStarted || state.sidingActive || (state.pending && state.pending.kind && state.pending.kind !== 'idle')) hideSidingWait();
+        if (state.duelStarted || state.sidingActive || state.pending) hideSidingWait();
       }, 1000);
       var btn = d.querySelector('#ypWaitLeave');
       if (btn) btn.onclick = function () { hideSidingWait(); abortMatch('你已离开备牌等待，回大厅重新匹配'); };
@@ -1547,7 +1547,7 @@
     try {
       var t = Number(sessionStorage.getItem('yp_wait_siding') || 0);
       if (!t) return false;
-      if (Date.now() - t > 180000) { sessionStorage.removeItem('yp_wait_siding'); return false; }  // 超 3 分钟算过期 ✓
+      if (Date.now() - t > 90000) { sessionStorage.removeItem('yp_wait_siding'); return false; }  // 超 3 分钟算过期 ✓
       if (state.duelStarted) { sessionStorage.removeItem('yp_wait_siding'); return false; }
       showSidingWait();
       return true;
@@ -5223,7 +5223,9 @@
   try {
     setInterval(function () {
       if (!document.getElementById('ypWaitSiding')) return;
-      if (state.duelStarted || state.sidingActive) hideSidingWait();
+      // ★ 只要"对局真的开始了"或"出现任何待应答"（先后攻选择是 idle 类 ✓ 之前被我排除了 ✗ 所以一直挂着 ✓）
+      //   或者已经进了新的备牌界面 → 都收起等待浮层 ✓
+      if (state.duelStarted || state.sidingActive || state.pending) hideSidingWait();
     }, 1000);
   } catch (e) {}
 })();
