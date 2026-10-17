@@ -345,7 +345,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021k"></script>
+<script src="js/viewer-live.js?v=20261021m"></script>
 <script>
 (function () {
   'use strict';
@@ -666,6 +666,19 @@
     4194304: '创造神族', 8388608: '幻龙族', 16777216: '电子界族'
   };
   var TYPE_NAME = { 1: '怪兽', 2: '魔法', 4: '陷阱' };
+  /* siro-subtype: ygopro 卡牌子类型位（用真实卡反推验证过 ✓）
+     青眼白龙 t=17(1|16) → 通常 ✓ / 转生炎兽 t=33(1|32) → 效果 ✓ / 入魔 0x4000000 → 连接 ✓ */
+  var MON_SUB = [
+    [0x10, '通常'], [0x20, '效果'], [0x40, '融合'], [0x80, '仪式'],
+    [0x100, '陷阱怪兽'], [0x200, '灵魂'], [0x400, '联合'], [0x800, '二重'],
+    [0x1000, '调整'], [0x2000, '同调'], [0x800000, '超量'],
+    [0x1000000, '灵摆'], [0x4000000, '连接']
+  ];
+  function monSubs(t) {
+    var out = [];
+    MON_SUB.forEach(function (x) { if (t & x[0]) out.push(x[1]); });
+    return out;
+  }
   function typeLineOf(code) {
     var t = textOf(code);
     var c = cards && (cards[code] || cards[String(code)]);
@@ -674,6 +687,11 @@
     if (t) {
       var kind = TYPE_NAME[(t.t || 0) & 7];
       if (kind) parts.push(kind);
+      // 怪兽的子类型：通常/效果/融合/同调/超量/灵摆/连接/调整… ✓
+      if (((t.t || 0) & 7) === 1) {
+        var subs = monSubs((t.t || 0) >>> 0);
+        if (subs.length) parts.push(subs.join('·'));
+      }
       if (t.a && ATTR_NAME[t.a]) parts.push('属性：' + ATTR_NAME[t.a]);
       if (t.r && RACE_NAME[t.r]) parts.push(RACE_NAME[t.r]);
     }
@@ -685,7 +703,7 @@
       parts.push('ATK ' + c.atk + ' / DEF ' + (typeof c.def === 'number' ? c.def : '?'));
     }
     if (t && t.s) { var sets = setNamesOf(t.s); if (sets.length) parts.push('系列：' + sets.join('、')); }
-    return parts.join('　·　') || '（无基础信息）';
+    return parts.join(' · ') || '（无基础信息）';
   }
   function setNamesOf(mask) {
     // 系列位掩码 → 名字：站点 /api/strings 里有；拿不到就不显示 ✓
