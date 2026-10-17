@@ -209,6 +209,31 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   #deckSel option:checked, #deckSel option:checked:hover {
     background: #2a3140 !important; color: #FFD700 !important;
   }
+  /* 返回主页按钮：照官网其它分块的 .back-btn（左上角固定、红色渐变、金色字 ✓）
+     官网各分块都是各自定义一份 ✓ 这里给决斗大厅也来一份（用字面色值，不依赖首页的 CSS 变量 ✓） */
+  .back-btn {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: linear-gradient(135deg, #d81e44, #8b1228);
+    color: #f5e6a8;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 14px;
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    cursor: pointer;
+    transition: 0.3s;
+    z-index: 999;
+  }
+  .back-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 0 10px rgba(216, 30, 68, 0.5);
+  }
+  @media (orientation: portrait), (max-width: 780px) {
+    .back-btn { top: 10px; left: 10px; padding: 8px 14px; font-size: 13px; }
+  }
 </style>
 </head>
 <body>
@@ -255,8 +280,10 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     <div class="msg" id="msg"></div>
   </div>
 
+  <!-- 返回主页：和官网其它分块（卡组查看器 / 排行榜 / 论坛…）保持一致 —— 左上角 back-btn ✓ -->
+  <button class="back-btn" onclick="location.href='index.html'">← 返回主页</button>
+
   <div class="hint" style="text-align:center">
-    <a href="index.html">← 返回官网首页</a> ·
     <a href="duel.html">直接进对局页</a>
   </div>
 </div>
