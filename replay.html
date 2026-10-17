@@ -345,7 +345,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021m"></script>
+<script src="js/viewer-live.js?v=20261022a"></script>
 <script>
 (function () {
   'use strict';
@@ -420,20 +420,66 @@
       场上的卡改由 Move / Summoning / Set / PosChange 这些**带卡号**的消息来建 ✓
       （实测：这样能出来真卡面 ✓） */
   var SKIP_MSGS = { ShuffleDeck: 1, ShuffleHand: 1 };
-  /** UpdateData 的布局和 Move 不同：[id][玩家][区域]...（不是 [id][code×4][ctl][loc][seq] ✗）
-      它负责**卡组/额外张数** ✓ 所以不能整条丢掉 ✗
-      但也**不能**带上 cards（会把场上塞满卡 → 卡背 ✗）
-      → 只补 { player, location }：数量角标会更新 ✓ 场上不会多出卡 ✓ */
+  /** UpdateData 的布局和 Move 完全不同 ✗
+      [0]=id(6) [1]=玩家 [2]=区域 之后是**一串 CardQuery 块**：
+        块 = [4字节块长(LE)] + [4字节 flags(LE)] + 按 flags 顺序排列的字段（code/position/type/level/atk/def…）
+      ⚠ 之前按 [id][code×4][ctl][loc][seq] 硬猜 → 解出来全是垃圾 ✗
+        → 只能把 cards 丢掉、只留 { player, location } ✗
+        → 后果：查看器`ingestUpdateDataStats()` 拿不到 query 数据
+          → **场上攻守永远停在卡池基础值**（玩家实测：威风阵·飞马 +300 后回放里还是 2000 ✗）
+      修法：直接用客户端自带的解码器 —— js/ygopro-web-browser.js 里的 `YGO.YGOProMessages`
+        （实战对局走的就是这条路径 ✓ 所以回放和实战的攻守一定一致 ✓）
+      解不出来就退回旧行为（只给 player/location，至少张数角标能对上）✓ */
+  function hexBytes(hex) {
+    var s = String(hex || '').replace(/[^0-9a-fA-F]/g, '');
+    var n = s.length >> 1, a = new Uint8Array(n);
+    for (var i = 0; i < n; i++) a[i] = parseInt(s.substr(i * 2, 2), 16);
+    return a;
+  }
+  function decodeUpdateData(m) {
+    try {
+      if (!(window.YGO && YGO.YGOProMessages && YGO.YGOProMessages.getInstanceFromPayload)) return null;
+      var msg = YGO.YGOProMessages.getInstanceFromPayload(hexBytes(m.hex));
+      if (!msg || !msg.cards) return null;
+      return msg;
+    } catch (e) { return null; }
+  }
   function fillUpdateData(m) {
     var o = {};
     var p = hexU8(m.hex, 1), loc = hexU8(m.hex, 2);
     if (p !== undefined && p <= 1) o.player = p;
     if (loc !== undefined) o.location = loc;
+    var msg = decodeUpdateData(m);
+    if (msg) {
+      if (msg.player !== undefined) o.player = msg.player;
+      if (msg.location !== undefined) o.location = msg.location;
+      o.hex = m.hex;        // 查看器优先按 hex 自己解（和实战那条路径一模一样 ✓）
+      o.raw = (msg.cards || []).map(function (c) {
+        var r = { code: c.code || 0 };                       // 0 = 空槽位 ✓
+        if (c.controller !== undefined) r.controller = c.controller;
+        if (c.location !== undefined) r.location = c.location;
+        if (c.sequence !== undefined) r.sequence = c.sequence;
+        if (c.position !== undefined) r.position = c.position;
+        if (c.attack !== undefined) r.atk = c.attack;
+        if (c.defense !== undefined) r.def = c.defense;
+        if (c.baseAttack !== undefined) r.batk = c.baseAttack;
+        if (c.baseDefense !== undefined) r.bdef = c.baseDefense;
+        if (c.level !== undefined) r.level = c.level;
+        if (c.rank !== undefined) r.rank = c.rank;
+        if (c.link !== undefined) r.link = c.link;
+        if (c.linkMarker !== undefined) r.marker = c.linkMarker;
+        if (c.type !== undefined) r.type = c.type;
+        return r;
+      });
+    }
     return o;
   }
   function feed(m) {
     if (!m || !m.name) return;
     if (SKIP_MSGS[m.name]) return;                       // 只跳过洗牌类 ✓
+    // ⚠ UpdateData 虽然多（这局 246 条，占一半），但**不能丢** ✗
+    //   场上实时攻守（装备/永续/效果加成）就藏在这些 query 块里（如 R#4805 第 317 条：
+    //   威风阵·飞马 atk2300/def2300，卡池基础值只有 2000 ✗）
     if (m.name === 'UpdateData') {
       try { window.__live.push({ name: 'UpdateData', hex: m.hex, len: m.len, f: fillUpdateData(m) }); window.__live.flush(); } catch (e) {}
       return;
@@ -679,6 +725,10 @@
     MON_SUB.forEach(function (x) { if (t & x[0]) out.push(x[1]); });
     return out;
   }
+  /** 攻守数值显示：卡池里「？」存成 -2 ✗ → 统一显示 ?（负数一律当未知 ✓） */
+  function statText(v) {
+    return (typeof v === 'number' && v >= 0) ? String(v) : '?';
+  }
   function typeLineOf(code) {
     var t = textOf(code);
     var c = cards && (cards[code] || cards[String(code)]);
@@ -699,8 +749,10 @@
     else if (c && c.lvl) parts.push('★' + c.lvl);
     // 只有怪兽才显示攻守 ✓（魔法/陷阱没有攻守 ✗ 之前误显示成了 ATK 0 ✗）
     var isMonster = t ? (((t.t || 0) & 7) === 1) : true;
-    if (isMonster && c && typeof c.atk === 'number' && (c.atk > 0 || c.def > 0)) {
-      parts.push('ATK ' + c.atk + ' / DEF ' + (typeof c.def === 'number' ? c.def : '?'));
+    // siro-unknown-stat: 攻击力/守备力是「？」的卡，卡池里存的是 **-2** ✗（实测 117 张）
+    //   直接显示 “-2” 是错的 ✓（玩家反馈：「-2攻击力的怪兽的攻击力其实是？攻击力」）
+    if (isMonster && c && (typeof c.atk === 'number' || typeof c.def === 'number')) {
+      parts.push('ATK ' + statText(c.atk) + ' / DEF ' + statText(c.def));
     }
     if (t && t.s) { var sets = setNamesOf(t.s); if (sets.length) parts.push('系列：' + sets.join('、')); }
     return parts.join(' · ') || '（无基础信息）';

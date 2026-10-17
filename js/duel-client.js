@@ -4307,8 +4307,11 @@
     if (type & 0x4000000) s = 'L' + lv;                        // 连接：链接值
     else if (type & 1 && lv) s = '★' + lv;
     if (type & 1) {
-      var atk = meta && typeof meta.atk === 'number' ? meta.atk : '?';
-      var def = meta && typeof meta.def === 'number' ? meta.def : '?';
+      // siro-unknown-stat: 攻守「？」在卡池里是 -2 ✗ → 负数一律显示 ?（玩家反馈：显示成了 -2）
+      var atkN = meta && typeof meta.atk === 'number' ? meta.atk : null;
+      var defN = meta && typeof meta.def === 'number' ? meta.def : null;
+      var atk = (atkN !== null && atkN >= 0) ? atkN : '?';
+      var def = (defN !== null && defN >= 0) ? defN : '?';
       if (type & 0x4000000) s += (s ? ' ' : '') + atk + '/—';
       else s += (s ? ' ' : '') + atk + '/' + def;
     }

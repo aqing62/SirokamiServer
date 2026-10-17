@@ -598,11 +598,19 @@ function initReplayViewer() {
                 var isLink = !!st.link;
                 var cur = st.atk;
                 var base = st.batk;
+                // siro-unknown-stat: 攻守是「？」的卡，卡池/query 里给的是 **-2** ✗（实测 117 张）
+                //   → 直接画成 "-2" 是错的 ✓（玩家反馈：「-2攻击力的怪兽的攻击力其实是？攻击力」）
+                try {
+                    if (typeof cur === 'number' && cur < 0) cur = '?';
+                    if (typeof base === 'number' && base < 0) base = '?';
+                } catch (e) {}
+                var curDef = st.def;
+                try { if (typeof curDef === 'number' && curDef < 0) curDef = '?'; } catch (e) {}
                 var txt;
                 if (isLink) {
                     txt = (cur !== undefined ? cur : '?') + ' / L' + st.link;
-                } else if (st.def !== undefined) {
-                    txt = (cur !== undefined ? cur : '?') + ' / ' + st.def;
+                } else if (curDef !== undefined) {
+                    txt = (cur !== undefined ? cur : '?') + ' / ' + curDef;
                 } else if (cur !== undefined) {
                     txt = String(cur);          // 守备力未知时只显示攻击力，不显示 "?"
                 } else {
@@ -614,8 +622,8 @@ function initReplayViewer() {
                     badge.textContent = txt;
                     badge.title = (cardName(card.code) || card.code)
                         + (isLink ? ('  攻击 ' + cur + '  连接 ' + st.link)
-                            : ('  攻击 ' + cur + (st.def !== undefined ? '  守备 ' + st.def : '  守备 ?')))
-                        + (base !== undefined ? ('  (基础 ' + base + '/' + (st.bdef !== undefined ? st.bdef : '?') + ')') : '');
+                            : ('  攻击 ' + cur + (curDef !== undefined ? '  守备 ' + curDef : '  守备 ?')))
+                        + (base !== undefined ? ('  (基础 ' + base + '/' + (st.bdef !== undefined ? (st.bdef < 0 ? '?' : st.bdef) : '?') + ')') : '');
                     cell.appendChild(badge);
                 }
                 if (isLink && st.marker) {
