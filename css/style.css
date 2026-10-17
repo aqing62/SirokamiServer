@@ -494,6 +494,28 @@ body {
     background: var(--red);
 }
 
+/* ── 新版引导页入口（V1.9.0）：与教程横幅同款，改金色调区分 ── */
+.next-banner {
+    background: linear-gradient(100deg, rgba(212, 175, 55, 0.22), rgba(216, 30, 68, 0.10) 55%, rgba(30, 30, 30, 0.6));
+    border-color: rgba(212, 175, 55, 0.55);
+    box-shadow: 0 4px 24px rgba(212, 175, 55, 0.18);
+    margin-top: -8px;
+}
+.next-banner .tutorial-title {
+    text-shadow: 0 0 12px rgba(212, 175, 55, 0.55);
+}
+.next-banner .tutorial-go {
+    background: rgba(212, 175, 55, 0.92);
+    color: #1a1a1a;
+}
+.next-banner:hover {
+    border-color: #d4af37;
+    box-shadow: 0 8px 30px rgba(212, 175, 55, 0.35);
+}
+.next-banner:hover .tutorial-go {
+    background: #e8c14a;
+}
+
 @media (max-width: 768px) {
     .tutorial-banner {
         gap: 10px;
