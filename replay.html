@@ -84,7 +84,13 @@
 
   /* ── embed 模式（被旧回放弹窗用 iframe 嵌进来时 ✓）── */
   /* siro-replay-embed */
-  body.rp-embed #rpTop { display: none !important; }
+  /* 控制条保留 ✓（用户要的 播放/暂停/倍速/进度 ✓ 都在这里）
+     只隐藏旧框里已有的：返回主页 / 回放码输入 / 载入按钮 ✓ */
+  body.rp-embed #rpTop { display: flex !important; height: 44px; padding: 0 8px; }
+  body.rp-embed #rpTop > a,
+  body.rp-embed #rpInput,
+  body.rp-embed #rpLoad { display: none !important; }
+  body.rp-embed #rpTop #rpBar { margin-left: 0; flex: 1; }
   body.rp-embed #rpStage { top: 0 !important; }
   body.rp-embed #rpStage #replayModal { height: 100dvh !important; }
   body.rp-embed #rpStage #replayField { height: calc(100dvh - 20px) !important; max-height: calc(100dvh - 20px) !important; }
@@ -98,6 +104,8 @@
   <input id="rpInput" placeholder="输入回放 R#（如 R123）或直接输数字">
   <button id="rpLoad">载入回放</button>
   <div id="rpBar">
+    <input type="range" id="rpSeek" min="0" max="0" value="0" step="1"
+      style="width:min(30vw,340px);cursor:pointer;accent-color:#FFD700;margin-right:6px" title="拖动跳到对应进度">
     <span id="rpInfo">等待载入…</span>
     <button class="rp-ctl" id="rpPrev">‹ 上一步</button>
     <button class="rp-ctl gold" id="rpPlay">▶ 播放</button>
@@ -150,14 +158,23 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261020y"></script>
+<script src="js/viewer-live.js?v=20261020z"></script>
 <script>
 (function () {
   'use strict';
   var $ = function (i) { return document.getElementById(i); };
   var msgs = [], idx = -1, playing = false, timer = 0, speed = 1, info = null;
 
-  function setInfo(t) { $('rpInfo').textContent = t; }
+  /* siro-replay-controls: 进度条（用户要求：要能拖 ✓）*/
+  function syncSeek() {
+    try {
+      var sk = $('rpSeek');
+      if (!sk) return;
+      sk.max = String(Math.max(0, msgs.length - 1));
+      if (document.activeElement !== sk) sk.value = String(Math.max(0, idx));
+    } catch (e) {}
+  }
+  function setInfo(t) { $('rpInfo').textContent = t; syncSeek(); }
   function showMsg(html) { $('rpMsg').style.display = ''; $('rpMsg').innerHTML = html; }
   function hideMsg() { $('rpMsg').style.display = 'none'; }
 
@@ -292,6 +309,17 @@
   $('rpPlay').onclick = play;
   $('rpPrev').onclick = function () { if (playing) play(); step(-1); };
   $('rpNext').onclick = function () { if (playing) play(); step(1); };
+  (function () {
+    var sk = $('rpSeek');
+    if (!sk) return;
+    sk.oninput = function () { setInfo((Number(sk.value) + 1) + ' / ' + msgs.length + ' · 拖动中…'); };
+    sk.onchange = function () {
+      if (!msgs.length) return;
+      var target = Number(sk.value);
+      if (playing) { playing = false; clearInterval(timer); timer = 0; $('rpPlay').textContent = '▶ 播放'; }
+      replayTo(target);          // 从头重放到目标（保证盘面正确 ✓）
+    };
+  })();
   $('rpFast').onclick = function () {
     speed = speed === 1 ? 2 : (speed === 2 ? 4 : 1);
     $('rpFast').textContent = '加速 ' + speed + '×';
