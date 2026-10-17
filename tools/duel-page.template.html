@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261020h">
+<link rel="stylesheet" href="css/duel-client.css?v=20261020n">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -572,6 +572,34 @@
 #replayModal .yp-act::after,
 #replayModal .yp-act-multi::after { inset: 0 !important; border-radius: 6px !important; }
 </style>
+<style>
+/* siro-glow-tiers */
+/* ── 可操作卡发光分档（用户要求）──
+   · 可发动效果 / 可特殊召唤 → **金光**（沿用上面那套金色脉冲 ✓）
+   · 只能召唤 / 盖放 / 变表示形式 → **淡蓝光** ✓
+   · 什么都做不了的卡 → 不加任何类 → 没有特效 ✓
+   蓝色规则写在金色规则之后，且同样带 !important，所以会覆盖金色 ✓ */
+@keyframes ypBluePulse {
+  0%, 100% { box-shadow: 0 0 5px 1px rgba(120,190,255,.55), inset 0 0 7px rgba(120,190,255,.28); }
+  50%      { box-shadow: 0 0 13px 5px rgba(150,210,255,.85), inset 0 0 13px rgba(150,210,255,.5); }
+}
+#replayModal .yp-act.yp-act-blue,
+#replayModal .yp-act-multi.yp-act-blue {
+  border: 2px solid rgba(150,210,255,.9) !important;
+  animation: ypBluePulse 1.35s ease-in-out infinite !important;
+}
+/* 蓝光版也是内侧发光（格子有 overflow:hidden，往外的光会被裁 ✗） */
+#replayModal .yp-act.yp-act-blue::after,
+#replayModal .yp-act-multi.yp-act-blue::after {
+  inset: 0 !important;
+  background-image:
+    radial-gradient(circle, rgba(200,230,255,.95) 0 1.4px, transparent 2px),
+    radial-gradient(circle, rgba(120,190,255,.85) 0 1.1px, transparent 1.8px),
+    radial-gradient(circle, rgba(230,245,255,.9) 0 1.6px, transparent 2.2px) !important;
+}
+/* 明确：带 yp-act-blue 的不再套金色边框 */
+#replayModal .yp-act.yp-act-blue { border-color: rgba(150,210,255,.9) !important; }
+</style>
 </head>
 <body>
 
@@ -589,7 +617,7 @@
 
 <script src="js/ygopro-web-browser.js?v=20261016a"></script>
 <script src="js/viewer-live.js?v=20261019g"></script>
-<script src="js/duel-client.js?v=20261020m"></script>
+<script src="js/duel-client.js?v=20261020n"></script>
 <script>
 /* 入口层逻辑：登录 / 显示当前卡组 / 开始匹配（不改客户端产物） */
 (function () {

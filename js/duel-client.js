@@ -2574,6 +2574,7 @@
     Array.prototype.forEach.call(document.querySelectorAll('.yp-pick, .yp-picked, .yp-act, .yp-act-multi'), function (el) {
       el.classList.remove('yp-pick'); el.classList.remove('yp-picked');
       el.classList.remove('yp-act'); el.classList.remove('yp-act-multi');
+      el.classList.remove('yp-act-gold'); el.classList.remove('yp-act-blue');
     });
     // 额外牌堆上的角标跟着清掉（否则换个请求还会留着上一次的数字）
     var pile = document.querySelector('[data-pile="extra:0"]');
@@ -3755,6 +3756,13 @@
     acts.forEach(function (list, el) {
       el.classList.add('yp-act');
       if (list.length > 1) el.classList.add('yp-act-multi');
+      // ★ 发光分档（用户要求）：
+      //   · 可**发动效果**(type 5) 或 可**特殊召唤**(type 1) → 金光 ✓
+      //   · 只能**召唤**(0) / **盖放**(3 怪兽、4 魔陷) / **变表示形式**(2) → 淡蓝光 ✓
+      //   · 一个操作都没有的卡 → 根本不会进 acts ✓ 所以没有特效 ✓
+      var _gold = (list || []).some(function (a) { return a.type === 1 || a.type === 5; });
+      el.classList.toggle('yp-act-gold', !!_gold);
+      el.classList.toggle('yp-act-blue', !_gold);
     });
     // 额外牌堆：只要里面有可特召的怪，就让它可点（点了弹居中卡牌选择盘）
     var pile = document.querySelector('[data-pile="extra:0"]');   // 查看器世界里我的额外卡组恒为 0
