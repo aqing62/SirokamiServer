@@ -622,38 +622,56 @@ def refresh_cards_cache():
     —— 顺序刻意与 srvpro2 的 ygoproPath 一致（cards-diy → cards-pre → cards），
     所以"先行卡覆盖官方同号卡"的行为和游戏里完全一样。
 
-    ⚠ 先行卡的 CDB 在游戏服目录里，这里**只读不搬**（用户要求：调用即可，不要迁移）。
+    ⚠ 先行包的 CDB 在游戏服目录里，这里**只读不搬**（用户要求：调用即可，不要迁移）。
        路径见 PRE_CDB_FILES；换预发布包时那边换了这里自动跟着变 ✓
+
+    ⚠ 归类修正（玩家反馈：拉之翼神龙 出现在「先行」里，它明明是官方卡）：
+       先行包里有一批卡**官方卡表里其实已经有同号卡**（如 10000010：先行包叫「拉之翼神龙」，
+       官方库叫「太阳神之翼神龙」）——它们只是先行包对官方卡的改版，不该算「先行卡」。
+       所以：先行包里的卡，只要**卡号在官方卡表里存在**，归类就记成 ocg（内容仍用先行包，
+       与游戏内一致），这样「先行」视图剩下的才是官方真没出的卡 ✓
     """
     global _cards_cache, _cards_json, _cards_json_gz, _cards_etag
-    groups = [
-        ("diy", [CDB_FILE]),
-        ("pre", [Path(p) for p in PRE_CDB_FILES]),
-        ("ocg", [ROOT / "cards_ocg.cdb"]),
+    ocg_path = ROOT / "cards_ocg.cdb"
+
+    # 官方卡表先读出来：既是归类依据，也省一次重复读盘
+    ocg_cards = load_cards_from_cdb(ocg_path) if ocg_path.is_file() else []
+    ocg_ids = {c["id"] for c in ocg_cards}
+
+    pre_list: list = []
+    for p in PRE_CDB_FILES:
+        pp = Path(p)
+        if pp.is_file():
+            pre_list.extend(load_cards_from_cdb(pp))
+
+    batches = [
+        ("diy", load_cards_from_cdb(CDB_FILE)),
+        ("pre", pre_list),
+        ("ocg", ocg_cards),
     ]
     seen: set = set()
     merged: list = []
-    counts = {}
-    for source, paths in groups:
-        n = 0
-        for path in paths:
-            if not Path(path).is_file():
-                continue          # 先行卡目录没有/被清空时静默跳过，不影响其它来源
-            for c in load_cards_from_cdb(Path(path)):
-                if c["id"] in seen:
-                    continue
-                seen.add(c["id"])
-                c["source"] = source
-                merged.append(c)
-                n += 1
-        counts[source] = n
+    counts: dict = {"diy": 0, "pre": 0, "ocg": 0}
+    promoted = 0          # 先行包里的卡但官方表已有 → 归到 ocg 的张数
+    for source, cards in batches:
+        for c in cards:
+            if c["id"] in seen:
+                continue
+            seen.add(c["id"])
+            src = source
+            if source == "pre" and c["id"] in ocg_ids:
+                src = "ocg"
+                promoted += 1
+            c["source"] = src
+            merged.append(c)
+            counts[src] = counts.get(src, 0) + 1
     _cards_cache = merged
     _cards_json = json.dumps(_cards_cache, ensure_ascii=False).encode("utf-8")
     _cards_json_gz = gzip.compress(_cards_json, compresslevel=6)
     _cards_etag = f'"{hashlib.md5(_cards_json).hexdigest()}"'
     logger.info(
-        "卡牌缓存已刷新: DIY %d + 先行卡 %d + OCG %d = %d 张, %d KB JSON → %d KB gzip"
-        % (counts["diy"], counts["pre"], counts["ocg"], len(merged),
+        "卡牌缓存已刷新: DIY %d + 先行卡 %d + OCG %d = %d 张（其中 %d 张先行包里的卡按官方归类）, %d KB JSON → %d KB gzip"
+        % (counts["diy"], counts["pre"], counts["ocg"], len(merged), promoted,
            len(_cards_json) / 1024, len(_cards_json_gz) / 1024)
     )
 
