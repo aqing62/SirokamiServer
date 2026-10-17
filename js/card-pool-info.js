@@ -415,6 +415,23 @@ function enrichPoolCards() {
         c._forbidden = M.forbidden.has(id);
         c._new = poolNewIds.has(id);
     }
+    poolOcgNameSet = null;      // 卡表变了就重建同名索引
+}
+
+// ── 官方卡同名索引（「先行」筛选要排掉已经正式出过的卡）──
+let poolOcgNameSet = null;
+function normalizeCardName(s) {
+    // 全角/半角空格、首尾空白都可能不一致 → 统一去掉空白再比
+    return String(s == null ? '' : s).replace(/[\s\u3000]+/g, '');
+}
+function buildOcgNameSet() {
+    if (poolOcgNameSet) return poolOcgNameSet;
+    poolOcgNameSet = new Set();
+    for (let i = 0; i < allCards.length; i++) {
+        const c = allCards[i];
+        if (c._src === 'ocg' && c.name) poolOcgNameSet.add(normalizeCardName(c.name));
+    }
+    return poolOcgNameSet;
 }
 
 /** 加载分值/禁限表 + 新卡表（失败不阻塞卡池：只是少了角标和筛选） */
@@ -480,6 +497,13 @@ function getFilteredCards() {
 
     // 来源：全部 / DIY / 先行 / 官方
     if (selectedSource !== 'all') filtered = filtered.filter(c => c._src === selectedSource);
+
+    // 先行：已经正式出过的卡（官方卡里有同名）不再重复显示
+    //   ⚠ 只在「先行」这个来源视图里排掉；「全部」里两边都保留（不然会被当成漏卡）
+    if (selectedSource === 'pre') {
+        const ocgNames = buildOcgNameSet();
+        filtered = filtered.filter(c => !ocgNames.has(normalizeCardName(c.name)));
+    }
 
     // 禁限：不选 = 不限；选了只看对应级别（可多选）
     if (selectedLimits.size) {
