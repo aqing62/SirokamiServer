@@ -9,7 +9,6 @@ const _inited = {};
 // ── 样式表映射 ──────────────────────────────────────────
 const CSS_MAP = {
     'section-main':          ['css-chronicle-decks'],
-    'section-card-list':     ['css-card-list'],
     'section-card-pool':     ['css-card-pool', 'css-new-cards', 'css-ygocdb'],
     'section-eight-decks':   ['css-eight-decks', 'css-live-duels'],
     'section-xiaobai':       ['css-xiaobai'],
@@ -111,9 +110,7 @@ function lazyInit(sectionId) {
     _inited[sectionId] = true;
 
     switch (sectionId) {
-        case 'section-card-list':
-            if (typeof initCardListModule === 'function') initCardListModule();
-            break;
+        // 禁限分值板块已并入卡池信息（V1.9.0）：旧深链 ?goto=cards / banlist 都落到卡池
         case 'section-card-pool':
             if (typeof initCardPoolModule === 'function') initCardPoolModule();
             if (typeof initYgocdbModule === 'function') initYgocdbModule();
@@ -317,17 +314,21 @@ document.addEventListener('DOMContentLoaded', function () {
             tournament: 'section-eight-decks', eight: 'section-eight-decks',
             ranking: 'section-player-ranking', stats: 'section-player-ranking',
             cards: 'section-card-pool', pool: 'section-card-pool', deck: 'section-card-pool',
-            chronicle: 'section-main', newcards: 'section-card-list',
+            chronicle: 'section-main', newcards: 'section-card-pool',
             forum: 'section-community', xiaobai: 'section-main',   // 晓白板块已下线（V1.9.0）→ 回主页
             // 新版引导新增
             room: 'section-main', download: 'section-main',
             preset: 'section-main', login: 'section-main',
-            banlist: 'section-card-list',
+            banlist: 'section-card-pool',   // 禁限分值已并入卡池（V1.9.0）→ 落到卡池并预设「禁限」视图
         };
         const sectionId = MAP[target] || 'section-main';
         setTimeout(function () {
             if (typeof window.showSection === 'function') window.showSection(sectionId);
-            if (target === 'deck') {
+            if (target === 'banlist' && typeof window.poolPresetBanlist === 'function') {
+                setTimeout(function () { window.poolPresetBanlist(); }, 900);
+            } else if (target === 'newcards' && typeof window.openNewCardsModal === 'function') {
+                setTimeout(function () { window.openNewCardsModal(); }, 900);
+            } else if (target === 'deck') {
                 const t = document.getElementById('deckBuilderToggle');
                 if (t) setTimeout(function () { t.click(); }, 300);
             } else if (target === 'replay' && typeof window.openReplay === 'function') {
@@ -372,8 +373,10 @@ document.addEventListener('DOMContentLoaded', function () {
     (function () {
         var xb = document.getElementById('xiaobaiBtn');
         if (xb) xb.onclick = makeToggle('section-xiaobai');
+        // 禁限分值板块已并入卡池信息（V1.9.0）：按钮已移除，判空避免 TypeError 打断后面所有绑定
+        var cl = document.getElementById('cardListBtn');
+        if (cl) cl.onclick = makeToggle('section-card-list');
     })();
-    document.getElementById('cardListBtn').onclick = makeToggle('section-card-list');
     document.getElementById('cardPoolInfoBtn').onclick = makeToggle('section-card-pool');
     document.getElementById('playerRankingBtn').onclick = makeToggle('section-player-ranking');
     // 论坛入口（无需登录即可浏览）

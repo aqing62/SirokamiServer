@@ -7,6 +7,25 @@ const selectedTypeMasks = new Set();
 const selectedAttributes = new Set();
 const selectedRaces = new Set();
 
+/* ══════════════════════════════════════════════════════════════
+   V1.9.0 卡池合并：DIY / 先行 / 官方 三个来源合成一个池子
+     · 来源 = 筛选条件（默认「全部」），不再来回切模式
+     · 分值 / 禁限 来自 lflist.conf（Genesys 分值段 + DIY_Sirokami 禁限段）
+   ══════════════════════════════════════════════════════════════ */
+let selectedSource = 'all';              // all | diy | pre | ocg
+const selectedLimits = new Set();        // '0' 禁 · '1' 限制 · '2' 准限制 · '3' 无限制
+let scoreMinEl = null, scoreMaxEl = null;
+let poolNewIds = new Set();              // 最新一期新卡（打「新」角标）
+window._poolMeta = {
+    score: new Map(),      // id → 分值（Genesys）
+    limit: new Map(),      // id → 0/1/2/3（禁/限制/准限制/无限制）
+    cat: new Map(),        // id → 'diy' | 'ot' | 'mod'（禁限表里的分类）
+    forbidden: new Set(),  // id → 禁止使用
+};
+
+const SOURCE_NAME = { diy: 'DIY', pre: '先行', ocg: '官方' };
+const LIMIT_NAME = { 0: '禁', 1: '限1', 2: '限2', 3: '无限制' };
+
 let levelMin, levelMax, atkMin, atkMax, defMin, defMax;
 const container = document.getElementById('cardContainer');
 const searchInput = document.getElementById('search');
@@ -320,6 +339,103 @@ function generateAllFilters() {
     initFilterCollapse();
 }
 
+// ══════════════════════════════════════════════════════════════
+// V1.9.0：合并池元数据（分值 / 禁限 / 来源）
+// ══════════════════════════════════════════════════════════════
+
+/** 解析 lflist.conf：
+ *  · !ReGenesys DIY 段：`id $genesys N --卡名` = 分值；`id 0 --卡名` = 禁止使用
+ *  · !DIY_Sirokami 段：按 #forbidden / #limit / #semi limit / #no limit 分组，
+ *    `##non DIY` / `##non DIY modification` 切换分类（DIY / OT / 特别规制）
+ *  ⚠ 不能复用「禁限分值」页的解析：那边是把两类行塞进同一个数组给列表用，
+ *    这里需要按**卡号**索引，才能当作筛选条件用 */
+function parsePoolMeta(text) {
+    const M = window._poolMeta;
+    const lines = String(text).split(/\r?\n/);
+    let inOt = false;
+    let curLimit = -1;
+    let curCat = 'diy';
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        if (/^!DIY[_-]Sirokami/i.test(line)) { inOt = true; curLimit = -1; curCat = 'diy'; continue; }
+        if (line[0] === '!') continue;              // 其它段头
+        if (line[0] === '$') continue;              // $genesys 100 之类的段参数
+
+        if (line[0] === '#') {
+            if (!inOt) continue;                    // Genesys 段里的 # 只是分类注释
+            const l = line.toLowerCase();
+            if (l.indexOf('##non diy modification') >= 0) { curCat = 'mod'; continue; }
+            if (l.indexOf('##non diy') >= 0) { curCat = 'ot'; continue; }
+            if (l.indexOf('#diy cards') >= 0) { curCat = 'diy'; continue; }
+            if (l.indexOf('#semi limit') >= 0) { curLimit = 2; continue; }
+            if (l.indexOf('#forbidden') >= 0) { curLimit = 0; continue; }
+            if (l.indexOf('#limit') >= 0) { curLimit = 1; continue; }
+            if (l.indexOf('#no limit') >= 0) { curLimit = 3; continue; }
+            continue;
+        }
+
+        // 分值行： 12345678 $genesys 8 --卡名
+        const gm = line.match(/^(\d+)\s+\$genesys\s+(\d+)\b/);
+        if (gm) {
+            const id = parseInt(gm[1], 10), sc = parseInt(gm[2], 10);
+            M.score.set(id, sc);
+            if (sc === 0) M.forbidden.add(id);      // 0 分 = 禁止使用
+            continue;
+        }
+
+        // 普通行： 12345678 [限几张] --卡名
+        const m = line.match(/^(\d+)\s*(\d+)?\s*(?:--.*)?$/);
+        if (!m) continue;
+        const id = parseInt(m[1], 10);
+        const num = (m[2] === undefined || m[2] === '') ? null : parseInt(m[2], 10);
+
+        if (!inOt) {
+            if (num === 0) M.forbidden.add(id);     // Genesys 段里的 0 = 禁
+            continue;
+        }
+        const lim = num === null ? curLimit : num;
+        if (lim >= 0 && lim <= 3) M.limit.set(id, lim);
+        M.cat.set(id, curCat);
+        if (lim === 0) M.forbidden.add(id);
+    }
+}
+
+/** 给每张卡挂上 _score / _limit / _forbidden / _src / _new（一次性，渲染时不再查 Map） */
+function enrichPoolCards() {
+    const M = window._poolMeta;
+    for (let i = 0; i < allCards.length; i++) {
+        const c = allCards[i];
+        const id = parseInt(c.id, 10);
+        c._src = c.source || 'diy';
+        c._score = M.score.has(id) ? M.score.get(id) : null;
+        c._limit = M.limit.has(id) ? M.limit.get(id) : null;
+        c._forbidden = M.forbidden.has(id);
+        c._new = poolNewIds.has(id);
+    }
+}
+
+/** 加载分值/禁限表 + 新卡表（失败不阻塞卡池：只是少了角标和筛选） */
+async function loadPoolMeta() {
+    const jobs = [
+        fetch('lflist.conf?v=20261022e').then(r => (r.ok ? r.text() : '')).catch(() => ''),
+        fetch('new_cards.json').then(r => (r.ok ? r.json() : null)).catch(() => null),
+    ];
+    const [lflistText, newCards] = await Promise.all(jobs);
+    try { if (lflistText) parsePoolMeta(lflistText); } catch (e) { console.warn('分值/禁限表解析失败', e); }
+    try {
+        if (newCards) {
+            const dates = Object.keys(newCards).sort().reverse();
+            const latest = dates[0];
+            if (latest && Array.isArray(newCards[latest])) {
+                poolNewIds = new Set(newCards[latest].map(x => parseInt(x, 10)));
+            }
+        }
+    } catch (e) { /* 忽略 */ }
+}
+
 // ── 范围匹配 (使用预解析的数值) ──────────────────────────
 function matchRange(cardVal, minInput, maxInput) {
     const minVal = minInput.value.trim() === '' ? null : Number(minInput.value);
@@ -331,17 +447,53 @@ function matchRange(cardVal, minInput, maxInput) {
 }
 
 // ── 筛选 & 分页 ─────────────────────────────────────────
-// 卡池信息页（DIY tab）基于 DIY 卡池（不含合并进来的 OCG 官方卡）
+// V1.9.0：卡池 = DIY + 先行 + 官方 全量（来源只当筛选条件，默认全部）
 function poolBaseCards() {
-    if (window._diyOnlyCards && window._diyOnlyCards.length) return window._diyOnlyCards;
-    // 兼容：无 source 标记时全部视为 DIY
-    return allCards.filter(c => c.source === 'diy' || c.source == null);
+    return allCards;
+}
+
+/** 排序：默认按类型/等级/攻击；分值 / 攻击 / 等级 / 卡号 由顶部下拉决定
+ *  （分值缺失的卡一律排在后面，避免「没分值」混进分数榜前排） */
+function makeSort(key) {
+    if (key === 'scoreDesc' || key === 'scoreAsc') {
+        const dir = key === 'scoreDesc' ? -1 : 1;
+        return (a, b) => {
+            const sa = (a._score === null || a._score === undefined) ? null : a._score;
+            const sb = (b._score === null || b._score === undefined) ? null : b._score;
+            if (sa === null && sb === null) return customCardSort(a, b);
+            if (sa === null) return 1;
+            if (sb === null) return -1;
+            if (sa !== sb) return (sa - sb) * dir;
+            return customCardSort(a, b);
+        };
+    }
+    if (key === 'atkDesc') return (a, b) => (b.atk - a.atk) || customCardSort(a, b);
+    if (key === 'levelDesc') return (a, b) => (b.level - a.level) || customCardSort(a, b);
+    if (key === 'idAsc') return (a, b) => parseInt(a.id, 10) - parseInt(b.id, 10);
+    return customCardSort;
 }
 
 function getFilteredCards() {
-    let filtered = poolBaseCards();  // 仅 DIY
+    let filtered = poolBaseCards();
     const keyword = searchInput.value.toLowerCase().trim();
     const isTokenSelected = selectedTypeMasks.has(TOKEN_MASK);
+
+    // 来源：全部 / DIY / 先行 / 官方
+    if (selectedSource !== 'all') filtered = filtered.filter(c => c._src === selectedSource);
+
+    // 禁限：不选 = 不限；选了只看对应级别（可多选）
+    if (selectedLimits.size) {
+        filtered = filtered.filter(c => c._limit !== null && selectedLimits.has(String(c._limit)));
+    }
+
+    // 分值区间：没有分值的卡不参与（填了区间就是在查分值表）
+    if (scoreMinEl && scoreMaxEl &&
+        (scoreMinEl.value.trim() !== '' || scoreMaxEl.value.trim() !== '')) {
+        filtered = filtered.filter(c => {
+            if (c._score === null || c._score === undefined) return false;
+            return matchRange(c._score, scoreMinEl, scoreMaxEl);
+        });
+    }
 
     if (isTokenSelected) {
         filtered = filtered.filter(c => c.type & TOKEN_MASK);
@@ -369,7 +521,8 @@ function getFilteredCards() {
         });
     }
 
-    const sortedCards = filtered.sort(customCardSort);
+    const sortEl = document.getElementById('poolSort');
+    const sortedCards = filtered.sort(makeSort(sortEl ? sortEl.value : 'default'));
     totalPages = Math.ceil(sortedCards.length / PAGE_SIZE);
     const start = (currentPage - 1) * PAGE_SIZE;
     return {
@@ -473,10 +626,27 @@ function renderCards() {
 
             const cardEl = document.createElement('div');
             cardEl.className = 'card-item';
+            cardEl.setAttribute('data-card-id', card.id);
+            cardEl.setAttribute('data-src', card._src || 'diy');
+            // V1.9.0 角标：禁 / 限N / N分 / DIY·先行 / 新（同一张卡最多 3 个，避免糊满）
+            const badges = [];
+            if (card._forbidden) {
+                badges.push('<span class="pool-badge b-forbidden">禁</span>');
+            } else if (card._limit !== null && card._limit !== undefined && card._limit < 3) {
+                badges.push('<span class="pool-badge b-limit lv' + card._limit + '">' + LIMIT_NAME[card._limit] + '</span>');
+            }
+            if (card._score !== null && card._score !== undefined && card._score > 0) {
+                badges.push('<span class="pool-badge b-score">' + card._score + '分</span>');
+            }
+            if (card._src && card._src !== 'ocg') {
+                badges.push('<span class="pool-badge b-src ' + card._src + '">' + (SOURCE_NAME[card._src] || '') + '</span>');
+            }
+            if (card._new) badges.push('<span class="pool-badge b-new">新</span>');
             cardEl.innerHTML = `
                 <div class="card-image-wrapper">
                     <img class="card-image" src="${PLACEHOLDER_SVG}"
                          data-src="https://api.ygopro3.cn/pics/siro/${card.id}.jpg" alt="${card.name}">
+                    ${badges.length ? `<div class="pool-badges">${badges.join('')}</div>` : ''}
                     ${card.author ? `<div class="card-author">${card.author}</div>` : ''}
                 </div>
                 <div class="card-info">
@@ -498,7 +668,6 @@ function renderCards() {
 // ── 搜索防抖 ────────────────────────────────────────────
 let searchDebounceTimer;
 function debouncedRender() {
-    if (window._poolYgoMode) return; // 官方卡查询模式下由 ygocdb 模块接管搜索
     clearTimeout(searchDebounceTimer);
     searchDebounceTimer = setTimeout(() => {
         currentPage = 1;
@@ -506,12 +675,109 @@ function debouncedRender() {
     }, 250);
 }
 
+// ── V1.9.0 顶部控件：来源切换 / 排序 / 禁限 chips / 分值区间 ──────────
+function generateLimitFilter() {
+    const box = document.getElementById('filterLimitContainer');
+    if (!box) return;
+    box.innerHTML = '';
+    const items = [
+        ['禁', '0'], ['限制', '1'], ['准限制', '2'], ['无限制', '3'],
+    ];
+    items.forEach(([text, val]) => {
+        const tag = document.createElement('div');
+        tag.className = 'filter-tag';
+        tag.dataset.value = val;
+        tag.textContent = text;
+        tag.addEventListener('click', () => {
+            tag.classList.toggle('active');
+            tag.classList.contains('active') ? selectedLimits.add(val) : selectedLimits.delete(val);
+            currentPage = 1;
+            renderCards();
+        });
+        box.appendChild(tag);
+    });
+}
+
+function initPoolTopbar() {
+    // 来源：单选，默认「全部」
+    const srcBox = document.getElementById('poolSourceSwitch');
+    if (srcBox) {
+        srcBox.querySelectorAll('.pool-mode-btn').forEach(btn => {
+            btn.onclick = () => {
+                srcBox.querySelectorAll('.pool-mode-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                selectedSource = btn.dataset.src || 'all';
+                currentPage = 1;
+                renderCards();
+            };
+        });
+    }
+
+    // 排序
+    const sortEl = document.getElementById('poolSort');
+    if (sortEl) {
+        sortEl.onchange = () => { currentPage = 1; renderCards(); };
+    }
+
+    // 分值区间
+    scoreMinEl = document.getElementById('scoreMin');
+    scoreMaxEl = document.getElementById('scoreMax');
+    [scoreMinEl, scoreMaxEl].forEach(el => {
+        if (el) el.addEventListener('input', () => { currentPage = 1; renderCards(); });
+    });
+
+    // 禁限 chips
+    generateLimitFilter();
+
+    // 官方译名查询（弹窗，见 js/ygocdb-search.js）
+    const yBtn = document.getElementById('poolYgocdbBtn');
+    if (yBtn) {
+        yBtn.onclick = function () {
+            if (typeof window.openYgocdbQuery === 'function') {
+                window.openYgocdbQuery();
+            } else {
+                alert('官方译名查询模块未加载，请刷新页面重试');
+            }
+        };
+    }
+}
+
+/** 深链预设：?goto=banlist → 分值榜（只看有分值的卡，按分值从高到低）
+ *  （原「禁限分值」页 = G-Ext 分数表 + OT 禁限表，这里用「分值区间 + 分值排序」等价还原） */
+window.poolPresetBanlist = function () {
+    try {
+        selectedSource = 'all';
+        selectedLimits.clear();
+        selectedTypeMasks.clear();
+        selectedAttributes.clear();
+        selectedRaces.clear();
+        const srcBox = document.getElementById('poolSourceSwitch');
+        if (srcBox) srcBox.querySelectorAll('.pool-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.src === 'all'));
+        document.querySelectorAll('#filterLimitContainer .filter-tag').forEach(t => t.classList.remove('active'));
+        document.querySelectorAll('.filter-tag').forEach(t => t.classList.remove('active'));
+        const sortEl = document.getElementById('poolSort');
+        if (sortEl) sortEl.value = 'scoreDesc';
+        if (scoreMinEl) scoreMinEl.value = '0';
+        if (scoreMaxEl) scoreMaxEl.value = '';
+        currentPage = 1;
+        renderCards();
+    } catch (e) { console.warn(e); }
+};
+
 // ── 事件绑定 ────────────────────────────────────────────
 resetFilterBtn.addEventListener('click', () => {
     selectedTypeMasks.clear();
     selectedAttributes.clear();
     selectedRaces.clear();
+    selectedLimits.clear();
+    selectedSource = 'all';
     [levelMin, levelMax, atkMin, atkMax, defMin, defMax].forEach(i => i.value = '');
+    if (scoreMinEl) scoreMinEl.value = '';
+    if (scoreMaxEl) scoreMaxEl.value = '';
+    const sortEl = document.getElementById('poolSort');
+    if (sortEl) sortEl.value = 'default';
+    const srcBox = document.getElementById('poolSourceSwitch');
+    if (srcBox) srcBox.querySelectorAll('.pool-mode-btn').forEach(b => b.classList.toggle('active', b.dataset.src === 'all'));
     document.querySelectorAll('.filter-tag').forEach(t => t.classList.remove('active'));
     searchInput.value = '';
     currentPage = 1;
@@ -524,15 +790,18 @@ searchInput.addEventListener('input', debouncedRender);
 function initCardPoolModule() {
     (async function () {
     try {
+        // 分值/禁限表与新卡表（失败也不影响卡池本身）
+        const metaJob = loadPoolMeta();
+
         // 直接从服务端获取预解析好的 JSON（服务端已用 Python sqlite3 处理 CDB）
         const res = await fetch("/api/cards");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         allCards = await res.json();
 
-        // 统计仅针对 DIY 卡（source === 'diy'；合并池含 OCG 官方卡）
-        const diyOnly = allCards.filter(c => c.source === 'diy' || c.source == null);
-        window._diyOnlyCards = diyOnly;
-        updateStats(diyOnly);
+        await metaJob;              // 等分值/禁限表，才能算角标与筛选
+        enrichPoolCards();
+
+        updateStats(allCards);
 
         document.getElementById('stats').style.display = 'flex';
         document.querySelector('.search-filter-container').style.display = 'flex';
@@ -545,6 +814,7 @@ function initCardPoolModule() {
         allCards.forEach(c => window._cardIndex.set(parseInt(c.id), c));
 
         generateAllFilters();
+        initPoolTopbar();
         renderCards();
 
         // 初始化新卡列表功能
