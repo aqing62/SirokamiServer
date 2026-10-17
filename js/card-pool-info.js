@@ -90,6 +90,28 @@ const imageLoadQueue = [];
 let activeImageLoads = 0;
 const MAX_CONCURRENT_LOADS = 6;
 
+/* ── 卡图地址（V1.9.1）──
+   三个图床：
+     · siro      https://api.ygopro3.cn/pics/siro/                本站图床（DIY/官方）
+     · super-pre https://cdn02.moecube.com:444/ygopro-super-pre/  先行卡图床
+     · ocg       https://cdn.233.momobako.com/ygopro/pics/        萌卡官方图
+   ⚠ 先行卡的图要用 super-pre：本站图床上不少先行卡是**几十字节的占位小图**
+     （实测 100200298 本站 167B / super-pre 298KB），显示出来就是一片空白 ✗
+   ⚠ 但热修复后归类成「官方」的卡（如 10000010、1264319）super-pre 上没有图（404），
+     它们的图仍是本站那份 ✓ —— 所以按 _src 决定首选，失败再按链回退。 */
+const PIC_SIRO = 'https://api.ygopro3.cn/pics/siro/';
+const PIC_PRE = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
+const PIC_OCG = 'https://cdn.233.momobako.com/ygopro/pics/';
+
+/** 取一张卡的图源回退链（第一项为首选） */
+function picChainFor(card) {
+    const id = card && card.id;
+    const order = (card && card._src === 'pre')
+        ? [PIC_PRE, PIC_SIRO, PIC_OCG]
+        : [PIC_SIRO, PIC_PRE, PIC_OCG];
+    return order.map(function (host) { return host + id + '.jpg'; });
+}
+
 function processImageQueue() {
     while (activeImageLoads < MAX_CONCURRENT_LOADS && imageLoadQueue.length > 0) {
         const { img, url } = imageLoadQueue.shift();
@@ -99,27 +121,22 @@ function processImageQueue() {
             processImageQueue();
         };
         img.onload = onDone;
-        img.onerror = function() {
-            if (!this._triedSuperPre) {
-                this._triedSuperPre = true;
-                const match = url.match(/\/(\d+)\.jpg/);
-                const cardId = match ? match[1] : '';
-                this.src = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + cardId + '.jpg';
-            } else if (!this._triedOcg) {
-                this._triedOcg = true;
-                const match = url.match(/\/(\d+)\.jpg/);
-                const cardId = match ? match[1] : '';
-                this.src = 'https://cdn.233.momobako.com/ygopro/pics/' + cardId + '.jpg';
-            } else {
-                this.src = ERROR_SVG;
-                onDone();
-            }
+        img.onerror = function () {
+            // 依次换链上的下一个图床（首位已失败 → 继续往后）
+            const chain = this._picChain || [];
+            const next = chain.shift();
+            if (next) { this.src = next; return; }
+            this.src = ERROR_SVG;
+            onDone();
         };
         img.src = url;
     }
 }
 
 function enqueueImageLoad(img, url) {
+    // data-chain 里是「首选之后的备用图床」，用 | 分隔
+    const extra = img.dataset && img.dataset.chain ? img.dataset.chain.split('|') : [];
+    img._picChain = extra.slice();
     imageLoadQueue.push({ img, url });
     processImageQueue();
 }
@@ -681,7 +698,7 @@ function renderCards() {
             cardEl.innerHTML = `
                 <div class="card-image-wrapper">
                     <img class="card-image" src="${PLACEHOLDER_SVG}"
-                         data-src="https://api.ygopro3.cn/pics/siro/${card.id}.jpg" alt="${card.name}">
+                         data-src="${picChainFor(card)[0]}" data-chain="${picChainFor(card).slice(1).join('|')}" alt="${card.name}">
                     ${card.author ? `<div class="card-author">${card.author}</div>` : ''}
                     ${badges.length ? `<div class="pool-badges">${badges.join('')}</div>` : ''}
                 </div>
@@ -1110,7 +1127,7 @@ function renderNewCards() {
             <div class="card-image-wrapper">
                 <div class="card-image-inner">
                     <img class="card-image" src="${PLACEHOLDER_SVG}"
-                         data-src="https://api.ygopro3.cn/pics/siro/${card.id}.jpg" alt="${card.name}">
+                         data-src="${picChainFor(card)[0]}" data-chain="${picChainFor(card).slice(1).join('|')}" alt="${card.name}">
                     ${isLatest ? `<img class="new-card-badge${ti.subTypes.includes('灵摆') ? ' pendulum-badge' : ''}" src="cardlogo.png" alt="NEW">` : ''}
                 </div>
                 ${card.author ? `<div class="card-author">${card.author}</div>` : ''}
