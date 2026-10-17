@@ -14,7 +14,7 @@
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
 <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261020n">
+<link rel="stylesheet" href="css/duel-client.css?v=20261020s">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -599,6 +599,85 @@
 }
 /* 明确：带 yp-act-blue 的不再套金色边框 */
 #replayModal .yp-act.yp-act-blue { border-color: rgba(150,210,255,.9) !important; }
+</style>
+<style>
+/* siro-mobile-info-horizontal */
+
+/* 手机竖屏：卡片信息框改横排（卡图左 + 名字/类型分值/效果在右，效果区可滚动）
+   并把选项列表挪到信息框那一块（不再挡住场地中央） */
+@media (orientation: portrait), (max-width: 780px) {
+  #replayModal #ypCardInfo,
+  #ypCardInfo {
+    display: grid !important;
+    grid-template-columns: 34% 1fr !important;
+    grid-template-rows: auto auto auto auto 1fr !important;
+    gap: 2px 8px !important;
+    max-height: 24dvh !important;
+    overflow: hidden !important;
+    padding: 6px 8px !important;
+    align-items: start !important;
+  }
+  #ypInfoImgBox {
+    grid-column: 1 !important;
+    grid-row: 1 / span 5 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 22dvh !important;
+    overflow: hidden !important;
+  }
+  #ypInfoImgBox img, #ypInfoImg {
+    width: 100% !important;
+    height: auto !important;
+    max-height: 22dvh !important;
+    object-fit: contain !important;
+  }
+  #ypInfoName   { grid-column: 2 !important; grid-row: 1 !important; font-size: 12px !important;
+                  white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  #ypInfoType   { grid-column: 2 !important; grid-row: 2 !important; font-size: 11px !important; line-height: 1.35 !important; white-space: normal !important; }
+  #ypInfoStat   { grid-column: 2 !important; grid-row: 3 !important; font-size: 11px !important; line-height: 1.35 !important; }
+  #ypInfoSeries { grid-column: 2 !important; grid-row: 4 !important; font-size: 10.5px !important;
+                  white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+  #ypInfoText {
+    grid-column: 2 !important;
+    grid-row: 5 !important;
+    font-size: 11px !important;
+    line-height: 1.45 !important;
+    max-height: 13dvh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+    padding-right: 4px !important;
+    scrollbar-width: thin !important;
+  }
+  #ypInfoText::-webkit-scrollbar { width: 5px !important; }
+  #ypInfoText::-webkit-scrollbar-thumb { background: rgba(212,175,55,.55) !important; border-radius: 3px !important; }
+
+  /* option list: move to the info-panel area (bottom-left), keep clear of the board */
+  #ypCtl {
+    position: fixed !important;
+    left: 8px !important;
+    right: auto !important;
+    bottom: 8px !important;
+    top: auto !important;
+    width: min(58vw, 300px) !important;
+    max-height: 30dvh !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    overscroll-behavior: contain !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 5px !important;
+    padding: 6px !important;
+    background: rgba(10,10,14,.92) !important;
+    border: 1px solid rgba(212,175,55,.35) !important;
+    border-radius: 10px !important;
+    z-index: 9200 !important;
+    transform: none !important;
+  }
+  #ypCtl > * { justify-self: stretch !important; width: 100% !important; }
+  #ypCtl .yp-btn { padding: 8px 10px !important; font-size: 12.5px !important; text-align: left !important; }
+}
+
 </style>
 </head>
 <body>
