@@ -557,7 +557,6 @@ window._communityAuth = null; // {username, password}
         if (!glBody) return;
         if (glTitleEl) glTitleEl.textContent = '登录';
         glShow(
-            '<div class="de-title">登录</div>' +
             '<div class="de-sub">用白神服账号登录后即可开始匹配</div>' +
             '<div class="de-field"><label>账号</label><input id="deUser" autocomplete="username"></div>' +
             '<div class="de-field"><label>密码</label><input id="dePass" type="password" autocomplete="current-password"></div>' +
@@ -591,7 +590,6 @@ window._communityAuth = null; // {username, password}
         if (!glBody) return;
         if (glTitleEl) glTitleEl.textContent = '注册';
         glShow(
-            '<div class="de-title">注册</div>' +
             '<div class="de-sub">注册后回到登录页 · 账号与密码都支持中文</div>' +
             '<div class="de-field"><label>名称（游戏里显示的名字，可留空=账号）</label><input id="deName" maxlength="64"></div>' +
             '<div class="de-field"><label>账号（2~24 个字符，支持中文）</label><input id="deUser" autocomplete="username" maxlength="24"></div>' +
