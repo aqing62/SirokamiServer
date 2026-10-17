@@ -51,6 +51,27 @@
   </div>
 </div>
 
+<!-- 查看器（viewer-live.js）是从经典回放器演变来的，初始化时会绑定这一整套控件 ✗
+     缺失就会抛 TypeError → __live 建不起来（实测 ✗）。这里给它们补齐**隐藏桩** ✓
+     （桩永远不显示也点不到 ✓ 实际控制用上面那排我自己的按钮 ✓）
+     清单来自 viewer-live.js 的变量绑定：replayInput / replayLoadBtn / replayMeta / replayControls /
+     replayMain / replayField ✓ / replayLogBody ✓ / rpPlayPause / rpStep / rpStepBack / rpProgress /
+     rpProgressText / replayModal ✓ / replayClose -->
+<div id="viewerStubs" style="display:none" aria-hidden="true">
+  <input id="replayInput">
+  <button id="replayLoadBtn"></button>
+  <div id="replayMeta"></div>
+  <div id="replayControls">
+    <button id="rpPlayPause"></button>
+    <button id="rpStep"></button>
+    <button id="rpStepBack"></button>
+    <div id="rpProgress"></div>
+    <span id="rpProgressText"></span>
+  </div>
+  <div id="replayMain"></div>
+  <button id="replayClose"></button>
+</div>
+
 <div id="rpStage">
   <div class="rp-modal" id="replayModal" style="display:none;">
     <div class="rp-modal-box">
