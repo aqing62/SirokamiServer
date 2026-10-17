@@ -2041,6 +2041,13 @@ function initReplayViewer() {
                     var seq = (f2.sequence !== undefined) ? f2.sequence
                         : (m && m.hex ? hexU8(m.hex, 7) : (f2.info ? f2.info.sequence : undefined));
                     var code = (f2.code !== undefined) ? f2.code : 0;
+                    // ★ 字段校验（用户实测定位 ✓）：回放/部分消息里 f 是空的 ✗ → 上面靠 hex 兜底，
+                    //   可能读出垃圾值 ✗ → 就会把"盖卡"写进不存在的格子 →
+                    //   表现：**场上本该空着的格子显示卡背**（玩家一眼看出来 ✓）
+                    //   这里只接受合法范围：控制者 0/1、区域 4/8、序号 0..5 ✓ 否则直接跳过 ✓
+                    if (ctl !== 0 && ctl !== 1) { return; }
+                    if (loc !== 4 && loc !== 8) { return; }
+                    if (typeof seq !== 'number' || seq < 0 || seq > 5) { return; }
                     var pos = (f2.position !== undefined) ? f2.position : (f2.current !== undefined ? f2.current : 0x8);
                     if (ctl === 0 || ctl === 1) {
                         if (!field[ctl]) field[ctl] = {};
