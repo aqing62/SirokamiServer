@@ -185,6 +185,21 @@
   #rpStage #replayField { margin-top: 0 !important; }
   #rpStage { top: 52px !important; bottom: 6px !important; }
   body.rp-embed #rpStage { top: 52px !important; }
+
+  /* siro-hand-fix2 —— 底部手卡被裁 ✗（用户截图确认）
+     原因：场地高度设成 calc(100dvh - 84px)，而手卡画在场地**最底部** → 正好压在裁切线上 ✓
+     修法：再留出一整排手卡的高度（约 90px）+ 内边距 ✓ 让手卡完整落在可视区内 ✓ */
+  #rpStage #replayField {
+    height: calc(100dvh - 200px) !important;
+    max-height: calc(100dvh - 200px) !important;
+    padding-bottom: 96px !important;      /* 手卡专用下边距 ✓ */
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+  body.rp-embed #rpStage #replayField { height: calc(100dvh - 200px) !important; }
+  #rpStage #replayModal { height: calc(100dvh - 90px) !important; }
+  /* 手卡区自身不要再有额外外边距（避免又被顶出去 ✓） */
+  #rpStage #replayField .rp-hand { margin-bottom: 0 !important; }
 </style>
 </head>
 <body>
@@ -248,7 +263,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021c"></script>
+<script src="js/viewer-live.js?v=20261021d"></script>
 <script>
 (function () {
   'use strict';
