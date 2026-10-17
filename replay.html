@@ -345,7 +345,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021j"></script>
+<script src="js/viewer-live.js?v=20261021k"></script>
 <script>
 (function () {
   'use strict';
@@ -656,7 +656,8 @@
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
   }
   /* siro-cardinfo-full: 位掩码解码表（和 ygopro 一致 ✓） */
-  var ATTR_NAME = { 1: '光', 2: '暗', 4: '炎', 8: '水', 16: '风', 32: '地', 64: '神' };
+  // ygopro 属性位（实测校验过 ✓）：1地 2水 4炎 8风 16光 32暗 64神
+  var ATTR_NAME = { 1: '地', 2: '水', 4: '炎', 8: '风', 16: '光', 32: '暗', 64: '神' };
   var RACE_NAME = {
     1: '战士族', 2: '魔法师族', 4: '天使族', 8: '恶魔族', 16: '不死族', 32: '机械族', 64: '水族',
     128: '炎族', 256: '岩石族', 512: '鸟兽族', 1024: '植物族', 2048: '昆虫族', 4096: '雷族',
@@ -678,7 +679,11 @@
     }
     if (c && c.level) parts.push('★' + c.level);
     else if (c && c.lvl) parts.push('★' + c.lvl);
-    if (c && c.atk !== undefined) parts.push('ATK ' + c.atk + ' / DEF ' + (c.def === undefined ? '?' : c.def));
+    // 只有怪兽才显示攻守 ✓（魔法/陷阱没有攻守 ✗ 之前误显示成了 ATK 0 ✗）
+    var isMonster = t ? (((t.t || 0) & 7) === 1) : true;
+    if (isMonster && c && typeof c.atk === 'number' && (c.atk > 0 || c.def > 0)) {
+      parts.push('ATK ' + c.atk + ' / DEF ' + (typeof c.def === 'number' ? c.def : '?'));
+    }
     if (t && t.s) { var sets = setNamesOf(t.s); if (sets.length) parts.push('系列：' + sets.join('、')); }
     return parts.join('　·　') || '（无基础信息）';
   }
