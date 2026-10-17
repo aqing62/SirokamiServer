@@ -282,6 +282,37 @@
   }
   /* 日志内部标题/正文也从顶部开始（避免行高带来的偏移 ✓） */
   html body #rpStage .replay-side .replay-log-title { margin-top: 0 !important; }
+
+  /* siro-log-scroll —— 对局日志必须能滚动（用户反馈：日志一直更新但看不见新内容 ✗）
+     根因：.replay-side 原来是普通 block 容器，里面的 .replay-log-body 高度是 auto
+           → 日志把框一路撑高（实测 clientHeight 1715 / scrollHeight 1715），
+           而更外层 .rp-modal-body 是 overflow:hidden → 多出来的日志直接被裁掉，
+           scrollHeight == clientHeight 所以**根本没法滚** ✗
+     改法：日志列做成 flex 纵向容器并锁死高度，日志正文 flex:1 + min-height:0 → 内部滚动 ✓
+     滚动条隐藏（用户要求：滚动条难看）→ scrollbar-width:none + ::-webkit-scrollbar 宽 0，
+     滚轮 / 触摸 / 键盘滚动仍然有效 ✓
+     （自动跟到底部由 viewer-live.js 的 log()/logHtml() 负责，这里只修布局） */
+  html body #rpStage .replay-side {
+    display: flex !important;
+    flex-direction: column !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  html body #rpStage .replay-log-body,
+  html body #rpStage #replayLogBody {
+    flex: 1 1 0% !important;
+    min-height: 0 !important;
+    max-height: 100% !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    scrollbar-width: none !important;      /* Firefox */
+    -ms-overflow-style: none !important;   /* 老 Edge */
+  }
+  html body #rpStage #replayLogBody::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+  }
 </style>
 </head>
 <body>
