@@ -177,6 +177,14 @@
   /* ④ 手卡被裁 ✗ → 给盘面留足高度（去掉固定 92px 折扣，改按内容区自适应）✓ */
   body.rp-embed #rpStage #replayModal { height: calc(100dvh - 60px) !important; max-height: none !important; }
   #rpStage #replayField { height: calc(100dvh - 84px) !important; max-height: none !important; }
+
+  /* siro-fix-align-close —— ① 左栏与场地框上下对齐、等高 ✓（之前左栏从顶开始、场地被控制条推低 ✗） */
+  #rpCardInfo { top: 52px !important; bottom: 6px !important; }
+  body.rp-embed #rpCardInfo { top: 52px !important; }
+  /* 场地那块也从同一水平线开始 ✓ */
+  #rpStage #replayField { margin-top: 0 !important; }
+  #rpStage { top: 52px !important; bottom: 6px !important; }
+  body.rp-embed #rpStage { top: 52px !important; }
 </style>
 </head>
 <body>
@@ -240,7 +248,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021b"></script>
+<script src="js/viewer-live.js?v=20261021c"></script>
 <script>
 (function () {
   'use strict';
@@ -549,7 +557,10 @@
     if (!box) return;
     if (!arr.length) { showInfo(0); box.innerHTML = '<div class="rp-li-empty">这个区域现在是空的</div>'; return; }
     var title = { deck: '卡组', extra: '额外卡组', grave: '墓地', removed: '除外' }[kind] || '列表';
-    box.innerHTML = '<div class="rp-li-title">' + title + '（' + arr.length + ' 张）· 点一张看详情</div>'
+    box.innerHTML = '<div class="rp-li-title">' + title + '（' + arr.length + ' 张）· 点一张看详情'
+      + '<button id="rpListClose" title="关闭（Esc）" style="float:right;margin-top:-2px;width:24px;height:24px;'
+      + 'border-radius:6px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.06);'
+      + 'color:#cfc8bd;cursor:pointer;font-size:13px;line-height:1">✕</button></div>'
       + '<div class="rp-li-grid">' + arr.map(function (c) {
         var code = c.code || 0;
         return '<div class="rp-li-item" data-code="' + code + '">'
@@ -560,6 +571,25 @@
     box.style.display = 'block';   // ★ 必须显式设置（CSS 默认是 none ✗）
     showInfo(arr[0] ? (arr[0].code || 0) : 0);
   }
+
+  /* siro-fix-align-close: 关闭查看列表的三种方式 ✓（✕ / 点外面 / Esc） */
+  function closeList() {
+    try {
+      var L = $('rpList');
+      if (L) { L.style.display = 'none'; L.innerHTML = ''; }
+    } catch (e) {}
+  }
+  document.addEventListener('click', function (ev) {
+    var t = ev.target;
+    if (!t || !t.closest) return;
+    if (t.closest('#rpListClose')) { closeList(); return; }
+    if (t.closest('[data-pile]')) return;              // 点牌堆由下面的逻辑处理 ✓
+    if (t.closest('.rp-li-item')) return;               // 点列表项看详情 ✓
+    if (!t.closest('#rpList')) closeList();             // **点列表外面 → 关闭** ✓
+  }, true);
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') closeList();
+  });
 
   // 事件委托：悬停看卡、点牌堆看列表、点列表项看详情
   document.addEventListener('mouseover', function (ev) {
