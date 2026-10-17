@@ -403,9 +403,24 @@ function parsePoolMeta(text) {
     }
 }
 
-/** 给每张卡挂上 _score / _limit / _forbidden / _src / _new（一次性，渲染时不再查 Map） */
+/** 给每张卡挂上 _score / _limit / _forbidden / _src / _new / _dupOfOfficial（一次性，渲染时不再查 Map） */
 function enrichPoolCards() {
     const M = window._poolMeta;
+
+    // 先收集官方卡（用来判断「这张先行卡是不是已经正式出过」）
+    // ⚠ 白神服的先行版编号 = 正式版卡号 **−1**（实测 32 张：1264319/1264320、1498449/1498450…），
+    //   所以「卡号完全相同」是永远命中不了的；
+    //   同时再用「官方有同名卡」兜一层（防止编号不连续的情况）。
+    //   翻译改动导致两边卡名不一样时，靠 id+1 这条照样能排掉。
+    const ocgIds = new Set();
+    const ocgNames = new Set();
+    for (let i = 0; i < allCards.length; i++) {
+        const c = allCards[i];
+        if ((c.source || 'diy') !== 'ocg') continue;
+        ocgIds.add(parseInt(c.id, 10));
+        if (c.name) ocgNames.add(normalizeCardName(c.name));
+    }
+
     for (let i = 0; i < allCards.length; i++) {
         const c = allCards[i];
         const id = parseInt(c.id, 10);
@@ -414,24 +429,14 @@ function enrichPoolCards() {
         c._limit = M.limit.has(id) ? M.limit.get(id) : null;
         c._forbidden = M.forbidden.has(id);
         c._new = poolNewIds.has(id);
+        // 官方已出过的先行卡 → 保留官方版，这张整个卡池都不再显示
+        c._dupOfOfficial = (c._src === 'pre') && (ocgIds.has(id + 1) || (!!c.name && ocgNames.has(normalizeCardName(c.name))));
     }
-    poolOcgNameSet = null;      // 卡表变了就重建同名索引
 }
 
-// ── 官方卡同名索引（「先行」筛选要排掉已经正式出过的卡）──
-let poolOcgNameSet = null;
+// ── 卡名归一化（半角/全角空格、首尾空白都可能不一致）──
 function normalizeCardName(s) {
-    // 全角/半角空格、首尾空白都可能不一致 → 统一去掉空白再比
     return String(s == null ? '' : s).replace(/[\s\u3000]+/g, '');
-}
-function buildOcgNameSet() {
-    if (poolOcgNameSet) return poolOcgNameSet;
-    poolOcgNameSet = new Set();
-    for (let i = 0; i < allCards.length; i++) {
-        const c = allCards[i];
-        if (c._src === 'ocg' && c.name) poolOcgNameSet.add(normalizeCardName(c.name));
-    }
-    return poolOcgNameSet;
 }
 
 /** 加载分值/禁限表 + 新卡表（失败不阻塞卡池：只是少了角标和筛选） */
@@ -465,8 +470,9 @@ function matchRange(cardVal, minInput, maxInput) {
 
 // ── 筛选 & 分页 ─────────────────────────────────────────
 // V1.9.0：卡池 = DIY + 先行 + 官方 全量（来源只当筛选条件，默认全部）
+//   · 官方已出过的先行版（_dupOfOfficial）任何视图都不显示 → 保留官方版
 function poolBaseCards() {
-    return allCards;
+    return allCards.filter(c => !c._dupOfOfficial);
 }
 
 /** 排序：默认按类型/等级/攻击；分值 / 攻击 / 等级 / 卡号 由顶部下拉决定
@@ -497,13 +503,6 @@ function getFilteredCards() {
 
     // 来源：全部 / DIY / 先行 / 官方
     if (selectedSource !== 'all') filtered = filtered.filter(c => c._src === selectedSource);
-
-    // 先行：已经正式出过的卡（官方卡里有同名）不再重复显示
-    //   ⚠ 只在「先行」这个来源视图里排掉；「全部」里两边都保留（不然会被当成漏卡）
-    if (selectedSource === 'pre') {
-        const ocgNames = buildOcgNameSet();
-        filtered = filtered.filter(c => !ocgNames.has(normalizeCardName(c.name)));
-    }
 
     // 禁限：不选 = 不限；选了只看对应级别（可多选）
     if (selectedLimits.size) {
