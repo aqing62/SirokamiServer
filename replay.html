@@ -270,6 +270,18 @@
     max-height: 100% !important;
   }
   html body #rpStage .replay-side { height: 100% !important; box-sizing: border-box !important; }
+
+  /* siro-fix-at-log —— ① 卡图占位符里的 @ 删掉（用户要求 ✓）
+                        ② 日志栏往下偏 6px（实测 logSide y=12 而其他是 6）→ 对齐 ✓ */
+  #rpCardInfo .rp-ci-img::before { content: '' !important; display: none !important; }
+  html body #rpStage .replay-side {
+    margin: 0 !important;
+    padding: 10px 12px !important;
+    height: 100% !important;
+    box-sizing: border-box !important;
+  }
+  /* 日志内部标题/正文也从顶部开始（避免行高带来的偏移 ✓） */
+  html body #rpStage .replay-side .replay-log-title { margin-top: 0 !important; }
 </style>
 </head>
 <body>
@@ -333,7 +345,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021h"></script>
+<script src="js/viewer-live.js?v=20261021i"></script>
 <script>
 (function () {
   'use strict';
