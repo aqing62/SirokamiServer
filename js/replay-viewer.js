@@ -2682,6 +2682,32 @@ function initReplayViewer() {
         var id = m ? parseInt(m[1], 10) : parseInt(text || '', 10);
         if (!id || isNaN(id)) { log('请输入有效回放码，如 R#3333'); return; }
 
+        /* ── PATCH(白神服): 新版回放器接管载入入口（用户要求 ✓ 保留旧框 UI ✓）──
+            旧代码有 300+ 行渲染逻辑 ✗ 之前用 iframe + 事后重试都被它覆盖 ✗
+            这里在**数据开始加载之前就 return** ✓ 旧渲染一行都不会执行 ✓
+            → 旧弹窗的 头部/回放码输入/关闭按钮 全部保留 ✓ 只把中间换成新版回放页 ✓ */
+        try {
+          var _main = document.getElementById('replayMain');
+          var _modal = document.getElementById('replayModal');
+          if (_main) {
+            _main.innerHTML = '<div style="position:relative;height:min(78vh,860px);">'
+              + '<iframe id="rpNewFrame" title="新版回放" allow="autoplay" '
+              + 'style="border:0;width:100%;height:100%;display:block;background:#08070b;"></iframe></div>';
+            _main.style.display = 'block';
+            var _f = document.getElementById('rpNewFrame');
+            if (_f) _f.src = 'replay.html?r=' + encodeURIComponent(id) + '&embed=1&t=' + Date.now();
+            if (_modal) {
+              var _b = _modal.querySelector('.rp-modal-box');
+              if (_b) { _b.style.maxWidth = 'min(97vw, 1560px)'; _b.style.width = 'min(97vw, 1560px)'; }
+            }
+            var _ctl = document.getElementById('replayControls');
+            if (_ctl) _ctl.style.display = 'none';       // 旧的控制条不用了 ✓（新版自带 ✓）
+            var _meta = document.getElementById('replayMeta');
+            if (_meta) _meta.style.display = 'block';    // 元信息（房间/选手）保留 ✓
+            return;                                       // ★ 关键：旧渲染到此为止 ✓
+          }
+        } catch (e) {}
+
         stopAuto();
         field = { 0: {}, 1: {} };
         lp = [8000, 8000];
