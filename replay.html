@@ -67,6 +67,20 @@
     #rpStage { left: 0 !important; }
     #rpList { left: 8px; right: 8px; width: auto; top: 66px; }
   }
+
+  /* ── 场地尺寸修正（用户反馈：顶部有"神秘占位符"把场地挤下去 ✗）
+     实测：#replayField 高 868 > 容器 824 → 查看器把盘面**居中** → 顶部空 35px ✗ 底部被挤出屏幕 ✗
+     修法：把场地高度压到视口内 → 查看器 fitBoard 会自己缩放 → 盘面正好铺满 ✓ */
+  /* siro-replay-fit */
+  #rpStage #replayModal { height: calc(100dvh - 56px) !important; overflow: hidden !important; }
+  #rpStage #replayField { height: calc(100dvh - 76px) !important; max-height: calc(100dvh - 76px) !important; }
+  #rpStage .rp-modal-box { height: 100% !important; }
+  #rpStage .rp-modal-body { height: 100% !important; padding: 0 !important; }
+  #rpStage .replay-main { height: 100% !important; }
+  /* 手机竖屏：顶栏更矮，场地贴边 ✓ */
+  @media (orientation: portrait), (max-width: 860px) {
+    #rpStage #replayField, #rpStage #replayModal { height: calc(100dvh - 56px) !important; max-height: calc(100dvh - 56px) !important; }
+  }
 </style>
 </head>
 <body>
