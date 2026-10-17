@@ -318,7 +318,7 @@ document.addEventListener('DOMContentLoaded', function () {
             ranking: 'section-player-ranking', stats: 'section-player-ranking',
             cards: 'section-card-pool', pool: 'section-card-pool', deck: 'section-card-pool',
             chronicle: 'section-main', newcards: 'section-card-list',
-            forum: 'section-community', xiaobai: 'section-xiaobai',
+            forum: 'section-community', xiaobai: 'section-main',   // 晓白板块已下线（V1.9.0）→ 回主页
             // 新版引导新增
             room: 'section-main', download: 'section-main',
             preset: 'section-main', login: 'section-main',
@@ -367,7 +367,12 @@ document.addEventListener('DOMContentLoaded', function () {
         };
     }
     document.getElementById('eightDecksBtn').onclick = makeToggle('section-eight-decks');
-    document.getElementById('xiaobaiBtn').onclick = makeToggle('section-xiaobai');
+    // 晓白板块已下线（V1.9.0）：入口和 section 都移除了 → 这里必须判空，
+    //   否则 getElementById 返回 null 会抛 TypeError，后面所有按钮绑定和入场动画都会被跳过
+    (function () {
+        var xb = document.getElementById('xiaobaiBtn');
+        if (xb) xb.onclick = makeToggle('section-xiaobai');
+    })();
     document.getElementById('cardListBtn').onclick = makeToggle('section-card-list');
     document.getElementById('cardPoolInfoBtn').onclick = makeToggle('section-card-pool');
     document.getElementById('playerRankingBtn').onclick = makeToggle('section-player-ranking');

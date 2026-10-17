@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>白神服Sirokami - 游戏王DIY服务器</title>
     <link rel="icon" href="favicon.ico">
-    <link rel="stylesheet" href="css/style.css?v=20261022b" id="css-style">
+    <link rel="stylesheet" href="css/style.css?v=20261022c" id="css-style">
     <link rel="stylesheet" href="css/card-list.css" id="css-card-list" media="not all">
     <link rel="stylesheet" href="css/card-pool-info.css?v=20261008u" id="css-card-pool" media="not all">
     <link rel="stylesheet" href="css/eight-decks.css?v=20261001a" id="css-eight-decks" media="not all">
@@ -56,6 +56,16 @@
          ═══════════════════════════════════════════════════════ -->
     <section id="section-main" class="content-section active">
         <div class="main-content">
+            <!-- 版本切换（与新版页面右上角「新版/经典版」同款滑块，只是方向相反：经典版 ← 新版）
+                 ⚠ 纯链接，不需要 JS：经典版（本页）滑块在右，点「新版」进 next.html -->
+            <div class="ver-switch-bar">
+                <a class="nx-version" href="next.html" data-v="classic" title="切换到新版引导页面" aria-label="切换到新版">
+                    <span class="nx-version-thumb"></span>
+                    <span class="nx-version-btn is-active">经典版</span>
+                    <span class="nx-version-btn">新版</span>
+                </a>
+            </div>
+
             <div class="logo-container">
                 <img src="logo.png" class="logo-img" alt="LOGO" loading="lazy">
                 <div class="server-title">
@@ -71,15 +81,6 @@
                     <span class="tutorial-sub">刚来的萌新？点我看视频教程，两分钟学会连接对战！</span>
                 </span>
                 <span class="tutorial-go">立即观看</span>
-            </a>
-
-            <!-- 新版引导页入口（V1.9.0） -->
-            <a class="tutorial-banner next-banner" href="next.html">
-                <span class="tutorial-body">
-                    <span class="tutorial-title">新版引导页面</span>
-                    <span class="tutorial-sub">全新上线的引导页：决斗大厅 · 组卡器 · 回放器，一步步带你熟悉白神服</span>
-                </span>
-                <span class="tutorial-go">立即进入</span>
             </a>
 
             <div class="section">
@@ -775,14 +776,11 @@
     </section>
 
     <!-- ═══════════════════════════════════════════════════════
-         SECTION: 晓白投票
+         SECTION: 晓白投票 —— 已下线（V1.9.0）
+         ⚠ 只去掉了页面入口和这个占位 section；图片/样式/脚本文件都保留
+            （xiaobairenshe/、xiaobaibiaoqingbao/、css/xiaobairenshe.css、
+              script.js 里的 initXiaobaiModule）随时可以恢复
          ═══════════════════════════════════════════════════════ -->
-    <section id="section-xiaobai" class="content-section">
-        <button class="back-btn" onclick="showSection('section-main')">← 返回首页</button>
-        <div style="display:flex;align-items:center;justify-content:center;min-height:60vh;color:#888;font-size:1.2rem;">
-            形象投票已结束，功能正在装修中...
-        </div>
-    </section>
 
     <!-- ═══════════════════════════════════════════════════════
          GLOBAL LOGIN — 全局登录框（右下角固定）
@@ -871,7 +869,6 @@
         <a class="sidebar-btn" id="duelLobbyBtn" href="lobby.html"
            style="text-decoration:none;display:flex;align-items:center;justify-content:center">决斗<span class="sb-break"></span>大厅</a>
         <div class="sidebar-btn" id="eightDecksBtn">比赛<span class="sb-break"></span>相关</div>
-        <div class="sidebar-btn" id="xiaobaiBtn">晓白<span class="sb-break"></span>相关</div>
         <div class="sidebar-btn" id="cardListBtn">禁限<span class="sb-break"></span>分值</div>
         <div class="sidebar-btn" id="cardPoolInfoBtn">卡池<span class="sb-break"></span>信息</div>
         <div class="sidebar-btn" id="playerRankingBtn">玩家<span class="sb-break"></span>排名</div>
@@ -882,7 +879,7 @@
     <!-- ═══════════════════════════════════════════════════════
          SCRIPTS — 全部JS
          ═══════════════════════════════════════════════════════ -->
-    <script src="js/script.js?v=20261003g"></script>
+    <script src="js/script.js?v=20261022c"></script>
     <script src="js/card-list.js?v=20260901a"></script>
     <script src="js/card-pool-info.js?v=20260905a"></script>
     <script src="js/deck-builder.js?v=20261016f"></script>
