@@ -124,6 +124,59 @@
   #rpTop #rpPlay { order: 4 !important; }
   #rpTop #rpNext { order: 5 !important; }
   #rpTop #rpFast { order: 6 !important; }
+
+  /* siro-polish-3col —— 三块区域**框风格统一** + 消除互压 + 手卡不被裁 ✓ */
+  :root {
+    --rp-zone-bg: rgba(14,12,18,.96);
+    --rp-zone-border: 1px solid rgba(212,175,55,.30);
+    --rp-zone-radius: 10px;
+  }
+  /* ① 查看器自带的 modal 外壳去掉边框/背景（它之前会压住左边效果栏的框 ✗）
+        → 只留下 场地 / 日志 / 效果栏 三块**各自的框** ✓ 视觉统一 ✓ */
+  #rpStage #replayModal,
+  #rpStage .rp-modal-box,
+  #rpStage .rp-modal-body,
+  #rpStage .rp-modal-head {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  /* ② 三块区域统一样式 ✓ */
+  #rpCardInfo {
+    background: var(--rp-zone-bg) !important;
+    border: var(--rp-zone-border) !important;
+    border-radius: var(--rp-zone-radius) !important;
+    padding: 10px 12px !important;
+    box-sizing: border-box !important;
+    left: 6px !important;              /* 留一点外边距，框线不贴边 ✓ */
+    width: 262px !important;
+    top: 6px !important; bottom: 6px !important;
+  }
+  #rpStage .replay-side {
+    background: var(--rp-zone-bg) !important;
+    border: var(--rp-zone-border) !important;
+    border-radius: var(--rp-zone-radius) !important;
+    padding: 10px 12px !important;
+    box-sizing: border-box !important;
+    margin: 6px 6px 6px 6px !important;
+  }
+  #rpStage #replayField {
+    background: var(--rp-zone-bg) !important;
+    border: var(--rp-zone-border) !important;
+    border-radius: var(--rp-zone-radius) !important;
+    padding: 6px !important;
+    box-sizing: border-box !important;
+    margin: 6px 0 !important;
+  }
+  /* ③ 场地起点让出左栏（6 外边距 + 262 宽 + 8 间隙 = 276）✓ 彻底不压 ✓ */
+  #rpStage { left: 276px !important; top: 0 !important; right: 6px !important; bottom: 6px !important; }
+  body.rp-embed #rpStage { left: 276px !important; }
+  /* ④ 手卡被裁 ✗ → 给盘面留足高度（去掉固定 92px 折扣，改按内容区自适应）✓ */
+  body.rp-embed #rpStage #replayModal { height: calc(100dvh - 60px) !important; max-height: none !important; }
+  #rpStage #replayField { height: calc(100dvh - 84px) !important; max-height: none !important; }
 </style>
 </head>
 <body>
@@ -187,7 +240,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021a"></script>
+<script src="js/viewer-live.js?v=20261021b"></script>
 <script>
 (function () {
   'use strict';
