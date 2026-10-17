@@ -200,6 +200,20 @@
   #rpStage #replayModal { height: calc(100dvh - 90px) !important; }
   /* 手卡区自身不要再有额外外边距（避免又被顶出去 ✓） */
   #rpStage #replayField .rp-hand { margin-bottom: 0 !important; }
+
+  /* siro-bridge —— 用户图2 的构图：控制栏并入旧框那一行，三块面板占满下方、等高、不留空 */
+  body.rp-embed #rpTop { display: none !important; }        /* ★ 控制栏交给旧页面渲染 ✓ */
+  #rpStage { top: 0 !important; bottom: 0 !important; left: 276px !important; right: 6px !important; }
+  body.rp-embed #rpStage { top: 0 !important; }
+  #rpStage #replayModal { height: 100% !important; }
+  body.rp-embed #rpStage #replayModal { height: 100% !important; }
+  #rpStage #replayField {
+    height: 100% !important; max-height: none !important;
+    padding-bottom: 0 !important;                            /* 不再手动留边 ✓ 交给查看器缩放 ✓ */
+  }
+  #rpStage .replay-main { height: 100% !important; }
+  #rpStage .rp-modal-body { height: 100% !important; }
+  #rpCardInfo { top: 6px !important; bottom: 6px !important; }
 </style>
 </head>
 <body>
@@ -263,7 +277,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021d"></script>
+<script src="js/viewer-live.js?v=20261021e"></script>
 <script>
 (function () {
   'use strict';
@@ -279,7 +293,16 @@
       if (document.activeElement !== sk) sk.value = String(Math.max(0, idx));
     } catch (e) {}
   }
-  function setInfo(t) { $('rpInfo').textContent = t; syncSeek(); }
+  function setInfo(t) {
+    $('rpInfo').textContent = t;
+    syncSeek();
+    // siro-bridge: 把状态发给父页面（旧框里的控制栏要显示进度/按钮状态 ✓）
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.postMessage({ type: 'rp-state', idx: idx, total: msgs.length, playing: !!playing, info: t }, '*');
+      }
+    } catch (e) {}
+  }
   function showMsg(html) { $('rpMsg').style.display = ''; $('rpMsg').innerHTML = html; }
   function hideMsg() { $('rpMsg').style.display = 'none'; }
 
@@ -430,6 +453,7 @@
         var _startPlay = function () {
           replayTo(-1);   // 先建场地（reset 后把第 0 条 Start 喂进去）
           setInfo(d.roomName + ' · ' + msgs.length + ' 条 · 点「▶ 播放」');
+          try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'rp-ready' }, '*'); } catch (e) {}
           $('replayModal').style.display = '';
           hideMsg();
           // 自动开播 ✓（用户进来就是想看 ✓）
@@ -468,6 +492,24 @@
 
   // embed=1：被旧回放弹窗用 iframe 嵌进来 → 隐藏自己的顶栏 ✓
   try { if (new URLSearchParams(location.search).get('embed') === '1') document.body.classList.add('rp-embed'); } catch (e) {}
+  // siro-bridge: 监听父页面（旧框控制栏）的指令 ✓
+  try {
+    window.addEventListener('message', function (ev) {
+      var d = ev.data || {};
+      if (d.type !== 'rp-cmd') return;
+      try {
+        if (d.cmd === 'play') { play(); }
+        else if (d.cmd === 'prev') { if (playing) play(); step(-1); }
+        else if (d.cmd === 'next') { if (playing) play(); step(1); }
+        else if (d.cmd === 'speed') { while (speed !== (d.value || 1)) { $('rpFast').click(); } }
+        else if (d.cmd === 'seek') {
+          if (playing) { playing = false; clearInterval(timer); timer = 0; $('rpPlay').textContent = '▶ 播放'; }
+          replayTo(Math.max(0, Math.min(msgs.length - 1, d.value | 0)));
+        }
+      } catch (e) {}
+    });
+  } catch (e) {}
+
   // URL 参数：?r=R123 直接载入 ✓
   try {
     var q = new URLSearchParams(location.search);

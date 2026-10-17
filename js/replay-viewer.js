@@ -2894,3 +2894,89 @@ initReplayViewer();
   btn.addEventListener('click', pick, true);
   input.addEventListener('keydown', function (e) { if (e.key === 'Enter') pick(); }, true);
 })();
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PATCH(白神服): 旧框控制栏（用户要求：按图2 构图 —— 控制栏与「加载回放」同一行、同高 ✓）
+   · 位置：插在 #replayLoadBtn 之后，同一行右侧 ✓
+   · 指令：postMessage 给 iframe 里的新版播放器 ✓
+   · 状态：接收 iframe 上报的 progress/playing 来更新进度条与按钮文字 ✓
+   ═══════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+  var modal = document.getElementById('replayModal');
+  var box = modal && modal.querySelector('.rp-modal-box');
+  var head = modal && modal.querySelector('.rp-modal-head');
+  if (!modal || !box) return;
+
+  // 找到"加载回放"那一行：它通常是包含 #replayLoadBtn 的父元素
+  var loadBtn = document.getElementById('replayLoadBtn');
+  if (!loadBtn) return;
+  var row = loadBtn.parentNode;
+
+  // 控制条容器
+  var bar = document.createElement('div');
+  bar.id = 'rpExternalBar';
+  bar.style.cssText = 'display:inline-flex;align-items:center;gap:8px;margin-left:14px;align-self:center;'
+    + 'vertical-align:middle;flex-wrap:nowrap';
+  bar.innerHTML =
+      '<input type="range" id="rpExtSeek" min="0" max="0" value="0" step="1" '
+    + 'style="width:min(22vw,300px);cursor:pointer;accent-color:#FFD700">'
+    + '<span id="rpExtInfo" style="font-size:12.5px;color:#9b97a1;white-space:nowrap;min-width:110px;text-align:center">等待载入…</span>'
+    + '<button id="rpExtPrev" class="rp-ext-btn">\u2039 上一步</button>'
+    + '<button id="rpExtPlay" class="rp-ext-btn rp-ext-primary">\u25b6 播放</button>'
+    + '<button id="rpExtNext" class="rp-ext-btn">下一步 \u203a</button>'
+    + '<button id="rpExtFast" class="rp-ext-btn">加速 1\u00d7</button>';
+
+  // 样式（和旧框按钮一致的观感 ✓）
+  var st = document.createElement('style');
+  st.textContent =
+      '#rpExternalBar .rp-ext-btn{padding:7px 13px;border-radius:8px;border:1px solid rgba(255,255,255,.18);'
+    + 'background:rgba(255,255,255,.06);color:#ece9e4;cursor:pointer;font:600 13px/1 "Microsoft YaHei",system-ui,sans-serif;}'
+    + '#rpExternalBar .rp-ext-btn:hover{background:rgba(255,255,255,.12);}'
+    + '#rpExternalBar .rp-ext-primary{background:linear-gradient(135deg,#D4AF37,#FFD700);color:#1a1a2e;border:none;}';
+  document.head.appendChild(st);
+  row.appendChild(bar);
+
+  var speed = 1;
+  function send(cmd, value) {
+    try {
+      var f = document.getElementById('rpNewFrame');
+      if (f && f.contentWindow) f.contentWindow.postMessage({ type: 'rp-cmd', cmd: cmd, value: value }, '*');
+    } catch (e) {}
+  }
+
+  document.getElementById('rpExtPlay').onclick = function () { send('play'); };
+  document.getElementById('rpExtPrev').onclick = function () { send('prev'); };
+  document.getElementById('rpExtNext').onclick = function () { send('next'); };
+  document.getElementById('rpExtFast').onclick = function () {
+    speed = speed === 1 ? 2 : (speed === 2 ? 4 : 1);
+    document.getElementById('rpExtFast').textContent = '加速 ' + speed + '\u00d7';
+    send('speed', speed);
+  };
+  var seek = document.getElementById('rpExtSeek');
+  seek.onchange = function () { send('seek', Number(seek.value)); };
+  seek.oninput = function () { document.getElementById('rpExtInfo').textContent = '拖动中…'; };
+
+  // 接收 iframe 的状态（更新进度条/按钮文字 ✓）
+  window.addEventListener('message', function (ev) {
+    var d = ev.data || {};
+    if (d.type !== 'rp-state') return;
+    try {
+      if (typeof d.total === 'number' && d.total > 0) {
+        seek.max = String(Math.max(0, d.total - 1));
+        if (document.activeElement !== seek) seek.value = String(Math.max(0, d.idx || 0));
+      }
+      if (typeof d.info === 'string' && d.info) document.getElementById('rpExtInfo').textContent = d.info;
+      var pb = document.getElementById('rpExtPlay');
+      if (pb) pb.textContent = d.playing ? '\u23f8 暂停' : '\u25b6 播放';
+    } catch (e) {}
+  });
+
+  // 载入新回放时同步倍速显示
+  loadBtn.addEventListener('click', function () {
+    speed = 1;
+    var fb = document.getElementById('rpExtFast');
+    if (fb) fb.textContent = '加速 1\u00d7';
+  }, true);
+})();
