@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>白神服Sirokami - 游戏王DIY服务器</title>
     <link rel="icon" href="favicon.ico">
-    <link rel="stylesheet" href="css/style.css?v=20261022c" id="css-style">
+    <link rel="stylesheet" href="css/style.css?v=20261022d" id="css-style">
     <link rel="stylesheet" href="css/card-list.css" id="css-card-list" media="not all">
     <link rel="stylesheet" href="css/card-pool-info.css?v=20261008u" id="css-card-pool" media="not all">
     <link rel="stylesheet" href="css/eight-decks.css?v=20261001a" id="css-eight-decks" media="not all">
@@ -56,14 +56,15 @@
          ═══════════════════════════════════════════════════════ -->
     <section id="section-main" class="content-section active">
         <div class="main-content">
-            <!-- 版本切换（与新版页面右上角「新版/经典版」同款滑块，只是方向相反：经典版 ← 新版）
-                 ⚠ 纯链接，不需要 JS：经典版（本页）滑块在右，点「新版」进 next.html -->
+            <!-- 版本切换滑块（与新版 next.html 右上角「新版/经典版」完全同款、同顺序）
+                 新版页：新版(高亮=当前) | 经典版(可点)
+                 本页　：新版(可点 → next.html) | 经典版(高亮=当前)，滑块靠右 -->
             <div class="ver-switch-bar">
-                <a class="nx-version" href="next.html" data-v="classic" title="切换到新版引导页面" aria-label="切换到新版">
+                <div class="nx-version" data-v="classic" role="tablist" aria-label="界面版本">
                     <span class="nx-version-thumb"></span>
-                    <span class="nx-version-btn is-active">经典版</span>
-                    <span class="nx-version-btn">新版</span>
-                </a>
+                    <a class="nx-version-btn" href="next.html" role="tab" title="切换到新版引导页面">新版</a>
+                    <span class="nx-version-btn is-active" role="tab" aria-selected="true">经典版</span>
+                </div>
             </div>
 
             <div class="logo-container">

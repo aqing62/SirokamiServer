@@ -516,6 +516,12 @@ body {
 .nx-version:hover {
     border-color: rgba(212, 175, 55, .85);
 }
+.nx-version-btn {
+    text-decoration: none;
+}
+.nx-version-btn[href]:hover {
+    color: #fff;
+}
 .nx-version-thumb {
     position: absolute;
     top: 4px;
@@ -544,6 +550,7 @@ body {
     border-radius: 999px;
     transition: color .25s;
     text-align: center;
+    text-decoration: none;
 }
 .nx-version-btn.is-active {
     color: #fff;
