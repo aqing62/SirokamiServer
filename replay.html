@@ -101,6 +101,29 @@
   body.rp-embed #rpStage #replayField { height: calc(100dvh - 20px) !important; max-height: calc(100dvh - 20px) !important; }
   body.rp-embed #rpCardInfo { top: 0 !important; }
   #rpCardInfo::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
+
+  /* siro-layout-3col —— 三分区严格不重叠 ✓（用户反馈：信息栏挡住场地 ✗）
+     左：卡片效果栏（固定 268）  中：场地（自适应）  右：对局日志（查看器自带 ✓ 在 modal 内） */
+  #rpStage { left: 276px !important; right: 0 !important; overflow: hidden !important; }
+  body.rp-embed #rpStage { left: 276px !important; }
+  #rpStage #replayModal { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important; }
+  #rpStage .rp-modal-box { width: 100% !important; max-width: 100% !important; box-sizing: border-box !important;
+    display: flex !important; flex-direction: column !important; }
+  #rpStage .rp-modal-body { flex: 1 1 auto !important; min-height: 0 !important; overflow: hidden !important; }
+  #rpStage .replay-main { width: 100% !important; height: 100% !important; display: flex !important; }
+  #rpStage #replayField { flex: 1 1 auto !important; min-width: 0 !important; }
+  #rpStage .replay-side { flex: 0 0 clamp(220px, 22vw, 320px) !important; min-width: 0 !important; }
+  #rpCardInfo { left: 0 !important; width: 268px !important; }
+
+  /* siro-ctl-right-align —— 控制栏（进度/按钮/倍速）**右对齐** ✓（用户要求） */
+  #rpTop { justify-content: flex-end !important; }
+  #rpTop #rpBar { margin-left: auto !important; display: flex !important; align-items: center !important; gap: 8px !important; }
+  #rpTop #rpInfo { order: 2 !important; }
+  #rpTop #rpSeek { order: 1 !important; }
+  #rpTop #rpPrev { order: 3 !important; }
+  #rpTop #rpPlay { order: 4 !important; }
+  #rpTop #rpNext { order: 5 !important; }
+  #rpTop #rpFast { order: 6 !important; }
 </style>
 </head>
 <body>
@@ -164,7 +187,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261020z2"></script>
+<script src="js/viewer-live.js?v=20261021a"></script>
 <script>
 (function () {
   'use strict';
@@ -294,10 +317,41 @@
     fetch('/api/forum/replay/' + encodeURIComponent(id) + '?t=' + Date.now())
       .then(function (r) { return r.json(); })
       .then(function (d) {
+        // siro-preload-pics —— 老机制：**先把这局涉及的卡图全部预加载进缓存 ✓ 再开始播放** ✓
+        //   （否则卡图一张张慢慢加载，观感很烂 ✗ 用户明确要求这个机制 ✓）
+        if (d && d.messages && d.messages.length) {
+          var _codes = {}, _arr = [];
+          d.messages.forEach(function (mm) {
+            var cc = (mm.f && mm.f.code) || 0;
+            if (cc && !_codes[cc]) { _codes[cc] = 1; _arr.push(cc); }
+          });
+          if (_arr.length) {
+            showMsg('正在预加载卡图 0 / ' + _arr.length + ' …<br><span style="font-size:12px;color:#9b97a1">加载完会自动开始播放 ✓</span>');
+            var _done = 0, _total = _arr.length, _tick = setInterval(function () {
+              var pct = Math.round(_done * 100 / _total);
+              showMsg('正在预加载卡图 ' + _done + ' / ' + _total + ' （' + pct + '%）…<br>'
+                + '<span style="font-size:12px;color:#9b97a1">加载完会自动开始播放 ✓</span>');
+            }, 200);
+            var _finish = function () {
+              clearInterval(_tick);
+              showMsg('正在预加载卡图 ' + _total + ' / ' + _total + ' （100%）…');
+              window._siroPreloaded = true;
+            };
+            _arr.forEach(function (code) {
+              var im = new Image();
+              im.onload = im.onerror = function () {
+                _done++;
+                if (_done >= _total) _finish();
+              };
+              im.src = 'https://api.ygopro3.cn/pics/siro/' + code + '.jpg';
+            });
+          }
+        }
         if (!d || !d.messages || !d.messages.length) { showMsg('这个回放不存在或没有消息记录 ✗<br><span style="font-size:12px;color:#9b97a1">R# 请从对局记录里复制</span>'); return; }
         info = d; msgs = d.messages;
         try { window.__live.loadCards && window.__live.loadCards(); } catch (e) {}
-        setTimeout(function () {
+        var _waitPre = 0;
+        var _startPlay = function () {
           replayTo(-1);   // 先建场地（reset 后把第 0 条 Start 喂进去）
           setInfo(d.roomName + ' · ' + msgs.length + ' 条 · 点「▶ 播放」');
           $('replayModal').style.display = '';
@@ -305,7 +359,11 @@
           // 自动开播 ✓（用户进来就是想看 ✓）
           playing = false; $('rpPlay').textContent = '▶ 播放';
           play();
-        }, 600);
+        };
+        (function _poll() {
+          if (window._siroPreloaded || _waitPre++ > 40) { _startPlay(); return; }   // 最多等 8 秒 ✓
+          setTimeout(_poll, 200);
+        })();
       })
       .catch(function (e) { showMsg('载入失败：' + e.message); });
   }
