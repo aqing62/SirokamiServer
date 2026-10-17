@@ -329,8 +329,31 @@
     .pool-source-label {
         display: none;
     }
+    /* 手机端角标：不再压在卡图上（卡图只有 72×104），改成常规流式排在「DIY by 作者」下面 */
+    #section-card-pool .card-image-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-width: 82px;
+    }
+    .pool-badges {
+        position: static;
+        margin: 4px 0 0;
+        gap: 3px;
+        justify-content: center;
+        left: auto;
+        right: auto;
+        top: auto;
+    }
     .pool-badge {
         font-size: 9px;
         padding: 1px 5px;
+        border-radius: 7px;
+    }
+    /* 手机端筛选按钮里的放大镜图标 */
+    .mobile-pool-filter-btn svg {
+        width: 22px;
+        height: 22px;
+        display: block;
     }
 }

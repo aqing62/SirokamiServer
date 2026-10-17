@@ -675,12 +675,15 @@ function renderCards() {
                 badges.push('<span class="pool-badge b-src ' + card._src + '">' + (SOURCE_NAME[card._src] || '') + '</span>');
             }
             if (card._new) badges.push('<span class="pool-badge b-new">新</span>');
+            // ⚠ 角标放在「DIY by 作者」**后面**：
+            //   桌面端用绝对定位压在卡图左上角（卡图 200×290，不挡信息）；
+            //   手机端（卡图只有 72×104）改成常规流式排版落在作者下面，不再挡卡图 ✓
             cardEl.innerHTML = `
                 <div class="card-image-wrapper">
                     <img class="card-image" src="${PLACEHOLDER_SVG}"
                          data-src="https://api.ygopro3.cn/pics/siro/${card.id}.jpg" alt="${card.name}">
-                    ${badges.length ? `<div class="pool-badges">${badges.join('')}</div>` : ''}
                     ${card.author ? `<div class="card-author">${card.author}</div>` : ''}
+                    ${badges.length ? `<div class="pool-badges">${badges.join('')}</div>` : ''}
                 </div>
                 <div class="card-info">
                     <div class="card-name">${card.name || '无名卡牌'}</div>
@@ -865,12 +868,17 @@ function initMobilePoolFilter() {
     const section = document.getElementById('section-card-pool');
     const filterContainer = document.querySelector('.search-filter-container');
 
-    // 创建移动端筛选按钮
+    // 创建移动端筛选按钮（绘制的放大镜图标，不用 ☰ 字符）
     const btn = document.createElement('button');
     btn.className = 'mobile-pool-filter-btn';
     btn.id = 'mobilePoolFilterBtn';
-    btn.textContent = '☰';
+    btn.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+        + '<circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2.2"/>'
+        + '<line x1="15.4" y1="15.4" x2="20.5" y2="20.5" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>'
+        + '</svg>';
     btn.title = '筛选';
+    btn.setAttribute('aria-label', '筛选');
     section.appendChild(btn);
 
     // 在筛选容器内添加关闭按钮
