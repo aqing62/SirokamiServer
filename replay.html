@@ -243,6 +243,33 @@
     height: 100% !important;
     box-sizing: border-box !important;
   }
+
+  /* siro-layout-final —— 用户实测两点：
+     ① 左栏比场地低 46px ✗（我前面写了 top:52，其实它该和场地/log 一样从 6px 开始 ✓）
+     ② #rpStage 的 left:276 被别的规则盖掉了 ✗ → 实测 left=0 ✗ → 左栏压在对局栏上面 ✗
+     用最具体的选择器 + 放在最后，强制纠正 ✓ */
+  html body #rpCardInfo, html body.rp-embed #rpCardInfo {
+    left: 6px !important;
+    top: 6px !important;
+    height: calc(100dvh - 12px) !important;
+    max-height: calc(100dvh - 12px) !important;
+    bottom: auto !important;
+    width: 262px !important;
+  }
+  html body #rpStage, html body.rp-embed #rpStage {
+    position: absolute !important;
+    left: 276px !important;
+    right: 6px !important;
+    top: 6px !important;
+    bottom: 6px !important;
+    height: auto !important;
+    width: auto !important;
+  }
+  html body #rpStage #replayField, html body.rp-embed #rpStage #replayField {
+    height: 100% !important;
+    max-height: 100% !important;
+  }
+  html body #rpStage .replay-side { height: 100% !important; box-sizing: border-box !important; }
 </style>
 </head>
 <body>
@@ -306,7 +333,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261021g"></script>
+<script src="js/viewer-live.js?v=20261021h"></script>
 <script>
 (function () {
   'use strict';
