@@ -150,7 +150,7 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261020r"></script>
-<script src="js/viewer-live.js?v=20261020r"></script>
+<script src="js/viewer-live.js?v=20261020y"></script>
 <script>
 (function () {
   'use strict';
@@ -184,7 +184,7 @@
       其它消息（抽卡/阶段/胜负/提示…）布局不同 ✗ 乱补会把 player/count 等字段顶掉 ✗
       → 之前实测：日志变成「Pundefined 抽卡 0 张」「阶段undefined」✗ ✓ */
   var CODE_LAYOUT_MSGS = {
-    Move: 1, Set: 1, Summoning: 1, SpSummoning: 1, Summoned: 1,
+    Move: 1, Set: 1, UpdateCard: 1, Summoning: 1, SpSummoning: 1, Summoned: 1,
     PosChange: 1, Chaining: 1, Chained: 1, ChainSolving: 1, ChainEnd: 1,
     Flip: 1, Equip: 1, Draw: 0
   };

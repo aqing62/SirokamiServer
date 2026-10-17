@@ -2036,6 +2036,31 @@ function initReplayViewer() {
                 if (!animSuppress) phaseBanner(phaseText);
                 break;
             }
+            case 'UpdateCard': {
+                /* PATCH(白神服): 对手里侧卡（盖放/里侧守备）主要靠 MSG_UPDATE_CARD 带 **position** 进来 ✗
+                   原实现没有这个分支 → 对手盖的卡永远进不了模型 → **场上不显示卡背**（用户实测 ✓）
+                   position 的里侧位 = 0x8（POS_FACEDOWN）✓ → faceDown=true → 查看器画卡背 ✓ */
+                (function () {
+                    var ctl = f.controller, loc = (f.location !== undefined ? (f.location | 0) & 0x7f : undefined),
+                        seq = f.sequence;
+                    var pos = f.position;
+                    if (ctl === undefined || (ctl !== 0 && ctl !== 1)) return;
+                    if (loc === undefined || seq === undefined) return;
+                    if (!field[ctl]) field[ctl] = {};
+                    var key = loc + ':' + seq;
+                    var cur = field[ctl][key] || {};
+                    var pv = (pos !== undefined) ? pos : cur.pos;
+                    var isDown = (pos !== undefined) ? ((pos & 0x8) !== 0) : !!cur.faceDown;   // 0x8 = 里侧 ✓
+                    field[ctl][key] = {
+                        code: (f.code !== undefined && f.code) ? f.code : (cur.code || 0),
+                        faceDown: isDown,
+                        pos: pv,
+                        def: cur.def
+                    };
+                    try { if (loc === LOC.MZONE || loc === LOC.SZONE || loc === LOC.PZONE || loc === LOC.FZONE) updateZone(ctl, loc); updateAllZones(); } catch (e) {}
+                })();
+                break;
+            }
             case 'Set': {
                 // PATCH(白神服): 查看器原来**没有 Set 分支** ✗ —— 引擎盖卡发 MSG_SET，
                 //   所以盖下去的卡根本没进模型 → 场地上一片空白（用户实测："看到盖放动画，落地后就消失了" ✗）
