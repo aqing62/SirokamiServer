@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>对局回放 · 白神服</title>
+<!--
+  新版回放器：直接**复用决斗客户端的查看器**（js/viewer-live.js）✓ 用户要求
+  —— 所以回放里能看到和实战一模一样的：召唤演出（融合/同调/超量/连接/灵摆）、
+     超量素材叠放、盖卡卡背、里侧翻面、发光提示、阶段横幅…… 老回放器只有静态盘面 ✗
+  数据：/api/forum/replay/<R#> 返回 { roomName, players, messages:[{name,hex,len,f}] }
+      —— 每条消息正好是查看器 __live.push() 需要的格式 ✓ 不需要再解码 ✓
+-->
+<link rel="stylesheet" href="css/replay-viewer.css">
+<link rel="stylesheet" href="css/duel-client.css">
+<style>
+  html, body { margin: 0; height: 100%; background: #08070b; color: #ece9e4;
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; }
+  #rpTop { position: fixed; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; gap: 10px;
+    padding: 0 14px; background: rgba(12,10,16,.94); border-bottom: 1px solid rgba(212,175,55,.3); z-index: 99999; }
+  #rpTop a { color: #9ec4f0; text-decoration: none; font-size: 13px; }
+  #rpInput { width: 190px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,.16);
+    background: rgba(255,255,255,.06); color: #f2eee6; font-size: 14px; }
+  #rpLoad { padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer; font-weight: 700;
+    background: linear-gradient(135deg,#D4AF37,#FFD700); color: #1a1a2e; }
+  #rpBar { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+  .rp-ctl { padding: 7px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18); cursor: pointer;
+    background: rgba(255,255,255,.06); color: #ece9e4; font-size: 13px; }
+  .rp-ctl.gold { background: linear-gradient(135deg,#D4AF37,#FFD700); color: #1a1a2e; border: none; font-weight: 700; }
+  #rpInfo { font-size: 12px; color: #9b97a1; }
+  #rpStage { position: absolute; top: 56px; left: 0; right: 0; bottom: 0; overflow: auto; }
+  #rpStage #replayModal { position: relative !important; inset: auto !important; display: block !important;
+    height: calc(100dvh - 56px) !important; z-index: 1 !important; }
+  #rpMsg { position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%); z-index: 9999;
+    background: rgba(20,18,26,.96); border: 1px solid rgba(212,175,55,.4); border-radius: 12px;
+    padding: 22px 26px; text-align: center; font-size: 14px; line-height: 1.9; max-width: 78vw; }
+</style>
+</head>
+<body>
+
+<div id="rpTop">
+  <a href="index.html">← 返回主页</a>
+  <input id="rpInput" placeholder="输入回放 R#（如 R123）或直接输数字">
+  <button id="rpLoad">载入回放</button>
+  <div id="rpBar">
+    <span id="rpInfo">等待载入…</span>
+    <button class="rp-ctl" id="rpPrev">‹ 上一步</button>
+    <button class="rp-ctl gold" id="rpPlay">▶ 播放</button>
+    <button class="rp-ctl" id="rpNext">下一步 ›</button>
+    <button class="rp-ctl" id="rpFast">加速 1×</button>
+  </div>
+</div>
+
+<div id="rpStage">
+  <div class="rp-modal" id="replayModal" style="display:none;">
+    <div class="rp-modal-box">
+      <div class="rp-modal-head"><span class="rp-modal-title">对局回放</span></div>
+      <div class="rp-modal-body">
+        <div class="replay-main">
+          <div class="replay-field" id="replayField"></div>
+          <div class="replay-side">
+            <div class="replay-log-title">对局日志</div>
+            <div class="replay-log-body" id="replayLogBody"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="rpMsg">输入回放 R# 后点「载入回放」<br><span style="font-size:12px;color:#9b97a1">回放使用和实战相同的演出（召唤动画/盖卡/超量素材/发光提示…）</span></div>
+</div>
+
+<script src="js/ygopro-web-browser.js"></script>
+<script src="js/viewer-live.js"></script>
+<script>
+(function () {
+  'use strict';
+  var $ = function (i) { return document.getElementById(i); };
+  var msgs = [], idx = -1, playing = false, timer = 0, speed = 1, info = null;
+
+  function setInfo(t) { $('rpInfo').textContent = t; }
+  function showMsg(html) { $('rpMsg').style.display = ''; $('rpMsg').innerHTML = html; }
+  function hideMsg() { $('rpMsg').style.display = 'none'; }
+
+  /** 把一条回放消息喂给查看器（格式正好一致：{name, hex, len, f} ✓） */
+  function feed(m) {
+    if (!m || !m.name) return;
+    try { window.__live.push({ name: m.name, hex: m.hex, len: m.len, f: m.f || {} }); window.__live.flush(); } catch (e) {}
+  }
+
+  /** 从第 0 条重放到 idx（改步骤/拖动进度时用） */
+  function replayTo(target) {
+    if (!info) return;
+    clearInterval(timer); timer = 0;
+    $('replayModal').style.display = '';
+    hideMsg();
+    window.__live.reset({ roomName: info.roomName, players: info.players || [] });
+    for (var i = 0; i <= target && i < msgs.length; i++) feed(msgs[i]);
+    idx = Math.min(target, msgs.length - 1);
+    setInfo((idx + 1) + ' / ' + msgs.length + (playing ? ' · 播放中' : ' · 已暂停'));
+  }
+
+  function step(n) {
+    if (!msgs.length) return;
+    var t = Math.max(-1, Math.min(msgs.length - 1, idx + n));
+    if (t <= idx) { replayTo(t); return; }
+    // 前进：直接喂，动画更连贯 ✓
+    for (var i = idx + 1; i <= t; i++) feed(msgs[i]);
+    idx = t;
+    setInfo((idx + 1) + ' / ' + msgs.length + (playing ? ' · 播放中' : ' · 已暂停'));
+  }
+
+  function play() {
+    if (!msgs.length) return;
+    if (playing) { playing = false; clearInterval(timer); timer = 0; $('rpPlay').textContent = '▶ 播放'; setInfo((idx + 1) + ' / ' + msgs.length + ' · 已暂停'); return; }
+    playing = true; $('rpPlay').textContent = '⏸ 暂停';
+    if (idx >= msgs.length - 1) replayTo(-1);
+    timer = setInterval(function () {
+      if (idx >= msgs.length - 1) { playing = false; clearInterval(timer); timer = 0; $('rpPlay').textContent = '▶ 播放'; setInfo('播放完毕（' + msgs.length + ' 条）· 点「‹ 上一步」可回看'); return; }
+      step(1);
+    }, Math.max(120, 420 / speed));
+  }
+
+  function load(id) {
+    id = String(id || '').trim().replace(/^[Rr#]+/, '');
+    if (!id) { showMsg('请输入回放 R#（例如 R123，或直接输数字）'); return; }
+    showMsg('正在载入回放 ' + id + ' …');
+    fetch('/api/forum/replay/' + encodeURIComponent(id) + '?t=' + Date.now())
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.messages || !d.messages.length) { showMsg('这个回放不存在或没有消息记录 ✗<br><span style="font-size:12px;color:#9b97a1">R# 请从对局记录里复制</span>'); return; }
+        info = d; msgs = d.messages;
+        try { window.__live.loadCards && window.__live.loadCards(); } catch (e) {}
+        setTimeout(function () {
+          replayTo(-1);   // 先建场地（reset 后把第 0 条 Start 喂进去）
+          setInfo(d.roomName + ' · ' + msgs.length + ' 条 · 点「▶ 播放」');
+          $('replayModal').style.display = '';
+          hideMsg();
+          // 自动开播 ✓（用户进来就是想看 ✓）
+          playing = false; $('rpPlay').textContent = '▶ 播放';
+          play();
+        }, 600);
+      })
+      .catch(function (e) { showMsg('载入失败：' + e.message); });
+  }
+
+  $('rpLoad').onclick = function () { load($('rpInput').value); };
+  $('rpInput').onkeydown = function (e) { if (e.key === 'Enter') load($('rpInput').value); };
+  $('rpPlay').onclick = play;
+  $('rpPrev').onclick = function () { if (playing) play(); step(-1); };
+  $('rpNext').onclick = function () { if (playing) play(); step(1); };
+  $('rpFast').onclick = function () {
+    speed = speed === 1 ? 2 : (speed === 2 ? 4 : 1);
+    $('rpFast').textContent = '加速 ' + speed + '×';
+    if (playing) { playing = false; play(); }
+  };
+
+  // URL 参数：?r=R123 直接载入 ✓
+  try {
+    var q = new URLSearchParams(location.search);
+    var r = q.get('r') || q.get('id') || '';
+    if (r) { $('rpInput').value = r; setTimeout(function () { load(r); }, 800); }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>
