@@ -243,6 +243,13 @@
     ]).then(function (a) { cards = a[0] || {}; texts = a[1] || {}; });
   }
   function nameOf(code) {
+    // ★ 优先用查看器的卡名 —— 它内部有完整卡表（含 DIY/先行 ✓），/api/cards 只有 OCG 卡 ✗
+    try {
+      if (window.__live && window.__live.cardName) {
+        var n = window.__live.cardName(code);
+        if (n && String(n).indexOf('#') !== 0) return n;
+      }
+    } catch (e) {}
     var c = cards && (cards[code] || cards[String(code)]);
     return (c && (c.name || c.cn_name)) || ('#' + code);
   }
@@ -271,7 +278,9 @@
     var t = textOf(code);
     var c = cards && (cards[code] || cards[String(code)]);
     var parts = [];
-    if (t && t.t) parts.push(t.t);
+    // ⚠ t.t 是位掩码（数字）✗ 直接显示会很怪（实测出现 "33" ✗）→ 不显示它 ✓
+    if (c && c.level) parts.push('★' + c.level);
+    if (c && c.race) parts.push('种族 ' + c.race);
     if (c && c.atk !== undefined) parts.push('ATK ' + c.atk + ' / DEF ' + (c.def === undefined ? '?' : c.def));
     if (t && t.s) { var sets = setNamesOf(t.s); if (sets.length) parts.push('系列：' + sets.join('、')); }
     return parts.join('　·　') || '（无基础信息）';
@@ -315,7 +324,7 @@
           + ' onerror="this.onerror=null;this.src=\'https://cdn.233.momobako.com/ygopro/pics/' + code + '.jpg\'">'
           + '<span>' + escapeHtml(nameOf(code)) + '</span></div>';
       }).join('') + '</div>';
-    box.style.display = '';
+    box.style.display = 'block';   // ★ 必须显式设置（CSS 默认是 none ✗）
     showInfo(arr[0] ? (arr[0].code || 0) : 0);
   }
 
