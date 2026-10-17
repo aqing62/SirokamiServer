@@ -2820,3 +2820,39 @@ function initReplayViewer() {
 
 // 弹窗常驻 DOM，直接初始化（不再依赖分区懒加载）
 initReplayViewer();
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   PATCH(白神服): 新版回放器接管（用户要求：替换旧回放器，但**保留旧框的 UI** ✓）
+   —— 旧弹窗的头部/回放码输入/关闭按钮全部保留 ✓ 只把里面的场地换成新版回放页 ✓
+      （新版复用决斗客户端的查看器：召唤演出/超量素材/盖卡/发光提示/卡片效果栏/查看列表 ✓）
+   实现：用户点「▶ 加载回放」或回车 → 在 #replayMain 里塞一个 iframe 载 replay.html?r=xx&embed=1
+   ═══════════════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+  var modal = document.getElementById('replayModal');
+  var input = document.getElementById('replayInput');
+  var btn = document.getElementById('replayLoadBtn');
+  var main = document.getElementById('replayMain');
+  if (!modal || !input || !btn || !main) return;
+
+  function mount(id) {
+    if (!id) return;
+    if (!main.querySelector('.rp-newframe')) {
+      main.innerHTML = '<div class="rp-newframe" style="position:relative;height:min(80vh,820px);">'
+        + '<iframe id="rpNewFrame" style="border:0;width:100%;height:100%;display:block;background:#08070b;"'
+        + ' allow="autoplay"></iframe></div>';
+    }
+    main.style.display = 'block';
+    var f = document.getElementById('rpNewFrame');
+    if (f) f.src = 'replay.html?r=' + encodeURIComponent(id) + '&embed=1&t=' + Date.now();
+  }
+  function pick() {
+    var m = /R#?(\d+)/i.exec(input.value || '');
+    if (!m) return;
+    setTimeout(function () { mount(parseInt(m[1], 10)); }, 20);
+  }
+  // 捕获阶段先跑（旧逻辑还在后面跑，但它的目标节点已被替换 ✓ 不会互相干扰 ✓）
+  btn.addEventListener('click', pick, true);
+  input.addEventListener('keydown', function (e) { if (e.key === 'Enter') pick(); }, true);
+})();

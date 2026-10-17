@@ -81,6 +81,14 @@
   @media (orientation: portrait), (max-width: 860px) {
     #rpStage #replayField, #rpStage #replayModal { height: calc(100dvh - 56px) !important; max-height: calc(100dvh - 56px) !important; }
   }
+
+  /* ── embed 模式（被旧回放弹窗用 iframe 嵌进来时 ✓）── */
+  /* siro-replay-embed */
+  body.rp-embed #rpTop { display: none !important; }
+  body.rp-embed #rpStage { top: 0 !important; }
+  body.rp-embed #rpStage #replayModal { height: 100dvh !important; }
+  body.rp-embed #rpStage #replayField { height: calc(100dvh - 20px) !important; max-height: calc(100dvh - 20px) !important; }
+  body.rp-embed #rpCardInfo { top: 0 !important; }
 </style>
 </head>
 <body>
@@ -275,6 +283,8 @@
     if (playing) { playing = false; play(); }
   };
 
+  // embed=1：被旧回放弹窗用 iframe 嵌进来 → 隐藏自己的顶栏 ✓
+  try { if (new URLSearchParams(location.search).get('embed') === '1') document.body.classList.add('rp-embed'); } catch (e) {}
   // URL 参数：?r=R123 直接载入 ✓
   try {
     var q = new URLSearchParams(location.search);
