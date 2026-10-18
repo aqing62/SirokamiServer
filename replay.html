@@ -356,6 +356,9 @@
     html body #rpTop > a, html body #rpTop #rpLoad { white-space: nowrap !important; font-size: 12px !important; }
     html body #rpTop .rp-ctl { padding: 6px 10px !important; font-size: 12px !important; }
     html body #rpTop #rpInfo { display: none !important; }   /* 手机窄屏：进度文字省掉，进度条还在 */
+    /* 载入回放之后，回放码输入框 / 载入按钮就不再占地方（手机端才这样收） */
+    html body.rp-loaded #rpTop #rpInput,
+    html body.rp-loaded #rpTop #rpLoad { display: none !important; }
 
     /* 外层容器不再占位（三块都用 fixed 定位） */
     html body #rpStage, html body.rp-embed #rpStage {
@@ -740,6 +743,13 @@
         }
         if (!d || !d.messages || !d.messages.length) { showMsg('这个回放不存在或没有消息记录 ✗<br><span style="font-size:12px;color:#9b97a1">R# 请从对局记录里复制</span>'); return; }
         info = d; msgs = d.messages;
+        // 手机端：载入成功后收起「回放码输入框 + 载入回放」（它们只在没带 ?r= 时才用得到），
+        // 把顶栏空间让给进度条和播放控制，避免要横向滑动才能看到按钮
+        try {
+          document.body.classList.add('rp-loaded');
+          var _top = $('rpTop');
+          if (_top) _top.scrollLeft = 0;
+        } catch (e) {}
         try { window.__live.loadCards && window.__live.loadCards(); } catch (e) {}
         var _waitPre = 0;
         var _startPlay = function () {
