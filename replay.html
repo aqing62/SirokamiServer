@@ -712,7 +712,9 @@
                 _done++;
                 if (_done >= _total) _finish();
               };
-              im.src = 'https://api.ygopro3.cn/pics/siro/' + code + '.jpg';
+              // 预加载也用对图床（先行卡走 super-pre；卡片表还没加载时退回本站）
+              im.src = (window.__rpPicChain ? window.__rpPicChain(code)[0]
+                : ('https://api.ygopro3.cn/pics/siro/' + code + '.jpg'));
             });
           }
         }
@@ -846,8 +848,7 @@
     var box = $('rpCardInfo');
     if (!box) return;
     if (!code) { box.innerHTML = '<div class="rp-ci-empty">把鼠标移到场上的卡上（或点牌堆里的卡）查看详情</div>'; return; }
-    box.innerHTML = '<div class="rp-ci-img"><img src="https://api.ygopro3.cn/pics/siro/' + code + '.jpg"'
-      + ' onerror="this.onerror=null;this.src=\'https://cdn.233.momobako.com/ygopro/pics/' + code + '.jpg\'"></div>'
+    box.innerHTML = '<div class="rp-ci-img">' + picImgHtml(code) + '</div>'
       + '<div class="rp-ci-main">'
       + '<div class="rp-ci-name">' + escapeHtml(nameOf(code)) + ' <span class="rp-ci-code">[' + code + ']</span></div>'
       + '<div class="rp-ci-type">' + escapeHtml(typeLineOf(code)) + '</div>'
@@ -856,6 +857,40 @@
   }
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]; });
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     siro-pic-chain —— 卡图源要跟来源走（用户反馈：左边卡片信息栏没吃到先行图源 ✗）
+       · 先行卡：本站图床上很多是几十字节的占位小图 → 首选 super-pre 图床
+       · 其它卡：本站 → super-pre → 萌卡
+     失败按 data-chain 依次换源，全挂才退成卡背 cover2.jpg
+     （与卡池页 js/card-pool-info.js 的 picChainFor 同一套规则）
+     ══════════════════════════════════════════════════════════════ */
+  var PIC_SIRO = 'https://api.ygopro3.cn/pics/siro/';
+  var PIC_PRE = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
+  var PIC_OCG = 'https://cdn.233.momobako.com/ygopro/pics/';
+
+  window.__rpPicChain = function (code) {
+    var c = cards && (cards[code] || cards[String(code)]);
+    var isPre = !!(c && c.source === 'pre');
+    var order = isPre ? [PIC_PRE, PIC_SIRO, PIC_OCG] : [PIC_SIRO, PIC_PRE, PIC_OCG];
+    return order.map(function (h) { return h + code + '.jpg'; });
+  };
+  window.__rpPicFallback = function (img) {
+    try {
+      var chain = (img.getAttribute('data-chain') || '').split('|').filter(Boolean);
+      var next = chain.shift();
+      if (!next) { img.onerror = null; img.src = 'cover2.jpg'; return; }
+      img.setAttribute('data-chain', chain.join('|'));
+      img.src = next;
+    } catch (e) {}
+  };
+  /** 生成带回退链的 <img> HTML */
+  function picImgHtml(code, attrs) {
+    var chain = window.__rpPicChain(code);
+    return '<img ' + (attrs ? attrs + ' ' : '')
+      + 'src="' + chain[0] + '" data-chain="' + chain.slice(1).join('|') + '"'
+      + ' onerror="window.__rpPicFallback && window.__rpPicFallback(this)">';
   }
   /* siro-cardinfo-full: 位掩码解码表（和 ygopro 一致 ✓） */
   // ygopro 属性位（实测校验过 ✓）：1地 2水 4炎 8风 16光 32暗 64神
@@ -951,8 +986,7 @@
       + '<div class="rp-li-grid">' + arr.map(function (c) {
         var code = c.code || 0;
         return '<div class="rp-li-item" data-code="' + code + '">'
-          + '<img loading="lazy" src="https://api.ygopro3.cn/pics/siro/' + code + '.jpg"'
-          + ' onerror="this.onerror=null;this.src=\'https://cdn.233.momobako.com/ygopro/pics/' + code + '.jpg\'">'
+          + picImgHtml(code, 'loading="lazy"')
           + '<span>' + escapeHtml(nameOf(code)) + '</span></div>';
       }).join('') + '</div>';
     box.style.display = 'block';   // ★ 必须显式设置（CSS 默认是 none ✗）
