@@ -330,9 +330,14 @@
          同一个元素上重算，--rp-avail 会跟着变 ✓（挂 :root 就改不动了） */
     body {
       --rp-top-h: 56px;
-      --rp-avail: calc(100dvh - var(--rp-top-h) - 14px);
+      /* 底部安全区：iPhone 的小白条/全面屏手势条会盖住最下面 4~34px */
+      --rp-bottom: calc(4px + env(safe-area-inset-bottom, 0px));
+      --rp-avail: calc(100dvh - var(--rp-top-h) - var(--rp-bottom) - 10px);
     }
     body.rp-loaded { --rp-top-h: 62px; }
+    /* 嵌在旧回放弹窗（iframe&embed=1）里时，自己那行工具栏是隐藏的 →
+       不能还占 62px，否则顶部空一条、三块整体下移、底部被手势条盖住 ✗ */
+    body.rp-embed { --rp-top-h: 0px; }
     html, body { height: 100dvh !important; overflow: hidden !important; }
 
     /* 顶栏：一行放不下就横向滑动，别换行把三块挤下去
@@ -426,7 +431,7 @@
     html body #rpStage #replayField, html body.rp-embed #rpStage #replayField {
       position: fixed !important;
       left: 4px !important; right: 4px !important;
-      bottom: 4px !important; top: auto !important;
+      bottom: var(--rp-bottom) !important; top: auto !important;
       width: auto !important; margin: 0 !important;
       height: calc(var(--rp-avail) * 0.65) !important;
       max-height: calc(var(--rp-avail) * 0.65) !important;
@@ -442,7 +447,7 @@
       left: 4px !important; right: 4px !important;
       width: auto !important; margin: 0 !important;
       top: auto !important;
-      bottom: calc(4px + var(--rp-avail) * 0.65 + 5px) !important;
+      bottom: calc(var(--rp-bottom) + var(--rp-avail) * 0.65 + 5px) !important;
       height: calc(var(--rp-avail) * 0.19) !important;
       max-height: calc(var(--rp-avail) * 0.19) !important;
       overflow: hidden !important;
@@ -483,7 +488,7 @@
       left: 4px !important; right: 4px !important;
       width: auto !important; margin: 0 !important;
       top: auto !important;
-      bottom: calc(4px + var(--rp-avail) * 0.84 + 10px) !important;
+      bottom: calc(var(--rp-bottom) + var(--rp-avail) * 0.84 + 10px) !important;
       height: calc(var(--rp-avail) * 0.16) !important;
       max-height: calc(var(--rp-avail) * 0.16) !important;
       padding: 6px 8px !important;
