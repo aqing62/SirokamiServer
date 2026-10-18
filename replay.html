@@ -331,7 +331,9 @@
     }
     html, body { height: 100dvh !important; overflow: hidden !important; }
 
-    /* 顶栏：一行放不下就横向滑动，别换行把三块挤下去 */
+    /* 顶栏：一行放不下就横向滑动，别换行把三块挤下去
+       ⚠ 也要禁止子元素被压扁：默认 flex 子项会缩到 min-content，
+         按钮文字被挤成竖排（实测 上一步 按钮 43×88，整行 88 高、超出 56 的栏高）✗ */
     html body #rpTop {
       height: 56px !important;
       flex-wrap: nowrap !important;
@@ -340,10 +342,19 @@
       padding: 0 8px !important;
       gap: 6px !important;
       scrollbar-width: none !important;
+      -webkit-overflow-scrolling: touch !important;
     }
+    html body #rpTop > *,
+    html body #rpTop #rpBar > * {
+      flex: 0 0 auto !important;      /* 不压缩 */
+      white-space: nowrap !important; /* 按钮文字不换行 */
+    }
+    html body #rpTop #rpBar { flex-wrap: nowrap !important; }
     html body #rpTop::-webkit-scrollbar { height: 0 !important; display: none !important; }
     html body #rpTop #rpSeek { width: 88px !important; }
+    html body #rpTop #rpInput { width: 96px !important; min-width: 96px !important; font-size: 12px !important; }
     html body #rpTop > a, html body #rpTop #rpLoad { white-space: nowrap !important; font-size: 12px !important; }
+    html body #rpTop .rp-ctl { padding: 6px 10px !important; font-size: 12px !important; }
     html body #rpTop #rpInfo { display: none !important; }   /* 手机窄屏：进度文字省掉，进度条还在 */
 
     /* 外层容器不再占位（三块都用 fixed 定位） */

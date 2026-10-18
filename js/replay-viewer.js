@@ -2932,6 +2932,8 @@ initReplayViewer();
   var st = document.createElement('style');
   st.textContent =
       '#rpExternalBar .rp-ext-btn{padding:7px 13px;border-radius:8px;border:1px solid rgba(255,255,255,.18);'
+    + 'white-space:nowrap;flex:0 0 auto;'   // 手机窄屏：按钮文字不许被挤成竖排（实测 43×88 ✗）
+    + '#rpExternalBar #rpExtSeek{flex:0 0 auto;}'
     + 'background:rgba(255,255,255,.06);color:#ece9e4;cursor:pointer;font:600 13px/1 "Microsoft YaHei",system-ui,sans-serif;}'
     + '#rpExternalBar .rp-ext-btn:hover{background:rgba(255,255,255,.12);}'
     + '#rpExternalBar .rp-ext-primary{background:linear-gradient(135deg,#D4AF37,#FFD700);color:#1a1a2e;border:none;}';
