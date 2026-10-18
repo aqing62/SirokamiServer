@@ -363,27 +363,26 @@
        （用户反馈：挤在一行时进度条左右都显示不全）
        做法：#rpBar 允许换行，把 #rpSeek 的 order 排到最后 + flex-basis 100% → 自动落到第二行 ✓ */
     html body.rp-loaded #rpTop {
-      gap: 4px !important;
+      gap: 4px 6px !important;
       padding: 4px 8px !important;
-      justify-content: space-between !important;
+      justify-content: flex-start !important;
       align-items: center !important;
       align-content: center !important;
+      flex-wrap: wrap !important;      /* 允许换行：进度条独占第二行 */
     }
+    /* display:contents 让 #rpBar 不再是一个盒子 → 里面的按钮和进度条直接当 #rpTop 的子项，
+       进度条才能通栏（否则只能占 #rpBar 那一段宽度，左右都显示不全 ✗） */
     html body.rp-loaded #rpTop #rpBar {
-      margin-left: 0 !important;
-      gap: 4px 6px !important;
-      flex: 1 1 auto !important;
-      flex-wrap: wrap !important;
-      justify-content: flex-end !important;
-      align-content: center !important;
-      min-width: 0 !important;
+      display: contents !important;
     }
+    /* 按钮整体靠右（原来 #rpBar 的 margin-left:auto 效果） */
+    html body.rp-loaded #rpTop #rpPrev { margin-left: auto !important; }
     html body.rp-loaded #rpTop > a { font-size: 10px !important; }
     html body.rp-loaded #rpTop .rp-ctl { padding: 5px 7px !important; }
     /* 进度条：整行通栏，左右都能拖到头 */
     html body.rp-loaded #rpTop #rpSeek {
       order: 9 !important;
-      flex: 1 1 100% !important;
+      flex: 0 0 100% !important;
       width: 100% !important;
       min-width: 0 !important;
       height: 16px !important;
