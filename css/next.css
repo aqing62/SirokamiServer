@@ -2379,3 +2379,9 @@ body.nx-blue { background-color: #05070f; }
     order: 9 !important; flex: 0 0 100% !important; width: 100% !important; min-width: 0 !important; margin: 0 !important;
   }
 }
+
+/* 更窄的手机（≤480px）：进度文字让位，保证 4 个按钮能在一行排完 */
+@media (max-width: 480px) {
+  html body #rpExternalBar #rpExtInfo { display: none !important; }
+  html body #rpExternalBar .rp-ext-btn { padding: 6px 9px !important; font-size: 12px !important; }
+}
