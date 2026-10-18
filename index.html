@@ -40,7 +40,32 @@
     #glModalOverlay #glBody .de-msg.ok { color: #8ee6a8; }
     #glModalOverlay #glBody .de-foot { margin-top: 14px; font-size: .75rem; color: #7d7d86; text-align: center; }
     #glModalOverlay #glBody .de-foot a { color: #9ec4f0; text-decoration: none; cursor: pointer; }
-    </style>
+    
+/* ── 旧回放弹窗：手机端控制栏不横向溢出（用户反馈：进度条/按钮被切掉）──
+   实测 #rpExternalBar 宽 551px，而弹窗只有 378px → 右边「下一步/加速」看不见 ✗
+   改法：进度条单独一行通栏，其余（进度文字 + 上一步/播放/下一步/加速）留在原来那栏 ✓
+   注：#rpExternalBar 由 js/replay-viewer.js 注入到 .replay-input-bar 里，所以两处都要放开换行 */
+@media (max-width: 860px), (orientation: portrait) {
+  html body .replay-input-bar { flex-wrap: wrap !important; row-gap: 6px !important; }
+  html body #rpExternalBar {
+    flex-wrap: wrap !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    gap: 6px !important;
+    justify-content: flex-end !important;
+  }
+  html body #rpExternalBar #rpExtInfo { order: 0 !important; margin-right: auto !important; font-size: 12px !important; min-width: 0 !important; }
+  html body #rpExternalBar .rp-ext-btn { padding: 6px 11px !important; font-size: 12.5px !important; }
+  html body #rpExternalBar #rpExtSeek {
+    order: 9 !important;
+    flex: 0 0 100% !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+}
+</style>
 </head>
 <body class="loading">
     <canvas id="bgCanvas"></canvas>

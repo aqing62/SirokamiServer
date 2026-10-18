@@ -2363,3 +2363,19 @@ body.nx-blue { background-color: #05070f; }
   .nx-prize-tier { font-size: 11px; }
   .nx-prize-note { display: none; }
 }
+
+/* ── 旧回放弹窗：手机端控制栏不横向溢出（同 index.html 里的同名补丁）──
+   #rpExternalBar 由 js/replay-viewer.js 注入到 .replay-input-bar，
+   实测 551px 宽 > 弹窗 378px → 右边按钮被切掉 ✗ → 进度条单独一行通栏 */
+@media (max-width: 860px), (orientation: portrait) {
+  html body .replay-input-bar { flex-wrap: wrap !important; row-gap: 6px !important; }
+  html body #rpExternalBar {
+    flex-wrap: wrap !important; width: 100% !important; min-width: 0 !important;
+    margin-left: 0 !important; gap: 6px !important; justify-content: flex-end !important;
+  }
+  html body #rpExternalBar #rpExtInfo { order: 0 !important; margin-right: auto !important; font-size: 12px !important; min-width: 0 !important; }
+  html body #rpExternalBar .rp-ext-btn { padding: 6px 11px !important; font-size: 12.5px !important; }
+  html body #rpExternalBar #rpExtSeek {
+    order: 9 !important; flex: 0 0 100% !important; width: 100% !important; min-width: 0 !important; margin: 0 !important;
+  }
+}
