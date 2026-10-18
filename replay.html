@@ -369,6 +369,7 @@
       align-items: center !important;
       align-content: center !important;
       flex-wrap: wrap !important;      /* 允许换行：进度条独占第二行 */
+      overflow-x: hidden !important;   /* 进度条 100% + 内距会多出 2px，别让它产生横向滚动 */
     }
     /* display:contents 让 #rpBar 不再是一个盒子 → 里面的按钮和进度条直接当 #rpTop 的子项，
        进度条才能通栏（否则只能占 #rpBar 那一段宽度，左右都显示不全 ✗） */
