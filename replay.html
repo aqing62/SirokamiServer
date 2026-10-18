@@ -355,9 +355,12 @@
     html body #rpTop #rpInput { width: 96px !important; min-width: 96px !important; font-size: 12px !important; }
     html body #rpTop > a, html body #rpTop #rpLoad { white-space: nowrap !important; font-size: 11px !important; }
     html body #rpTop .rp-ctl { padding: 5px 8px !important; font-size: 11px !important; }
-    /* 载入回放后：整行只用得上「返回 + 进度 + 播放控制」，压缩到一屏内不滑动 */
-    html body.rp-loaded #rpTop { gap: 5px !important; padding: 0 6px !important; }
-    html body.rp-loaded #rpTop #rpBar { margin-left: auto !important; gap: 5px !important; }
+    /* 载入回放后：整行只用得上「返回 + 进度 + 播放控制」，压到一屏内不滑动 */
+    html body.rp-loaded #rpTop { gap: 4px !important; padding: 0 8px !important; justify-content: space-between !important; }
+    html body.rp-loaded #rpTop #rpBar { margin-left: 0 !important; gap: 4px !important; flex: 1 1 auto !important; justify-content: flex-end !important; }
+    html body.rp-loaded #rpTop > a { font-size: 10px !important; }
+    html body.rp-loaded #rpTop #rpSeek { width: 68px !important; }
+    html body.rp-loaded #rpTop .rp-ctl { padding: 5px 7px !important; }
     html body #rpTop #rpInfo { display: none !important; }   /* 手机窄屏：进度文字省掉，进度条还在 */
     /* 载入回放之后，回放码输入框 / 载入按钮就不再占地方（手机端才这样收） */
     html body.rp-loaded #rpTop #rpInput,
