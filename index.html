@@ -59,6 +59,9 @@
   html body #rpExternalBar { justify-content: flex-start !important; }
   html body #rpExternalBar #rpExtPrev { margin-left: auto !important; }
   html body #rpExternalBar #rpExtSeek { flex: 0 0 100% !important; width: 100% !important; min-width: 100% !important; }
+  /* ⚠ 进度条还要解掉 .replay-input-bar input 的 max-width:80vw（=312px @390）
+     → 不然 flex-basis 100% 也会被卡在 312，右边空一截 ✗ */
+  html body #rpExternalBar #rpExtSeek { flex: 1 1 100% !important; max-width: none !important; }
   html body #rpExternalBar #rpExtInfo { order: 0 !important; margin-right: auto !important; font-size: 12px !important; min-width: 0 !important; }
   html body #rpExternalBar .rp-ext-btn { padding: 6px 11px !important; font-size: 12.5px !important; }
   html body #rpExternalBar #rpExtSeek {
