@@ -2373,6 +2373,10 @@ body.nx-blue { background-color: #05070f; }
     flex-wrap: wrap !important; width: 100% !important; min-width: 0 !important;
     margin-left: 0 !important; gap: 6px !important; justify-content: flex-end !important;
   }
+/* rpExtPrev 推到右侧：让 4 个按钮靠右、进度条独占下一行且通栏 */
+  html body #rpExternalBar { justify-content: flex-start !important; }
+  html body #rpExternalBar #rpExtPrev { margin-left: auto !important; }
+  html body #rpExternalBar #rpExtSeek { flex: 0 0 100% !important; width: 100% !important; min-width: 100% !important; }
   html body #rpExternalBar #rpExtInfo { order: 0 !important; margin-right: auto !important; font-size: 12px !important; min-width: 0 !important; }
   html body #rpExternalBar .rp-ext-btn { padding: 6px 11px !important; font-size: 12.5px !important; }
   html body #rpExternalBar #rpExtSeek {
