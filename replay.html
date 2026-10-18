@@ -322,7 +322,7 @@
      顶栏 #rpTop 本来就是 fixed 56px，三块都从 56px 往下算，用 bottom 依次垒上去
      （不用 display:contents 穿透 modal 外壳：查看器会用 inline display 切换显隐，穿透会和它打架）
      ══════════════════════════════════════════════════════════════ */
-  @media (orientation: portrait), (max-width: 860px) {
+  @media (orientation: portrait), (max-width: 860px) and (min-height: 620px) {
     :root {
       /* 可用高度 = 视口 − 顶栏 56 − 底边 4 − 两处间隙 10 */
       --rp-avail: calc(100dvh - 70px);
