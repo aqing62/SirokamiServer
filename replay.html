@@ -351,10 +351,13 @@
     }
     html body #rpTop #rpBar { flex-wrap: nowrap !important; }
     html body #rpTop::-webkit-scrollbar { height: 0 !important; display: none !important; }
-    html body #rpTop #rpSeek { width: 88px !important; }
+    html body #rpTop #rpSeek { width: 72px !important; }
     html body #rpTop #rpInput { width: 96px !important; min-width: 96px !important; font-size: 12px !important; }
-    html body #rpTop > a, html body #rpTop #rpLoad { white-space: nowrap !important; font-size: 12px !important; }
-    html body #rpTop .rp-ctl { padding: 6px 10px !important; font-size: 12px !important; }
+    html body #rpTop > a, html body #rpTop #rpLoad { white-space: nowrap !important; font-size: 11px !important; }
+    html body #rpTop .rp-ctl { padding: 5px 8px !important; font-size: 11px !important; }
+    /* 载入回放后：整行只用得上「返回 + 进度 + 播放控制」，压缩到一屏内不滑动 */
+    html body.rp-loaded #rpTop { gap: 5px !important; padding: 0 6px !important; }
+    html body.rp-loaded #rpTop #rpBar { margin-left: auto !important; gap: 5px !important; }
     html body #rpTop #rpInfo { display: none !important; }   /* 手机窄屏：进度文字省掉，进度条还在 */
     /* 载入回放之后，回放码输入框 / 载入按钮就不再占地方（手机端才这样收） */
     html body.rp-loaded #rpTop #rpInput,
