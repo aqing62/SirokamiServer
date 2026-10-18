@@ -325,10 +325,14 @@
      （不用 display:contents 穿透 modal 外壳：查看器会用 inline display 切换显隐，穿透会和它打架）
      ══════════════════════════════════════════════════════════════ */
   @media (orientation: portrait), (max-width: 860px) and (min-height: 620px) {
-    :root {
-      /* 可用高度 = 视口 − 顶栏 56 − 底边 4 − 两处间隙 10 */
-      --rp-avail: calc(100dvh - 70px);
+    /* 可用高度 = 视口 − 顶栏 − 底边 4 − 两处间隙 10
+       ⚠ 两个变量都挂在 body 上：载入后 body.rp-loaded 会把 --rp-top-h 改成两行高度，
+         同一个元素上重算，--rp-avail 会跟着变 ✓（挂 :root 就改不动了） */
+    body {
+      --rp-top-h: 56px;
+      --rp-avail: calc(100dvh - var(--rp-top-h) - 14px);
     }
+    body.rp-loaded { --rp-top-h: 62px; }
     html, body { height: 100dvh !important; overflow: hidden !important; }
 
     /* 顶栏：一行放不下就横向滑动，别换行把三块挤下去
@@ -355,12 +359,37 @@
     html body #rpTop #rpInput { width: 96px !important; min-width: 96px !important; font-size: 12px !important; }
     html body #rpTop > a, html body #rpTop #rpLoad { white-space: nowrap !important; font-size: 11px !important; }
     html body #rpTop .rp-ctl { padding: 5px 8px !important; font-size: 11px !important; }
-    /* 载入回放后：整行只用得上「返回 + 进度 + 播放控制」，压到一屏内不滑动 */
-    html body.rp-loaded #rpTop { gap: 4px !important; padding: 0 8px !important; justify-content: space-between !important; }
-    html body.rp-loaded #rpTop #rpBar { margin-left: 0 !important; gap: 4px !important; flex: 1 1 auto !important; justify-content: flex-end !important; }
+    /* 载入回放后：第一行「返回 + 播放控制」原样不动，**进度条单独占第二行**
+       （用户反馈：挤在一行时进度条左右都显示不全）
+       做法：#rpBar 允许换行，把 #rpSeek 的 order 排到最后 + flex-basis 100% → 自动落到第二行 ✓ */
+    html body.rp-loaded #rpTop {
+      gap: 4px !important;
+      padding: 4px 8px !important;
+      justify-content: space-between !important;
+      align-items: center !important;
+      align-content: center !important;
+    }
+    html body.rp-loaded #rpTop #rpBar {
+      margin-left: 0 !important;
+      gap: 4px 6px !important;
+      flex: 1 1 auto !important;
+      flex-wrap: wrap !important;
+      justify-content: flex-end !important;
+      align-content: center !important;
+      min-width: 0 !important;
+    }
     html body.rp-loaded #rpTop > a { font-size: 10px !important; }
-    html body.rp-loaded #rpTop #rpSeek { width: 68px !important; }
     html body.rp-loaded #rpTop .rp-ctl { padding: 5px 7px !important; }
+    /* 进度条：整行通栏，左右都能拖到头 */
+    html body.rp-loaded #rpTop #rpSeek {
+      order: 9 !important;
+      flex: 1 1 100% !important;
+      width: 100% !important;
+      min-width: 0 !important;
+      height: 16px !important;
+      margin: 0 !important;
+      display: block !important;
+    }
     html body #rpTop #rpInfo { display: none !important; }   /* 手机窄屏：进度文字省掉，进度条还在 */
     /* 载入回放之后，回放码输入框 / 载入按钮就不再占地方（手机端才这样收） */
     html body.rp-loaded #rpTop #rpInput,
