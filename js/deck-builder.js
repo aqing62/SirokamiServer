@@ -1585,6 +1585,21 @@
         // 组卡模式隐藏右下角个人中心，避免遮挡筛选面板
         document.body.classList.toggle('db-builder-active', on);
         layout.style.display = on ? 'flex' : 'none';
+        // 手机端：next.html 把组卡器放在 #nxScreenBody 里，会受切屏容器（滚动/变换）影响，
+        // 整屏固定布局会被限制在那个小盒子里 ✗ → 打开时把整块搬到 body，关闭时放回原位
+        (function () {
+            var host = builderRoot();
+            if (!host || host.id !== 'nxBuilderHost') return;
+            if (on) {
+                if (host.parentNode && host.parentNode !== document.body) {
+                    host._nxHome = host.parentNode;
+                    document.body.appendChild(host);
+                }
+            } else if (host._nxHome) {
+                host._nxHome.appendChild(host);
+                host._nxHome = null;
+            }
+        })();
         if (isMobileUI()) {
             ensureMobileNodes();
             if (railEl) railEl.style.display = on ? 'flex' : 'none';
