@@ -3,396 +3,389 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>组卡模式 · 手机端 UI 编辑器</title>
+<title>手机端组卡器 · 布局参数原型 v2</title>
 <!--
   ══════════════════════════════════════════════════════════════════════
-  白神服 — 手机端「组卡模式」UI 编辑器（原型）
+  白神服 — 手机端组卡器「布局参数」原型 v2
   ──────────────────────────────────────────────────────────────────────
-  用途：在手机上直接把各个区块拖到想要的位置，然后把 JSON 坐标发我，
-        我按坐标把真正的组卡器（js/deck-builder.js）在手机端实现出来。
+  这一版不靠拖动，而是把规格写成**参数**，你在手机上直接调数字看效果：
+    每行张数（固定 10） / 主·额外·副 各占几行 / 三段之间的间隔（单位=一行卡）
+    右侧滑块宽度 / 右侧按键宽度 / 顶部按钮排几行
+  右上角实时显示「整块需要多高 / 屏幕多高 / 差多少」，
+  调好之后点「复制参数」把 JSON 发我，我按这份参数把真组卡器实现出来。
 
-  用法：
-    · 普通打开 = 预览模式：右侧按键可点（搜卡抽屉、卡片信息浮层都能试）
-    · 地址后加 ?edit=1 = 编辑模式：
-        - 拖动色块 = 移动；拖右下角小方块 = 改大小
-        - 选中的块会显示 左/上/宽/高（%）
-        - 底部工具条：保存 / 复制JSON / 重置 / 预览
-    · 坐标以「占屏幕的百分比」记录（x/y/w/h，0~100），这样换手机型号也不会跑偏
+  地址：/ui-editor.html?edit=1  （不带 edit=1 是纯预览：可点按键、点卡片看浮层）
   ══════════════════════════════════════════════════════════════════════
 -->
 <style>
-  :root {
-    --ed-bg: #0d0b10;
-    --ed-line: rgba(212,175,55,.55);
-    --ed-gold: #f0e68c;
-    --ed-red: #d81e44;
-  }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
-    margin: 0; height: 100%; overflow: hidden;
-    background: #000; color: #eee;
+    margin: 0; height: 100%; overflow: hidden; background: #000; color: #eee;
     font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
     -webkit-user-select: none; user-select: none;
   }
-  /* 舞台 = 一整屏（含安全区） */
   #stage {
-    position: fixed; inset: 0;
-    overflow: hidden;
-    background: radial-gradient(120% 80% at 50% 0%, #1a1220, #070609 70%);
+    position: fixed; inset: 0; overflow: hidden;
+    background: radial-gradient(120% 80% at 50% 0%, #171226, #060509 70%);
+    --rail-w: 18px;      /* 右侧按键宽度（px） */
+    --drawer-w: 78;      /* 右侧滑块宽度（%） */
   }
 
-  /* ── 各个区块：位置/尺寸全部由 JS 按 LAYOUT 写行内样式 ── */
-  .blk { position: absolute; border: 1px solid rgba(255,255,255,.14); border-radius: 6px; overflow: hidden; }
-  .blk-tag { position: absolute; left: 4px; top: 3px; font-size: 10px; color: #fff; background: rgba(0,0,0,.55); padding: 1px 5px; border-radius: 4px; z-index: 5; }
+  /* ① 顶部：我的卡组 + 按钮（两行） */
+  #head {
+    position: absolute; left: 0; right: 0; top: 0;
+    background: linear-gradient(180deg, #2b1a33, #150f1d);
+    border-bottom: 1px solid rgba(212,175,55,.35);
+    padding: 4px 6px 6px;
+    z-index: 6;
+  }
+  #head .h-row1 {
+    display: flex; align-items: baseline; justify-content: space-between;
+    font-size: 12px; color: var(--gold, #f0e68c); font-weight: 700; margin-bottom: 4px;
+  }
+  #head .h-row1 .sub { font-size: 10.5px; color: #b9b2a4; font-weight: 400; }
+  #head .h-btns { display: flex; flex-wrap: wrap; gap: 4px; }
+  #head .h-btns button {
+    flex: 1 1 auto; min-width: 74px; padding: 6px 6px; border-radius: 7px;
+    border: 1px solid rgba(212,175,55,.45); background: rgba(255,255,255,.05);
+    color: #e9e4d8; font-size: 10.5px; font-weight: 700; white-space: nowrap;
+  }
+  #head .h-btns button.gold { background: linear-gradient(135deg,#d4af37,#ffd700); color: #26200a; border: none; }
+  #head .h-btns button.danger { border-color: rgba(216,30,68,.6); color: #ffc9d4; }
 
-  /* 顶部：我的卡组 / 总分·清空 */
-  #bHead {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 8px; padding: 0 10px;
-    background: linear-gradient(180deg, #a63e58, #7d2b40);
-    border-color: rgba(255,255,255,.25);
+  /* ② 卡组区（不滚动，整块可见） */
+  #deck {
+    position: absolute; left: 0; bottom: 0;
+    overflow: hidden; padding: 3px 3px 0;
   }
-  #bHead .h-title { font-size: 14px; font-weight: 800; color: #fff; }
-  #bHead .h-meta { font-size: 11.5px; color: #ffe9ef; display: flex; gap: 8px; align-items: center; }
-  #bHead .h-meta b { color: #fff; }
+  .sec-title { font-size: 10.5px; font-weight: 800; color: #f0e68c; margin: 2px 0 2px; display: flex; justify-content: space-between; }
+  .sec-title b { color: #fff; font-weight: 700; }
+  .row10 { display: grid; grid-template-columns: repeat(10, 1fr); gap: var(--gap, 2px); }
+  .slot { aspect-ratio: 59 / 86; border-radius: 2px; background: rgba(255,255,255,.04); border: 1px solid rgba(212,175,55,.22); }
+  .slot.filled { background: linear-gradient(160deg,#3a2a53,#1a1226); border-color: rgba(212,175,55,.6); }
+  .gaprows { display: grid; grid-template-columns: repeat(10, 1fr); gap: var(--gap, 2px); }
+  .gaprows > i { aspect-ratio: 59 / 86; }
 
-  /* 卡组主体 */
-  #bDeck {
-    background: linear-gradient(180deg, rgba(18,15,22,.98), rgba(10,8,12,.98));
-    border-color: var(--ed-line);
-    padding: 6px; overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
+  /* ③ 右侧按键（单一竖条，抽屉打开时跟着左移） */
+  #railBtn {
+    position: absolute; right: 0; z-index: 20;
+    width: var(--rail-w); display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, #d81e44, #7d1230);
+    border-radius: 8px 0 0 8px; border: 1px solid rgba(255,255,255,.25); border-right: none;
+    color: #fff; font-size: 11px; font-weight: 800;
+    writing-mode: vertical-rl; letter-spacing: 2px;
+    transition: right .25s ease;
   }
-  .dz { margin-bottom: 6px; }
-  .dz-h { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--ed-gold); margin: 2px 2px 4px; }
-  .dz-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; }
-  .card { aspect-ratio: 59 / 86; border-radius: 4px; background: linear-gradient(160deg, #2a2433, #15111c); border: 1px solid rgba(212,175,55,.35); }
-  .card.filled { background: linear-gradient(160deg, #3a2a44, #1d1526); border-color: rgba(212,175,55,.7); }
+  body.drawer-open #railBtn { right: calc(var(--drawer-w) * 1%); }
 
-  /* 右侧按键栏 */
-  #bRail {
-    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-    gap: 8px; padding: 8px 4px;
-    background: linear-gradient(180deg, #7bbf52, #4f8f34);
-    border-color: rgba(255,255,255,.3);
+  /* ④ 右侧滑块（搜卡） */
+  #drawer {
+    position: absolute; right: 0; z-index: 15;
+    width: calc(var(--drawer-w) * 1%);
+    background: rgba(10,8,14,.985);
+    border-left: 1px solid rgba(212,175,55,.55);
+    border-radius: 10px 0 0 10px;
+    box-shadow: -10px 0 26px rgba(0,0,0,.6);
+    transform: translateX(103%);
+    transition: transform .25s ease;
+    display: flex; flex-direction: column;
+    padding: 6px;
   }
-  .rail-btn {
-    width: 100%; padding: 8px 2px; border-radius: 8px; border: none;
-    background: rgba(0,0,0,.28); color: #fff; font-size: 11px; font-weight: 700;
-    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  body.drawer-open #drawer { transform: translateX(0); }
+  #drawer .d-top { display: flex; gap: 5px; margin-bottom: 6px; }
+  #drawer input {
+    flex: 1; min-width: 0; padding: 7px 9px; border-radius: 7px;
+    border: 1px solid #333; background: #0b0a0f; color: #eee; font-size: 12px;
   }
-  .rail-btn i { font-size: 15px; font-style: normal; }
-  .rail-cap { writing-mode: vertical-rl; font-size: 10.5px; color: #10321a; opacity: .85; margin-top: auto; }
+  #drawer .d-grid { flex: 1; overflow-y: auto; display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; align-content: start; }
+  #drawer .d-card { aspect-ratio: 59/86; border-radius: 3px; background: linear-gradient(160deg,#332a3f,#181322); border: 1px solid rgba(212,175,55,.4); }
 
-  /* 搜卡抽屉 */
-  #bSearch {
-    display: none;
-    flex-direction: column;
-    background: rgba(12,10,16,.99);
-    border-color: var(--ed-line);
-    padding: 8px;
+  /* ⑤ 卡片信息浮层 */
+  #info {
+    position: absolute; left: 6%; top: 22%; width: 88%; height: 52%; z-index: 40;
+    display: none; gap: 8px; padding: 9px;
+    background: rgba(10,8,13,.985); border: 1px solid rgba(212,175,55,.6); border-radius: 12px;
+    box-shadow: 0 18px 48px rgba(0,0,0,.8);
   }
-  #bSearch.on { display: flex; }
-  #bSearch .s-top { display: flex; gap: 6px; margin-bottom: 8px; }
-  #bSearch input {
-    flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px;
-    border: 1px solid #333; background: #0b0a0f; color: #eee; font-size: 13px;
-  }
-  #bSearch .s-close { padding: 8px 12px; border-radius: 8px; border: none; background: var(--ed-red); color: #fff; font-size: 13px; }
-  #bSearch .s-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; overflow-y: auto; }
-  #bSearch .s-card { aspect-ratio: 59/86; border-radius: 4px; background: linear-gradient(160deg,#332a3f,#181322); border: 1px solid rgba(212,175,55,.4); }
+  #info.on { display: flex; }
+  #info .i-img { width: 36%; max-width: 118px; aspect-ratio: 59/86; border-radius: 6px; background: linear-gradient(160deg,#332a3f,#181322); border: 1px solid rgba(212,175,55,.4); flex: 0 0 auto; }
+  #info .i-main { flex: 1; min-width: 0; overflow-y: auto; }
+  #info .i-name { font-size: 13px; font-weight: 800; color: #f0e68c; margin-bottom: 3px; }
+  #info .i-type { font-size: 10.5px; color: #9ec4f0; margin-bottom: 5px; }
+  #info .i-text { font-size: 11px; color: #d8d3ca; line-height: 1.6; }
+  #info .i-x { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid rgba(255,255,255,.3); background: rgba(0,0,0,.5); color: #fff; font-size: 13px; }
 
-  /* 卡片信息浮层 */
-  #bInfo {
-    display: none; z-index: 40;
-    background: rgba(10,8,13,.985);
-    border: 1px solid rgba(212,175,55,.6);
-    border-radius: 12px;
-    box-shadow: 0 18px 48px rgba(0,0,0,.75);
-    padding: 10px;
+  /* ⑥ 参数面板（仅 ?edit=1） */
+  #panel { position: fixed; inset: 0; z-index: 90; display: none; background: rgba(0,0,0,.92); padding: 10px; overflow-y: auto; }
+  body.editing #panel { display: block; }
+  #panel h3 { margin: 2px 0 8px; font-size: 13px; color: #ffd700; }
+  .prow { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 11.5px; color: #cfc8d6; }
+  .prow label { flex: 1 1 auto; min-width: 0; }
+  .prow input[type=range] { flex: 0 0 44%; }
+  .prow input[type=number] {
+    width: 62px; padding: 4px 6px; border-radius: 6px; border: 1px solid #444;
+    background: #0b0a0f; color: #eee; font-size: 12px; text-align: center;
   }
-  #bInfo.on { display: flex; gap: 10px; }
-  #bInfo .i-img { width: 34%; max-width: 120px; aspect-ratio: 59/86; border-radius: 6px; background: linear-gradient(160deg,#332a3f,#181322); border: 1px solid rgba(212,175,55,.4); flex: 0 0 auto; }
-  #bInfo .i-main { flex: 1; min-width: 0; overflow-y: auto; }
-  #bInfo .i-name { font-size: 13px; font-weight: 800; color: var(--ed-gold); margin-bottom: 3px; }
-  #bInfo .i-type { font-size: 11px; color: #9ec4f0; margin-bottom: 6px; }
-  #bInfo .i-text { font-size: 11.5px; color: #d8d3ca; line-height: 1.6; }
-  #bInfo .i-x {
-    position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; border-radius: 50%;
-    border: 1px solid rgba(255,255,255,.3); background: rgba(0,0,0,.5); color: #fff; font-size: 14px; line-height: 1;
-  }
-
-  /* 编辑模式的选中框 */
-  body.editing .blk { cursor: move; }
-  body.editing .blk.sel { outline: 2px dashed #ffd700; outline-offset: 1px; }
-  body.editing .blk .handle {
-    position: absolute; right: -1px; bottom: -1px; width: 16px; height: 16px;
-    background: #ffd700; border-radius: 3px; z-index: 9;
-  }
-  body.editing .blk:not(.sel) { opacity: .82; }
-
-  /* 底部工具条（仅编辑模式） */
-  #bar {
-    position: fixed; left: 0; right: 0; bottom: 0; display: none;
-    gap: 6px; padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
-    background: rgba(0,0,0,.86); border-top: 1px solid #333; z-index: 100;
-    align-items: center; font-size: 11px;
-  }
-  body.editing #bar { display: flex; }
-  #bar .ro { flex: 1; min-width: 0; color: #bdb6c6; line-height: 1.35; }
-  #bar .ro b { color: #ffd700; }
-  #bar button { padding: 7px 9px; border-radius: 7px; border: 1px solid #444; background: #1a1820; color: #eee; font-size: 11px; }
-  #bar button.pri { background: var(--ed-red); border-color: var(--ed-red); }
-  #out { position: fixed; inset: auto 0 0 0; display: none; z-index: 200; background: #0b0a0f; border-top: 1px solid var(--ed-line); padding: 8px; }
+  .prow .v { color: #ffd700; font-weight: 700; min-width: 34px; text-align: right; }
+  #fit { padding: 8px; border-radius: 8px; font-size: 11.5px; line-height: 1.6; margin: 8px 0; }
+  #fit.ok { background: rgba(40,180,90,.16); border: 1px solid rgba(40,180,90,.5); color: #a8f0c0; }
+  #fit.bad { background: rgba(216,30,68,.16); border: 1px solid rgba(216,30,68,.55); color: #ffc0cc; }
+  #panel .pbtn { display: flex; gap: 6px; flex-wrap: wrap; }
+  #panel .pbtn button { flex: 1 1 30%; padding: 9px 6px; border-radius: 8px; border: 1px solid #444; background: #1a1820; color: #eee; font-size: 12px; font-weight: 700; }
+  #panel .pbtn button.pri { background: #d81e44; border-color: #d81e44; }
+  #out { margin-top: 8px; display: none; }
   #out.on { display: block; }
-  #out textarea { width: 100%; height: 34vh; background: #07060a; color: #9fe0a8; border: 1px solid #333; border-radius: 6px; font-size: 11px; font-family: ui-monospace, Consolas, monospace; }
+  #out textarea { width: 100%; height: 26vh; background: #07060a; color: #9fe0a8; border: 1px solid #333; border-radius: 6px; font-size: 10.5px; font-family: ui-monospace, Consolas, monospace; }
+  #openPanel {
+    position: fixed; right: 6px; bottom: 6px; z-index: 95; display: none;
+    padding: 8px 12px; border-radius: 18px; border: 1px solid rgba(212,175,55,.6);
+    background: rgba(20,16,24,.92); color: #ffd700; font-size: 11.5px; font-weight: 700;
+  }
+  body.editing #openPanel { display: block; }
 </style>
 </head>
 <body>
 
 <div id="stage">
-  <!-- ① 顶部标题栏 -->
-  <div class="blk" id="bHead"><span class="blk-tag">head</span>
-    <span class="h-title">我的卡组</span>
-    <span class="h-meta"><b id="scoreTxt">总分 0/100</b> · 清空</span>
-  </div>
-
-  <!-- ② 卡组主体 -->
-  <div class="blk" id="bDeck"><span class="blk-tag">deck</span>
-    <div class="dz"><div class="dz-h"><span>主卡组</span><span>0 / 60</span></div>
-      <div class="dz-grid" id="dzMain"></div></div>
-    <div class="dz"><div class="dz-h"><span>额外卡组</span><span>0 / 15</span></div>
-      <div class="dz-grid" id="dzExtra"></div></div>
-    <div class="dz"><div class="dz-h"><span>副卡组</span><span>0 / 15</span></div>
-      <div class="dz-grid" id="dzSide"></div></div>
-  </div>
-
-  <!-- ③ 右侧按键栏 -->
-  <div class="blk" id="bRail"><span class="blk-tag">rail</span>
-    <button class="rail-btn" data-act="search"><i>🔍</i>搜卡</button>
-    <button class="rail-btn" data-act="filter"><i>⚙</i>筛选</button>
-    <button class="rail-btn" data-act="import"><i>⤓</i>导入</button>
-    <button class="rail-btn" data-act="export"><i>⤒</i>导出</button>
-    <button class="rail-btn" data-act="clear"><i>🗑</i>清空</button>
-    <span class="rail-cap">按键，用于打开搜卡</span>
-  </div>
-
-  <!-- ④ 搜卡抽屉 -->
-  <div class="blk" id="bSearch"><span class="blk-tag">search</span>
-    <div class="s-top">
-      <input id="sInput" placeholder="搜索卡名 / ID / 效果…">
-      <button class="s-close" id="sClose">收起</button>
+  <!-- ① 顶部：我的卡组 + 两行按钮 -->
+  <div id="head">
+    <div class="h-row1">
+      <span>我的卡组</span>
+      <span class="sub">总分 <b id="score">0</b>/100 · 主 <b id="cMain">0</b>/60 · 额外 <b id="cExtra">0</b>/15 · 副 <b id="cSide">0</b>/15</span>
     </div>
-    <div class="s-grid" id="sGrid"></div>
+    <div class="h-btns">
+      <button class="gold" data-act="save">保存到账号</button>
+      <button data-act="load">读取账号卡组</button>
+      <button data-act="import">导入</button>
+      <button data-act="export">导出 ydk</button>
+      <button data-act="sort">排序</button>
+      <button data-act="high">查询高分卡</button>
+      <button data-act="copy">复制</button>
+      <button data-act="del" class="danger">删除</button>
+      <button data-act="clear" class="danger">清空</button>
+    </div>
+  </div>
+
+  <!-- ② 卡组区 -->
+  <div id="deck"></div>
+
+  <!-- ③ 右侧按键（单一竖条） -->
+  <div id="railBtn">搜卡</div>
+
+  <!-- ④ 右侧滑块 -->
+  <div id="drawer">
+    <div class="d-top">
+      <input id="dInput" placeholder="搜索卡名 / ID / 效果…">
+    </div>
+    <div class="d-grid" id="dGrid"></div>
   </div>
 
   <!-- ⑤ 卡片信息浮层 -->
-  <div class="blk" id="bInfo"><span class="blk-tag">info</span>
+  <div id="info">
     <button class="i-x" id="iClose">✕</button>
     <div class="i-img"></div>
     <div class="i-main">
       <div class="i-name">卡片名（示例）</div>
-      <div class="i-type">怪兽 · 效果 · 属性：暗 · 龙族 · ★8 · ATK 3000 / DEF 2500</div>
-      <div class="i-text">
-        ①：这张卡特殊召唤成功的场合才能发动。从卡组把1只同名以外的怪兽加入手卡。<br><br>
-        ②：把这张卡1个超量素材取除才能发动。对方场上1张卡破坏。<br><br>
-        （这里是效果文本占位，用来确认浮层高度和滚动是否合适）
-      </div>
+      <div class="i-type">怪兽 · 效果 · 暗 · 龙族 · ★8 · ATK 3000 / DEF 2500</div>
+      <div class="i-text">①：效果文本占位，用来确认浮层高度和滚动是否合适。<br><br>②：点右上角 ✕ 关闭。</div>
     </div>
   </div>
 </div>
 
-<div id="bar">
-  <div class="ro" id="ro">点一个色块选中，拖动移动 / 拖右下角改大小</div>
-  <button id="btnSave" class="pri">保存</button>
-  <button id="btnJson">复制JSON</button>
-  <button id="btnReset">重置</button>
-  <button id="btnPreview">预览</button>
+<button id="openPanel">参数</button>
+
+<!-- ⑥ 参数面板 -->
+<div id="panel">
+  <h3>布局参数（单位：行 = 一张卡的高度）</h3>
+  <div id="fit"></div>
+
+  <div class="prow"><label>每行张数</label><input type="range" min="8" max="12" step="1" id="pPerRow"><span class="v" id="vPerRow"></span></div>
+  <div class="prow"><label>主卡组占几行</label><input type="range" min="1" max="8" step="1" id="pMain"><span class="v" id="vMain"></span></div>
+  <div class="prow"><label>额外卡组占几行</label><input type="range" min="1" max="4" step="1" id="pExtra"><span class="v" id="vExtra"></span></div>
+  <div class="prow"><label>副卡组占几行</label><input type="range" min="1" max="4" step="1" id="pSide"><span class="v" id="vSide"></span></div>
+  <div class="prow"><label>主 ↔ 额外 间隔（行）</label><input type="range" min="0" max="6" step="0.5" id="pGap1"><span class="v" id="vGap1"></span></div>
+  <div class="prow"><label>额外 ↔ 副 间隔（行）</label><input type="range" min="0" max="4" step="0.5" id="pGap2"><span class="v" id="vGap2"></span></div>
+  <div class="prow"><label>副卡组 ↔ 底部（行）</label><input type="range" min="0" max="4" step="0.5" id="pGap3"><span class="v" id="vGap3"></span></div>
+  <div class="prow"><label>右侧按键宽（px）</label><input type="range" min="14" max="34" step="1" id="pRail"><span class="v" id="vRail"></span></div>
+  <div class="prow"><label>右侧滑块宽（%）</label><input type="range" min="50" max="92" step="1" id="pDrawer"><span class="v" id="vDrawer"></span></div>
+  <div class="prow"><label>滑块圆角/阴影</label><span class="v" style="color:#8b8496;font-weight:400">固定</span></div>
+
+  <div class="pbtn">
+    <button id="btnSave" class="pri">保存参数</button>
+    <button id="btnCopy">复制参数</button>
+    <button id="btnReset">重置</button>
+    <button id="btnPreview">预览</button>
+    <button id="btnClose">收起面板</button>
+  </div>
+  <div id="out"><textarea id="outText" spellcheck="false"></textarea></div>
 </div>
-<div id="out"><textarea id="outText" spellcheck="false"></textarea></div>
 
 <script>
 (function () {
   'use strict';
-
-  /* ══════════════════════════════════════════════════════════════
-     布局数据：每个块 x/y/w/h 都是「占舞台的百分比」（0~100）
-       y 想跟着屏幕上沿走就用 y；想贴着屏幕下沿就用 y + h = 100 的效果（拖到最底即可）
-     ══════════════════════════════════════════════════════════════ */
-  var DEFAULT_LAYOUT = {
-    head:   { x: 0,  y: 0,    w: 100, h: 7.5 },
-    deck:   { x: 0,  y: 7.5,  w: 88,  h: 92.5 },
-    rail:   { x: 88, y: 7.5,  w: 12,  h: 92.5 },
-    search: { x: 0,  y: 7.5,  w: 78,  h: 92.5 },
-    info:   { x: 7,  y: 26,   w: 86,  h: 48 }
-  };
-
-  var KEY = 'siro.builderMobile.layout.v1';
-  var LAYOUT = load();
+  var KEY = 'siro.builderMobile.params.v2';
   var editing = /[?&]edit=1/.test(location.search);
-  var sel = null;
 
-  var stage = document.getElementById('stage');
-  var els = {
-    head: document.getElementById('bHead'),
-    deck: document.getElementById('bDeck'),
-    rail: document.getElementById('bRail'),
-    search: document.getElementById('bSearch'),
-    info: document.getElementById('bInfo')
+  /* ── 默认参数 ── */
+  var DEFAULTS = {
+    perRow: 10,
+    rowsMain: 6, rowsExtra: 2, rowsSide: 2,
+    gap1: 6, gap2: 2, gap3: 3,     // 单位：一行卡的高度（用户给的 6 / 2 / 3）
+    railW: 20,                      // 右侧按键宽度 px
+    drawerW: 78,                    // 右侧滑块宽度 %
+    padX: 3, padTop: 3, gapPx: 2    // 卡组区内边距 / 卡间距
   };
-  var ro = document.getElementById('ro');
+  var P = load();
 
   function load() {
     try {
       var raw = localStorage.getItem(KEY);
-      if (raw) {
-        var o = JSON.parse(raw);
-        if (o && o.head && o.deck) return o;
-      }
+      if (raw) { var o = JSON.parse(raw); if (o && o.perRow) return Object.assign({}, DEFAULTS, o); }
     } catch (e) {}
-    return JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
+    return Object.assign({}, DEFAULTS);
   }
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(LAYOUT)); } catch (e) {} }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(P)); } catch (e) {} }
 
-  /* ── 把 LAYOUT 写进元素 ── */
-  function apply() {
-    Object.keys(els).forEach(function (k) {
-      var b = LAYOUT[k], el = els[k];
-      if (!b || !el) return;
-      el.style.left = b.x + '%';
-      el.style.top = b.y + '%';
-      el.style.width = b.w + '%';
-      el.style.height = b.h + '%';
-    });
-  }
+  var stage = document.getElementById('stage');
+  var deck = document.getElementById('deck');
+  var head = document.getElementById('head');
+  var railBtn = document.getElementById('railBtn');
+  var drawer = document.getElementById('drawer');
 
-  /* ── 造点假内容，方便看比例 ── */
-  (function fill() {
-    function fillGrid(el, n) {
-      var html = '';
-      for (var i = 0; i < n; i++) html += '<div class="card' + (i % 3 ? '' : ' filled') + '"></div>';
-      el.innerHTML = html;
+  /* ── 渲染卡组区（10 张一行，三段固定位置，不滚动） ── */
+  function buildDeck() {
+    var stW = stage.clientWidth, stH = stage.clientHeight;
+    var headH = head.getBoundingClientRect().height;
+    var deckW = stW - 0;                        // 卡组区占满宽度（右侧按键浮在上面）
+    var innerW = deckW - P.padX * 2;
+    var cardW = (innerW - P.gapPx * (P.perRow - 1)) / P.perRow;
+    var rowH = cardW * 86 / 59;                 // 卡图比例 59:86
+    var rowStep = rowH + P.gapPx;
+    var secTitleH = 14;                         // 「主卡组 / 额外卡组 / 副卡组」标题行高
+
+    var need = (P.rowsMain + P.rowsExtra + P.rowsSide) * rowStep
+             + (P.gap1 + P.gap2 + P.gap3) * rowStep
+             + secTitleH * 3;
+    var avail = stH - headH - P.padTop;
+
+    deck.style.top = headH + 'px';
+    deck.style.height = avail + 'px';
+    deck.style.setProperty('--gap', P.gapPx + 'px');
+    stage.style.setProperty('--rail-w', P.railW + 'px');
+    stage.style.setProperty('--drawer-w', P.drawerW);
+
+    function rowHtml(list, filledN) {
+      return '<div class="row10">' + list.map(function (_, i) {
+        return '<div class="slot' + (i < filledN ? ' filled' : '') + '"></div>';
+      }).join('') + '</div>';
     }
-    fillGrid(document.getElementById('dzMain'), 30);
-    fillGrid(document.getElementById('dzExtra'), 10);
-    fillGrid(document.getElementById('dzSide'), 5);
+    function gapHtml(rows) {
+      var one = '<i></i>'.repeat(P.perRow);
+      return '<div class="gaprows" style="height:' + (rows * rowStep) + 'px">' + (rows > 0 ? one : '') + '</div>';
+    }
+    var mainSlots = P.rowsMain * P.perRow;
+    var extraSlots = P.rowsExtra * P.perRow;
+    var sideSlots = P.rowsSide * P.perRow;
 
-    var sg = document.getElementById('sGrid'), h = '';
-    for (var i = 0; i < 12; i++) h += '<div class="s-card"></div>';
-    sg.innerHTML = h;
+    deck.innerHTML =
+      '<div class="sec-title">主卡组 <b>' + Math.min(mainSlots, 40) + ' / 60</b></div>' +
+      rowHtml(new Array(mainSlots), 40) +
+      gapHtml(P.gap1) +
+      '<div class="sec-title">额外卡组 <b>15 / 15</b></div>' +
+      rowHtml(new Array(extraSlots), 15) +
+      gapHtml(P.gap2) +
+      '<div class="sec-title">副卡组 <b>15 / 15</b></div>' +
+      rowHtml(new Array(sideSlots), 15) +
+      gapHtml(P.gap3);
+
+    // 实时计算：需要多高 / 屏幕多高
+    var fit = document.getElementById('fit');
+    if (fit) {
+      var ok = need <= avail + 0.5;
+      fit.className = ok ? 'ok' : 'bad';
+      fit.innerHTML =
+        '卡宽 <b>' + cardW.toFixed(1) + 'px</b> · 行高 <b>' + rowH.toFixed(1) + 'px</b><br>' +
+        '整块需要 <b>' + Math.round(need) + 'px</b> / 可用 <b>' + Math.round(avail) + 'px</b>' +
+        (ok ? ' → 放得下 ✓（余 ' + Math.round(avail - need) + 'px）'
+            : ' → <b>放不下 ✗（超 ' + Math.round(need - avail) + 'px）</b>');
+    }
+    return { cardW: cardW, rowH: rowH, need: need, avail: avail, headH: headH };
+  }
+
+  /* ── 预览交互 ── */
+  function toggleDrawer(on) {
+    var open = (on === undefined) ? !document.body.classList.contains('drawer-open') : on;
+    document.body.classList.toggle('drawer-open', open);
+  }
+  function toggleInfo(on) { document.getElementById('info').classList.toggle('on', !!on); }
+
+  railBtn.onclick = function () { toggleDrawer(); };
+  document.getElementById('iClose').onclick = function () { toggleInfo(false); };
+  deck.addEventListener('click', function (e) { if (!editing && e.target.closest('.slot')) toggleInfo(true); });
+  document.getElementById('dGrid').addEventListener('click', function (e) {
+    if (!editing && e.target.closest('.d-card')) toggleInfo(true);
+  });
+  (function fillDrawer() {
+    var h = '';
+    for (var i = 0; i < 40; i++) h += '<div class="d-card"></div>';
+    document.getElementById('dGrid').innerHTML = h;
   })();
 
-  /* ── 预览模式交互 ── */
-  function openSearch(on) {
-    els.search.classList.toggle('on', !!on);
-  }
-  function openInfo(on) {
-    els.info.classList.toggle('on', !!on);
-  }
-  document.getElementById('sClose').onclick = function () { openSearch(false); };
-  document.getElementById('iClose').onclick = function () { openInfo(false); };
-  els.rail.addEventListener('click', function (e) {
-    var b = e.target.closest('.rail-btn');
-    if (!b) return;
-    var act = b.getAttribute('data-act');
-    if (act === 'search') { openSearch(!els.search.classList.contains('on')); }
-    else { openInfo(true); }   // 其它按钮先都弹卡片信息，验证浮层
-  });
-  els.deck.addEventListener('click', function (e) {
-    if (editing) return;
-    if (e.target.closest('.card')) openInfo(true);
-  });
-  document.getElementById('sGrid').addEventListener('click', function (e) {
-    if (editing) return;
-    if (e.target.closest('.s-card')) openInfo(true);
-  });
+  /* ── 参数面板 ── */
+  var BINDS = [
+    ['pPerRow', 'perRow', 'vPerRow', function (v) { return v; }],
+    ['pMain', 'rowsMain', 'vMain', function (v) { return v; }],
+    ['pExtra', 'rowsExtra', 'vExtra', function (v) { return v; }],
+    ['pSide', 'rowsSide', 'vSide', function (v) { return v; }],
+    ['pGap1', 'gap1', 'vGap1', function (v) { return v; }],
+    ['pGap2', 'gap2', 'vGap2', function (v) { return v; }],
+    ['pGap3', 'gap3', 'vGap3', function (v) { return v; }],
+    ['pRail', 'railW', 'vRail', function (v) { return v + 'px'; }],
+    ['pDrawer', 'drawerW', 'vDrawer', function (v) { return v + '%'; }]
+  ];
 
-  /* ── 编辑模式 ── */
+  function syncInputs() {
+    BINDS.forEach(function (b) {
+      var el = document.getElementById(b[0]), lab = document.getElementById(b[2]);
+      if (el) el.value = P[b[1]];
+      if (lab) lab.textContent = b[3](P[b[1]]);
+    });
+  }
+
   if (editing) {
     document.body.classList.add('editing');
-    // 编辑时把抽屉/浮层都显示出来，否则看不见没法摆
-    els.search.classList.add('on');
-    els.info.classList.add('on');
-
-    Object.keys(els).forEach(function (k) {
-      var el = els[k];
-      var tag = document.createElement('span');
-      tag.className = 'handle';
-      el.appendChild(tag);
-      el.addEventListener('pointerdown', onDown, { passive: false });
+    syncInputs();
+    buildDeck();
+    BINDS.forEach(function (b) {
+      var el = document.getElementById(b[0]);
+      if (!el) return;
+      el.addEventListener('input', function () {
+        P[b[1]] = parseFloat(el.value);
+        var lab = document.getElementById(b[2]);
+        if (lab) lab.textContent = b[3](P[b[1]]);
+        buildDeck();
+      });
     });
-
-    var drag = null;
-    function onDown(e) {
-      var el = e.currentTarget;
-      var key = el.id.replace(/^b/, '').toLowerCase();
-      select(key);
-      var r = stage.getBoundingClientRect();
-      var isResize = !!e.target.closest('.handle');
-      drag = {
-        key: key, resize: isResize,
-        startX: e.clientX, startY: e.clientY,
-        base: JSON.parse(JSON.stringify(LAYOUT[key])),
-        stageW: r.width, stageH: r.height
-      };
-      el.setPointerCapture && el.setPointerCapture(e.pointerId);
-      e.preventDefault();
-    }
-    window.addEventListener('pointermove', function (e) {
-      if (!drag) return;
-      var b = drag.base;
-      var dx = (e.clientX - drag.startX) / drag.stageW * 100;
-      var dy = (e.clientY - drag.startY) / drag.stageH * 100;
-      var o = {};
-      if (drag.resize) {
-        o.w = clamp(b.w + dx, 8, 100 - b.x);
-        o.h = clamp(b.h + dy, 6, 100 - b.y);
-      } else {
-        o.x = clamp(b.x + dx, 0, 100 - b.w);
-        o.y = clamp(b.y + dy, 0, 100 - b.h);
-      }
-      Object.assign(LAYOUT[drag.key], o);
-      // 1% 取整，避免小数太乱
-      ['x', 'y', 'w', 'h'].forEach(function (p) { LAYOUT[drag.key][p] = Math.round(LAYOUT[drag.key][p] * 10) / 10; });
-      apply();
-      showRO(drag.key);
-    }, { passive: false });
-    window.addEventListener('pointerup', function () { if (drag) { save(); drag = null; } });
-
-    function select(key) {
-      Object.keys(els).forEach(function (k) { els[k].classList.toggle('sel', k === key); });
-      sel = key;
-      showRO(key);
-    }
-    function showRO(key) {
-      var b = LAYOUT[key];
-      ro.innerHTML = '<b>' + key + '</b> x=' + b.x + '% y=' + b.y + '% w=' + b.w + '% h=' + b.h +
-        '<br>拖动=移动 · 右下角=改大小';
-    }
-    function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-
-    document.getElementById('btnSave').onclick = function () { save(); ro.innerHTML = '已保存到本机 ✓'; };
+    document.getElementById('btnSave').onclick = function () { save(); buildDeck(); };
     document.getElementById('btnReset').onclick = function () {
-      LAYOUT = JSON.parse(JSON.stringify(DEFAULT_LAYOUT));
-      apply(); save(); select('deck');
+      P = Object.assign({}, DEFAULTS); syncInputs(); save(); buildDeck();
     };
-    document.getElementById('btnPreview').onclick = function () {
-      location.href = location.pathname;   // 去掉 ?edit=1 → 预览
-    };
-    document.getElementById('btnJson').onclick = function () {
-      var txt = '/* 白神服 · 手机端组卡模式布局（百分比，相对整屏） */\nvar LAYOUT = ' +
-        JSON.stringify(LAYOUT, null, 2) + ';';
+    document.getElementById('btnPreview').onclick = function () { location.href = location.pathname; };
+    document.getElementById('btnClose').onclick = function () { document.getElementById('panel').style.display = 'none'; };
+    document.getElementById('openPanel').onclick = function () { document.getElementById('panel').style.display = 'block'; };
+    document.getElementById('btnCopy').onclick = function () {
+      var txt = '/* 白神服 · 手机端组卡器布局参数（行 = 一张卡的高度） */\nvar MOBILE_KIT = ' +
+        JSON.stringify(P, null, 2) + ';';
       var out = document.getElementById('out');
       document.getElementById('outText').value = txt;
       out.classList.add('on');
-      try { navigator.clipboard.writeText(txt); ro.innerHTML = '已复制到剪贴板（也在下面的框里）'; } catch (e) { ro.innerHTML = '请从下面的框里手动复制'; }
-      document.getElementById('outText').onclick = function () { this.select(); };
+      try { navigator.clipboard.writeText(txt); } catch (e) {}
     };
-
-    select('deck');   // 默认选中卡组块
+  } else {
+    buildDeck();
   }
-
-  apply();
+  window.addEventListener('resize', buildDeck);
+  window.addEventListener('orientationchange', function () { setTimeout(buildDeck, 150); });
 })();
 </script>
 </body>
