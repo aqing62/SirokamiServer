@@ -130,7 +130,7 @@
 
   /* ⑥ 参数面板（仅 ?edit=1） */
   #panel { position: fixed; inset: 0; z-index: 90; display: none; background: rgba(0,0,0,.92); padding: 10px; overflow-y: auto; }
-  body.editing #panel { display: block; }
+  body.editing #panel { display: none; }   /* 默认收起，点右下角「参数」再展开 */
   #panel h3 { margin: 2px 0 8px; font-size: 13px; color: #ffd700; }
   .prow { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; font-size: 11.5px; color: #cfc8d6; }
   .prow label { flex: 1 1 auto; min-width: 0; }
