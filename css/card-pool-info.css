@@ -1388,6 +1388,23 @@ body.db-builder-active .global-login { display: none !important; }
   .builder-mode.db-detail-open .db-detail-related { padding: 8px 10px !important; font-size: 0.8rem !important; }
   .builder-mode.db-detail-open .db-detail-add { padding: 9px 4px !important; font-size: 0.8rem !important; }
 
+  /* 手机端：卡片右上角的小 × 隐藏 —— 删卡改到卡片详情浮层里的「从卡组移除」按钮，
+     避免想点详情却点到删卡（卡片只有 32px 宽，× 很容易误触）*/
+  .builder-mode .db-card-slot .db-remove { display: none !important; }
+  /* 详情浮层里的删卡按钮 */
+  .builder-mode.db-detail-open .db-detail-remove {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid rgba(216,30,68,.8);
+    border-radius: 0;
+    background: linear-gradient(135deg, rgba(216,30,68,.30), rgba(216,30,68,.10));
+    color: #ffd7e0;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: .3px;
+    cursor: pointer;
+  }
+
   /* 手机端（触摸）不需要 hover 放大：会一直粘住，而且 z-index:3 会飘到详情浮层上面 */
   .builder-mode .db-card-slot:hover,
   .builder-mode .db-card-slot:active {

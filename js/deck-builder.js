@@ -1375,6 +1375,7 @@
     function onGridClick(e) {
         var cell = e.target.closest ? e.target.closest('.db-cell') : null;
         if (!cell) return;
+        detailFromZone = null;
         var id = parseInt(cell.getAttribute('data-id'), 10);
         if (!id) return;
         // 便利操作：第一次点=看详情，再点一次同一张=直接加入卡组（额外怪兽进额外，其余进主卡）
@@ -1759,11 +1760,40 @@
         });
     }
 
+    /** 当前详情是从卡组哪个格子点开的（手机端"删卡"按钮据此生效） */
+    var detailFromZone = null;
+
     function closeDetailSheet() {
+        detailFromZone = null;
         var sec = builderRoot();
         if (sec) sec.classList.remove('db-detail-open');
         if (detailMaskEl) detailMaskEl.style.display = 'none';
     }
+    /** 手机端：详情浮层里给「从卡组移除」按钮（代替卡片右上角的小 ×） */
+    function ensureDeckRemoveBtn() {
+        if (!isMobileUI()) return;
+        var acts = document.querySelector('.db-detail-actions');
+        if (!acts) return;
+        var old = acts.querySelector('#dbDetailRemove');
+        if (!detailFromZone) { if (old && old.parentNode) old.parentNode.removeChild(old); return; }
+        if (old) return;                      // 已经有
+        var b = document.createElement('button');
+        b.className = 'db-detail-remove';
+        b.id = 'dbDetailRemove';
+        b.type = 'button';
+        b.textContent = '🗑 从卡组移除这张卡';
+        b.addEventListener('click', function () {
+            var z = detailFromZone;
+            if (z && z.zone && typeof z.index === 'number') {
+                removeCard(z.zone, z.index);
+                toast('已从卡组移除');
+            }
+            detailFromZone = null;
+            closeDetailSheet();
+        });
+        acts.insertBefore(b, acts.firstChild);
+    }
+
     function openDetailSheet() {
         var sec = builderRoot();
         if (!sec || !isMobileUI()) return;
@@ -1920,7 +1950,10 @@
                 if (!builderActive || !isMobileUI()) return;
                 var hasContent = detailBody.querySelector('img, .db-detail-name, .db-detail-body > *');
                 var emptyOnly = detailBody.querySelector('.db-detail-empty') && !detailBody.querySelector('img');
-                if (hasContent && !emptyOnly) openDetailSheet();
+                if (hasContent && !emptyOnly) {
+                    openDetailSheet();
+                    ensureDeckRemoveBtn();
+                }
             }).observe(detailBody, { childList: true, subtree: true });
         }
 
@@ -1937,6 +1970,8 @@
                     if (zk && !isNaN(idx)) removeCard(zk, idx);
                     return;
                 }
+                // 手机端：点卡组里的卡 = 看详情，删卡改到详情浮层里的按钮（避免误触）
+                detailFromZone = (zk && !isNaN(idx)) ? { zone: zk, index: idx, id: cid } : null;
                 showDetailForDeckCard(cid);
             });
         });
