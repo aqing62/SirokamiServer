@@ -199,6 +199,11 @@
   <h3>布局参数（单位：行 = 一张卡的高度）</h3>
   <div id="fit"></div>
 
+  <div class="prow">
+    <label>取尺寸方式</label>
+    <button id="mWidth" style="padding:6px 8px;border-radius:7px;border:1px solid #444;background:#1a1820;color:#eee;font-size:11px">卡占满宽度</button>
+    <button id="mHeight" style="padding:6px 8px;border-radius:7px;border:1px solid #444;background:#1a1820;color:#eee;font-size:11px">按高度适配</button>
+  </div>
   <div class="prow"><label>每行张数</label><input type="range" min="8" max="12" step="1" id="pPerRow"><span class="v" id="vPerRow"></span></div>
   <div class="prow"><label>主卡组占几行</label><input type="range" min="1" max="8" step="1" id="pMain"><span class="v" id="vMain"></span></div>
   <div class="prow"><label>额外卡组占几行</label><input type="range" min="1" max="4" step="1" id="pExtra"><span class="v" id="vExtra"></span></div>
@@ -233,7 +238,8 @@
     gap1: 6, gap2: 2, gap3: 3,     // 单位：一行卡的高度（用户给的 6 / 2 / 3）
     railW: 20,                      // 右侧按键宽度 px
     drawerW: 78,                    // 右侧滑块宽度 %
-    padX: 3, padTop: 3, gapPx: 2    // 卡组区内边距 / 卡间距
+    padX: 3, padTop: 3, gapPx: 2,   // 卡组区内边距 / 卡间距
+    fitMode: 'width'                // width = 卡占满宽度（10 张填满一行）；height = 按高度适配（卡会变小，间隔 6/2/3 才放得下）
   };
   var P = load();
 
@@ -258,16 +264,33 @@
     var headH = head.getBoundingClientRect().height;
     var deckW = stW - 0;                        // 卡组区占满宽度（右侧按键浮在上面）
     var innerW = deckW - P.padX * 2;
-    var cardW = (innerW - P.gapPx * (P.perRow - 1)) / P.perRow;
-    var rowH = cardW * 86 / 59;                 // 卡图比例 59:86
-    var rowStep = rowH + P.gapPx;
     var secTitleH = 14;                         // 「主卡组 / 额外卡组 / 副卡组」标题行高
-
-    var need = (P.rowsMain + P.rowsExtra + P.rowsSide) * rowStep
-             + (P.gap1 + P.gap2 + P.gap3) * rowStep
-             + secTitleH * 3;
     var avail = stH - headH - P.padTop;
+    var totalRows = (P.rowsMain + P.rowsExtra + P.rowsSide) + (P.gap1 + P.gap2 + P.gap3);
 
+    var cardW, rowH, rowStep, need;
+    if (P.fitMode === 'height') {
+      // 按高度适配：所有行都塞进可用高度 → 卡变小，左右留白
+      rowStep = Math.max(6, (avail - secTitleH * 3) / Math.max(1, totalRows));
+      rowH = Math.max(4, rowStep - P.gapPx);
+      cardW = rowH * 59 / 86;
+      need = avail;   // 正好铺满
+    } else {
+      // 卡占满宽度：10 张填满一行，行高由卡宽决定 → 可能装不下
+      cardW = (innerW - P.gapPx * (P.perRow - 1)) / P.perRow;
+      rowH = cardW * 86 / 59;
+      rowStep = rowH + P.gapPx;
+      need = totalRows * rowStep + secTitleH * 3;
+    }
+
+    if (P.fitMode === 'height') {
+      var usedW = cardW * P.perRow + P.gapPx * (P.perRow - 1) + P.padX * 2;
+      deck.style.width = Math.min(deckW, Math.ceil(usedW)) + 'px';
+      deck.style.left = Math.max(0, Math.round((deckW - usedW) / 2)) + 'px';
+    } else {
+      deck.style.width = deckW + 'px';
+      deck.style.left = '0px';
+    }
     deck.style.top = headH + 'px';
     deck.style.height = avail + 'px';
     deck.style.setProperty('--gap', P.gapPx + 'px');
@@ -303,8 +326,10 @@
     if (fit) {
       var ok = need <= avail + 0.5;
       fit.className = ok ? 'ok' : 'bad';
+      var side = Math.max(0, Math.round((deckW - (cardW * P.perRow + P.gapPx * (P.perRow - 1) + P.padX * 2)) / 2));
       fit.innerHTML =
-        '卡宽 <b>' + cardW.toFixed(1) + 'px</b> · 行高 <b>' + rowH.toFixed(1) + 'px</b><br>' +
+        '模式 <b>' + (P.fitMode === 'height' ? '按高度适配' : '卡占满宽度') + '</b> · 卡宽 <b>' + cardW.toFixed(1) + 'px</b> · 行高 <b>' + rowH.toFixed(1) + 'px</b>' +
+        (P.fitMode === 'height' ? ' · 左右各留 <b>' + side + 'px</b>' : '') + '<br>' +
         '整块需要 <b>' + Math.round(need) + 'px</b> / 可用 <b>' + Math.round(avail) + 'px</b>' +
         (ok ? ' → 放得下 ✓（余 ' + Math.round(avail - need) + 'px）'
             : ' → <b>放不下 ✗（超 ' + Math.round(need - avail) + 'px）</b>');
@@ -356,6 +381,7 @@
     document.body.classList.add('editing');
     syncInputs();
     buildDeck();
+    if (typeof syncMode === 'function') syncMode();
     BINDS.forEach(function (b) {
       var el = document.getElementById(b[0]);
       if (!el) return;
@@ -366,6 +392,17 @@
         buildDeck();
       });
     });
+    function syncMode() {
+      ['mWidth', 'mHeight'].forEach(function (id) {
+        var b = document.getElementById(id);
+        if (!b) return;
+        var on = (id === 'mWidth') === (P.fitMode === 'width');
+        b.style.background = on ? '#d81e44' : '#1a1820';
+        b.style.borderColor = on ? '#d81e44' : '#444';
+      });
+    }
+    document.getElementById('mWidth').onclick = function () { P.fitMode = 'width'; syncMode(); save(); buildDeck(); };
+    document.getElementById('mHeight').onclick = function () { P.fitMode = 'height'; syncMode(); save(); buildDeck(); };
     document.getElementById('btnSave').onclick = function () { save(); buildDeck(); };
     document.getElementById('btnReset').onclick = function () {
       P = Object.assign({}, DEFAULTS); syncInputs(); save(); buildDeck();
