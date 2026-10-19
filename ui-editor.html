@@ -219,6 +219,7 @@
     <label>取尺寸方式</label>
     <button id="mWidth" style="padding:6px 8px;border-radius:7px;border:1px solid #444;background:#1a1820;color:#eee;font-size:11px">卡占满宽度</button>
     <button id="mHeight" style="padding:6px 8px;border-radius:7px;border:1px solid #444;background:#1a1820;color:#eee;font-size:11px">按高度适配</button>
+    <button id="mCompress" style="padding:6px 8px;border-radius:7px;border:1px solid #444;background:#1a1820;color:#eee;font-size:11px">压扁行高</button>
   </div>
   <div class="prow"><label>每行张数</label><input type="range" min="8" max="12" step="1" id="pPerRow"><span class="v" id="vPerRow"></span></div>
   <div class="prow"><label>主卡组占几行</label><input type="range" min="1" max="8" step="1" id="pMain"><span class="v" id="vMain"></span></div>
@@ -285,8 +286,15 @@
     var avail = stH - headH - P.closeH - P.padTop - 4;   // 扣掉底部「关闭组卡模式」按钮
     var totalRows = (P.rowsMain + P.rowsExtra + P.rowsSide) + (P.gap1 + P.gap2 + P.gap3);
 
-    var cardW, rowH, rowStep, need;
-    if (P.fitMode === 'height') {
+    var cardW, rowH, rowStep, need, squish = false;
+    if (P.fitMode === 'compress') {
+      // 卡占满宽度 + 行高压缩：优先保证 10 张填满一行，间隔按 6/2/3 保留，卡会被压扁
+      cardW = (innerW - P.gapPx * (P.perRow - 1)) / P.perRow;
+      rowStep = (avail - secTitleH * 3) / Math.max(1, totalRows);
+      rowH = Math.max(10, rowStep - P.gapPx);
+      squish = true;
+      need = avail;
+    } else if (P.fitMode === 'height') {
       // 按高度适配：所有行都塞进可用高度 → 卡变小，左右留白
       rowStep = Math.max(6, (avail - secTitleH * 3) / Math.max(1, totalRows));
       rowH = Math.max(4, rowStep - P.gapPx);
@@ -325,8 +333,10 @@
     stage.style.setProperty('--drawer-w', P.drawerW);
 
     function rowHtml(list, filledN) {
-      return '<div class="row10">' + list.map(function (_, i) {
-        return '<div class="slot' + (i < filledN ? ' filled' : '') + '"></div>';
+      var st = squish ? ' style="grid-auto-rows:' + rowH.toFixed(1) + 'px"' : '';
+      return '<div class="row10"' + st + '>' + list.map(function (_, i) {
+        return '<div class="slot' + (i < filledN ? ' filled' : '') + '"' +
+          (squish ? ' style="height:' + rowH.toFixed(1) + 'px;aspect-ratio:auto" ' : '') + '></div>';
       }).join('') + '</div>';
     }
     function gapHtml(rows) {
@@ -337,6 +347,8 @@
     var extraSlots = P.rowsExtra * P.perRow;
     var sideSlots = P.rowsSide * P.perRow;
 
+    var slotStyle = squish ? ('height:' + rowH.toFixed(1) + 'px;aspect-ratio:auto') : '';
+    deck.style.setProperty('--slot-style', slotStyle);
     deck.innerHTML =
       '<div class="sec-title">主卡组 <b>' + Math.min(mainSlots, 40) + ' / 60</b></div>' +
       rowHtml(new Array(mainSlots), 40) +
@@ -355,8 +367,9 @@
       fit.className = ok ? 'ok' : 'bad';
       var side = Math.max(0, Math.round((deckW - (cardW * P.perRow + P.gapPx * (P.perRow - 1) + P.padX * 2)) / 2));
       fit.innerHTML =
-        '模式 <b>' + (P.fitMode === 'height' ? '按高度适配' : '卡占满宽度') + '</b> · 卡宽 <b>' + cardW.toFixed(1) + 'px</b> · 行高 <b>' + rowH.toFixed(1) + 'px</b>' +
-        (P.fitMode === 'height' ? ' · 左右各留 <b>' + side + 'px</b>' : '') + '<br>' +
+        '模式 <b>' + ({ width: '卡占满宽度', height: '按高度适配', compress: '压扁行高' }[P.fitMode] || P.fitMode) + '</b> · 卡宽 <b>' + cardW.toFixed(1) + 'px</b> · 行高 <b>' + rowH.toFixed(1) + 'px</b>' +
+        (P.fitMode === 'height' ? ' · 左右各留 <b>' + side + 'px</b>' : '') +
+        (P.fitMode === 'compress' ? ' · 卡被压扁（比例 59:86 会破坏）' : '') + '<br>' +
         '整块需要 <b>' + Math.round(need) + 'px</b> / 可用 <b>' + Math.round(avail) + 'px</b>' +
         (ok ? ' → 放得下 ✓（余 ' + Math.round(avail - need) + 'px）'
             : ' → <b>放不下 ✗（超 ' + Math.round(need - avail) + 'px）</b>');
@@ -426,16 +439,18 @@
       });
     });
     function syncMode() {
-      ['mWidth', 'mHeight'].forEach(function (id) {
+      var map = { mWidth: 'width', mHeight: 'height', mCompress: 'compress' };
+      Object.keys(map).forEach(function (id) {
         var b = document.getElementById(id);
         if (!b) return;
-        var on = (id === 'mWidth') === (P.fitMode === 'width');
+        var on = (P.fitMode === map[id]);
         b.style.background = on ? '#d81e44' : '#1a1820';
         b.style.borderColor = on ? '#d81e44' : '#444';
       });
     }
     document.getElementById('mWidth').onclick = function () { P.fitMode = 'width'; syncMode(); save(); buildDeck(); };
     document.getElementById('mHeight').onclick = function () { P.fitMode = 'height'; syncMode(); save(); buildDeck(); };
+    document.getElementById('mCompress').onclick = function () { P.fitMode = 'compress'; syncMode(); save(); buildDeck(); };
     document.getElementById('btnSave').onclick = function () { save(); buildDeck(); };
     document.getElementById('btnReset').onclick = function () {
       P = Object.assign({}, DEFAULTS); syncInputs(); save(); buildDeck();
