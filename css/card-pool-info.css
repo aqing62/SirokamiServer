@@ -1446,7 +1446,7 @@ body.db-builder-active .global-login { display: none !important; }
     background: linear-gradient(180deg, #d81e44, #7d1230);
     border-left: 1px solid rgba(255,255,255,.25);
     border-radius: 8px 0 0 8px;
-    z-index: 9200; cursor: pointer;
+    z-index: 2; cursor: pointer;
     transition: right .25s ease;
     -webkit-user-select: none; user-select: none;
   }
@@ -1462,7 +1462,7 @@ body.db-builder-active .global-login { display: none !important; }
     background: linear-gradient(180deg, #3a1020, #200a14);
     border: 1px solid rgba(216,30,68,.65); border-radius: 8px;
     color: #ffd7e0; font-size: 12.5px; font-weight: 800; letter-spacing: 1px;
-    z-index: 9100; cursor: pointer;
+    z-index: 2; cursor: pointer;
   }
 
   /* ── 卡片详情浮层（原来在左栏，手机改成浮层）── */

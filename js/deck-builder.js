@@ -1670,10 +1670,12 @@
 
     function ensureMobileNodes() {
         if (railEl) return;
+        // ⚠ 挂到 section 内部：组卡容器现在 z-index:9400，body 级元素(9200)会被它盖住 → 竖条看不见 ✗
+        var hostSec = document.getElementById('section-card-pool') || document.body;
         railEl = document.createElement('div');
         railEl.id = 'dbRail';
         railEl.textContent = '搜卡';
-        document.body.appendChild(railEl);
+        hostSec.appendChild(railEl);
         railEl.addEventListener('click', function () {
             var sec = document.getElementById('section-card-pool');
             var on = !(sec && sec.classList.contains('db-search-open'));
@@ -1684,7 +1686,7 @@
         closeEl = document.createElement('div');
         closeEl.id = 'dbCloseBuilder';
         closeEl.textContent = '✕ 关闭组卡模式';
-        document.body.appendChild(closeEl);
+        hostSec.appendChild(closeEl);
         closeEl.addEventListener('click', function () { setBuilderActive(false); });
 
         detailMaskEl = document.createElement('div');
