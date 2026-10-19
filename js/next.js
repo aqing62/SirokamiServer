@@ -89,7 +89,7 @@
                 '组好后可 <b>下载 YDK</b>，直接放进客户端的 deck 目录'
             ],
             cta: [
-                { icon: 'build', label: '开始组卡', screen: 'builder' },
+                { icon: 'build', label: '开始组卡', screen: 'builder', isMobileBuilderJump: true },
                 { icon: 'box', label: '看预组', screen: 'preset' }
             ]
         },

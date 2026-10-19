@@ -1670,6 +1670,9 @@
 
     function ensureMobileNodes() {
         if (railEl) return;
+        // ⚠ 只有经典版卡池页才有 #section-card-pool；next.html 里内嵌的老组卡器没有这个容器，
+        //   如果在那边创建竖条/关闭按钮，会凭空多出一条浮条 ✗
+        if (!document.getElementById('section-card-pool')) return;
         // ⚠ 挂到 section 内部：组卡容器现在 z-index:9400，body 级元素(9200)会被它盖住 → 竖条看不见 ✗
         var hostSec = document.getElementById('section-card-pool') || document.body;
         railEl = document.createElement('div');
