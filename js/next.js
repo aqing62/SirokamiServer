@@ -2854,8 +2854,14 @@
     window.__nxBuilderExit = function () {
         try { if (typeof window.DeckBuilder && window.DeckBuilder.disable) window.DeckBuilder.disable(); } catch (e) {}
         try { nxBuilderDetach(); } catch (e) {}
-        if (historyStack.length > 1) goBack();
-        else { try { history.back(); } catch (e) {} }
+        // 直接出栈 + 重绘上一屏（不依赖浏览器历史；否则会留下一个空的组卡屏 = "无用的页面" ✗）
+        if (historyStack.length > 1) {
+            historyStack.pop();
+            transition(function () {
+                renderCurrent();
+                syncUrl('replace');
+            });
+        }
     };
     function nxBuilderDetach() {
         var host = document.getElementById('nxBuilderHost');
