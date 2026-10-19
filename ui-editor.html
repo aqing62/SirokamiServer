@@ -71,13 +71,25 @@
   #railBtn {
     position: absolute; right: 0; z-index: 20;
     width: var(--rail-w); display: flex; align-items: center; justify-content: center;
+    padding: 8px 0;
     background: linear-gradient(180deg, #d81e44, #7d1230);
     border-radius: 8px 0 0 8px; border: 1px solid rgba(255,255,255,.25); border-right: none;
     color: #fff; font-size: 11px; font-weight: 800;
-    writing-mode: vertical-rl; letter-spacing: 2px;
+    writing-mode: vertical-rl; letter-spacing: 3px;
     transition: right .25s ease;
+    text-align: center;
   }
   body.drawer-open #railBtn { right: calc(var(--drawer-w) * 1%); }
+  body.drawer-open #closeBuilder { opacity: .35; pointer-events: none; }
+
+  /* ③½ 卡组底部：关闭组卡模式 */
+  #closeBuilder {
+    position: absolute; z-index: 12;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, #3a1020, #200a14);
+    border: 1px solid rgba(216,30,68,.65); border-radius: 8px;
+    color: #ffd7e0; font-size: 12px; font-weight: 800; letter-spacing: 1px;
+  }
 
   /* ④ 右侧滑块（搜卡） */
   #drawer {
@@ -173,6 +185,9 @@
   <!-- ③ 右侧按键（单一竖条） -->
   <div id="railBtn">搜卡</div>
 
+  <!-- ③½ 卡组底部关闭按钮 -->
+  <div id="closeBuilder">✕ 关闭组卡模式</div>
+
   <!-- ④ 右侧滑块 -->
   <div id="drawer">
     <div class="d-top">
@@ -237,10 +252,11 @@
     perRow: 10,
     rowsMain: 6, rowsExtra: 2, rowsSide: 2,
     gap1: 6, gap2: 2, gap3: 3,     // 单位：一行卡的高度（用户给的 6 / 2 / 3）
-    railW: 20,                      // 右侧按键宽度 px
+    railW: 30,                      // 右侧搜卡竖条宽度 px（通高，不与卡组重叠）
+    closeH: 34,                     // 卡组最下方「关闭组卡模式」按钮高度 px
     drawerW: 78,                    // 右侧滑块宽度 %
     padX: 3, padTop: 3, gapPx: 2,   // 卡组区内边距 / 卡间距
-    fitMode: 'width'                // width = 卡占满宽度（10 张填满一行）；height = 按高度适配（卡会变小，间隔 6/2/3 才放得下）
+    fitMode: 'height'               // height = 按高度适配（卡小一点，间隔 6/2/3 保留，整组固定可见）；width = 卡占满宽度
   };
   var P = load();
 
@@ -263,10 +279,10 @@
   function buildDeck() {
     var stW = stage.clientWidth, stH = stage.clientHeight;
     var headH = head.getBoundingClientRect().height;
-    var deckW = stW - 0;                        // 卡组区占满宽度（右侧按键浮在上面）
+    var deckW = stW - P.railW;                  // 卡组区宽度 = 屏宽 − 右侧竖条（不重叠）
     var innerW = deckW - P.padX * 2;
     var secTitleH = 14;                         // 「主卡组 / 额外卡组 / 副卡组」标题行高
-    var avail = stH - headH - P.padTop;
+    var avail = stH - headH - P.closeH - P.padTop - 4;   // 扣掉底部「关闭组卡模式」按钮
     var totalRows = (P.rowsMain + P.rowsExtra + P.rowsSide) + (P.gap1 + P.gap2 + P.gap3);
 
     var cardW, rowH, rowStep, need;
@@ -294,6 +310,16 @@
     }
     deck.style.top = headH + 'px';
     deck.style.height = avail + 'px';
+    // 右侧竖条：从顶栏下沿一直到底部
+    var rail = document.getElementById('railBtn');
+    rail.style.top = headH + 'px';
+    rail.style.height = (stH - headH) + 'px';
+    // 底部关闭按钮
+    var cb = document.getElementById('closeBuilder');
+    cb.style.left = (P.padX) + 'px';
+    cb.style.width = (deckW - P.padX * 2) + 'px';
+    cb.style.top = (headH + avail + 4) + 'px';
+    cb.style.height = P.closeH + 'px';
     deck.style.setProperty('--gap', P.gapPx + 'px');
     stage.style.setProperty('--rail-w', P.railW + 'px');
     stage.style.setProperty('--drawer-w', P.drawerW);
@@ -346,6 +372,12 @@
   function toggleInfo(on) { document.getElementById('info').classList.toggle('on', !!on); }
 
   railBtn.onclick = function () { toggleDrawer(); };
+  document.getElementById('closeBuilder').onclick = function () {
+    if (editing) return;
+    this.textContent = '（真机上这里会退出组卡模式）';
+    var self = this;
+    setTimeout(function () { self.textContent = '✕ 关闭组卡模式'; }, 1500);
+  };
   document.getElementById('iClose').onclick = function () { toggleInfo(false); };
   deck.addEventListener('click', function (e) { if (!editing && e.target.closest('.slot')) toggleInfo(true); });
   document.getElementById('dGrid').addEventListener('click', function (e) {
