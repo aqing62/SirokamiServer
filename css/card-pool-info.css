@@ -1330,6 +1330,64 @@ body.db-builder-active .global-login { display: none !important; }
     z-index: 9400;
     background: #0b0a0f;
   }
+  /* 手机端详情浮层：图缩小、文本区可滚、按钮固定在底部（见下方整块说明） */
+
+  /* ══ 手机端详情浮层：图缩小、文本区可滚、底部按钮固定不被裁 ══
+     面板是 top:12% / bottom:12% 的浮层，内容比它高时 .db-detail-actions 会被 overflow:hidden 切掉 ✗
+     改成竖向 flex：head（图+名字+属性）固定 → scroll（效果文本）吃掉剩余高度 → actions 固定在底部 */
+  .builder-mode.db-detail-open .db-detail-panel {
+    display: flex !important;
+    flex-direction: column !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  .builder-mode.db-detail-open #dbDetailBody {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+  /* 上半部分：卡图 + 名字 + 分值 + 类型 + 攻守 —— 收紧，别把文本区挤没 */
+  .builder-mode.db-detail-open .db-detail-head {
+    flex: 0 0 auto !important;
+    overflow: visible !important;
+    padding-bottom: 2px !important;
+  }
+  .builder-mode.db-detail-open .db-detail-card { margin-bottom: 4px !important; }
+  .builder-mode.db-detail-open .db-detail-img {
+    width: auto !important;
+    height: 112px !important;
+    max-height: 112px !important;
+    object-fit: contain !important;
+  }
+  .builder-mode.db-detail-open .db-detail-name { font-size: 0.98rem !important; margin-bottom: 3px !important; }
+  .builder-mode.db-detail-open .db-detail-score,
+  .builder-mode.db-detail-open .db-detail-type,
+  .builder-mode.db-detail-open .db-detail-rows { font-size: 0.75rem !important; margin-bottom: 2px !important; }
+  /* 中间：效果文本 → 吃掉全部剩余高度，可滚动、滚动条隐藏 */
+  .builder-mode.db-detail-open .db-detail-scroll {
+    flex: 1 1 auto !important;
+    min-height: 84px !important;
+    margin-top: 4px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+    scrollbar-width: none !important;
+  }
+  .builder-mode.db-detail-open .db-detail-scroll::-webkit-scrollbar { width: 0 !important; height: 0 !important; }
+  .builder-mode.db-detail-open .db-detail-desc { font-size: 0.8rem !important; line-height: 1.62 !important; padding: 7px !important; }
+  /* 底部：相关卡片 + 加入主卡/加入副卡 → 固定，永远完整可见 */
+  .builder-mode.db-detail-open .db-detail-actions {
+    flex: 0 0 auto !important;
+    margin-top: 6px !important;
+    padding-top: 6px !important;
+    gap: 5px !important;
+  }
+  .builder-mode.db-detail-open .db-detail-related { padding: 8px 10px !important; font-size: 0.8rem !important; }
+  .builder-mode.db-detail-open .db-detail-add { padding: 9px 4px !important; font-size: 0.8rem !important; }
+
   /* 手机端（触摸）不需要 hover 放大：会一直粘住，而且 z-index:3 会飘到详情浮层上面 */
   .builder-mode .db-card-slot:hover,
   .builder-mode .db-card-slot:active {
