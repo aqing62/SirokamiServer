@@ -171,6 +171,8 @@
       <button data-act="load">读取账号卡组</button>
       <button data-act="import">导入</button>
       <button data-act="export">导出 ydk</button>
+    </div>
+    <div class="h-btns">
       <button data-act="sort">排序</button>
       <button data-act="high">查询高分卡</button>
       <button data-act="copy">复制</button>
@@ -324,8 +326,10 @@
     rail.style.height = (stH - headH) + 'px';
     // 底部关闭按钮
     var cb = document.getElementById('closeBuilder');
-    cb.style.left = (P.padX) + 'px';
-    cb.style.width = (deckW - P.padX * 2) + 'px';
+    var deckLeft = parseFloat(deck.style.left) || 0;
+    var deckRealW = parseFloat(deck.style.width) || deckW;
+    cb.style.left = (deckLeft + P.padX) + 'px';
+    cb.style.width = (deckRealW - P.padX * 2) + 'px';
     cb.style.top = (headH + avail + 4) + 'px';
     cb.style.height = P.closeH + 'px';
     deck.style.setProperty('--gap', P.gapPx + 'px');
@@ -346,18 +350,19 @@
     var mainSlots = P.rowsMain * P.perRow;
     var extraSlots = P.rowsExtra * P.perRow;
     var sideSlots = P.rowsSide * P.perRow;
+    function slots(n) { var a = []; for (var i = 0; i < n; i++) a.push(i); return a; }   // ⚠ 不能用 new Array(n)：稀疏数组 .map 不回调，会渲染成空
 
     var slotStyle = squish ? ('height:' + rowH.toFixed(1) + 'px;aspect-ratio:auto') : '';
     deck.style.setProperty('--slot-style', slotStyle);
     deck.innerHTML =
       '<div class="sec-title">主卡组 <b>' + Math.min(mainSlots, 40) + ' / 60</b></div>' +
-      rowHtml(new Array(mainSlots), 40) +
+      rowHtml(slots(mainSlots), 40) +
       gapHtml(P.gap1) +
       '<div class="sec-title">额外卡组 <b>15 / 15</b></div>' +
-      rowHtml(new Array(extraSlots), 15) +
+      rowHtml(slots(extraSlots), 15) +
       gapHtml(P.gap2) +
       '<div class="sec-title">副卡组 <b>15 / 15</b></div>' +
-      rowHtml(new Array(sideSlots), 15) +
+      rowHtml(slots(sideSlots), 15) +
       gapHtml(P.gap3);
 
     // 实时计算：需要多高 / 屏幕多高
