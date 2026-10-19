@@ -1308,3 +1308,173 @@ body.db-builder-active .global-login { display: none !important; }
   color: #06122b;
   box-shadow: 0 0 16px rgba(58, 118, 255, 0.55);
 }
+
+
+/* ══════════════════════════════════════════════════════════════════════
+   手机端「组卡模式」布局（按用户调好的 MOBILE_KIT 参数）
+   · 10 张一行、主 6 行 / 额外 2 行 / 副 2 行、段间隔 0（参数可调，JS 写 CSS 变量）
+   · 右侧 25px 通高「搜卡」竖条，与卡组不重叠；点它搜卡抽屉从右滑出（85%），再点收回
+   · 卡组区不滚动，固定看全卡组；底部「关闭组卡模式」按钮
+   · 卡片详情改成浮层（点卡片/搜索结果第一次点弹出，右上角 ✕ 关闭）
+   ⚠ 只在 ≤768px 生效，桌面三栏布局完全不动
+   ══════════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  #section-card-pool.builder-mode {
+    position: fixed !important;
+    inset: 0 !important;
+    height: 100dvh !important;
+    padding: 4px !important;
+    overflow: hidden !important;
+    display: block !important;
+    z-index: 9000;
+    background: #0b0a0f;
+  }
+  /* 组卡模式里其它页面块都别显示 */
+  #section-card-pool.builder-mode .title,
+  #section-card-pool.builder-mode .deck-builder-top,
+  #section-card-pool.builder-mode .stats,
+  #section-card-pool.builder-mode .search-filter-container,
+  #section-card-pool.builder-mode #cardContainer,
+  #section-card-pool.builder-mode #pagination,
+  #section-card-pool.builder-mode .pool-topbar,
+  #section-card-pool.builder-mode .new-cards-trigger,
+  #section-card-pool.builder-mode .mobile-pool-filter-btn { display: none !important; }
+
+  #section-card-pool.builder-mode .db-layout {
+    display: block !important;
+    height: 100% !important;
+    gap: 0 !important;
+  }
+
+  /* ── 中间：卡组（占满宽度 − 右侧竖条）── */
+  #section-card-pool.builder-mode .db-col-mid {
+    position: absolute !important;
+    left: 4px !important; right: calc(var(--mk-railw, 25px) + 4px) !important;
+    top: 4px !important; bottom: 4px !important;
+    min-width: 0 !important; max-width: none !important;
+    width: auto !important;
+  }
+  #section-card-pool.builder-mode .deck-builder-panel {
+    height: 100% !important; padding: 6px !important;
+    display: flex !important; flex-direction: column !important;
+  }
+  /* 顶部一行：我的卡组 + 分数（按钮区两行） */
+  #section-card-pool.builder-mode .db-header {
+    margin-bottom: 6px !important; gap: 5px !important;
+  }
+  #section-card-pool.builder-mode .db-title { font-size: 13px !important; }
+  #section-card-pool.builder-mode .db-actions {
+    display: flex !important; flex-wrap: wrap !important; gap: 4px !important;
+    width: 100% !important;
+  }
+  #section-card-pool.builder-mode .db-btn {
+    flex: 1 1 30% !important; padding: 6px 4px !important; font-size: 11px !important;
+    white-space: nowrap !important;
+  }
+  #section-card-pool.builder-mode .db-score { font-size: 11px !important; flex: 1 1 100% !important; }
+
+  /* 三段：10 列、固定大小、不滚动 */
+  #section-card-pool.builder-mode .db-section { flex: 0 0 auto !important; }
+  #section-card-pool.builder-mode .db-section-title { font-size: 11px !important; margin: 2px 0 !important; }
+  #section-card-pool.builder-mode .db-cards {
+    display: grid !important;
+    grid-template-columns: repeat(var(--mk-perrow, 10), var(--mk-cardw, 34px)) !important;
+    grid-auto-rows: var(--mk-cardh, 50px) !important;
+    justify-content: center !important;
+    gap: var(--mk-gap, 2px) !important;
+    padding: 2px !important;
+    overflow: hidden !important;        /* 不滚动，固定看全 */
+    max-height: none !important;
+    background: rgba(0,0,0,.28) !important;
+  }
+  #section-card-pool.builder-mode .db-card-slot {
+    width: var(--mk-cardw, 34px) !important;
+    height: var(--mk-cardh, 50px) !important;
+    aspect-ratio: auto !important;
+  }
+  #section-card-pool.builder-mode .db-card-slot .db-slot-score { font-size: 8px !important; padding: 0 2px !important; }
+  #section-card-pool.builder-mode .db-card-slot .db-remove { width: 14px !important; height: 14px !important; font-size: 11px !important; line-height: 12px !important; }
+  /* 段间隔（参数 gap1/gap2/gap3，用户设的 0 → 不留空） */
+  #section-card-pool.builder-mode #dbExtra { margin-top: calc(var(--mk-cardh, 50px) * var(--mk-gap1, 0)) !important; }
+  #section-card-pool.builder-mode #dbSide { margin-top: calc(var(--mk-cardh, 50px) * var(--mk-gap2, 0)) !important; }
+  #section-card-pool.builder-mode .deck-builder-panel { padding-bottom: calc(var(--mk-closeh, 34px) + 10px) !important; }
+
+  /* ── 右侧搜卡抽屉（85%）── */
+  #section-card-pool.builder-mode .db-col-right {
+    position: fixed !important;
+    top: 0 !important; right: 0 !important; bottom: 0 !important;
+    width: var(--mk-drawerw, 85%) !important;
+    min-width: 0 !important; max-width: none !important;
+    transform: translateX(102%) !important;
+    transition: transform .25s ease !important;
+    z-index: 9100 !important;
+    background: rgba(10,8,14,.99) !important;
+    border-left: 1px solid rgba(212,175,55,.55) !important;
+    border-radius: 10px 0 0 10px !important;
+    box-shadow: -12px 0 30px rgba(0,0,0,.65) !important;
+    padding: 6px !important;
+    display: flex !important; flex-direction: column !important;
+  }
+  #section-card-pool.builder-mode.db-search-open .db-col-right { transform: translateX(0) !important; }
+  #section-card-pool.builder-mode .db-search-panel { height: 100% !important; display: flex !important; flex-direction: column !important; padding: 4px !important; }
+  #section-card-pool.builder-mode .db-grid-wrap { flex: 1 1 auto !important; min-height: 0 !important; max-height: none !important; }
+  #section-card-pool.builder-mode .db-grid { grid-template-columns: repeat(5, 1fr) !important; }
+
+  /* ── 右侧通高「搜卡」竖条 ── */
+  #dbRail {
+    position: fixed; right: 0; top: 0; bottom: 0;
+    width: var(--mk-railw, 25px);
+    display: flex; align-items: center; justify-content: center;
+    writing-mode: vertical-rl; letter-spacing: 3px;
+    font-size: 12px; font-weight: 800; color: #fff;
+    background: linear-gradient(180deg, #d81e44, #7d1230);
+    border-left: 1px solid rgba(255,255,255,.25);
+    border-radius: 8px 0 0 8px;
+    z-index: 9200; cursor: pointer;
+    transition: right .25s ease;
+    -webkit-user-select: none; user-select: none;
+  }
+  #section-card-pool.builder-mode.db-search-open #dbRail { right: var(--mk-drawerw, 85%); }
+
+  /* ── 底部「关闭组卡模式」── */
+  #dbCloseBuilder {
+    position: fixed; left: 4px; bottom: 4px;
+    width: calc(100% - var(--mk-railw, 25px) - 8px);
+    height: var(--mk-closeh, 34px);
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(180deg, #3a1020, #200a14);
+    border: 1px solid rgba(216,30,68,.65); border-radius: 8px;
+    color: #ffd7e0; font-size: 12.5px; font-weight: 800; letter-spacing: 1px;
+    z-index: 9100; cursor: pointer;
+  }
+
+  /* ── 卡片详情浮层（原来在左栏，手机改成浮层）── */
+  #section-card-pool.builder-mode .db-col-left {
+    display: none !important;
+  }
+  #section-card-pool.builder-mode.db-detail-open .db-col-left {
+    display: flex !important;
+    position: fixed !important;
+    left: 4% !important; right: 4% !important;
+    top: 12% !important; bottom: 12% !important;
+    z-index: 9300 !important;
+    background: rgba(10,8,14,.99) !important;
+    border: 1px solid rgba(212,175,55,.6) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 18px 48px rgba(0,0,0,.8) !important;
+    padding: 8px !important;
+    overflow: hidden !important;
+  }
+  #section-card-pool.builder-mode.db-detail-open .db-col-left .db-detail-panel { height: 100% !important; }
+  #dbDetailClose {
+    position: absolute; right: 8px; top: 8px;
+    width: 28px; height: 28px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.3); background: rgba(0,0,0,.55);
+    color: #fff; font-size: 14px; line-height: 1; z-index: 5;
+  }
+  /* 浮层遮罩：点空白关闭 */
+  #dbDetailMask {
+    position: fixed; inset: 0; z-index: 9250;
+    background: rgba(0,0,0,.6);
+  }
+}

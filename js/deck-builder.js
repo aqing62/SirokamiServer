@@ -1575,12 +1575,27 @@
 
     function setBuilderActive(on) {
         builderActive = on;
+        var sec = document.getElementById('section-card-pool');
+        if (isMobileUI()) ensureMobileNodes();
         if (toggleBtn) toggleBtn.classList.toggle('active', on);
         var section = document.getElementById('section-card-pool');
         if (section) section.classList.toggle('builder-mode', on);
         // 组卡模式隐藏右下角个人中心，避免遮挡筛选面板
         document.body.classList.toggle('db-builder-active', on);
         layout.style.display = on ? 'flex' : 'none';
+        if (isMobileUI()) {
+            ensureMobileNodes();
+            if (railEl) railEl.style.display = on ? 'flex' : 'none';
+            if (closeEl) closeEl.style.display = on ? 'flex' : 'none';
+            if (!on) {
+                if (railEl) railEl.style.display = 'none';
+                if (closeEl) closeEl.style.display = 'none';
+                sec.classList.remove('db-search-open');
+                closeDetailSheet();
+            } else {
+                layoutMobile();
+            }
+        }
         if (on) {
             document.body.style.overflow = 'hidden';
             // 组卡模式固定搜 DIY 总卡池：清空搜索词与筛选，重置为全部卡
@@ -1597,7 +1612,8 @@
             // 开启时预加载分数（lflist $genesys 为准）+ DIY 全量数据
             Promise.all([loadScores(), loadGeneScores()]).then(function () {
                 renderAll();
-                loadDiyData().then(function () { doSearch(); });
+                if (isMobileUI()) layoutMobile();
+                loadDiyData().then(function () { doSearch(); if (isMobileUI()) layoutMobile(); });
             });
             gridTipEl.textContent = '加载 DIY 卡池中...';
             gridEl.innerHTML = '<div class="db-grid-empty">加载中...</div>';
@@ -1631,16 +1647,113 @@
         });
     }
 
+    /* ══════════════════════════════════════════════════════════════
+       手机端组卡器布局（参数来自用户在 ui-editor 调好的 MOBILE_KIT）
+         · 10 张一行、主 6 行 / 额外 2 行 / 副 2 行、段间隔 0
+         · 右侧 25px 通高「搜卡」竖条 + 85% 滑出抽屉
+         · 底部「关闭组卡模式」；卡片详情改成浮层
+       ⚠ 全部尺寸用 CSS 变量写到 #section-card-pool 上，样式在 css/card-pool-info.css
+       ══════════════════════════════════════════════════════════════ */
+    var MOBILE_KIT = {
+        perRow: 10,
+        rowsMain: 6, rowsExtra: 2, rowsSide: 2,
+        gap1: 0, gap2: 0, gap3: 0,
+        railW: 25, closeH: 34, drawerW: 85,
+        padX: 3, padTop: 3, gapPx: 2,
+        fitMode: 'width'
+    };
+    var isMobileUI = function () { return window.innerWidth <= 768; };
+    var railEl = null, closeEl = null, detailCloseEl = null, detailMaskEl = null;
+
+    function ensureMobileNodes() {
+        if (railEl) return;
+        railEl = document.createElement('div');
+        railEl.id = 'dbRail';
+        railEl.textContent = '搜卡';
+        document.body.appendChild(railEl);
+        railEl.addEventListener('click', function () {
+            var sec = document.getElementById('section-card-pool');
+            if (sec) sec.classList.toggle('db-search-open');
+        });
+
+        closeEl = document.createElement('div');
+        closeEl.id = 'dbCloseBuilder';
+        closeEl.textContent = '✕ 关闭组卡模式';
+        document.body.appendChild(closeEl);
+        closeEl.addEventListener('click', function () { setBuilderActive(false); });
+
+        detailMaskEl = document.createElement('div');
+        detailMaskEl.id = 'dbDetailMask';
+        detailMaskEl.style.display = 'none';
+        document.body.appendChild(detailMaskEl);
+        detailMaskEl.addEventListener('click', function () { closeDetailSheet(); });
+
+        detailCloseEl = document.createElement('button');
+        detailCloseEl.id = 'dbDetailClose';
+        detailCloseEl.textContent = '✕';
+        detailCloseEl.addEventListener('click', function () { closeDetailSheet(); });
+    }
+
+    function closeDetailSheet() {
+        var sec = document.getElementById('section-card-pool');
+        if (sec) sec.classList.remove('db-detail-open');
+        if (detailMaskEl) detailMaskEl.style.display = 'none';
+    }
+    function openDetailSheet() {
+        var sec = document.getElementById('section-card-pool');
+        if (!sec || !isMobileUI()) return;
+        ensureMobileNodes();
+        sec.classList.add('db-detail-open');
+        if (detailMaskEl) detailMaskEl.style.display = 'block';
+        var left = sec.querySelector('.db-col-left');
+        if (left && detailCloseEl && detailCloseEl.parentNode !== left) left.appendChild(detailCloseEl);
+    }
+
+    /** 按参数算卡尺寸并写到 CSS 变量（放不下时自动缩卡，保证不滚动也能看全） */
+    function layoutMobile() {
+        var sec = document.getElementById('section-card-pool');
+        if (!sec || !isMobileUI()) return;
+        ensureMobileNodes();
+
+        var stH = window.innerHeight, stW = window.innerWidth;
+        var headEl = sec.querySelector('.db-col-mid .db-header');
+        var headH = headEl ? headEl.offsetHeight : 46;
+        var avail = stH - 8 - headH - MOBILE_KIT.closeH - 8;
+        var deckW = stW - 8 - MOBILE_KIT.railW;
+        var innerW = deckW - 12 - MOBILE_KIT.padX * 2 - MOBILE_KIT.gapPx * (MOBILE_KIT.perRow - 1);
+
+        var cardW = innerW / MOBILE_KIT.perRow;
+        var cardH = cardW * 86 / 59;
+
+        var rows = MOBILE_KIT.rowsMain + MOBILE_KIT.rowsExtra + MOBILE_KIT.rowsSide
+                 + MOBILE_KIT.gap1 + MOBILE_KIT.gap2 + MOBILE_KIT.gap3;
+        var titlesH = 3 * 18;                       // 三个段标题
+        var need = rows * (cardH + MOBILE_KIT.gapPx) + titlesH;
+        if (MOBILE_KIT.fitMode === 'height' || need > avail) {
+            var step = (avail - titlesH) / Math.max(1, rows);
+            var h2 = Math.max(10, step - MOBILE_KIT.gapPx);
+            if (h2 < cardH) { cardH = h2; cardW = cardH * 59 / 86; }
+        }
+
+        sec.style.setProperty('--mk-perrow', String(MOBILE_KIT.perRow));
+        sec.style.setProperty('--mk-cardw', cardW.toFixed(2) + 'px');
+        sec.style.setProperty('--mk-cardh', cardH.toFixed(2) + 'px');
+        sec.style.setProperty('--mk-gap', MOBILE_KIT.gapPx + 'px');
+        sec.style.setProperty('--mk-gap1', String(MOBILE_KIT.gap1));
+        sec.style.setProperty('--mk-gap2', String(MOBILE_KIT.gap2));
+        sec.style.setProperty('--mk-railw', MOBILE_KIT.railW + 'px');
+        sec.style.setProperty('--mk-closeh', MOBILE_KIT.closeH + 'px');
+        sec.style.setProperty('--mk-drawerw', MOBILE_KIT.drawerW + '%');
+    }
+
+    window.addEventListener('resize', function () { if (builderActive) layoutMobile(); });
+    window.addEventListener('orientationchange', function () { setTimeout(function () { if (builderActive) layoutMobile(); }, 200); });
+
     // ── 初始化 ──
     function init() {
         if (!toggleBtn || !layout) return;
 
         toggleBtn.addEventListener('click', function () {
-            // 移动端不使用组卡模式
-            if (window.innerWidth <= 768) {
-                toast('组卡模式请在电脑端使用');
-                return;
-            }
             setBuilderActive(!builderActive);
         });
 
@@ -1715,6 +1828,17 @@
             if (!all) { toast('卡组已是空的'); return; }
             if (confirm('确认清空当前卡组？')) clearAll();
         });
+
+        // 手机端：详情面板内容一有变化就当作"要看详情" → 弹出浮层
+        var detailBody = $('dbDetailBody');
+        if (detailBody && window.MutationObserver) {
+            new MutationObserver(function () {
+                if (!builderActive || !isMobileUI()) return;
+                var hasContent = detailBody.querySelector('img, .db-detail-name, .db-detail-body > *');
+                var emptyOnly = detailBody.querySelector('.db-detail-empty') && !detailBody.querySelector('img');
+                if (hasContent && !emptyOnly) openDetailSheet();
+            }).observe(detailBody, { childList: true, subtree: true });
+        }
 
         // 卡组区：点卡牌 → 查看详情；点右上角 × → 移除
         ['main', 'extra', 'side'].forEach(function (k) {
