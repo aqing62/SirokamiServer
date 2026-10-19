@@ -1735,6 +1735,15 @@
             if (h2 < cardH) { cardH = h2; cardW = cardH * 59 / 86; }
         }
 
+        var root = document.documentElement;   // #dbRail / #dbCloseBuilder 挂在 body 上，变量要写到 :root 才继承得到
+        root.style.setProperty('--mk-perrow', String(MOBILE_KIT.perRow));
+        root.style.setProperty('--mk-cardw', cardW.toFixed(2) + 'px');
+        root.style.setProperty('--mk-cardh', cardH.toFixed(2) + 'px');
+        root.style.setProperty('--mk-gap', MOBILE_KIT.gapPx + 'px');
+        root.style.setProperty('--mk-railw', MOBILE_KIT.railW + 'px');
+        root.style.setProperty('--mk-closeh', MOBILE_KIT.closeH + 'px');
+        root.style.setProperty('--mk-drawerw', MOBILE_KIT.drawerW + '%');
+
         sec.style.setProperty('--mk-perrow', String(MOBILE_KIT.perRow));
         sec.style.setProperty('--mk-cardw', cardW.toFixed(2) + 'px');
         sec.style.setProperty('--mk-cardh', cardH.toFixed(2) + 'px');
