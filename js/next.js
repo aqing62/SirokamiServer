@@ -89,7 +89,7 @@
                 '组好后可 <b>下载 YDK</b>，直接放进客户端的 deck 目录'
             ],
             cta: [
-                { icon: 'build', label: '开始组卡', screen: 'builder', isMobileBuilderJump: true },
+                { icon: 'build', label: '开始组卡', screen: 'builder' },
                 { icon: 'box', label: '看预组', screen: 'preset' }
             ]
         },
@@ -3721,12 +3721,7 @@
                 playSfx(c.back ? 'back' : 'click');
                 if (c.back) { setTimeout(goBack, 140); return; }
                 // 新屏优先：不再把人送进旧页面
-                if (c.screen) {
-            // 手机端组卡模式：新版页面里那套三栏布局没适配，直接跳经典版（已按手机重排）
-            if (c.isMobileBuilderJump && window.innerWidth <= 768) { jumpClassic('deck'); return; }
-            setTimeout(function () { goScreen(c.screen); }, 140);
-            return;
-        }
+                if (c.screen) { setTimeout(function () { goScreen(c.screen); }, 140); return; }
                 if (c.goto) {
                     b.querySelector('span:last-child').textContent = '跳转中…';
                     setTimeout(function () { location.href = CTA_GOTO(c.goto); }, 260);

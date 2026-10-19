@@ -1577,10 +1577,10 @@
 
     function setBuilderActive(on) {
         builderActive = on;
-        var sec = document.getElementById('section-card-pool');
+        var sec = builderRoot();
         if (isMobileUI()) ensureMobileNodes();
         if (toggleBtn) toggleBtn.classList.toggle('active', on);
-        var section = document.getElementById('section-card-pool');
+        var section = builderRoot();
         if (section) section.classList.toggle('builder-mode', on);
         // 组卡模式隐藏右下角个人中心，避免遮挡筛选面板
         document.body.classList.toggle('db-builder-active', on);
@@ -1666,21 +1666,25 @@
         fitMode: 'width'
     };
     var isMobileUI = function () { return window.innerWidth <= 768; };
+    /** 组卡容器：经典版是 #section-card-pool；新版 next.html 把同一个组卡器搬进 #nxBuilderHost */
+    function builderRoot() {
+        return document.getElementById('section-card-pool') || document.getElementById('nxBuilderHost');
+    }
     var railEl = null, closeEl = null, detailCloseEl = null, detailMaskEl = null;
 
     function ensureMobileNodes() {
         if (railEl) return;
         // ⚠ 只有经典版卡池页才有 #section-card-pool；next.html 里内嵌的老组卡器没有这个容器，
         //   如果在那边创建竖条/关闭按钮，会凭空多出一条浮条 ✗
-        if (!document.getElementById('section-card-pool')) return;
+        if (!builderRoot()) return;
         // ⚠ 挂到 section 内部：组卡容器现在 z-index:9400，body 级元素(9200)会被它盖住 → 竖条看不见 ✗
-        var hostSec = document.getElementById('section-card-pool') || document.body;
+        var hostSec = builderRoot() || document.body;
         railEl = document.createElement('div');
         railEl.id = 'dbRail';
         railEl.textContent = '搜卡';
         hostSec.appendChild(railEl);
         railEl.addEventListener('click', function () {
-            var sec = document.getElementById('section-card-pool');
+            var sec = builderRoot();
             var on = !(sec && sec.classList.contains('db-search-open'));
             if (sec) sec.classList.toggle('db-search-open', on);
             document.body.classList.toggle('db-search-open', on);   // 竖条在 body 上，需要 body 级类名
@@ -1697,7 +1701,7 @@
         detailMaskEl.style.display = 'none';
         // ⚠ 挂到 section 内部：遮罩要和详情面板在同一个 stacking context 里比较层级，
         //   否则 body 级遮罩会盖到整个 section（含详情面板）上面 → 详情也被压暗 ✗
-        (document.getElementById('section-card-pool') || document.body).appendChild(detailMaskEl);
+        (builderRoot() || document.body).appendChild(detailMaskEl);
         detailMaskEl.addEventListener('click', function () { closeDetailSheet(); });
 
         detailCloseEl = document.createElement('button');
@@ -1707,12 +1711,12 @@
     }
 
     function closeDetailSheet() {
-        var sec = document.getElementById('section-card-pool');
+        var sec = builderRoot();
         if (sec) sec.classList.remove('db-detail-open');
         if (detailMaskEl) detailMaskEl.style.display = 'none';
     }
     function openDetailSheet() {
-        var sec = document.getElementById('section-card-pool');
+        var sec = builderRoot();
         if (!sec || !isMobileUI()) return;
         ensureMobileNodes();
         sec.classList.add('db-detail-open');
@@ -1723,7 +1727,7 @@
 
     /** 按参数算卡尺寸并写到 CSS 变量（放不下时自动缩卡，保证不滚动也能看全） */
     function layoutMobile() {
-        var sec = document.getElementById('section-card-pool');
+        var sec = builderRoot();
         if (!sec || !isMobileUI()) return;
         ensureMobileNodes();
 
