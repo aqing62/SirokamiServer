@@ -75,7 +75,7 @@
             options: [
                 { icon: 'layers', label: '卡池', sub: '查卡 / 分值', next: 'r_pool' },
                 { icon: 'list', label: '卡表', sub: '禁限 / 规则', next: 'r_banlist' },
-                { icon: 'build', label: '组卡', sub: '自己搭一套', next: 'r_builder', mobileHide: true },
+                { icon: 'build', label: '组卡', sub: '自己搭一套', next: 'r_builder' },
                 { icon: 'box', label: '预组', sub: '现成卡组', next: 'r_preset' },
                 { icon: 'star', label: '常用卡', sub: '高分 / 泛用', next: 'r_popular' }
             ]
@@ -3721,7 +3721,12 @@
                 playSfx(c.back ? 'back' : 'click');
                 if (c.back) { setTimeout(goBack, 140); return; }
                 // 新屏优先：不再把人送进旧页面
-                if (c.screen) { setTimeout(function () { goScreen(c.screen); }, 140); return; }
+                if (c.screen) {
+            // 手机端组卡模式：新版页面里那套三栏布局没适配，直接跳经典版（已按手机重排）
+            if (c.isMobileBuilderJump && window.innerWidth <= 768) { jumpClassic('deck'); return; }
+            setTimeout(function () { goScreen(c.screen); }, 140);
+            return;
+        }
                 if (c.goto) {
                     b.querySelector('span:last-child').textContent = '跳转中…';
                     setTimeout(function () { location.href = CTA_GOTO(c.goto); }, 260);
