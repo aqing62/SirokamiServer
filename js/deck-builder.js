@@ -1591,6 +1591,7 @@
                 if (railEl) railEl.style.display = 'none';
                 if (closeEl) closeEl.style.display = 'none';
                 sec.classList.remove('db-search-open');
+                document.body.classList.remove('db-search-open');
                 closeDetailSheet();
             } else {
                 layoutMobile();
@@ -1673,7 +1674,9 @@
         document.body.appendChild(railEl);
         railEl.addEventListener('click', function () {
             var sec = document.getElementById('section-card-pool');
-            if (sec) sec.classList.toggle('db-search-open');
+            var on = !(sec && sec.classList.contains('db-search-open'));
+            if (sec) sec.classList.toggle('db-search-open', on);
+            document.body.classList.toggle('db-search-open', on);   // 竖条在 body 上，需要 body 级类名
         });
 
         closeEl = document.createElement('div');

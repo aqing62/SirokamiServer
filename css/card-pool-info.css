@@ -1434,7 +1434,8 @@ body.db-builder-active .global-login { display: none !important; }
     transition: right .25s ease;
     -webkit-user-select: none; user-select: none;
   }
-  #section-card-pool.builder-mode.db-search-open #dbRail { right: var(--mk-drawerw, 85%); }
+  /* 竖条挂在 body 上（不在 section 里），所以用 body 级类名 */
+  body.db-search-open #dbRail { right: var(--mk-drawerw, 85%); }
 
   /* ── 底部「关闭组卡模式」── */
   #dbCloseBuilder {
