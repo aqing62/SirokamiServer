@@ -1356,7 +1356,42 @@ body.db-builder-active .global-login { display: none !important; }
     overflow: visible !important;
     padding-bottom: 2px !important;
   }
-  .builder-mode.db-detail-open .db-detail-card { margin-bottom: 4px !important; }
+  /* 左图 + 右信息：卡图挪到左边，右边竖排 卡名/分值/类型/攻守 —— 给效果文本腾出大量高度 */
+  .builder-mode.db-detail-open .db-detail-head {
+    display: grid !important;
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    grid-template-areas:
+      "img name"
+      "img score"
+      "img type"
+      "img rows" !important;
+    column-gap: 9px !important;
+    align-items: start !important;
+    padding-bottom: 4px !important;
+  }
+  .builder-mode.db-detail-open .db-detail-card { grid-area: img !important; margin: 0 !important; justify-content: flex-start !important; }
+  .builder-mode.db-detail-open .db-detail-name { grid-area: name !important; text-align: left !important; }
+  .builder-mode.db-detail-open .db-detail-score { grid-area: score !important; text-align: left !important; }
+  .builder-mode.db-detail-open .db-detail-type { grid-area: type !important; text-align: left !important; }
+  .builder-mode.db-detail-open .db-detail-rows { grid-area: rows !important; justify-content: flex-start !important; gap: 10px !important; }
+
+  /* 操作区四宫格：第 1 行 相关卡片 | 从卡组移除，第 2 行 加入主卡 | 加入副卡 */
+  .builder-mode.db-detail-open .db-detail-actions {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+  }
+  .builder-mode.db-detail-open .db-detail-related { width: 100% !important; }
+  .builder-mode.db-detail-open .db-detail-addrow {
+    grid-column: 1 / -1 !important;
+    display: flex !important;
+    gap: 6px !important;
+  }
+  /* 没有删卡按钮时（看搜索结果），相关卡片占满整行 */
+  .builder-mode.db-detail-open .db-detail-actions:not(:has(#dbDetailRemove)) .db-detail-related {
+    grid-column: 1 / -1 !important;
+  }
+
   .builder-mode.db-detail-open .db-detail-img {
     width: auto !important;
     height: 112px !important;

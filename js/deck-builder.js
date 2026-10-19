@@ -1791,7 +1791,10 @@
             detailFromZone = null;
             closeDetailSheet();
         });
-        acts.insertBefore(b, acts.firstChild);
+        // 放在「相关卡片」右边 → 和「加入主卡 / 加入副卡」拼成四宫格
+        var rel = acts.querySelector('.db-detail-related');
+        if (rel && rel.insertAdjacentElement) rel.insertAdjacentElement('afterend', b);
+        else acts.insertBefore(b, acts.firstChild);
     }
 
     function openDetailSheet() {
