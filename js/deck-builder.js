@@ -1737,10 +1737,25 @@
         POOL_CHROME_SEL.forEach(function (sel) { var el = document.querySelector(sel); if (el) out.push(el); });
         return out;
     }
+    var _chromeObs = [];
     function hidePoolChrome(on) {
+        // 先断开旧观察器
+        _chromeObs.forEach(function (o) { try { o.disconnect(); } catch (e) {} });
+        _chromeObs = [];
         poolChromeEls().forEach(function (el) {
-            if (on) el.style.setProperty('display', 'none', 'important');
-            else el.style.removeProperty('display');
+            if (!on) { el.style.removeProperty('display'); return; }
+            el.style.setProperty('display', 'none', 'important');
+            // ⚠ 页面 JS 后面还会用 el.style.display='flex' 之类的写法（会连 important 一起覆盖掉）
+            //   → 盯住 style 属性，一被改写就重新压回 none
+            if (window.MutationObserver) {
+                var mo = new MutationObserver(function () {
+                    if (el.style.getPropertyValue('display') !== 'none' || el.style.getPropertyPriority('display') !== 'important') {
+                        el.style.setProperty('display', 'none', 'important');
+                    }
+                });
+                mo.observe(el, { attributes: true, attributeFilter: ['style'] });
+                _chromeObs.push(mo);
+            }
         });
     }
 
