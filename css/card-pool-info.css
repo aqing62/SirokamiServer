@@ -1422,7 +1422,8 @@ body.db-builder-active .global-login { display: none !important; }
     min-width: 0 !important; max-width: none !important;
     transform: translateX(102%) !important;
     transition: transform .25s ease !important;
-    z-index: 9100 !important;
+    /* ⚠ section 内部自己的层级：抽屉(1) < 遮罩(2) < 详情面板(3) */
+    z-index: 1 !important;
     background: rgba(10,8,14,.99) !important;
     border-left: 1px solid rgba(212,175,55,.55) !important;
     border-radius: 10px 0 0 10px !important;
