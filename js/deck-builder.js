@@ -1600,6 +1600,7 @@
                 host._nxHome = null;
             }
         })();
+        hidePoolChrome(on);          // 手机端进组卡：把卡池页的分页/统计/网格/筛选栏都藏掉
         if (isMobileUI()) {
             ensureMobileNodes();
             if (railEl) railEl.style.display = on ? 'flex' : 'none';
@@ -1723,6 +1724,24 @@
         detailCloseEl.id = 'dbDetailClose';
         detailCloseEl.textContent = '✕';
         detailCloseEl.addEventListener('click', function () { closeDetailSheet(); });
+    }
+
+    /** 进组卡模式时把「卡池页」的其余部件藏掉（分页/统计/卡片网格/筛选栏/来源栏…）
+     *  ⚠ 为什么不用 CSS：#pagination 等由页面 JS 直接写 inline display（renderPagination 会设 flex），
+     *     而且旧样式里有 id 级 !important，类选择器压不住 → 这里统一用 inline !important 强制隐藏 */
+    var POOL_CHROME_IDS = ['pagination', 'stats', 'cardContainer', 'newCardsTrigger', 'mobilePoolFilterBtn'];
+    var POOL_CHROME_SEL = ['.search-filter-container', '.pool-topbar', '.title'];
+    function poolChromeEls() {
+        var out = [];
+        POOL_CHROME_IDS.forEach(function (id) { var el = document.getElementById(id); if (el) out.push(el); });
+        POOL_CHROME_SEL.forEach(function (sel) { var el = document.querySelector(sel); if (el) out.push(el); });
+        return out;
+    }
+    function hidePoolChrome(on) {
+        poolChromeEls().forEach(function (el) {
+            if (on) el.style.setProperty('display', 'none', 'important');
+            else el.style.removeProperty('display');
+        });
     }
 
     function closeDetailSheet() {
