@@ -1341,6 +1341,15 @@ body.db-builder-active .global-login { display: none !important; }
   .builder-mode .new-cards-trigger,
   .builder-mode .mobile-pool-filter-btn { display: none !important; }
 
+  /* ⚠ next.html 的 #nxScreen 带 transform + filter（切屏动画残留）→ 会给 fixed 子元素造包含块，
+     导致组卡容器虽然 fixed 但被限制在那个小盒子里（实测 370x844 却从 y=362 开始）✗
+     deck-builder 打开组卡时会给 body 加 .db-builder-active，用它把这两条属性关掉 ✓ */
+  body.db-builder-active #nxScreen {
+    transform: none !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+  }
+
   /* ⚠ next.html 里组卡器容器是 #nxBuilderHost，next.css 里有 id 级样式会压过类选择器
      → 这里用 id + class 再声明一遍根容器，保证两个页面都是「整屏固定」*/
   #nxBuilderHost.builder-mode,
