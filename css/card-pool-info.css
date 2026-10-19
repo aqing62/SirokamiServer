@@ -1326,7 +1326,8 @@ body.db-builder-active .global-login { display: none !important; }
     padding: 4px !important;
     overflow: hidden !important;
     display: block !important;
-    z-index: 9000;
+    /* ⚠ 必须比 #dbRail(9200)/#dbCloseBuilder(9100) 高，否则详情浮层会被竖条压住 */
+    z-index: 9400;
     background: #0b0a0f;
   }
   /* 组卡模式里其它页面块都别显示 */
@@ -1472,7 +1473,7 @@ body.db-builder-active .global-login { display: none !important; }
     position: fixed !important;
     left: 4% !important; right: 4% !important;
     top: 12% !important; bottom: 12% !important;
-    z-index: 9300 !important;
+    z-index: 3 !important;   /* 同层内压过 #dbDetailMask(z=2) */
     background: rgba(10,8,14,.99) !important;
     border: 1px solid rgba(212,175,55,.6) !important;
     border-radius: 12px !important;
@@ -1487,9 +1488,10 @@ body.db-builder-active .global-login { display: none !important; }
     border: 1px solid rgba(255,255,255,.3); background: rgba(0,0,0,.55);
     color: #fff; font-size: 14px; line-height: 1; z-index: 5;
   }
-  /* 浮层遮罩：点空白关闭 */
+  /* 浮层遮罩：放在 section 内部，层级低于详情面板 → 只压暗卡组/竖条，不会压暗详情 */
   #dbDetailMask {
-    position: fixed; inset: 0; z-index: 9250;
+    position: fixed; inset: 0;
+    z-index: 2;
     background: rgba(0,0,0,.6);
   }
 }

@@ -1690,7 +1690,9 @@
         detailMaskEl = document.createElement('div');
         detailMaskEl.id = 'dbDetailMask';
         detailMaskEl.style.display = 'none';
-        document.body.appendChild(detailMaskEl);
+        // ⚠ 挂到 section 内部：遮罩要和详情面板在同一个 stacking context 里比较层级，
+        //   否则 body 级遮罩会盖到整个 section（含详情面板）上面 → 详情也被压暗 ✗
+        (document.getElementById('section-card-pool') || document.body).appendChild(detailMaskEl);
         detailMaskEl.addEventListener('click', function () { closeDetailSheet(); });
 
         detailCloseEl = document.createElement('button');
