@@ -1371,9 +1371,20 @@ body.db-builder-active .global-login { display: none !important; }
     flex: 0 0 auto !important; padding: 6px 4px !important; font-size: 11px !important;
     white-space: nowrap !important;
   }
-  /* 按钮固定排两行：前 4 个各 25%，后 5 个各 20%（用户要求分两行，避免小到按不到） */
-  #section-card-pool.builder-mode .db-actions .db-btn:nth-of-type(-n+4) { flex: 0 0 calc(25% - 5px) !important; }
-  #section-card-pool.builder-mode .db-actions .db-btn:nth-of-type(n+5) { flex: 0 0 calc(20% - 4px) !important; }
+  /* 按钮固定排两行（用 20 列 grid 精确控制：前 4 个各占 5 列=25%，后 5 个各占 4 列=20%） */
+  #section-card-pool.builder-mode .db-actions {
+    display: grid !important;
+    grid-template-columns: repeat(20, 1fr) !important;
+    gap: 4px !important;
+    width: 100% !important;
+  }
+  #section-card-pool.builder-mode .db-actions .db-score { grid-column: 1 / -1 !important; }
+  #section-card-pool.builder-mode .db-actions .db-btn:nth-of-type(-n+4) { grid-column: span 5 !important; flex: none !important; }
+  #section-card-pool.builder-mode .db-actions .db-btn:nth-of-type(n+5) { grid-column: span 4 !important; flex: none !important; }
+  #section-card-pool.builder-mode .db-actions .db-btn {
+    overflow: hidden !important; text-overflow: ellipsis !important;
+    font-size: 10.5px !important; padding: 6px 2px !important;
+  }
   #section-card-pool.builder-mode .db-score { font-size: 11px !important; flex: 1 1 100% !important; }
 
   /* 三段：10 列、固定大小、不滚动 */
