@@ -2850,6 +2850,13 @@
             if (el) el.media = on ? 'all' : 'not all';
         });
     }
+    // 供老组卡器（deck-builder.js）调用：点「关闭组卡模式」时回到进入组卡之前那一页
+    window.__nxBuilderExit = function () {
+        try { if (typeof window.DeckBuilder && window.DeckBuilder.disable) window.DeckBuilder.disable(); } catch (e) {}
+        try { nxBuilderDetach(); } catch (e) {}
+        if (historyStack.length > 1) goBack();
+        else { try { history.back(); } catch (e) {} }
+    };
     function nxBuilderDetach() {
         var host = document.getElementById('nxBuilderHost');
         var ph = document.getElementById('nxBuilderHome');

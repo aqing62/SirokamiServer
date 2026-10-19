@@ -1589,6 +1589,7 @@
         // 手机端：next.html 把组卡器放在 #nxScreenBody 里，会受切屏容器（滚动/变换）影响，
         // 整屏固定布局会被限制在那个小盒子里 ✗ → 打开时把整块搬到 body，关闭时放回原位
         (function () {
+            if (!isMobileUI()) return;              // ⚠ 桌面端不要搬：搬到 body 会失去新版页面的定位容器 → 画面错位下移
             var host = builderRoot();
             if (!host || host.id !== 'nxBuilderHost') return;
             if (on) {
@@ -1711,7 +1712,11 @@
         closeEl.id = 'dbCloseBuilder';
         closeEl.textContent = '✕ 关闭组卡模式';
         hostSec.appendChild(closeEl);
-        closeEl.addEventListener('click', function () { setBuilderActive(false); });
+        closeEl.addEventListener('click', function () {
+            // 新版页面：交给 next.js 退出组卡屏（回到进入组卡之前那一页），而不是留一个空壳屏
+            if (typeof window.__nxBuilderExit === 'function') { window.__nxBuilderExit(); return; }
+            setBuilderActive(false);
+        });
 
         detailMaskEl = document.createElement('div');
         detailMaskEl.id = 'dbDetailMask';
