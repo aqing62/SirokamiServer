@@ -43,15 +43,34 @@
     // 卡图缓存：① 记住每张卡最终可用的图片地址（避免每次都走失败回退链）② 复用已加载的 <img> 节点
     var imgSrcCache = {};
     var imgNodePool = {};
-    // 卡图回退链：官方 OCG → 萌卡 SuperPre（**先行卡就靠这一档**）→ 白神服 DIY → 卡背
-    // ⚠ 原来只有 DIY + OCG 两档，缺了 SuperPre，导致先行卡（预发布卡）在组卡器里没图。
-    //    顺序对齐新引导 next.js 的 PIC_CHAIN（OCG → SuperPre → DIY），顺便让普通卡一次命中。
-    var IMG_FALLBACK = [
-        function (id) { return 'https://cdn.233.momobako.com/ygopro/pics/' + id + '.jpg'; },
-        function (id) { return 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + id + '.jpg'; },
-        function (id) { return 'https://api.ygopro3.cn/pics/siro/' + id + '.jpg'; },
-        function () { return 'cover.jpg'; },
-    ];
+    // PATCH(白神服): 卡图顺序 DIY → 先行 → 官方（用户要求，对齐回放器的 siro-pic-chain）
+    //   ① 白神服 DIY 卡图（自家 CDN，最快）
+    //   ② 先行卡图：萌卡 SuperPre（**先行卡就靠这一档，组卡器之前看不见先行卡图就是因为缺它/顺序不对**）
+    //   ③ 官方卡图：萌卡 OCG
+    //   ④ 卡背兜底
+    var PIC_DIY   = function (id) { return 'https://api.ygopro3.cn/pics/siro/' + id + '.jpg'; };
+    var PIC_PRE   = function (id) { return 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + id + '.jpg'; };
+    var PIC_OCG   = function (id) { return 'https://cdn.233.momobako.com/ygopro/pics/' + id + '.jpg'; };
+    var IMG_FALLBACK = [PIC_DIY, PIC_PRE, PIC_OCG, function () { return 'cover.jpg'; }];
+
+    /** 已知来源时直接从对应那一档开始（少发无用请求；来源来自 /api/cards 的 source 字段） */
+    function imgStartIdx(id) {
+        var key = String(id);
+        var c = (typeof diyIndex !== 'undefined' && diyIndex) ? diyIndex.get(parseInt(key, 10)) : null;
+        var src = c && (c.source || c._src);
+        if (src === 'diy') return 0;
+        if (src === 'pre') return 1;
+        if (src === 'ocg') return 2;
+        return 0;                                  // 未知：从 DIY 开始走完整回退链
+    }
+    function imgChainFor(id) {
+        var key = String(id);
+        if (imgSrcCache[key]) return [imgSrcCache[key]];
+        var start = imgStartIdx(key);
+        var out = [];
+        for (var i = start; i < IMG_FALLBACK.length; i++) out.push(IMG_FALLBACK[i](key));
+        return out;
+    }
     function imgSrcFor(id) {
         var k = String(id);
         return imgSrcCache[k] || IMG_FALLBACK[0](k);
@@ -71,21 +90,24 @@
         img.loading = 'lazy';
         img.draggable = false;          // 禁止原生图片拖拽（长按拖动会导致卡顿/卡死）
         img.setAttribute('data-card-id', key);
-        var chain;
-        if (imgSrcCache[key]) {
-            chain = [imgSrcCache[key]];
-        } else {
-            chain = IMG_FALLBACK.map(function (f) { return f(key); });
-        }
+        var chain = imgChainFor(key);      // 按来源选起点：DIY / 先行 / 官方
         var idx = 0;
         img.setAttribute('data-src-idx', '0');
         img.src = chain[0];
-        // PATCH(白神服): "假 200"（源站对缺失图返回 200+错误页）→ onerror 不触发 → 兜底断掉
-    //   加载成功但尺寸为 0 时也当作失败，继续下一档 ✓
-    img.onload = function () {
-        if (this.naturalWidth < 2 && id && step < IMG_FALLBACK.length) { this.src = IMG_FALLBACK[step++](id); }
-    };
-    img.onerror = function () {
+        // PATCH(白神服): "假 200"（源站对缺失图返回 200+错误页）→ onerror 不触发 → 兜底会断
+        //   所以 onload 里也检查 naturalWidth，尺寸为 0 就继续下一档 ✓
+        img.onload = function () {
+            if (this.naturalWidth < 2 && idx + 1 < chain.length) {
+                idx++;
+                img.setAttribute('data-src-idx', String(idx));
+                img.src = chain[idx];
+                return;
+            }
+            imgSrcCache[key] = chain[idx];
+            img.onerror = null;
+            img.onload = null;
+        };
+        img.onerror = function () {
             idx++;
             if (idx < chain.length) {
                 img.setAttribute('data-src-idx', String(idx));
@@ -240,7 +262,7 @@
         if (cached) {
             return '<img class="' + cls + '" src="' + cached + '" alt="' + key + '" loading="lazy" draggable="false">';
         }
-        return '<img class="' + cls + '" src="' + IMG_FALLBACK[0](key) + '" alt="' + key + '" loading="lazy" draggable="false"'
+        return '<img class="' + cls + '" src="' + imgChainFor(key)[0] + '" alt="' + key + '" loading="lazy" draggable="false"'
             + ' onload="window.__dbImgOk&&window.__dbImgOk(this)"'
             + ' onerror="window.__dbImgErr&&window.__dbImgErr(this)">';
     }
