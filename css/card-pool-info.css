@@ -1330,6 +1330,14 @@ body.db-builder-active .global-login { display: none !important; }
     z-index: 9400;
     background: #0b0a0f;
   }
+  /* 手机端（触摸）不需要 hover 放大：会一直粘住，而且 z-index:3 会飘到详情浮层上面 */
+  .builder-mode .db-card-slot:hover,
+  .builder-mode .db-card-slot:active {
+    transform: none !important;
+    z-index: auto !important;
+    border-color: rgba(255,255,255,.12) !important;
+  }
+
   /* 组卡模式里其它页面块都别显示 */
   .builder-mode .title,
   .builder-mode .deck-builder-top,
@@ -1505,7 +1513,7 @@ body.db-builder-active .global-login { display: none !important; }
     position: fixed !important;
     left: 4% !important; right: 4% !important;
     top: 12% !important; bottom: 12% !important;
-    z-index: 3 !important;   /* 同层内压过 #dbDetailMask(z=2) */
+    z-index: 50 !important;  /* ⚠ 必须远高于 .db-card-slot:hover 的 z-index:3（同层级时 DOM 靠后的卡组会赢） */
     background: rgba(10,8,14,.99) !important;
     border: 1px solid rgba(212,175,55,.6) !important;
     border-radius: 12px !important;
