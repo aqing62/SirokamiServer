@@ -1341,6 +1341,20 @@ body.db-builder-active .global-login { display: none !important; }
   .builder-mode .new-cards-trigger,
   .builder-mode .mobile-pool-filter-btn { display: none !important; }
 
+  /* ⚠ next.html 里组卡器容器是 #nxBuilderHost，next.css 里有 id 级样式会压过类选择器
+     → 这里用 id + class 再声明一遍根容器，保证两个页面都是「整屏固定」*/
+  #nxBuilderHost.builder-mode,
+  #section-card-pool.builder-mode {
+    position: fixed !important;
+    inset: 0 !important;
+    height: 100dvh !important;
+    padding: 4px !important;
+    overflow: hidden !important;
+    display: block !important;
+    z-index: 9400 !important;
+    background: #0b0a0f !important;
+  }
+
   /* ⚠ 旧规则里有 `#dbLayout { display:none !important }`（id 选择器）
      → 必须用同样带 id 的选择器才压得住，否则组卡布局在手机上永远不显示 ✗ */
   .builder-mode #dbLayout, .builder-mode #dbLayout.db-layout {
