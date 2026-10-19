@@ -409,9 +409,11 @@
         var btn = $('dbHighScore');
         if (!btn) return;
         btn.classList.toggle('db-btn-on', highScoreOn);
-        btn.textContent = highScoreOn
-            ? ('高分卡 ×' + highScoreCount() + '（点击取消）')
-            : '查询高分卡';
+        btn.textContent = isMobileUI()
+            ? (highScoreOn ? ('高分×' + highScoreCount()) : '高分卡')
+            : (highScoreOn
+                ? ('高分卡 ×' + highScoreCount() + '（点击取消）')
+                : '查询高分卡');
     }
     function refreshHighScore() {
         ['main', 'extra', 'side'].forEach(function (k) { renderZone(k); });
@@ -1746,6 +1748,16 @@
         root.style.setProperty('--mk-railw', MOBILE_KIT.railW + 'px');
         root.style.setProperty('--mk-closeh', MOBILE_KIT.closeH + 'px');
         root.style.setProperty('--mk-drawerw', MOBILE_KIT.drawerW + '%');
+
+        // 手机端按钮文案压短，保证 5 个能排进一行不被省略号吃掉
+        var shortLabels = {
+            dbSort: '排序', dbImport: '导入', dbCopy: '复制', dbDownload: '下载',
+            dbSaveCloud: '☁保存', dbLoadCloud: '☁读取', dbDelCloud: '删云档', dbClear: '清空'
+        };
+        Object.keys(shortLabels).forEach(function (id) {
+            var b = document.getElementById(id);
+            if (b && b.textContent !== shortLabels[id]) b.textContent = shortLabels[id];
+        });
 
         sec.style.setProperty('--mk-perrow', String(MOBILE_KIT.perRow));
         sec.style.setProperty('--mk-cardw', cardW.toFixed(2) + 'px');
