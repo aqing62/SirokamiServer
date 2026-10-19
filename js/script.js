@@ -378,11 +378,6 @@ document.addEventListener('DOMContentLoaded', function () {
         if (cl) cl.onclick = makeToggle('section-card-list');
     })();
     document.getElementById('cardPoolInfoBtn').onclick = makeToggle('section-card-pool');
-    // 组卡模式入口：整页跳转 + 深链自动打开组卡模式（桌面/手机同一套）
-    (function () {
-      var db = document.getElementById('deckModeBtn');
-      if (db) db.onclick = function () { location.href = 'index.html?goto=deck'; };
-    })();
     document.getElementById('playerRankingBtn').onclick = makeToggle('section-player-ranking');
     // 论坛入口（无需登录即可浏览）
     document.getElementById('communityBtn').onclick = function () {
