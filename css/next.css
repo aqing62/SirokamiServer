@@ -2392,3 +2392,6 @@ body.nx-blue { background-color: #05070f; }
   html body #rpExternalBar #rpExtInfo { display: none !important; }
   html body #rpExternalBar .rp-ext-btn { padding: 6px 9px !important; font-size: 12px !important; }
 }
+
+/* ── 比赛页隐藏奖品栏时：主区单列占满（next.js 里 SHOW_PRIZE=false 时加 .nx-no-prize）── */
+.nx-match-cols.nx-no-prize { grid-template-columns: minmax(0, 1fr); }

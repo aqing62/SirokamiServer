@@ -1900,9 +1900,9 @@
                         (statusTxt ? '<i class="nx-tour-status' + (cur.status === 'Running' ? ' is-live' : '') + '">' + esc(statusTxt) + '</i>' : '') +
                     '</div>' +
                 '</div>' +
-                '<div class="nx-match-cols">' +
+                '<div class="nx-match-cols' + (SHOW_PRIZE ? '' : ' nx-no-prize') + '">' +
                     '<div class="nx-match-main" id="nxMatchBody"></div>' +
-                    '<aside class="nx-prize-col">' + prizeHtml(cur) + '</aside>' +
+                    (SHOW_PRIZE ? '<aside class="nx-prize-col">' + prizeHtml(cur) + '</aside>' : '') +
                 '</div>';
 
             var box = document.getElementById('nxMatchBody');
@@ -2989,6 +2989,8 @@
         });
     }
 
+    // ── 比赛页「奖品」栏开关：false = 不显示（用户要求先隐藏奖品）──
+    var SHOW_PRIZE = false;
     // ── 当期八强奖品：3D 跟手倾斜 + 反光（图换季时只改这一行路径）──
     var PRIZE_IMG = 'decks/7/64500136.jpg';
     var PRIZE_NAME = '第七届群赛八强奖品卡';
