@@ -295,18 +295,42 @@ function replayHasCardForSeat(replay, cards, seat) {
   return false;
 }
 
-/** 给一局里所有「特殊胜利」的赢家发任务称号，返回新增条数 */
+/** 给一局里所有「特殊胜利」的赢家发任务称号，返回新增条数
+ *
+ *  ⚠ 不能用 Win.player 直接当座位：回放座位会随「谁保存回放」翻转，
+ *    而 duel_record_player.pos 是房间座位。以数据库 winner 为准，
+ *    再用「第一回合是谁」和 isFirst 判断回放是否翻转，换算成回放本地座位。
+ */
 async function awardSpecialWins(c, row, replay, winTypes) {
+  const specials = (winTypes || []).filter(w => SPECIAL_BY_TYPE.has(w.type));
+  if (!specials.length) return 0;
+
+  const players = (await c.query(
+    'SELECT name, "realName", pos, winner, "isFirst" FROM duel_record_player WHERE "duelRecordId"=$1',
+    [row.id])).rows;
+  if (!players.length) return 0;
+  const isTrue = v => v === true || v === 't';
+  const winner = players.find(p => isTrue(p.winner));
+  if (!winner) return 0;
+
+  const firstMsg = (replay.messages || []).find(m => m.name === 'NewTurn');
+  const firstTurn = firstMsg && firstMsg.f ? firstMsg.f.player : null;
+  const firstRow = players.find(p => isTrue(p.isFirst));
+  const firstPos = firstRow ? Number(firstRow.pos) : null;
+  const swap = firstTurn != null && firstPos != null && Number(firstTurn) !== firstPos;
+  const winnerSeat = swap ? 1 - Number(winner.pos) : Number(winner.pos);
+
+  const acct = await accountOf(c, row.id, winner.realName || winner.name);
+  if (!acct) return 0;
+
   let added = 0;
-  for (const w of (winTypes || [])) {
+  const done = new Set();
+  for (const w of specials) {
     const spec = SPECIAL_BY_TYPE.get(w.type);
-    if (!spec) continue;
-    // 0x11 会和「死三」注入码撞车，必须确认那张特殊胜利卡真的在回放里
-    if (!replayHasCardForSeat(replay, spec.cards, w.player)) continue;
-    const pname = nameOfPlayer(replay, w.player);
-    if (!pname) continue;
-    const acct = await accountOf(c, row.id, pname);
-    if (!acct) continue;
+    if (!spec || done.has(spec.title)) continue;
+    done.add(spec.title);
+    // 0x11 会和「死三」注入码撞车，必须确认那张特殊胜利卡真的在胜者手里/场上出现过
+    if (!replayHasCardForSeat(replay, spec.cards, winnerSeat)) continue;
     if (await award(c, acct, spec.title, row.id,
       'special win 0x' + w.type.toString(16) + ' (' + spec.name + ')')) added++;
   }
