@@ -1437,13 +1437,17 @@ LADDER_TITLES_TTL = 30
 
 
 def ladder_titles_map(force: bool = False) -> dict:
-    """显示名 / 账号名 → [{"title", "rarity"}]
+    """显示名 / 账号名 / 天梯榜显示名 → [{"title", "rarity"}]
 
     展示口径与**游戏内一致**：主称号 = selectedTitle（没设就退回 ladderTitle 赛季称号），
     副称号 = selectedTitle2。两个都没设就不显示（不会把成就/购买记录里没装备的称号顶上来）。
     稀有度：商店目录里的称号按目录的值；其余（成就称号、赛季段位称号…）
     都是任务称号 → 紫。玩家在个人中心保存称号/显示名时会立刻让缓存失效，
     再进排名页就能看到新称号（最坏情况也只是 30 秒的被动过期）。
+
+    ⚠ 天梯榜的名字来自 player_rating.displayName（玩家打天梯时的名字，可能改名后还是旧的），
+      和 srv_user.displayName（个人中心当前显示名）不一定一致 —— 例：炎兽Lv999 vs 烟火一刹。
+      所以这里把两个名字都作为键，避免“榜单有名字、称号对不上”。
     """
     now = time.time()
     if (not force and _LADDER_TITLES_CACHE["data"] is not None
@@ -1451,20 +1455,23 @@ def ladder_titles_map(force: bool = False) -> dict:
         return _LADDER_TITLES_CACHE["data"]
     rarity_of = {it["title"]: it["rarity"] for it in load_title_shop_catalog()}
     rows = _pg_query(
-        'select "accountName",\n'
-        '       coalesce(nullif("displayName", \'\'), "accountName"),\n'
-        '       coalesce("selectedTitle", \'\'), coalesce("selectedTitle2", \'\'),\n'
-        '       coalesce("ladderTitle", \'\')\n'
-        'from srv_user',
+        'select u."accountName",\n'
+        '       coalesce(nullif(u."displayName", \'\'), u."accountName"),\n'
+        '       coalesce(u."selectedTitle", \'\'), coalesce(u."selectedTitle2", \'\'),\n'
+        '       coalesce(u."ladderTitle", \'\'),\n'
+        '       coalesce(pr."displayName", \'\')\n'
+        'from srv_user u\n'
+        'left join player_rating pr on pr."accountName" = u."accountName"',
     )
     out = {}
     for row in rows:
-        if len(row) < 5:
+        if len(row) < 6:
             continue
         acct = (row[0] or "").strip()
         disp = (row[1] or acct).strip()
         main = (row[2] or "").strip() or (row[4] or "").strip()
         sub = (row[3] or "").strip()
+        rating_name = (row[5] or "").strip()
         names = []
         if main:
             names.append(main)
@@ -1473,10 +1480,9 @@ def ladder_titles_map(force: bool = False) -> dict:
         if not names:
             continue
         info = [{"title": t, "rarity": rarity_of.get(t, TITLE_RARITY_TASK)} for t in names]
-        if disp:
-            out[disp] = info
-        if acct and acct != disp:
-            out[acct] = info
+        for key in (disp, acct, rating_name):
+            if key:
+                out[key] = info
     _LADDER_TITLES_CACHE["t"] = now
     _LADDER_TITLES_CACHE["data"] = out
     return out
