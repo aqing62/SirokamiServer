@@ -18,7 +18,7 @@
         root: {
             q: '你今天想做什么？',
             options: [
-                { icon: 'cards', label: '决斗', sub: '进服对局', next: 'duel' },
+                { icon: 'cards', label: '决斗', sub: '进服对局', href: 'lobby.html?from=next' },
                 { icon: 'layers', label: '卡片', sub: '卡池 / 卡表', next: 'card' },
                 { icon: 'chart', label: '战绩', sub: '天梯 / 比赛', next: 'record' }
             ]
@@ -41,7 +41,8 @@
                 '想让朋友进来，把<b>房间名</b>发给他即可；代码后加 <b>#</b> 再接房间名，例如 <b>T,C#32</b>'
             ],
             cta: [
-                { icon: 'house', label: '打开房间代码', screen: 'room' }
+                { icon: 'house', label: '打开房间代码', screen: 'room' },
+                { icon: 'play', label: '进入决斗大厅', href: 'lobby.html?from=next' }
             ]
         },
         r_download: {
@@ -562,7 +563,16 @@
     var PIC_OCG = 'https://cdn.233.momobako.com/ygopro/pics/';
     var PIC_ALT = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
 
-    var PIC_CHAIN = [PIC_OCG, PIC_ALT, PIC_DIY];   // 与老站一致：OCG → SuperPre → DIY
+    var PIC_CHAIN = [PIC_OCG, PIC_ALT, PIC_DIY];   // 兜底：OCG → SuperPre → DIY
+    // PATCH(白神服) 2026-11-13: 按来源选图床 —— DIY 卡不能先试萌卡 CDN
+    //   （70700025 这类 DIY 卡在 CDN 上是 404 或别的图，本站图床才有正确的图）
+    function picChainOf(id) {
+        var c = cardInfo(id);
+        var src = c && c.source;
+        if (src === 'diy') return [PIC_DIY, PIC_ALT, PIC_OCG];
+        if (src === 'pre') return [PIC_ALT, PIC_OCG, PIC_DIY];
+        return PIC_CHAIN;
+    }
     var _scoreMap = null;
     var _scoreLimit = 100;
 
@@ -619,24 +629,25 @@
         if (_picCache[id]) return Promise.resolve(_picCache[id]);
         return new Promise(function (resolve) {
             var step = 0;
+            var chain = picChainOf(id);
             var img = new Image();
             function tryNext() {
-                if (step >= PIC_CHAIN.length) {
-                    _picCache[id] = PIC_CHAIN[0] + id + '.jpg';   // 都不行 → 交给页面上的兜底逻辑
+                if (step >= chain.length) {
+                    _picCache[id] = chain[0] + id + '.jpg';   // 都不行 → 交给页面上的兜底逻辑
                     resolve(_picCache[id]);
                     return;
                 }
-                img.src = PIC_CHAIN[step] + id + '.jpg';
+                img.src = chain[step] + id + '.jpg';
             }
             img.onload = function () {
-                _picCache[id] = PIC_CHAIN[step] + id + '.jpg';
+                _picCache[id] = chain[step] + id + '.jpg';
                 resolve(_picCache[id]);
             };
             img.onerror = function () { step++; tryNext(); };
             tryNext();
         });
     }
-    function picOf(id) { return _picCache[id] || (PIC_CHAIN[0] + id + '.jpg'); }
+    function picOf(id) { return _picCache[id] || (picChainOf(id)[0] + id + '.jpg'); }
     function isDiyPic(url) { return String(url).indexOf(PIC_DIY) === 0; }
 
     // 预加载一套卡组用到的所有卡图（去重后并发，带进度回调）
@@ -680,7 +691,7 @@
         });
         img.addEventListener('error', function () {
             step++;
-            if (step < PIC_CHAIN.length) img.src = PIC_CHAIN[step] + id + '.jpg';
+            if (step < picChainOf(id).length) img.src = picChainOf(id)[step] + id + '.jpg';
             else img.classList.add('is-missing');
         });
     }
@@ -711,7 +722,7 @@
             (isMonster
                 ? '<div class="nct-meta">' + esc(c.attrName || '') + ' | ' + esc(c.raceName || '') +
                   (c.level ? ' | Lv' + c.level : '') + '</div>' +
-                  '<div class="nct-stat">ATK ' + (c.atk < 0 ? '?' : c.atk) + ' / DEF ' + (c.def < 0 ? '?' : c.def) + '</div>'
+                  '<div class="nct-stat">ATK ' + (c.atk < 0 ? '?' : c.atk) + ' / DEF ' + (((c.type | 0) & 0x4000000) ? '—' : (c.def < 0 ? '?' : c.def)) + '</div>'
                 : '') +
             scoreLine +
             '<div class="nct-desc">' + (c.processedDesc || c.desc || '') + '</div>' +
@@ -1380,7 +1391,7 @@
                 for (var k = 2; k >= 0; k--) {
                     var cid = ids[k] || ids[0] || 0;
                     out += '<img class="nx-cf-card nx-cf-c' + k + '" data-cid="' + cid +
-                        '" src="' + PIC_CHAIN[0] + cid + '.jpg" loading="lazy" alt="">';
+                        '" src="' + picChainOf(cid)[0] + cid + '.jpg" loading="lazy" alt="">';
                 }
                 return out;
             }
@@ -1804,6 +1815,12 @@
         opts = opts || {};
         box.innerHTML = '';
         var ready = opts.lazy ? Promise.resolve() : (function () {
+            // 先确保卡表已加载：图床选择依赖 card.source
+            if (!_cardMap) {
+                return loadCardMap().then(function () { return preloadDeckPics(ids, function (n, t) {
+                    var e2 = box.querySelector('.nx-load-text'); if (e2) e2.innerHTML = '正在加载卡图 <b>' + n + '</b> / ' + t;
+                }); });
+            }
             var loadTxt = document.createElement('div');
             loadTxt.className = 'nx-deck-loading';
             loadTxt.innerHTML = '<div class="nx-load-rings"><i></i><i></i><i></i></div><div class="nx-load-text">正在加载卡图 <b>0</b> / ' + ids.length + '</div>';
@@ -2870,6 +2887,73 @@
         if (host) host.hidden = true;
         nxBuilderCss(false);
     }
+
+    // ══════════ 云端卡组（与老版 index.html 的通道一致） ══════════
+    function cloudApi(path, body) {
+        return fetch(path, body
+            ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+            : { cache: 'no-store' })
+            .then(function (r) { return r.json().catch(function () { return {}; }); });
+    }
+    function cloudToast(text) {
+        var old = document.getElementById('nxDbToast');
+        if (old) old.parentNode.removeChild(old);
+        var el = document.createElement('div');
+        el.id = 'nxDbToast';
+        el.textContent = text;
+        el.style.cssText = 'position:fixed;left:50%;top:64px;transform:translateX(-50%);'
+            + 'background:rgba(24,22,28,.96);color:#fff;padding:10px 18px;border-radius:10px;'
+            + 'border:1px solid rgba(212,175,55,.55);z-index:100050;font-size:13px;max-width:80vw';
+        document.body.appendChild(el);
+        setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 2600);
+    }
+    function cloudYdk() {
+        try { if (window.DeckBuilder && window.DeckBuilder.ydk) return window.DeckBuilder.ydk() || ''; } catch (e) {}
+        return '';
+    }
+    function cloudPick(title, names, onPick) {
+        var mask = document.createElement('div');
+        mask.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.62);z-index:100060;display:flex;'
+            + 'align-items:center;justify-content:center;padding:20px';
+        var box = document.createElement('div');
+        box.style.cssText = 'width:min(420px,92vw);max-height:70vh;overflow:auto;background:#15131a;'
+            + 'border:1px solid rgba(212,175,55,.45);border-radius:14px;padding:16px;color:#ece6da';
+        box.innerHTML = '<div style="font-weight:800;color:#e9c96a;margin-bottom:10px">' + title + '</div>';
+        names.forEach(function (n) {
+            var b = document.createElement('button');
+            b.textContent = n;
+            b.style.cssText = 'display:block;width:100%;text-align:left;margin:6px 0;padding:10px 12px;'
+                + 'background:#1d1a23;color:#ece6da;border:1px solid #32303a;border-radius:9px;cursor:pointer;font:inherit';
+            b.onclick = function () { document.body.removeChild(mask); onPick(n); };
+            box.appendChild(b);
+        });
+        var cancel = document.createElement('button');
+        cancel.textContent = '取消';
+        cancel.style.cssText = 'margin-top:10px;padding:8px 14px;background:transparent;color:#a9a3b5;'
+            + 'border:1px solid #3a3742;border-radius:9px;cursor:pointer;font:inherit';
+        cancel.onclick = function () { document.body.removeChild(mask); };
+        box.appendChild(cancel);
+        mask.appendChild(box);
+        document.body.appendChild(mask);
+    }
+    function bindCloudButtons() {
+        // 统一走 js/cloud-decks.js 的弹窗（和老版组卡器同一套 UI）
+        var map = [
+            ['nxDbSave', function () { window.CloudDecks && window.CloudDecks.save(); }],
+            ['nxDbLoad', function () { window.CloudDecks && window.CloudDecks.open(); }],
+            ['nxDbDel',  function () { window.CloudDecks && window.CloudDecks.open(); }]
+        ];
+        map.forEach(function (pair) {
+            var b = document.getElementById(pair[0]);
+            if (!b || b.__bound) return;
+            b.__bound = 1;
+            b.addEventListener('click', function () {
+                if (!window.CloudDecks) { cloudToast('云端组件未加载，请刷新页面'); return; }
+                pair[1]();
+            });
+        });
+    }
+
     function renderBuilder(body) {
         var host = document.getElementById('nxBuilderHost');
         if (!host) { body.innerHTML = '<div class="nx-empty">组卡器未载入</div>'; return; }
@@ -2888,6 +2972,7 @@
         // 老样式里有些绝对定位/滚动假设，套进新屏幕后补一点容器样式
         var layout = document.getElementById('dbLayout');
         if (layout) layout.style.display = '';
+        bindCloudButtons();
     }
 
     // ── 历届八强（战绩 → 比赛 → 打开历届八强）：数据 decks/decks_data.json ──
@@ -2955,7 +3040,7 @@
                             // 后画的在下层：c2 → c1 → c0（封面）
                             [2, 1, 0].map(function (k) {
                                 var cid = fan[k] || fan[0] || 0;
-                                return '<img class="nx-eight-img nx-eight-c' + k + '" data-cid="' + cid + '" src="' + PIC_CHAIN[0] + cid + '.jpg" loading="lazy" alt="">';
+                                return '<img class="nx-eight-img nx-eight-c' + k + '" data-cid="' + cid + '" src="' + picChainOf(cid)[0] + cid + '.jpg" loading="lazy" alt="">';
                             }).join('') +
                         '</span>' +
                         '<span class="nx-eight-rank">' + (i + 1) + '</span>' +
@@ -3673,6 +3758,12 @@
             b.addEventListener('click', function (ev) {
                 ripple(b, ev);
                 playSfx('click');
+                // 选项可以直接跳独立页面（如决斗大厅）
+                if (opt.href) {
+                    b.querySelector('.nx-opt-label') && (b.querySelector('.nx-opt-label').textContent = '进入中…');
+                    setTimeout(function () { location.href = opt.href; }, 160);
+                    return;
+                }
                 // 选项也可以直接开功能屏（跳过中间介绍页）
                 if (opt.screen) {
                     setTimeout(function () { goScreen(opt.screen); }, 120);
@@ -3738,6 +3829,11 @@
                 if (c.goto) {
                     b.querySelector('span:last-child').textContent = '跳转中…';
                     setTimeout(function () { location.href = CTA_GOTO(c.goto); }, 260);
+                    return;
+                }
+                if (c.href) {
+                    b.querySelector('span:last-child').textContent = '跳转中…';
+                    setTimeout(function () { location.href = c.href; }, 260);
                 }
             });
             bindHoverRegular(b);

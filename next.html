@@ -7,12 +7,12 @@
      直接刷新这类地址时如果没有 base，css/js 会去找 /next.html/css/... 而 404（页面变裸 HTML） -->
 <base href="/">
 <title>白神服 · 新版引导</title>
-<link rel="stylesheet" href="css/next.css?v=20261023m">
+<link rel="stylesheet" href="css/next.css?v=20261113a">
 <!-- 老组卡器样式（media=not all，进入组卡屏时才启用） -->
-<link rel="stylesheet" href="css/card-pool-info.css?v=20261023k" id="nxClassicCssBuilder" media="not all">
-<link rel="stylesheet" href="css/card-list.css?v=20261007r" id="nxClassicCssList" media="not all">
-<link rel="stylesheet" href="css/deck-viewer.css?v=20261007r" id="nxClassicCssDeckView" media="not all">
-<link rel="stylesheet" href="css/replay-viewer.css?v=20261007z7" id="nxCssReplay">
+<link rel="stylesheet" href="css/card-pool-info.css?v=20261107e5" id="nxClassicCssBuilder" media="not all">
+<link rel="stylesheet" href="css/card-list.css?v=20261107e5" id="nxClassicCssList" media="not all">
+<link rel="stylesheet" href="css/deck-viewer.css?v=20261107e5" id="nxClassicCssDeckView" media="not all">
+<link rel="stylesheet" href="css/replay-viewer.css?v=20261107e5" id="nxCssReplay">
 
 </head>
 <body class="nx-boot">
@@ -72,6 +72,9 @@
 
 <footer class="nx-foot">
     <span>点空白处 / 按 Esc 返回上一步</span>
+    <span class="nx-foot-links">
+        <a href="lobby.html?from=next">决斗大厅</a>
+    </span>
 </footer>
 
 
@@ -147,6 +150,9 @@
                             <button class="db-btn" id="dbImport">导入</button>
                             <button class="db-btn" id="dbCopy">复制</button>
                             <button class="db-btn" id="dbDownload">下载 ydk</button>
+                            <button class="db-btn" id="nxDbSave" title="保存到账号云端">☁ 保存</button>
+                            <button class="db-btn" id="nxDbLoad" title="从账号云端读取">☁ 读取</button>
+                            <button class="db-btn db-danger" id="nxDbDel" title="删除账号云端卡组">☁ 删除</button>
                             <button class="db-btn db-danger" id="dbClear" title="清空卡组">清空</button>
                         </div>
                     </div>
@@ -238,9 +244,10 @@
         </div>
 </div>
 </div>
-<script src="js/deck-viewer.js?v=20261007r"></script>
-<script src="js/replay-viewer.js?v=20261022m"></script>
-<script src="js/deck-builder.js?v=20261023o"></script>
-<script src="js/next.js?v=20261023n"></script>
+<script src="js/deck-viewer.js?v=20261119r"></script>
+<script src="js/replay-viewer.js?v=20261119r"></script>
+<script src="js/deck-builder.js?v=20261119r"></script>
+<script src="js/cloud-decks.js?v=20261115z"></script>
+<script src="js/next.js?v=20261119r"></script>
 </body>
 </html>

@@ -48,7 +48,7 @@ async function loadCardInfo() {
         return _cardInfoMap;
     }
     try {
-        const resp = await fetch('/api/cards');
+        const resp = await fetch('/api/cards?t=' + Date.now());
         if (!resp.ok) throw new Error('HTTP ' + resp.status);
         const cards = await resp.json();
         _cardInfoMap = new Map();
@@ -76,7 +76,7 @@ function showCardListTooltip(e, card) {
     var tip = ensureCardListTooltip();
     var isMonster = card.typeInfo && card.typeInfo.baseType === '怪兽';
     var atkDef = isMonster
-        ? '<div class="tooltip-atkdef">ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (card.def < 0 ? '?' : card.def) + '</div>'
+        ? '<div class="tooltip-atkdef">ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (((card.type | 0) & 0x4000000) ? '—' : (card.def < 0 ? '?' : card.def)) + '</div>'
         : '';
     var raceAttr = isMonster
         ? '<div class="tooltip-raceattr">' + card.attrName + ' | ' + card.raceName + (card.level ? ' | Lv' + card.level : '') + '</div>'

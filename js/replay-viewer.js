@@ -52,7 +52,7 @@ function initReplayViewer() {
     var meta = null;
     var idx = -1;        // 当前已播放到第几条
     var playing = false;
-    var speed = 1;
+    var speed = 4;   // 默认 4×（和 4x/5x 档位对齐）
     var timer = 0;
     var loaded = false;
 
@@ -417,6 +417,69 @@ function initReplayViewer() {
             'cover.jpg'
         ];
     }
+    // PATCH(白神服) 2026-11-17: 卡组翻开列表（抄 ygopro 客户端 ShowLocationCard）
+    //   老回放器原来对 ConfirmCards 直接 break，翻卡组的效果在回放里什么都看不到。
+    var _rvListEl = null, _rvListTimer = 0;
+    function showRevealList(cards) {
+        try {
+            // PATCH(白神服) 2026-11-17: 只对「一次翻多张」弹列表 —— 单张公开（检索/抽到明牌）太频繁，
+            //   一直弹会挡住场地（用户反馈：老是显示卡组公开）。单张走日志/明牌显示即可。
+            if (!cards || cards.length < 2) return;
+            if (_rvListEl && _rvListEl.parentNode) _rvListEl.parentNode.removeChild(_rvListEl);
+            clearTimeout(_rvListTimer);
+            var box = document.createElement('div');
+            box.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:100002;'
+                + 'animation:rpRevealFloat .28s ease-out both;'
+                + 'background:rgba(10,12,18,.96);border:1px solid #b08a3a;border-radius:10px;padding:10px 12px 12px;'
+                + 'box-shadow:0 12px 40px rgba(0,0,0,.65);cursor:pointer;max-width:min(92vw,760px);'
+                + 'font:12px/1.3 "Microsoft YaHei",system-ui,sans-serif';
+            var title = document.createElement('div');
+            title.style.cssText = 'color:#FFD700;font-size:12.5px;font-weight:700;margin-bottom:8px;text-align:center';
+            title.textContent = '卡组公开（' + cards.length + ' 张）';   // 只显示卡组公开（额外不弹）
+            try {
+                var xb2 = document.createElement('div');
+                xb2.textContent = '✕';
+                xb2.title = '关闭';
+                xb2.style.cssText = 'position:absolute;right:6px;top:4px;width:18px;height:18px;line-height:18px;'
+                    + 'text-align:center;border-radius:9px;background:rgba(255,255,255,.12);color:#cfe6ff;cursor:pointer;'
+                    + 'font-size:11px';
+                xb2.onclick = function (ev) { ev.stopPropagation(); if (box.parentNode) box.parentNode.removeChild(box); };
+                box.appendChild(xb2);
+            } catch (e) {}
+            box.appendChild(title);
+            var row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:6px;align-items:flex-start';
+            cards.slice(0, 8).forEach(function (c) {
+                var cell = document.createElement('div');
+                cell.style.cssText = 'width:84px;text-align:center';
+                var im = document.createElement('img');
+                im.src = picChain(c.code)[0];
+                im.style.cssText = 'width:84px;border-radius:4px;border:1px solid rgba(255,255,255,.18);display:block';
+                im.alt = '';
+                wireImgChain(im, c.code);
+                cell.appendChild(im);
+                var lab = document.createElement('div');
+                lab.style.cssText = 'color:#9fb3c8;font-size:10.5px;margin-top:2px;white-space:nowrap';
+                lab.textContent = '卡组' + (c.sequence !== undefined ? (' ' + ((c.sequence | 0) + 1)) : '');
+                cell.appendChild(lab);
+                row.appendChild(cell);
+            });
+            if (cards.length > 8) {
+                var more = document.createElement('div');
+                more.style.cssText = 'align-self:center;color:#9fb3c8;font-size:12px;padding:0 4px';
+                more.textContent = '+' + (cards.length - 8);
+                row.appendChild(more);
+            }
+            box.appendChild(row);
+            box.onclick = function () { if (box.parentNode) box.parentNode.removeChild(box); };
+            document.body.appendChild(box);
+            _rvListEl = box;
+            _rvListTimer = setTimeout(function () {
+                if (box.parentNode) box.parentNode.removeChild(box);
+            }, 6000);
+        } catch (e) {}
+    }
+
     function wireImgChain(im, code) {
         var chain = picChain(code);
         var i = 0;
@@ -1757,6 +1820,40 @@ function initReplayViewer() {
     // 用 Win 消息的 player(真实决斗位) 与 DB 里 winner 的座位比对判定
     var metaSwap = false;
     function duelSeat(d) { return metaSwap ? (1 - d) : d; }
+
+    // PATCH(白神服) 2026-11-03: 座位↔决斗位互换时，**消息里的 player/controller 也要翻**。
+    //   原来只把「名字」按 metaSwap 换了，场地/回合/发动者还是按原始决斗位渲染 →
+    //   于是整局看起来左右颠倒：对面先手发动成金哥布林，网页却显示下方先发陷阱、对面也没抽到卡。
+    function flipIfSwapped(m) {
+      if (!metaSwap || !m || m.__flipped) return m;
+      m.__flipped = true;
+      var f = m.f || (m.f = {});
+      function fl(v) { return (v === 0 || v === 1) ? (1 - v) : v; }
+      if (typeof f.player === 'number') f.player = fl(f.player);
+      if (typeof f.controller === 'number') f.controller = fl(f.controller);
+      if (f.attacker && typeof f.attacker.controller === 'number') f.attacker.controller = fl(f.attacker.controller);
+      ['previous', 'current'].forEach(function (k) {
+        var z = f[k];
+        if (z && typeof z.controller === 'number') z.controller = fl(z.controller);
+      });
+      // 原始字节里也带着控制者 → 同步翻（hex：type(1) + code(4) + ctl(1) ...）
+      if (typeof m.hex === 'string' && m.hex.length >= 14) {
+        function flipByteAt(hex, idx) {
+          var pos = idx * 2;
+          if (pos + 2 > hex.length) return hex;
+          var b = parseInt(hex.slice(pos, pos + 2), 16);
+          if (b !== 0 && b !== 1) return hex;
+          var nb = (1 - b).toString(16).padStart(2, '0');
+          return hex.slice(0, pos) + nb + hex.slice(pos + 2);
+        }
+        if (m.name === 'UpdateData' || m.name === 'PayLpCost') m.hex = flipByteAt(m.hex, 1);
+        else if (m.name === 'PosChange') m.hex = flipByteAt(m.hex, 5);
+        else if (m.name === 'Move') { m.hex = flipByteAt(m.hex, 5); m.hex = flipByteAt(m.hex, 9); }
+        else if (m.name === 'Draw' || m.name === 'Damage' || m.name === 'Recover') m.hex = flipByteAt(m.hex, 1);
+      }
+      return m;
+    }
+    var _origHandleMessage = null;   // 占位，下面 wrap
     function playerByDuelPos(d) {
         if (!meta || !meta.players) return null;
         var seat = duelSeat(d);
@@ -1769,6 +1866,8 @@ function initReplayViewer() {
     }
 
     function handleMessage(m) {
+        // 座位互换只影响「显示名字」（duelSeat 已处理），不能翻转消息里的 player/controller，
+        // 否则行动会归到错的人（用户实测：bbw 没用过成金哥布林，回放却显示他发动）。
         var n = m.name;
         var f = m.f || {};
         // 灵摆：本次连续灵摆召唤期间不重复触发；批次结束后才允许下次灵摆召唤再触发
@@ -2264,7 +2363,61 @@ function initReplayViewer() {
             case 'AnnounceAttrib':
             case 'AnnounceNumber':
             case 'AnnounceRace':
-            case 'ConfirmCards':
+            case 'ConfirmDeckTop': {
+                // PATCH(白神服) 2026-11-17: 卡组顶翻开 N 张 → 弹卡组公开列表（老回放器原来完全没处理）
+                try {
+                    var _dtc = [];
+                    var _arrD = (f && (f.cards || f.info)) || [];
+                    if (_arrD && _arrD.length && typeof _arrD[0] === 'object') {
+                        _arrD.forEach(function (c) {
+                            if (c && c.code) _dtc.push({ code: c.code, sequence: c.sequence, location: 1 });
+                        });
+                    } else if (f && f.codes && f.codes.length) {
+                        f.codes.forEach(function (cd, i) { if (cd) _dtc.push({ code: cd, sequence: i, location: 1 }); });
+                    }
+                    if (!_dtc.length && m && m.hex && m.hex.length >= 8 && typeof hexU8 === 'function') {
+                        var _cntD2 = hexU8(m.hex, 2);
+                        for (var _di2 = 0; _di2 < _cntD2 && _di2 < 40; _di2++) {
+                            var _offD2 = 3 + _di2 * 7;
+                            if ((_offD2 + 7) * 2 > m.hex.length) break;
+                            var _cdD2 = hexU32(m.hex, _offD2);
+                            if (_cdD2) _dtc.push({ code: _cdD2, sequence: hexU8(m.hex, _offD2 + 6), location: 1 });
+                        }
+                    }
+                    if (_dtc.length) showRevealList(_dtc);
+                } catch (e) {}
+                break;
+            }
+            case 'ConfirmCards': {
+                // PATCH(白神服) 2026-11-17: 翻卡组的效果 → 弹一排卡图（只处理卡组/额外）
+                try {
+                    var _bh = (typeof hexU8 === 'function' && m.hex) ? m.hex : null;
+                    var _cards = [];
+                    var _arr0 = (f && (f.cards || f.info)) || [];
+                    if (_arr0 && _arr0.length && typeof _arr0[0] === 'object') {
+                        _arr0.forEach(function (c) {
+                            if (!c || !c.code) return;
+                            var l = (c.location | 0) & 0x7f;
+                            if (l === 1) _cards.push({ code: c.code, sequence: c.sequence, location: l });   // 只认卡组（额外不弹）
+                        });
+                    }
+                    if (!_cards.length && _bh && _bh.length >= 8) {
+                        var _cnt2 = hexU8(_bh, 3);
+                        for (var _ci2 = 0; _ci2 < _cnt2 && _ci2 < 40; _ci2++) {
+                            var _off2 = 4 + _ci2 * 7;
+                            if ((_off2 + 7) * 2 > _bh.length) break;
+                            var _cd2 = hexU32(_bh, _off2);
+                            var _lc2 = hexU8(_bh, _off2 + 5) & 0x7f;
+                            if (_cd2 && _lc2 === 1) {
+                                _cards.push({ code: _cd2, sequence: hexU8(_bh, _off2 + 6), location: _lc2 });
+                            }
+                        }
+                    }
+                    if (_cards.length) showRevealList(_cards);
+                } catch (e) {}
+                break;
+            }
+            case '__ConfirmCardsEnd':
             case 'Toss':
             case 'RockPaperScissors':
                 // 选择类消息：回放时无需操作，直接跳过（可能有可视提示可选做）
@@ -2603,7 +2756,7 @@ function initReplayViewer() {
         playing = true;
         playPauseBtn.textContent = '⏸ 暂停';
         // 基准：1x ≈ 333ms/可见步 → 右侧日志约每秒 3 行（填充消息不计时）
-        var interval = Math.max(80, Math.floor(1000 / 3 / speed));
+        var interval = Math.max(40, Math.floor(1000 / 3 / speed));
         function tick() {
             if (!playing) return;
             if (!playNextVisible()) {
@@ -2940,7 +3093,7 @@ initReplayViewer();
   document.head.appendChild(st);
   row.appendChild(bar);
 
-  var speed = 1;
+  var speed = 4;   // 外部控制条的档位（4× / 5×）
   function send(cmd, value) {
     try {
       var f = document.getElementById('rpNewFrame');
@@ -2952,7 +3105,7 @@ initReplayViewer();
   document.getElementById('rpExtPrev').onclick = function () { send('prev'); };
   document.getElementById('rpExtNext').onclick = function () { send('next'); };
   document.getElementById('rpExtFast').onclick = function () {
-    speed = speed === 1 ? 2 : (speed === 2 ? 4 : 1);
+    speed = speed === 4 ? 5 : 4;
     document.getElementById('rpExtFast').textContent = '加速 ' + speed + '\u00d7';
     send('speed', speed);
   };

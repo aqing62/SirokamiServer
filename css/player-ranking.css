@@ -516,6 +516,28 @@
     white-space: nowrap;
 }
 
+/* 玩家名下方的称号（主 + 副）—— 稀有度配色：白/绿/蓝/黄/红，紫=任务称号 */
+.rank-player { display: block; }
+.rank-titles {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    line-height: 1.25;
+}
+.rank-title { margin: 0; }
+.rank-title[data-rarity="白"] { color: #E8E8E8; }
+.rank-title[data-rarity="绿"] { color: #4CD38A; }
+.rank-title[data-rarity="蓝"] { color: #5AA9FF; }
+.rank-title[data-rarity="黄"] { color: #FFD24A; }
+.rank-title[data-rarity="红"] { color: #FF5F6D; }
+.rank-title[data-rarity="紫"] { color: #C08CFF; }
+.rank-title-dot {
+    color: #4a4a4a;
+    font-style: normal;
+    margin: 0 4px;
+}
+
 /* 玩家行可点击查看对局记录 */
 .rank-table tbody tr[data-player] {
     cursor: pointer;
@@ -605,6 +627,8 @@
         padding: 8px 4px;
         font-size: 0.78rem;
     }
+
+    .rank-titles { font-size: 0.64rem; }
 
     .rank-table th:nth-child(4),
     .rank-table td:nth-child(4),
@@ -1307,3 +1331,40 @@
         font-size: 0.7rem;
     }
 }
+
+/* ══════════════════════════════════════════════════════════════
+   PATCH(白神服) 2026-11-17: 「对局记录」用小窗（原来复用了 98vw 的卡组弹窗，
+   中间一大片空白、右侧按钮飞得老远）
+   ══════════════════════════════════════════════════════════════ */
+.deck-modal.narrow {
+    width: min(94vw, 720px);
+    max-width: 720px;
+    max-height: 72vh;
+}
+.deck-modal.narrow .deck-modal-header { padding: 9px 14px; }
+.deck-modal.narrow .deck-modal-title { font-size: 14px; }
+.deck-modal.narrow .deck-modal-body { padding: 6px 12px 12px; }
+.deck-modal.narrow .duel-item {
+    display: grid;
+    grid-template-columns: 26px 84px minmax(0, 1fr) minmax(0, 84px) max-content;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: nowrap;
+    padding: 7px 6px;
+}
+.deck-modal.narrow .duel-room {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 12px;
+}
+.deck-modal.narrow .duel-name {
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    font-size: 12px; color: #ccc;
+}
+.deck-modal.narrow .duel-right { margin-left: 0; justify-content: flex-end; }
+.deck-modal.narrow .duel-watch {
+    padding: 3px 8px; font-size: 11px;
+}
+
+.deck-modal.narrow .duel-tag { padding: 1px 4px; white-space: nowrap; }
+.deck-modal.narrow .duel-replay { white-space: nowrap; }
+.deck-modal.narrow .duel-watch { white-space: nowrap; }

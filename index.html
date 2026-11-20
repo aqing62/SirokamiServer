@@ -5,78 +5,65 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>白神服Sirokami - 游戏王DIY服务器</title>
     <link rel="icon" href="favicon.ico">
-    <link rel="stylesheet" href="css/style.css?v=20261022j" id="css-style">
-    <link rel="stylesheet" href="css/card-pool-info.css?v=20261023k" id="css-card-pool" media="not all">
-    <link rel="stylesheet" href="css/eight-decks.css?v=20261001a" id="css-eight-decks" media="not all">
+    <link rel="stylesheet" href="css/style.css?v=20261115w" id="css-style">
+    <link rel="stylesheet" href="css/title-shop.css?v=20261120a" id="css-title-shop">
+    <link rel="stylesheet" href="css/card-pool-info.css?v=20261107e5" id="css-card-pool" media="not all">
+    <link rel="stylesheet" href="css/eight-decks.css?v=20261107e5" id="css-eight-decks" media="not all">
     <link rel="stylesheet" href="css/xiaobairenshe.css" id="css-xiaobai" media="not all">
     <link rel="stylesheet" href="css/new-cards.css" id="css-new-cards" media="not all">
-    <link rel="stylesheet" href="css/player-ranking.css?v=20261013c" id="css-player-ranking" media="not all">
-    <link rel="stylesheet" href="css/live-duels.css?v=20260920v" id="css-live-duels" media="not all">
-    <link rel="stylesheet" href="css/deck-viewer.css?v=20260903a" id="css-deck-viewer">
-    <link rel="stylesheet" href="css/deck-community.css?v=20260903a" id="css-deck-community" media="not all">
-    <link rel="stylesheet" href="css/chronicle-decks.css?v=20260920a" id="css-chronicle-decks">
-    <link rel="stylesheet" href="css/replay-viewer.css?v=20261004i" id="css-replay-viewer">
-    <link rel="stylesheet" href="css/ygocdb-search.css?v=20261022i" id="css-ygocdb" media="not all">
+    <link rel="stylesheet" href="css/player-ranking.css?v=20261120c" id="css-player-ranking" media="not all">
+    <link rel="stylesheet" href="css/live-duels.css?v=20261107e5" id="css-live-duels" media="not all">
+    <link rel="stylesheet" href="css/deck-viewer.css?v=20261107e5" id="css-deck-viewer">
+    <link rel="stylesheet" href="css/deck-community.css?v=20261107e5" id="css-deck-community" media="not all">
+    <link rel="stylesheet" href="css/chronicle-decks.css?v=20261107e5" id="css-chronicle-decks">
+    <link rel="stylesheet" href="css/replay-viewer.css?v=20261117r" id="css-replay-viewer">
+    <link rel="stylesheet" href="css/ygocdb-search.css?v=20261107e5" id="css-ygocdb" media="not all">
     <style>
         body.loading {
             visibility: hidden;
         }
-    </style>
-    <!-- 登录/注册弹窗（套用决斗页 duel.html 那一套：登录 ⇄ 注册 两个视图 ✓）
-         样式前缀加 #glModalOverlay 作用域，避免影响首页其它地方 ✓ -->
-    <style>
-    #glModalOverlay #glBody .de-title { font-size: 1.15rem; font-weight: 800; letter-spacing: 1px; margin-bottom: 4px;
-      background: linear-gradient(135deg,#D4AF37,#FFD700); -webkit-background-clip: text; background-clip: text; color: transparent; }
-    #glModalOverlay #glBody .de-sub { font-size: .78rem; color: #8d8d96; margin-bottom: 18px; }
-    #glModalOverlay #glBody .de-field { margin-bottom: 12px; }
-    #glModalOverlay #glBody .de-field label { display: block; font-size: .78rem; color: #a9a9b3; margin-bottom: 5px; }
-    #glModalOverlay #glBody .de-field input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 8px;
-      border: 1px solid rgba(255,255,255,.14); background: rgba(255,255,255,.05); color: #f2eee6; font-size: .92rem; }
-    #glModalOverlay #glBody .de-field input:focus { outline: none; border-color: rgba(212,175,55,.6); }
-    #glModalOverlay #glBody .de-btn { width: 100%; padding: 11px 14px; border-radius: 8px; border: none; cursor: pointer;
-      font-size: .95rem; font-weight: 700; letter-spacing: 1px; background: linear-gradient(135deg,#D4AF37,#FFD700); color: #1a1a2e; }
-    #glModalOverlay #glBody .de-btn:disabled { opacity: .5; cursor: not-allowed; }
-    #glModalOverlay #glBody .de-msg { min-height: 18px; font-size: .78rem; color: #ff9aa8; margin-top: 8px; }
-    #glModalOverlay #glBody .de-msg.ok { color: #8ee6a8; }
-    #glModalOverlay #glBody .de-foot { margin-top: 14px; font-size: .75rem; color: #7d7d86; text-align: center; }
-    #glModalOverlay #glBody .de-foot a { color: #9ec4f0; text-decoration: none; cursor: pointer; }
     
-/* ── 旧回放弹窗：手机端控制栏不横向溢出（用户反馈：进度条/按钮被切掉）──
-   实测 #rpExternalBar 宽 551px，而弹窗只有 378px → 右边「下一步/加速」看不见 ✗
-   改法：进度条单独一行通栏，其余（进度文字 + 上一步/播放/下一步/加速）留在原来那栏 ✓
-   注：#rpExternalBar 由 js/replay-viewer.js 注入到 .replay-input-bar 里，所以两处都要放开换行 */
-@media (max-width: 860px), (orientation: portrait) {
-  html body .replay-input-bar { flex-wrap: wrap !important; row-gap: 6px !important; }
-  html body #rpExternalBar {
-    flex-wrap: wrap !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    margin-left: 0 !important;
-    gap: 6px !important;
-    justify-content: flex-end !important;
-  }
-/* rpExtPrev 推到右侧：让 4 个按钮靠右、进度条独占下一行且通栏 */
-  html body #rpExternalBar { justify-content: flex-start !important; }
-  html body #rpExternalBar #rpExtPrev { margin-left: auto !important; }
-  html body #rpExternalBar #rpExtSeek { flex: 0 0 100% !important; width: 100% !important; min-width: 100% !important; }
-  /* ⚠ 进度条还要解掉 .replay-input-bar input 的 max-width:80vw（=312px @390）
-     → 不然 flex-basis 100% 也会被卡在 312，右边空一截 ✗ */
-  html body #rpExternalBar #rpExtSeek { flex: 1 1 100% !important; max-width: none !important; }
-  html body #rpExternalBar #rpExtInfo { order: 0 !important; margin-right: auto !important; font-size: 12px !important; min-width: 0 !important; }
-  html body #rpExternalBar .rp-ext-btn { padding: 6px 11px !important; font-size: 12.5px !important; }
-  html body #rpExternalBar #rpExtSeek {
-    order: 9 !important;
-    flex: 0 0 100% !important;
-    width: 100% !important;
-    min-width: 0 !important;
-    margin: 0 !important;
-  }
-}
 
 /* 更窄的手机（≤480px）：进度文字让位，保证 4 个按钮能在一行排完 */
 @media (max-width: 480px) {
   html body #rpExternalBar #rpExtInfo { display: none !important; }
   html body #rpExternalBar .rp-ext-btn { padding: 6px 9px !important; font-size: 12px !important; }
+}
+</style>
+<style>
+/* ── 服务器介绍 · 点数缓和规则（抽屉） ── */
+.rules-drawer { margin-top:14px; border:1px solid rgba(212,175,55,.28); border-radius:12px;
+  background:linear-gradient(180deg, rgba(30,26,20,.75), rgba(16,15,13,.75)); overflow:hidden; }
+.rules-toggle { width:100%; display:flex; align-items:center; gap:10px; padding:12px 14px;
+  background:transparent; border:0; cursor:pointer; text-align:left; font-family:inherit; }
+.rules-toggle:hover { background:rgba(255,59,59,.06); }
+.rules-toggle .ic { font-size:1.05rem; }
+.rules-toggle-title { color:#FFD700; font-weight:800; font-size:.95rem; letter-spacing:.5px; white-space:nowrap; }
+.rules-toggle-sub { color:#8d8d96; font-size:.74rem; flex:1 1 auto; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; }
+.rules-toggle-arrow { color:#FFD700; transition:transform .28s ease; flex:0 0 auto; }
+.rules-drawer.open .rules-toggle-arrow { transform:rotate(180deg); }
+.rules-body { max-height:0; overflow:hidden; transition:max-height .38s ease; }
+.rules-drawer.open .rules-body { max-height:3200px; }
+.rules-inner { padding:2px 16px 16px; color:#cfc8bd; font-size:.86rem; line-height:1.78; }
+.rules-h { color:#FFD700; font-weight:800; font-size:.9rem; margin:14px 0 8px;
+  padding-left:9px; border-left:3px solid #d4af37; letter-spacing:.5px; }
+.rules-lead { color:#a9a29a; font-size:.8rem; background:rgba(255,255,255,.03);
+  border-left:2px solid rgba(212,175,55,.45); padding:7px 11px; border-radius:6px; margin:6px 0 10px; }
+.rules-tip { color:#ffd8a8; background:rgba(216,140,40,.12); border:1px solid rgba(216,140,40,.35);
+  padding:8px 11px; border-radius:8px; font-size:.82rem; margin:10px 0; }
+.rules-list { margin:4px 0 6px; padding-left:1.3em; }
+.rules-list > li { margin:5px 0; }
+.rules-list ul, .rules-list ol { margin:4px 0; padding-left:1.25em; }
+.rules-list li li { margin:3px 0; color:#bfb8ae; }
+.rules-list .k { color:#FFE680; font-weight:700; }
+.rules-note { color:#8d8d96; font-size:.76rem; margin-top:12px; padding-top:10px;
+  border-top:1px dashed rgba(255,255,255,.1); }
+@media (max-width: 768px) {
+  .rules-inner { padding:2px 12px 14px; font-size:.82rem; line-height:1.72; }
+  .rules-toggle { padding:10px 12px; gap:8px; }
+  .rules-toggle-title { font-size:.88rem; }
+  .rules-toggle-sub { display:none; }
 }
 </style>
 </head>
@@ -138,6 +125,68 @@
                     <span class="addr-sep">:</span>
                     <code>50010</code>
                 </div>
+                <!-- 点数缓和规则（抽屉） -->
+                <div class="rules-drawer" id="pointsRules">
+                    <button class="rules-toggle" type="button" aria-expanded="false" aria-controls="pointsRulesBody"
+                            onclick="var d=this.parentNode;var o=d.classList.toggle('open');this.setAttribute('aria-expanded',o?'true':'false');">
+                        <span class="ic">📜</span>
+                        <span class="rules-toggle-title">Genesys 点数设定说明</span>
+                        <span class="rules-toggle-sub">Genesys 服务器 · DIY 卡组点数调整与上诉流程</span>
+                        <span class="rules-toggle-arrow">▾</span>
+                    </button>
+                    <div class="rules-body" id="pointsRulesBody">
+                        <div class="rules-inner">
+                            <div class="rules-lead">
+                                适用：本群同人游戏王 DIY 卡组点数调整咨询、上诉流程<br>
+                                定位：官方说明，新人解惑用，兼顾严谨和易懂
+                            </div>
+
+                            <div class="rules-h">一、点数制定原则</div>
+                            <p>本服务器所有 DIY 卡片的点数，以<strong>卡效评估</strong>为核心标准，评估主要参考两大维度：效果的适用范围 / 发动难度、效果带来的收益。</p>
+                            <ol class="rules-list">
+                                <li><span class="k">分值保底规则：</span>DIY 卡片基础点数最低为 1 分；官方卡异画版本不遵循此保底，可保留 0 分。主卡组、额外卡组计分逻辑相互独立，同时会根据卡种差异做区分。</li>
+                                <li><span class="k">叠加罚分规则：</span>同一张卡片具备多项高收益效果时，评分会追加罚分，控制单卡强度上限。</li>
+                                <li><span class="k">卡片点数低于标准模型：</span>目的是保留卡组系统本身的特色。前提是官方与 DIY 创作者均不会恶意利用这类低于模型分值的卡片。</li>
+                                <li><span class="k">卡片点数高于标准模型：</span>常见诱因包括玩家多次反馈投诉、效果边界模糊难以评估、卡片设计存在不合理之处，或是 DIY 作者主动提出调整建议。</li>
+                                <li><span class="k">点数偏差补充说明：</span>部分卡片会存在评估滞后、尚未二次复核的情况，由此出现点数不合适的问题，可走点数缓和上诉流程提交申请。</li>
+                            </ol>
+
+                            <div class="rules-h">二、点数缓和调整流程</div>
+                            <div class="rules-tip">
+                                <strong>重要前置：</strong>卡组分数<strong>过高、过低均支持点数上诉申请</strong>，二者区别在于【是否需要提前完成自查步骤】。
+                            </div>
+                            <ol class="rules-list">
+                                <li><span class="k">判断卡组分数状态</span>
+                                    <ul>
+                                        <li>情况 A：卡组分数过高 → 需要依次完成第 2、3、4 步自查调整，才可上诉</li>
+                                        <li>情况 B：卡组分数过低 → 无需执行 2、3、4 步自查，直接跳转至第 5 步提交上诉</li>
+                                    </ul>
+                                </li>
+                                <li><span class="k">替换高分泛用卡：</span>尝试将卡组内高分泛用卡更换为低分泛用替代品。</li>
+                                <li><span class="k">梳理系统卡池：</span>调整卡组系统组件，审视本系统内全部 DIY 卡片。</li>
+                                <li><span class="k">测试平衡玩法：</span>摸索、测试该系统更加健康合理的构筑与玩法。</li>
+                                <li><span class="k">提交上诉申请：</span>携带卡组信息，<strong>提供自身服务器 ID</strong>，对目标卡提交上诉 / 参考卡上诉。</li>
+                                <li><span class="k">等待上诉结果（三选一）</span>
+                                    <ul>
+                                        <li>结果 A：上诉成功，目标卡片点数下调</li>
+                                        <li>结果 B：上诉成功，参考卡片点数上调</li>
+                                        <li>结果 C：上诉失败，卡片维持原有点数</li>
+                                    </ul>
+                                </li>
+                            </ol>
+
+                            <div class="rules-h">三、补充提示</div>
+                            <ol class="rules-list">
+                                <li>上诉提交请务必附带服务器 ID，无 ID 的申请不予受理。</li>
+                                <li>上诉仅针对卡片点数合理性，不处理卡组对战胜负、单纯主观觉得强 / 弱这类诉求。</li>
+                                <li>点数属于服务器动态平衡机制，单次上诉失败不代表永久无法申请；如果后续卡片环境、主流玩法发生明显变动，可以再次按照流程提交。</li>
+                            </ol>
+
+                            <div class="rules-note">本说明为官方版本，最终解释权归服务器运营团队所有。</div>
+                        </div>
+                    </div>
+                </div>
+
             </div>
 
             <div class="section">
@@ -182,7 +231,7 @@
                         <tr><td><code>NF</code></td><td>无禁限模式</td></tr>
                         <tr><td><code>M</code></td><td>三局两胜（BO3）</td></tr>
                         <tr><td><code>T</code></td><td>双打模式</td></tr>
-                        <tr><td><code>C</code></td><td>编年史模式（随机卡组对战）</td></tr>
+                        <tr><td><code>C</code></td><td>编年史模式（随机卡组对战）<br><span style="color:#8f8;font-size:12px;">进房即分配随机卡组并告知卡组名</span></td></tr>
                         <tr><td><code>LP<span class="param">数字</span></code></td><td>设置基本分（如 <code>LP8000</code>）</td></tr>
                         <tr><td><code>TM<span class="param">数字</span></code></td><td>设置回合时限（秒）</td></tr>
                         <tr><td><code>ST<span class="param">数字</span></code></td><td>设置开局手卡数</td></tr>
@@ -194,7 +243,7 @@
 
                 <!-- 天梯模式 -->
                 <div class="rules-panel" id="tab-ladder">
-                    <p><strong>怎么玩</strong>：进 <code>M#</code> 房或随机天梯房，双方登录官网账号即自动开赛</p>
+                    <p><strong>怎么玩</strong>：只算<strong>随机匹配</strong>（<code>M</code> 房）—— 双方登录官网账号即自动开赛；<strong>约房（<code>M#</code>）不计天梯分</strong></p>
                     <p><strong>计分</strong>：胜 <strong>+10</strong>（对手分高最多再 +5）、平 <strong>+5</strong>、负 <strong>+0</strong>、每日首胜 <strong>+2</strong>；需双方已登录、非同一账号 / 同 IP 才计分</p>
                     <p><strong>投降</strong>：当天第 N 次投降扣 N 分（最多 -10），次日重置</p>
                     <p><strong>上榜</strong>：打完 5 场定级赛即可进榜；段位按活跃玩家百分比（巅峰 / 大师 8% / 钻石 18% / 黄金 35% / 白银 60%）；每赛季积分 ≥150 可投稿 DIY</p>
@@ -224,6 +273,12 @@
             <div class="section">
                 <h2>最新公告</h2>
                 <div class="announcement-box">
+                    <div class="announcement-item"><span class="ann-date">11.20</span><span class="ann-badge">V1.9.7</span><span class="ann-text">称号商店上线：每个赛季结束时按最终天梯积分 1:1 发放「称号点」，可在玩家排名页左侧的称号商店购买趣味称号，购买后到个人中心自选主/副称号展示</span></div>
+                    <div class="announcement-item"><span class="ann-date">11.16</span><span class="ann-badge">V1.9.6</span><span class="ann-text">优化在线决斗底层逻辑以及显示效果，修复部分bug，新增手机端横屏决斗大厅专属UI</span></div>
+                    <div class="announcement-item"><span class="ann-date">11.15</span><span class="ann-badge">V1.9.5</span><span class="ann-text">优化组卡器渲染，新增云端卡组 UI；优化在线决斗底层逻辑，修复部分决斗 bug，新增决斗计数器</span></div>
+                    <div class="announcement-item"><span class="ann-date">11.14</span><span class="ann-badge">V1.9.4</span><span class="ann-text">新版官网优化（适配决斗大厅以及组卡器）；组卡器优化（可右键转移、左键拖拽调整卡位）；修复组卡器排序 bug；在线决斗体验优化（断线重连宽限 60 秒）；饼图可获取副轴信息；新增趣味性称号（获取方式保密，仅可在天梯获取）</span></div>
+                    <div class="announcement-item"><span class="ann-date">11.07</span><span class="ann-badge">V1.9.3</span><span class="ann-text">决斗场地翻新，将默认更换为服务器专属卡背，优化交互体验</span></div>
+                    <div class="announcement-item"><span class="ann-date">11.04</span><span class="ann-badge">V1.9.2</span><span class="ann-text">决斗大厅可实时观战，查看饼图以及先后手胜率</span></div>
                     <div class="announcement-item"><span class="ann-date">10.20</span><span class="ann-badge">V1.9.1</span><span class="ann-text">开放手机端组卡模式：卡组区固定 10 张一行、不滚动整组可见，右侧「搜卡」竖条一键滑出搜卡面板，点卡片即可查看详情并在详情里移除卡片</span></div>
                     <div class="announcement-item"><span class="ann-date">10.18</span><span class="ann-badge">V1.9.0</span><span class="ann-text">大更新：新增新版引导页面，新增在线决斗大厅，组卡器修改（现可保存已登录玩家的卡组），回放器优化（现可以看见卡片效果文本），去除了晓白相关板块；卡池大改：卡池信息与禁限分值合并为一个模块并加入先行卡展示</span></div>
                     <div class="announcement-item"><span class="ann-date">09.23</span><span class="ann-badge">V1.8.5</span><span class="ann-text">卡组编辑功能体验再次优化（新增相关卡片搜索功能，优化整体UI），修复回放BUG（对方场地反向、缺少表示形式变更）</span></div>
@@ -617,20 +672,20 @@
 
             <div class="season-banner">
                 <div class="season-header">
-                    <span class="season-badge">S3</span>
+                    <span class="season-badge">S4</span>
                     <span class="season-title">白神服天梯第三赛季</span>
                 </div>
                 <div class="season-detail">
-                    第二赛季已于 <strong>9月28日</strong> 结算（称号已发放）。<strong>每赛季为期一个月</strong>，S3 赛季持续至 <strong>10月31日</strong>，月末结算并发放<strong>天梯专属称号</strong>。
+                    第三赛季（S3）已于 <strong>11月1日</strong> 结算（称号已发放）。<strong>每赛季为期一个月</strong>，S4 赛季持续至 <strong>11月30日</strong>，月末结算并发放<strong>天梯专属称号</strong>。
                     <strong>每个赛季</strong>天梯达到 <strong>150 分</strong> 即可获得该赛季的 DIY 投稿资格（积分每赛季重置，每日首胜 +2）。
                 </div>
                 <div class="season-tiers">
-                    <span class="tier-item">🏆 S3 巅峰 <em>· 第1名</em><small>免费定制卡1张</small></span>
-                    <span class="tier-item">👑 S3 大师 <em>· 前8%</em></span>
-                    <span class="tier-item">💎 S3 钻石 <em>· 前18%</em></span>
-                    <span class="tier-item">🥇 S3 黄金 <em>· 前35%</em></span>
-                    <span class="tier-item">🥈 S3 白银 <em>· 前60%</em></span>
-                    <span class="tier-item">🎖 S3 参战者 <em>· 通过定级赛</em></span>
+                    <span class="tier-item">🏆 S4 巅峰 <em>· 第1名</em><small>免费定制卡1张</small></span>
+                    <span class="tier-item">👑 S4 大师 <em>· 前8%</em></span>
+                    <span class="tier-item">💎 S4 钻石 <em>· 前18%</em></span>
+                    <span class="tier-item">🥇 S4 黄金 <em>· 前35%</em></span>
+                    <span class="tier-item">🥈 S4 白银 <em>· 前60%</em></span>
+                    <span class="tier-item">🎖 S4 参战者 <em>· 通过定级赛</em></span>
                 </div>
             </div>
 
@@ -646,6 +701,7 @@
             </div>
 
             <div class="ranking-search">
+                <button id="titleShopBtn" class="title-shop-btn" title="用赛季结算获得的天梯积分购买称号">🛒 称号商店</button>
                 <input type="text" id="rankingSearchInput" placeholder="输入玩家名精确搜索...">
                 <button id="rankingSearchBtn">搜索</button>
                 <button id="rankingClearBtn" class="search-clear">清除</button>
@@ -727,6 +783,20 @@
         </div>
     </div>
 
+    <!-- 称号商店弹窗（用赛季结算获得的天梯积分购买称号）
+         ⚠ 必须放全局层：section 有 z-index/stacking context，放里面会被移动端底部导航盖住 -->
+    <div class="ts-overlay" id="titleShopOverlay">
+        <div class="ts-modal" role="dialog" aria-modal="true" aria-labelledby="titleShopHeading">
+            <div class="ts-head">
+                <span class="ts-head-title" id="titleShopHeading">🛒 称号商店</span>
+                <button class="ts-close" id="titleShopClose" title="关闭 (Esc)">&times;</button>
+            </div>
+            <div class="ts-body" id="titleShopBody">
+                <div class="deck-loading">加载中...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- ═══════════════════════════════════════════════════════
          回放播放器 — 弹窗（不占页面分区，哪里出现回放码就在旁边弹窗播放）
          ═══════════════════════════════════════════════════════ -->
@@ -750,10 +820,8 @@
                 <button id="rpStepBack" title="上一步">⏮</button>
                 <button id="rpStep" title="下一步">⏭</button>
                 <span class="rp-speed-label">速度</span>
-                <button class="rp-speed" data-s="0.5">0.5x</button>
-                <button class="rp-speed active" data-s="1">1x</button>
-                <button class="rp-speed" data-s="2">2x</button>
-                <button class="rp-speed" data-s="4">4x</button>
+                <button class="rp-speed active" data-s="4">4x</button>
+                <button class="rp-speed" data-s="5">5x</button>
                 <input type="range" id="rpProgress" min="0" max="100" value="0" style="flex:1;">
                 <span class="rp-progress-text" id="rpProgressText">0 / 0</span>
             </div>
@@ -785,7 +853,7 @@
          SIDEBAR — 全局侧边栏
          ═══════════════════════════════════════════════════════ -->
     <div class="sidebar" id="sidebar">
-        <a class="sidebar-btn" id="duelLobbyBtn" href="lobby.html"
+        <a class="sidebar-btn" id="duelLobbyBtn" href="lobby.html?v=20261108h"
            style="text-decoration:none;display:flex;align-items:center;justify-content:center">决斗<span class="sb-break"></span>大厅</a>
         <div class="sidebar-btn" id="eightDecksBtn">比赛<span class="sb-break"></span>相关</div>
         <div class="sidebar-btn" id="cardPoolInfoBtn">卡池<span class="sb-break"></span>信息</div>
@@ -797,17 +865,20 @@
     <!-- ═══════════════════════════════════════════════════════
          SCRIPTS — 全部JS
          ═══════════════════════════════════════════════════════ -->
-    <script src="js/script.js?v=20261022y"></script>
-    <script src="js/card-pool-info.js?v=20261022k"></script>
-    <script src="js/deck-builder.js?v=20261023o"></script>
-    <script src="js/eight-decks.js?v=20261003n"></script>
-    <script src="js/player-ranking.js?v=20261013b"></script>
-    <script src="js/live-duels.js?v=20260920v"></script>
-    <script src="js/deck-viewer.js?v=20260903b"></script>
-    <script src="js/deck-community.js?v=20260908a"></script>
+    <script src="js/script.js?v=20261120c"></script>
+    <script src="js/card-pool-info.js?v=20261119r"></script>
+    <script src="js/cloud-decks.js?v=20261115z"></script>
+<script src="js/deck-builder.js?v=20261119r"></script>
+    <script src="js/eight-decks.js?v=20261119r"></script>
+    <script src="js/player-ranking.js?v=20261120c"></script>
+    <script src="js/title-shop.js?v=20261120c"></script>
+    <script src="js/live-duels.js?v=20261116b"></script>
+    <script src="js/deck-viewer.js?v=20261119r"></script>
+    <script src="js/deck-community.js?v=20261119r"></script>
     <script src="js/chronicle-decks.js?v=20260919d"></script>
-    <script src="js/replay-viewer.js?v=20261022m"></script>
+    <script src="js/replay-viewer.js?v=20261119r"></script>
     <script src="js/ygocdb-search.js?v=20261022e"></script>
+    <script src="js/index-bgm.js?v=20261120b"></script>
     <script>
         // 玩法规则 Tab 切换
         document.querySelectorAll('.rules-tab').forEach(function(btn) {
@@ -851,53 +922,22 @@
   // 保存
   var b1 = $('dbSaveCloud');
   if (b1) b1.addEventListener('click', function () {
-    var ydk = ydkOf();
-    if (!ydk) { toast('当前卡组是空的，先加点卡'); return; }
-    var name = (prompt('保存到账号，卡组名：', (window.__cloudDeckName || '')) || '').trim();
-    if (!name) return;
-    api('/api/duel/decks/upload', { name: name, ydk: ydk }).then(function (j) {
-      if (j && j.ok) { window.__cloudDeckName = name; toast('已保存到账号：' + name + '（主' + (j.main || 0) + '/额' + (j.extra || 0) + '/副' + (j.side || 0) + '）'); }
-      else toast('保存失败：' + ((j && j.error) || '未知错误'));
-    }).catch(function (e) { toast('保存失败：' + e.message); });
+    if (window.CloudDecks) { window.CloudDecks.save(); return; }
+    toast('云端组件未加载，请刷新页面');
   });
 
   // 读取
   var b2 = $('dbLoadCloud');
   if (b2) b2.addEventListener('click', function () {
-    api('/api/duel/decks').then(function (j) {
-      var names = (j && j.names) || [];
-      if (!names.length) { toast('账号里还没有卡组，先点「保存到账号」'); return; }
-      var pick = prompt('读取哪一套？输入序号或名字：\n' + names.map(function (n, i) { return (i + 1) + '. ' + n.replace(/\.ydk$/i, ''); }).join('\n'), '1');
-      if (!pick) return;
-      var idx = parseInt(pick, 10);
-      var want = (!isNaN(idx) && idx >= 1 && idx <= names.length) ? names[idx - 1] : pick.trim();
-      api('/api/duel/deck?name=' + encodeURIComponent(want.replace(/\.ydk$/i, ''))).then(function (d) {
-        if (!d || !d.main) { toast('没读到这套卡组'); return; }
-        // 服务端返回 {main,extra,side} → 拼成 ydk 文本再载入 ✓
-        var txt = '#main\n' + (d.main || []).map(function (c) { return c; }).join('\n')
-          + '\n#extra\n' + (d.extra || []).join('\n') + '\n!side\n' + (d.side || []).join('\n');
-        var r = loadYdk(txt);
-        if (r) { window.__cloudDeckName = want.replace(/\.ydk$/i, ''); toast('已读取：' + window.__cloudDeckName + '（主' + r.main + '/额' + r.extra + '/副' + r.side + '）'); }
-        else toast('载入失败（组卡器未就绪）');
-      });
-    }).catch(function (e) { toast('读取失败：' + e.message); });
+    if (window.CloudDecks) { window.CloudDecks.open(); return; }
+    toast('云端组件未加载，请刷新页面');
   });
 
-  // 删除
+  // 删除（同一列表右侧有 🗑）
   var b3 = $('dbDelCloud');
   if (b3) b3.addEventListener('click', function () {
-    api('/api/duel/decks').then(function (j) {
-      var names = (j && j.names) || [];
-      if (!names.length) { toast('账号里还没有卡组'); return; }
-      var pick = prompt('删除哪一套？（不可恢复）\n' + names.map(function (n, i) { return (i + 1) + '. ' + n.replace(/\.ydk$/i, ''); }).join('\n'), '1');
-      if (!pick) return;
-      var idx = parseInt(pick, 10);
-      var want = (!isNaN(idx) && idx >= 1 && idx <= names.length) ? names[idx - 1] : pick.trim();
-      if (!confirm('确定删除「' + want.replace(/\.ydk$/i, '') + '」？')) return;
-      api('/api/duel/decks/delete', { name: want.replace(/\.ydk$/i, '') }).then(function (r) {
-        toast(r && r.ok ? ('已删除，账号里还剩 ' + (r.remain || 0) + ' 套') : ('删除失败：' + ((r && r.error) || '')));
-      });
-    });
+    if (window.CloudDecks) { window.CloudDecks.open(); return; }
+    toast('云端组件未加载，请刷新页面');
   });
 
   // ── 打开组卡器（大厅的「编辑 / 新建」跳过来 ✓）

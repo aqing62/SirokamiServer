@@ -52,6 +52,9 @@
     var PIC_PRE   = function (id) { return 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + id + '.jpg'; };
     var PIC_OCG   = function (id) { return 'https://cdn.233.momobako.com/ygopro/pics/' + id + '.jpg'; };
     var IMG_FALLBACK = [PIC_DIY, PIC_PRE, PIC_OCG, function () { return 'cover.jpg'; }];
+    // PATCH(白神服) 2026-11-15: 小尺寸卡图改用服务端预缩放缩略图（/thumbcard）
+    //   原图 400px 直接缩到 60px 会过采样出现"发锐/锯齿"，而且体积大、加载慢
+    var PIC_THUMB = function (id, w) { return '/thumbcard/' + id + '.jpg?w=' + (w || 150); };
 
     /** 已知来源时直接从对应那一档开始（少发无用请求；来源来自 /api/cards 的 source 字段） */
     function imgStartIdx(id) {
@@ -67,7 +70,7 @@
         var key = String(id);
         if (imgSrcCache[key]) return [imgSrcCache[key]];
         var start = imgStartIdx(key);
-        var out = [];
+        var out = [PIC_THUMB(key, 150)];
         for (var i = start; i < IMG_FALLBACK.length; i++) out.push(IMG_FALLBACK[i](key));
         return out;
     }
@@ -108,6 +111,14 @@
             img.onload = null;
         };
         img.onerror = function () {
+            // 缩略图失败 → 先重试一次（服务端按需生成，可能慢一拍）
+            if (idx === 0 && !img.__thumbRetried) {
+                img.__thumbRetried = true;
+                setTimeout(function () {
+                    try { img.src = PIC_THUMB(key, 150) + '&r=' + Date.now(); } catch (e) {}
+                }, 1200);
+                return;
+            }
             idx++;
             if (idx < chain.length) {
                 img.setAttribute('data-src-idx', String(idx));
@@ -118,6 +129,7 @@
         };
         img.onload = function () {
             imgSrcCache[key] = chain[idx];   // 记住可用地址：后续重绘不再走失败回退
+            try { prefetchDetailImg(key, 150); } catch (e) {}
             img.onerror = null;
             img.onload = null;
         };
@@ -255,28 +267,63 @@
     }
 
     // ── 卡图 URL（带缓存：记住每张卡可用地址，避免重复走失败回退链）──
-    function cardImgHtml(id, extraCls) {
+    function cardImgHtml(id, extraCls, wantW) {
         var key = String(id);
         var cls = extraCls || 'db-img';
-        var cached = imgSrcCache[key];
+        var w = wantW || 150;
+        var ck = key + ':' + w;
+        var cached = imgSrcCache[ck];
         if (cached) {
-            return '<img class="' + cls + '" src="' + cached + '" alt="' + key + '" loading="lazy" draggable="false">';
+            return '<img class="' + cls + '" src="' + cached + '" data-w="' + w + '" data-card-id="' + key
+                + '" alt="' + key + '" loading="lazy" draggable="false">';
         }
-        return '<img class="' + cls + '" src="' + imgChainFor(key)[0] + '" alt="' + key + '" loading="lazy" draggable="false"'
+        return '<img class="' + cls + '" src="' + PIC_THUMB(key, w) + '" data-w="' + w + '" data-fb="0"'
+            + ' data-card-id="' + key + '" alt="' + key + '" loading="lazy" draggable="false"'
             + ' onload="window.__dbImgOk&&window.__dbImgOk(this)"'
             + ' onerror="window.__dbImgErr&&window.__dbImgErr(this)">';
+    }
+    // 详情大图的宽度（卡片信息栏用它）
+    var DETAIL_W = 360;
+    var detailPrefetching = {};
+    function prefetchDetailImg(id, w) {
+        try {
+            var n = parseInt(w, 10) || 150;
+            if (n >= DETAIL_W) return;                  // 本来就是大图，不用预取
+            var key = String(id);
+            if (detailPrefetching[key]) return;
+            detailPrefetching[key] = 1;
+            var im = new Image();
+            im.decoding = 'async';
+            im.src = PIC_THUMB(key, DETAIL_W);
+        } catch (e) {}
     }
     // 全局回调（供字符串模板里的 <img> 使用）
     window.__dbImgOk = function (img) {
         var id = img.getAttribute('alt');
-        if (id) imgSrcCache[id] = img.currentSrc || img.src;
+        var w = img.getAttribute('data-w') || '150';
+        if (id && img.naturalWidth > 1) {
+            imgSrcCache[id + ':' + w] = img.currentSrc || img.src;
+            // 详情大图的预取改成「悬停/按下时」（见下面的委托）——
+            //   搜卡一屏几十张，加载即预取会白白多下几十张 360 图
+            void 0;
+        }
         img.onerror = null;
     };
     window.__dbImgErr = function (img) {
-        var id = img.getAttribute('alt') || '';
-        var step = parseInt(img.getAttribute('data-fb') || '0', 10) + 1;
+        var id = img.getAttribute('data-card-id') || img.getAttribute('alt') || '';
+        // 缩略图是服务端按需生成的：第一次可能还没有（302 → 图床没图 → error）
+        // → 等 1.2 秒重试一次同地址，避免直接掉到 cover.jpg（"先行卡 卡图未解锁"）
+        if (img.getAttribute('data-fb') === '0' && img.getAttribute('data-retried') !== '1' && id) {
+            img.setAttribute('data-retried', '1');
+            var w = parseInt(img.getAttribute('data-w') || '150', 10);
+            setTimeout(function () {
+                try { img.src = PIC_THUMB(id, w) + '&r=' + Date.now(); } catch (e) {}
+            }, 1200);
+            return;
+        }
+        var step = parseInt(img.getAttribute('data-fb') || '0', 10);
         if (id && step < IMG_FALLBACK.length) {
-            img.setAttribute('data-fb', String(step));
+            img.setAttribute('data-fb', String(step + 1));
             img.src = IMG_FALLBACK[step](id);
         } else {
             img.onerror = null;
@@ -324,9 +371,28 @@
         updateScoreLabel();
     }
 
+    // PATCH(白神服) 2026-11-06: 从大厅进组卡器时分数是异步加载的，首次渲染还没拿到分数 →
+    //   卡片角标（含异画卡的分值）是空的；原来"分数已加载"分支只更新总分文字、不重绘卡组，
+    //   于是角标一直缺，直到手动排序才补上（用户实测 ✗）。
+    //   现在：拿到分数的第一次 refreshScore 之后强制重绘一次卡组，补上角标。
+    var _scoreReadyRender = false;
     function refreshScore() {
-        if (scoreMap && _geneScore) { updateScoreLabel(); return; }   // 分数已加载：只更新文字，不重绘卡组
-        Promise.all([loadScores(), loadGeneScores()]).then(function () { updateScoreLabel(); });
+        var ready = !!(scoreMap && _geneScore);
+        if (ready) {
+            updateScoreLabel();
+            if (!_scoreReadyRender) {
+                _scoreReadyRender = true;
+                try { renderAll(); } catch (e) {}
+            }
+            return;
+        }
+        Promise.all([loadScores(), loadGeneScores()]).then(function () {
+            updateScoreLabel();
+            if (!_scoreReadyRender) {
+                _scoreReadyRender = true;
+                try { renderAll(); } catch (e) {}
+            }
+        });
     }
 
     // 单个卡位元素（渲染与增量插入共用）
@@ -508,15 +574,22 @@
     }
 
     // 主/副卡组排序比较（怪兽 > 魔法 > 陷阱）
+    // PATCH(白神服) 2026-11-14: 同级时再按**卡号**排 —— 同一张卡（同卡号）会排在一起，
+    //   原来是返回 0（保持原顺序），重复的卡会散在中间（用户要求"同卡号排一起"）
+    function compareByCode(a, b) {
+        return (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0);
+    }
     function compareMainCard(a, b) {
         var ca = cardInfoForSort(a), cb = cardInfoForSort(b);
         var ta = ca && ca.typeInfo || {};
         var tb = cb && cb.typeInfo || {};
         var ga = groupOf(ta), gb = groupOf(tb);
         if (ga !== gb) return ga - gb; // 怪兽0 魔法1 陷阱2
-        if (ga === 0) return compareMonster(ca, cb, ta, tb);
-        if (ga === 1) return compareMagic(ca, cb, ta, tb);
-        return compareTrap(ca, cb, ta, tb);
+        var r = 0;
+        if (ga === 0) r = compareMonster(ca, cb, ta, tb);
+        else if (ga === 1) r = compareMagic(ca, cb, ta, tb);
+        else r = compareTrap(ca, cb, ta, tb);
+        return r !== 0 ? r : compareByCode(a, b);
     }
 
     function groupOf(ti) {
@@ -592,7 +665,8 @@
         var ta = ca && ca.typeInfo || {}, tb = cb && cb.typeInfo || {};
         var ma = extraKind(ta), mb = extraKind(tb);
         if (ma !== mb) return ma - mb;
-        return compareMonsterInner(ca, cb);
+        var r = compareMonsterInner(ca, cb);
+        return r !== 0 ? r : compareByCode(a, b);
     }
 
     function extraKind(ti) {
@@ -702,7 +776,7 @@
         body.innerHTML =
             '<div class="db-detail-head">'
             + '<div class="db-detail-card">'
-            + cardImgHtml(id, 'db-detail-img')
+            + cardImgHtml(id, 'db-detail-img', 360)
             + '</div>'
             + '<div class="db-detail-name">' + escapeHtml(name) + '</div>'
             + scHtml
@@ -734,7 +808,7 @@
                 + '<span>种族：' + (card.raceName || '-') + '</span>'
                 + '<span>等级：' + level + '</span></div>'
                 + '<div class="db-detail-rows">'
-                + '<span>ATK ' + atk + '</span><span>DEF ' + def + '</span></div>';
+                + '<span>ATK ' + atk + '</span><span>DEF ' + (((card.type | 0) & 0x4000000) ? '—' : def) + '</span></div>';
         }
         var typeHtml = '<div class="db-detail-type">' + escapeHtml(ti.fullType || '') + '</div>';
         detailCardObj = card;   // DIY 卡对象（含 setcode）供同字段相关卡使用
@@ -947,12 +1021,15 @@
     }
 
     function rangeMatch(val, minId, maxId) {
+        var lo = numOf(minId), hi = numOf(maxId);
+        // PATCH(白神服) 2026-11-17: **只填最低、不填最高 = 精确等于该值**
+        //   用户要求：攻击「0 - 不填」只看 0 攻击力，不是 0~无限；星级同理
+        var exact = (lo != null && hi == null);
         if (val == null || val === -2 || isNaN(val)) {
-            // ？或未知的攻守：仅在无下限要求时放行
-            var lo = numOf(minId);
+            // ？或未知的攻守：仅在"没有下限要求"时放行（精确匹配当然不算）
             return lo == null;
         }
-        var lo = numOf(minId), hi = numOf(maxId);
+        if (exact) return val === lo;
         if (lo != null && val < lo) return false;
         if (hi != null && val > hi) return false;
         return true;
@@ -1003,9 +1080,7 @@
         // 等级/攻/守范围（仅怪兽）
         if (base === '怪兽') {
             var lv = card.level || 0;
-            var loLv = numOf('dbFLevelMin'), hiLv = numOf('dbFLevelMax');
-            if (loLv != null && lv < loLv) return false;
-            if (hiLv != null && lv > hiLv) return false;
+            if (!rangeMatch(lv, 'dbFLevelMin', 'dbFLevelMax')) return false;
             if (!rangeMatch(card.atk, 'dbFAtkMin', 'dbFAtkMax')) return false;
             if (!rangeMatch(card.def, 'dbFDefMin', 'dbFDefMax')) return false;
         }
@@ -1016,9 +1091,17 @@
             // 任一填 -1 → 只看禁卡
             return !!(sc && sc.forbidden);
         }
+        // PATCH(白神服) 2026-11-17: **分值填 0 = 只看没有分值的卡**（用户要求）
+        var onlyNoScore = (loS === 0 && hiS == null);
+        if (onlyNoScore) {
+            var s0 = sc && !sc.forbidden ? (sc.score || 0) : 0;
+            return !s0;          // 分值 0 / 无分 → 保留
+        }
         if (loS != null || hiS != null) {
             var scVal = sc && !sc.forbidden ? (sc.score || 0) : null;
             if (scVal == null) return false; // 无分卡在有分值筛选时排除
+            var exactS = (loS != null && hiS == null);
+            if (exactS) return scVal === loS;
             if (loS != null && scVal < loS) return false;
             if (hiS != null && scVal > hiS) return false;
         }
@@ -1376,7 +1459,7 @@
         var body = $('dbDetailBody');
         body.innerHTML =
             '<div class="db-detail-head">'
-            + '<div class="db-detail-card">' + cardImgHtml(o.id, 'db-detail-img') + '</div>'
+            + '<div class="db-detail-card">' + cardImgHtml(o.id, 'db-detail-img', 360) + '</div>'
             + '<div class="db-detail-name">' + escapeHtml(o.name) + '</div>'
             + scHtml
             + (o.fullType ? '<div class="db-detail-type">' + escapeHtml(o.fullType) + '</div>' : '')
@@ -1394,6 +1477,189 @@
     }
 
     // 点击网格卡片（事件委托）
+    // ── 拖拽：两种来源（搜卡网格 / 卡组卡位）→ 三个投放区（主/额外/副）──
+    var _dragTimer = 0, _dragSrc = null, _dragGhost = null, _dragActive = false, _dragHiSlot = null;
+    var _dragSuppressClick = false;
+
+    var ZONE_KEY_BY_SECTION = { dbMain: 'main', dbExtra: 'extra', dbSide: 'side' };
+
+    function quickZoneForId(id) {
+        if (officialMode) {
+            var o = officialResults.find(function (x) { return x.id === id; });
+            return (o && isExtraDeckFullType(o.fullType)) ? 'extra' : 'main';
+        }
+        var c = diyIndex && diyIndex.get(id);
+        return (c && isExtraDeckCard(c)) ? 'extra' : 'main';
+    }
+
+    function zoneKeyAtPoint(x, y) {
+        var el = document.elementFromPoint(x, y);
+        if (!el || !el.closest) return null;
+        var sec = el.closest('.db-section');
+        if (!sec) return null;
+        return ZONE_KEY_BY_SECTION[sec.id] || null;
+    }
+
+    /** 拖到某张卡上时算插入位置：指针在卡右半 → 插到它后面；空格处 → 末尾 */
+    function insertIndexAtPoint(x, y, zoneKey, fromIndex) {
+        var el = document.elementFromPoint(x, y);
+        var slot = el && el.closest ? el.closest('.db-card-slot') : null;
+        var list = zones[zoneKey] ? zones[zoneKey].list : [];
+        if (!slot) return list.length > fromIndex ? list.length - 1 : list.length;   // 丢到空白 → 末尾
+        if (slot.getAttribute('data-zone') !== zoneKey) return -1;
+        var idx = parseInt(slot.getAttribute('data-index'), 10);
+        if (isNaN(idx)) return -1;
+        var r = slot.getBoundingClientRect();
+        var after = x > (r.left + r.width / 2);
+        var to = after ? idx + 1 : idx;
+        if (to > fromIndex) to -= 1;          // 自己先被抽走，后面的索引整体前移
+        return Math.max(0, Math.min(list.length - 1, to));
+    }
+
+    /** 把 from 位置的卡挪到 to 位置（其它卡顺延让位），只重绘该区域 */
+    function reorderCard(zoneKey, from, to) {
+        var list = zones[zoneKey] && zones[zoneKey].list;
+        if (!list || from === to || from < 0 || from >= list.length || to < 0 || to >= list.length) return false;
+        var item = list.splice(from, 1)[0];
+        list.splice(to, 0, item);
+        renderZone(zoneKey);
+        refreshScore();
+        return true;
+    }
+
+    function dragGhostShow(src, x, y) {
+        if (_dragGhost) return;
+        var wrap = document.createElement('div');
+        wrap.style.cssText = 'position:fixed;z-index:100090;pointer-events:none;width:58px;height:84px;'
+            + 'border-radius:6px;overflow:hidden;box-shadow:0 10px 24px rgba(0,0,0,.65);opacity:.92;'
+            + 'transform:translate(-50%,-50%);border:1px solid rgba(212,175,55,.8)';
+        var im = document.createElement('img');
+        im.src = imgSrcFor(src.id);
+        im.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
+        wrap.appendChild(im);
+        document.body.appendChild(wrap);
+        _dragGhost = wrap;
+        dragGhostMove(x, y);
+    }
+
+    function dragGhostMove(x, y) {
+        if (!_dragGhost) return;
+        _dragGhost.style.left = x + 'px';
+        _dragGhost.style.top = y + 'px';
+    }
+
+    function dragCleanup() {
+        clearTimeout(_dragTimer);
+        _dragTimer = 0;
+        if (_dragGhost && _dragGhost.parentNode) _dragGhost.parentNode.removeChild(_dragGhost);
+        _dragGhost = null;
+        _dragActive = false;
+        _dragSrc = null;
+        if (_dragHiSlot) { _dragHiSlot.classList.remove('db-drop-hi'); _dragHiSlot = null; }
+        document.body.classList.remove('db-card-dragging');
+    }
+
+    (function injectDragStyle() {
+        if (document.getElementById('dbDragStyle')) return;
+        var st = document.createElement('style');
+        st.id = 'dbDragStyle';
+        st.textContent = '.db-card-dragging, .db-card-dragging * { cursor: grabbing !important; }'
+            + '.db-drop-hi { outline: 2px solid #F0E68C !important; outline-offset: -2px; border-radius: 6px; }';
+        document.head.appendChild(st);
+    })();
+
+    function initCardDrag() {
+        layout.addEventListener('pointerdown', function (e) {
+            if (e.button !== 0) return;
+            var t = e.target;
+            if (!t || !t.closest) return;
+            if (t.closest('.db-remove')) return;              // 点 × 不进入拖拽
+            var slot = t.closest('.db-card-slot');
+            var cell = t.closest('.db-cell');
+            if (!slot && !cell) return;
+
+            _dragSrc = slot
+                ? { type: 'slot', zone: slot.getAttribute('data-zone'), index: parseInt(slot.getAttribute('data-index'), 10), id: parseInt(slot.getAttribute('data-id'), 10) }
+                : { type: 'grid', id: parseInt(cell.getAttribute('data-id'), 10) };
+            if (!_dragSrc.id) { _dragSrc = null; return; }
+
+            var x0 = e.clientX, y0 = e.clientY;
+            var started = false;
+
+            _dragTimer = setTimeout(function () {
+                started = true;
+                _dragActive = true;
+                _dragSuppressClick = true;
+                document.body.classList.add('db-card-dragging');
+                dragGhostShow(_dragSrc, x0, y0);
+            }, 220);
+
+            function onMove(ev) {
+                var dx = Math.abs(ev.clientX - x0), dy = Math.abs(ev.clientY - y0);
+                if (!started) {
+                    if (dx > 6 || dy > 6) {                    // 长按前就移动了 → 当成滚动/普通操作
+                        dragCleanup();
+                        detach();
+                    }
+                    return;
+                }
+                ev.preventDefault();
+                dragGhostMove(ev.clientX, ev.clientY);
+                // 高亮落点卡位（同区域重排时能看到会插到哪里）
+                try {
+                    var el2 = document.elementFromPoint(ev.clientX, ev.clientY);
+                    var slot2 = el2 && el2.closest ? el2.closest('.db-card-slot') : null;
+                    if (slot2 !== _dragHiSlot) {
+                        if (_dragHiSlot) _dragHiSlot.classList.remove('db-drop-hi');
+                        _dragHiSlot = slot2;
+                        if (slot2) slot2.classList.add('db-drop-hi');
+                    }
+                } catch (e) {}
+            }
+
+            function onUp(ev) {
+                detach();
+                if (_dragActive && started) {
+                    var zk = zoneKeyAtPoint(ev.clientX, ev.clientY);
+                    var src = _dragSrc;
+                    if (zk && src) {
+                        if (src.type === 'grid') {
+                            if (addCard(zk, src.id)) {
+                                toast('已加入' + (zk === 'extra' ? '额外卡组' : zk === 'main' ? '主卡组' : '副卡组') + ' ✓');
+                            }
+                        } else if (zk === src.zone) {
+                            // 同一卡组内拖动 = 调整位置，其它卡自动让位
+                            var to = insertIndexAtPoint(ev.clientX, ev.clientY, src.zone, src.index);
+                            if (to >= 0 && reorderCard(src.zone, src.index, to)) {
+                                toast('已移动到第 ' + (to + 1) + ' 位');
+                            }
+                        } else {
+                            var res = checkAdd(zk, src.id);
+                            if (!res.ok) { toast(res.reason); }
+                            else {
+                                removeCard(src.zone, src.index);
+                                addCard(zk, src.id);
+                                toast('已移动到' + (zk === 'extra' ? '额外卡组' : zk === 'main' ? '主卡组' : '副卡组') + ' ✓');
+                            }
+                        }
+                    }
+                }
+                dragCleanup();
+                setTimeout(function () { _dragSuppressClick = false; }, 60);
+            }
+
+            function detach() {
+                document.removeEventListener('pointermove', onMove, true);
+                document.removeEventListener('pointerup', onUp, true);
+                document.removeEventListener('pointercancel', onUp, true);
+            }
+
+            document.addEventListener('pointermove', onMove, true);
+            document.addEventListener('pointerup', onUp, true);
+            document.addEventListener('pointercancel', onUp, true);
+        });
+    }
+
     function onGridClick(e) {
         var cell = e.target.closest ? e.target.closest('.db-cell') : null;
         if (!cell) return;
@@ -1489,12 +1755,40 @@
 
     // 解析 ydk 文本 → { main, extra, side }（优先复用 DeckViewer.parse）
     function parseYdkText(text) {
-        if (!text || !text.trim()) return null;
+        if (!text || !String(text).trim()) return null;
+        text = String(text);
+        // PATCH(白神服) 2026-11-06: iOS 的 prompt 粘贴多行时**换行可能被吞掉**，
+        //   变成 "#main12345678 12345679…#extra…" 一整行 → 解析失败（用户实测：无法解析卡组 ✗）。
+        //   这里先做归一化：去 BOM、统一换行、必要时在分区标记前补换行。
+        try {
+            text = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n');
+            if (text.indexOf('\n') < 0) {
+                text = text.replace(/(#main|#extra|#side|!side)/gi, '\n$1\n');
+            }
+            // ydke:// 形式（客户端复制出来的卡组串）
+            if (/^ydke:\/\//i.test(text.trim())) {
+                var b64d = function (b) {
+                    try {
+                        var raw = atob(String(b || '').replace(/-/g, '+').replace(/_/g, '/')
+                            + '==='.slice((String(b || '').length + 3) % 4));
+                        var out = [];
+                        for (var i = 0; i + 3 < raw.length; i += 4) {
+                            out.push((raw.charCodeAt(i)) | (raw.charCodeAt(i + 1) << 8)
+                                | (raw.charCodeAt(i + 2) << 16) | (raw.charCodeAt(i + 3) << 24));
+                        }
+                        return out.filter(function (x) { return x > 0; });
+                    } catch (e) { return []; }
+                };
+                var seg = text.trim().slice(7).split('!');
+                var yk = { main: b64d(seg[0]), extra: b64d(seg[1]), side: b64d(seg[2]) };
+                if (yk.main.length || yk.extra.length || yk.side.length) return yk;
+            }
+        } catch (e) { /* 归一化失败就按原文继续 */ }
         if (window.DeckViewer && window.DeckViewer.parse) {
             try {
                 var d = window.DeckViewer.parse(text);
                 if (d && (d.main.length || d.extra.length || d.side.length)) {
-                    return { main: d.main || [], extra: d.extra || [], side: d.side || [] };
+                    window.__dvTmp = { main: d.main || [], extra: d.extra || [], side: d.side || [] };
                 }
             } catch (e) { /* fallthrough */ }
         }
@@ -1503,29 +1797,120 @@
         var section = 'main';
         String(text).split(/\r?\n/).forEach(function (line) {
             line = line.trim();
-            if (!line || line.charAt(0) === '#') return;
+            if (!line) return;
+            // 分区标记必须**先**判断（原来 "#extra" 先被"# 注释"规则吃掉 → 全进主卡组 ✗）
+            if (/^#main/i.test(line)) { section = 'main'; return; }
             if (/^#extra/i.test(line)) { section = 'extra'; return; }
-            if (/^!side/i.test(line)) { section = 'side'; return; }
-            var id = parseInt(line, 10);
-            if (!isNaN(id) && id > 0) {
+            if (/^!side/i.test(line) || /^#side/i.test(line)) { section = 'side'; return; }
+            if (line.charAt(0) === '#') return;
+            // PATCH(白神服) 2026-11-06: 一行里可能有多个卡号（iOS 粘贴时换行被吞、或空格分隔）
+            var ids = String(line).match(/\d{5,9}/g) || [];
+            for (var _i = 0; _i < ids.length; _i++) {
+                var id = parseInt(ids[_i], 10);
+                if (isNaN(id) || id <= 0) continue;
                 if (section === 'extra') extra.push(id);
                 else if (section === 'side') side.push(id);
                 else main.push(id);
             }
         });
         if (!main.length && !extra.length && !side.length) return null;
-        return { main: main, extra: extra, side: side };
+        var _fb = { main: main, extra: extra, side: side };
+        // PATCH(白神服) 2026-11-06: DeckViewer 对"换行被吞/一行多号"的文本可能只认出一部分，
+        //   这里取两者中**识别卡片更多**的那份（iOS 粘贴更可靠）。
+        try {
+            if (window.__dvTmp) {
+                var _n1 = (_fb.main.length + _fb.extra.length + _fb.side.length);
+                var _n2 = (window.__dvTmp.main.length + window.__dvTmp.extra.length + window.__dvTmp.side.length);
+                if (_n2 > _n1) { delete window.__dvTmp; return { main: window.__dvTmp ? window.__dvTmp.main : [], extra: [], side: [] }; }
+                delete window.__dvTmp;
+            }
+        } catch (e) {}
+        return _fb;
     }
 
     // 导入卡组（替换当前卡组）
+    // PATCH(白神服) 2026-11-06: iOS 上 prompt() 没法粘多行、也打不开文件 →
+    //   改成页面内弹窗（多行 textarea + 选择 .ydk 文件），iOS/安卓/PC 都能用。
     function importDeck() {
-        var text = prompt(
-            '粘贴 YDK 卡组文本（#main/#extra/!side 格式，或纯卡号列表）：\n\n' +
-            '导入将替换当前卡组内容。'
-        );
-        if (text == null) return;
-        var deck = parseYdkText(text);
-        if (!deck) { toast('无法解析卡组内容'); return; }
+        openImportDialog();
+    }
+
+    function openImportDialog() {
+        var old = document.getElementById('dbImportDlg');
+        if (old && old.parentNode) old.parentNode.removeChild(old);
+
+        var ov = document.createElement('div');
+        ov.id = 'dbImportDlg';
+        ov.style.cssText = 'position:fixed;inset:0;z-index:100030;background:rgba(0,0,0,.62);'
+            + 'display:flex;align-items:center;justify-content:center;padding:16px;';
+
+        var box = document.createElement('div');
+        box.style.cssText = 'width:min(560px,96vw);max-height:86vh;display:flex;flex-direction:column;'
+            + 'background:#161a20;border:1px solid rgba(216,30,68,.55);border-radius:14px;'
+            + 'box-shadow:0 18px 50px rgba(0,0,0,.6);overflow:hidden;'
+            + 'font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;';
+
+        box.innerHTML =
+            '<div style="display:flex;align-items:center;gap:8px;padding:12px 14px;'
+            + 'border-bottom:1px solid rgba(255,255,255,.1)">'
+            + '<b style="flex:1;color:#FFD700;font-size:.95rem">导入卡组</b>'
+            + '<button type="button" id="dbImportClose" style="background:transparent;border:1px solid rgba(255,255,255,.25);'
+            + 'color:#cfc8bd;border-radius:6px;padding:2px 9px;cursor:pointer;font-family:inherit">✕</button></div>'
+            + '<div style="padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-height:0">'
+            + '<div style="color:#9b97a1;font-size:.78rem;line-height:1.6">把 .ydk 文件内容粘进来（#main / #extra / !side），'
+            + '或直接点下面「选择文件」。也可粘贴客户端复制的 <code>ydke://</code> 串。</div>'
+            + '<textarea id="dbImportText" placeholder="#main&#10;12345678&#10;#extra&#10;#side" '
+            + 'style="width:100%;height:34vh;min-height:150px;resize:vertical;background:#0f1318;color:#e6eef8;'
+            + 'border:1px solid rgba(255,255,255,.18);border-radius:10px;padding:10px;font:13px/1.55 ui-monospace,Menlo,Consolas,monospace;'
+            + 'box-sizing:border-box;-webkit-user-select:text;user-select:text"></textarea>'
+            + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+            + '<label style="padding:7px 12px;border-radius:8px;border:1px solid rgba(255,255,255,.22);'
+            + 'color:#dbe6f1;font-size:.8rem;cursor:pointer">选择文件…'
+            + '<input type="file" id="dbImportFile" accept=".ydk,.txt,text/plain" style="display:none"></label>'
+            + '<span id="dbImportHint" style="color:#8d8d96;font-size:.74rem"></span>'
+            + '<span style="flex:1"></span>'
+            + '<button type="button" id="dbImportCancel" style="padding:7px 14px;border-radius:8px;'
+            + 'border:1px solid rgba(255,255,255,.22);background:transparent;color:#cfc8bd;cursor:pointer;font-family:inherit">取消</button>'
+            + '<button type="button" id="dbImportOk" style="padding:7px 16px;border-radius:8px;'
+            + 'border:1px solid rgba(216,30,68,.7);background:rgba(216,30,68,.16);color:#FFD700;'
+            + 'font-weight:700;cursor:pointer;font-family:inherit">导入</button>'
+            + '</div></div>';
+        ov.appendChild(box);
+        document.body.appendChild(ov);
+
+        var ta = box.querySelector('#dbImportText');
+        var hint = box.querySelector('#dbImportHint');
+        function close() { if (ov.parentNode) ov.parentNode.removeChild(ov); }
+        box.querySelector('#dbImportClose').onclick = close;
+        box.querySelector('#dbImportCancel').onclick = close;
+        ov.addEventListener('click', function (e) { if (e.target === ov) close(); });
+
+        // 选文件（iOS 文件 App：用 FileReader，兼容所有 Safari 版本）
+        box.querySelector('#dbImportFile').addEventListener('change', function (e) {
+            var f = e.target.files && e.target.files[0];
+            if (!f) return;
+            hint.textContent = '读取中…';
+            try {
+                var fr = new FileReader();
+                fr.onload = function () {
+                    ta.value = String(fr.result || '');
+                    hint.textContent = '已读取 ' + f.name + '（' + Math.round(f.size / 1024) + ' KB）';
+                };
+                fr.onerror = function () { hint.textContent = '读取失败，请改用粘贴'; };
+                fr.readAsText(f, 'utf-8');
+            } catch (err) { hint.textContent = '读取失败：' + err.message; }
+        });
+
+        box.querySelector('#dbImportOk').onclick = function () {
+            var deck = parseYdkText(ta.value);
+            if (!deck) { hint.textContent = '无法解析：请确认是 .ydk 文本（#main / #extra / !side）'; return; }
+            close();
+            applyImportedDeck(deck);
+        };
+        setTimeout(function () { try { ta.focus(); } catch (e) {} }, 60);
+    }
+
+    function applyImportedDeck(deck) {
         // 数量检查
         if (deck.main.length > zones.main.max) {
             toast('主卡组超过 ' + zones.main.max + ' 张，无法导入');
@@ -1572,6 +1957,29 @@
         renderAll();
         toast('卡组已清空');
     }
+
+    // PATCH(白神服) 2026-11-06: 手机横屏时组卡器太窄，直接遮住并提示竖屏
+    (function () {
+        try {
+            var st = document.createElement('style');
+            st.textContent = '@media (orientation: landscape) and (max-height: 560px) {'
+                + ' #dbLandscapeTip { display: flex !important; } }';
+            document.head.appendChild(st);
+            var tip = document.createElement('div');
+            tip.id = 'dbLandscapeTip';
+            tip.style.cssText = 'display:none;position:fixed;inset:0;z-index:100060;'
+                + 'background:#0a0a0c;background-image:radial-gradient(600px 380px at 50% 35%, rgba(216,30,68,.16), rgba(10,10,12,0) 70%);'
+                + 'flex-direction:column;align-items:center;justify-content:center;gap:8px;'
+                + 'text-align:center;padding:24px;font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;'
+                + 'pointer-events:auto;';
+            tip.innerHTML = '<div style="font-size:40px;line-height:1">📱↻</div>'
+                + '<div style="font-size:18px;font-weight:800;letter-spacing:2px;color:#F0E68C">请竖屏使用组卡器</div>'
+                + '<div style="font-size:13px;color:#9b97a1;line-height:1.7;max-width:320px">'
+                + '横屏下卡片和按钮太窄，转回竖屏即可继续编辑卡组</div>';
+            var host = document.getElementById('section-deck-builder') || document.body;
+            host.appendChild(tip);
+        } catch (e) {}
+    })();
 
     // ── toast ──
     var toastTimer = 0;
@@ -1932,15 +2340,68 @@
         // 网格点击 → 详情
         gridEl.addEventListener('click', onGridClick);
 
-        // 禁止卡图的原生拖拽与长按菜单（长按拖动会造成页面卡顿/卡死）
+        // PATCH(白神服) 2026-11-16: 卡片信息栏用 w=360，搜卡网格用 w=150 ——
+        //   两个 URL 不同，点开详情会"重新加载"。这里在**悬停/按下**时预取 360 版，
+        //   点开时命中浏览器缓存（又不会一屏几十张全预取）。
+        (function () {
+            var hoverTimer = 0;
+            function prefetchFrom(el) {
+                try {
+                    var cell = el && el.closest ? el.closest('.db-cell, .db-card-slot') : null;
+                    if (!cell) return;
+                    var id = parseInt(cell.getAttribute('data-id'), 10);
+                    if (!id) return;
+                    prefetchDetailImg(id, 150);
+                } catch (e) {}
+            }
+            layout.addEventListener('mouseover', function (e) { prefetchFrom(e.target); });
+            layout.addEventListener('pointerdown', function (e) { prefetchFrom(e.target); }, true);
+            layout.addEventListener('focusin', function (e) { prefetchFrom(e.target); });
+        })();
+
+        // 禁止卡图的原生拖拽（拖动改用下面的"左键长按"自定义实现）
         layout.addEventListener('dragstart', function (e) {
             var t = e.target;
             if (t && t.closest && t.closest('.db-card-slot, .db-cell, img')) e.preventDefault();
         });
+
+        // ── PATCH(白神服) 2026-11-14: 右键快捷操作（电脑端）──
+        //   搜卡结果右键 → 直接加入卡组（额外怪兽进额外、其余进主卡）
+        //   主/额外/副卡组的卡右键 → 移除
         layout.addEventListener('contextmenu', function (e) {
             var t = e.target;
-            if (t && t.closest && t.closest('.db-card-slot')) e.preventDefault();
+            if (!t || !t.closest) return;
+            var slot = t.closest('.db-card-slot');
+            if (slot) {
+                e.preventDefault();
+                var zk = slot.getAttribute('data-zone');
+                var idx = parseInt(slot.getAttribute('data-index'), 10);
+                removeCard(zk, idx);
+                toast('已从' + (zk === 'main' ? '主卡组' : zk === 'extra' ? '额外卡组' : '副卡组') + '移除 ✓');
+                return;
+            }
+            var cell = t.closest('.db-cell');
+            if (cell) {
+                e.preventDefault();
+                var gid = parseInt(cell.getAttribute('data-id'), 10);
+                if (!gid) return;
+                var gz = quickZoneForId(gid);
+                if (addCard(gz, gid)) toast('已加入' + (gz === 'extra' ? '额外卡组' : '主卡组') + ' ✓');
+                return;
+            }
         });
+
+        // ── PATCH(白神服) 2026-11-14: 左键长按拖动卡片 ──
+        //   按住 220ms 后进入拖拽：搜卡结果拖到主/额外/副区域 = 加入；卡组里的卡拖到其它区域 = 移动
+        initCardDrag();
+        // 拖拽后要吞掉一次 click（否则会顺带触发"看详情"或"关闭详情"）
+        document.addEventListener('click', function (e) {
+            if (_dragSuppressClick) {
+                _dragSuppressClick = false;
+                e.stopPropagation();
+                e.preventDefault();
+            }
+        }, true);
         layout.addEventListener('selectstart', function (e) {
             var t = e.target;
             if (t && t.closest && t.closest('.db-card-slot, .db-cell')) e.preventDefault();
@@ -2052,52 +2513,155 @@
     // ── 常用卡（搜卡面板的蓝色按钮）──────────────────────────
     //  只做一个「开关」：打开后所有搜索/筛选结果都会再与常用卡集合求交集，
     //  所以它和「筛选」「搜索框」是叠加关系，而不是各走一条路。
-    var COMMON_URL = 'data/common_cards.json?v=20261008u';
+    var COMMON_URL = 'data/common_cards.json?v=20261116a';
     var _commonIds = null, _commonSet = null, _commonOn = false;
+    var _commonGroups = null;        // [{ name, ids, set }]
+    var _commonGroup = null;         // 当前选中的分组（null = 全部常用卡）
+
     function loadCommonIds() {
         if (_commonIds) return Promise.resolve(_commonIds);
         return fetch(COMMON_URL)
             .then(function (r) { return r.json(); })
             .then(function (d) {
                 var list = [], set = {};
-                ((d && d.groups) || []).forEach(function (g) {
-                    (g.cards || []).forEach(function (id) { if (!set[id]) { set[id] = 1; list.push(id); } });
+                var groups = [];
+                var _gs = (d && (d.groups || d.Groups)) || [];
+                _gs.forEach(function (g) {
+                    var gset = {}, gids = [];
+                    (g.cards || g.Cards || []).forEach(function (id) {
+                        if (!gset[id]) { gset[id] = 1; gids.push(id); }
+                        if (!set[id]) { set[id] = 1; list.push(id); }
+                    });
+                    if (gids.length) groups.push({ name: g.name || '未命名分组', ids: gids, set: gset });
                 });
-                _commonIds = list; _commonSet = set;
+                _commonIds = list; _commonSet = set; _commonGroups = groups;
                 return _commonIds;
             })
-            .catch(function () { _commonIds = []; _commonSet = {}; return _commonIds; });
+            .catch(function () { _commonIds = []; _commonSet = {}; _commonGroups = []; return _commonIds; });
     }
+
     function commonFilter(list) {
-        if (!_commonOn || !_commonSet) return list;
-        return list.filter(function (c) { return !!_commonSet[String(c.id)]; });
+        if (!_commonOn) return list;
+        var set = _commonGroup ? _commonGroup.set : _commonSet;
+        if (!set) return list;
+        return list.filter(function (c) { return !!set[String(c.id)]; });
     }
-    function setCommonBtn(on) {
+
+    function setCommonBtn(on, label) {
         var b = document.getElementById('dbCommonBtn');
         if (!b) return;
         b.classList.toggle('is-on', !!on);
+        b.textContent = on ? ('★ ' + (label || '常用卡')) : '★ 常用卡';
+        b.title = on ? ('常用卡：' + (label || '全部') + '（再次点击可更换分组）') : '常用卡（点击选择分组）';
     }
-    function showCommonCards() {
-        return loadCommonIds().then(function () {
-            if (!_commonIds.length) { gridTipEl.textContent = '常用卡列表读取失败'; return; }
-            _commonOn = true;
-            setCommonBtn(true);
-            doSearch();
+
+    // ── 常用卡分组选择弹窗 ──
+    var _commonPop = null;
+    function closeCommonPop() {
+        if (_commonPop && _commonPop.parentNode) _commonPop.parentNode.removeChild(_commonPop);
+        _commonPop = null;
+        document.removeEventListener('pointerdown', _commonOutside, true);
+        document.removeEventListener('keydown', _commonEsc, true);
+        window.removeEventListener('resize', closeCommonPop);
+        window.removeEventListener('scroll', closeCommonPop, true);
+    }
+    function _commonOutside(e) {
+        if (_commonPop && !_commonPop.contains(e.target)) closeCommonPop();
+    }
+    function _commonEsc(e) { if (e.key === 'Escape') closeCommonPop(); }
+
+    function openCommonPop() {
+        closeCommonPop();
+        loadCommonIds().then(function () {
+            if (!_commonGroups || !_commonGroups.length) { toast('常用卡列表读取失败'); return; }
+            var btn = document.getElementById('dbCommonBtn');
+            var r = btn ? btn.getBoundingClientRect() : { left: 200, bottom: 200, width: 120 };
+
+            var pop = document.createElement('div');
+            pop.className = 'db-common-pop';
+            pop.style.cssText = 'position:fixed;z-index:100080;min-width:190px;max-height:60vh;overflow:auto;'
+                + 'background:#15121a;border:1px solid rgba(88,152,255,.55);border-radius:10px;padding:6px;'
+                + 'box-shadow:0 14px 34px rgba(0,0,0,.6);font:12.5px/1.4 "Microsoft YaHei",system-ui,sans-serif;'
+                + 'color:#dfe6f5;scrollbar-width:none';
+            var left = Math.min(Math.max(8, r.left), window.innerWidth - 210);
+            var top = r.bottom + 8;
+            if (top + 320 > window.innerHeight) top = Math.max(8, r.top - 8 - 300);
+            pop.style.left = left + 'px';
+            pop.style.top = top + 'px';
+
+            var head = document.createElement('div');
+            head.textContent = '选择常用卡分组';
+            head.style.cssText = 'padding:4px 8px 8px;color:#9fb6e8;font-weight:700;letter-spacing:.5px';
+            pop.appendChild(head);
+
+            function addItem(label, count, active, onClick) {
+                var it = document.createElement('button');
+                it.type = 'button';
+                it.textContent = label + (count ? '（' + count + ' 张）' : '');
+                it.style.cssText = 'display:block;width:100%;text-align:left;margin:2px 0;padding:7px 9px;'
+                    + 'background:' + (active ? 'rgba(88,152,255,.22)' : 'transparent') + ';'
+                    + 'border:1px solid ' + (active ? 'rgba(88,152,255,.6)' : 'transparent') + ';'
+                    + 'border-radius:7px;color:' + (active ? '#cfe0ff' : '#dfe6f5') + ';cursor:pointer;font:inherit'
+                    + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+                it.onmouseenter = function () { it.style.background = 'rgba(88,152,255,.14)'; };
+                it.onmouseleave = function () {
+                    it.style.background = active ? 'rgba(88,152,255,.22)' : 'transparent';
+                };
+                it.onclick = function (ev) { ev.stopPropagation(); onClick(); };
+                pop.appendChild(it);
+            }
+
+            addItem('全部常用卡', _commonIds.length, _commonOn && !_commonGroup, function () {
+                _commonGroup = null; _commonOn = true;
+                setCommonBtn(true, '常用卡');
+                closeCommonPop(); doSearch();
+            });
+            _commonGroups.forEach(function (g) {
+                addItem(g.name, g.ids.length, _commonOn && _commonGroup === g, function () {
+                    _commonGroup = g; _commonOn = true;
+                    setCommonBtn(true, g.name);
+                    closeCommonPop(); doSearch();
+                });
+            });
+
+            if (_commonOn) {
+                var off = document.createElement('button');
+                off.type = 'button';
+                off.textContent = '✕ 关闭常用卡筛选';
+                off.style.cssText = 'display:block;width:100%;margin:8px 0 2px;padding:7px 9px;background:transparent;'
+                    + 'border:1px solid rgba(216,30,68,.55);border-radius:7px;color:#ff9db0;cursor:pointer;font:inherit';
+                off.onclick = function (ev) { ev.stopPropagation(); exitCommonCards(); closeCommonPop(); };
+                pop.appendChild(off);
+            }
+
+            document.body.appendChild(pop);
+            _commonPop = pop;
+            setTimeout(function () {
+                document.addEventListener('pointerdown', _commonOutside, true);
+                document.addEventListener('keydown', _commonEsc, true);
+                window.addEventListener('resize', closeCommonPop);
+                window.addEventListener('scroll', closeCommonPop, true);
+            }, 0);
         });
     }
+
     function exitCommonCards() {
         _commonOn = false;
+        _commonGroup = null;
         setCommonBtn(false);
         doSearch();
     }
 
+    // 兼容旧接口：外部（大厅/工作台）调用 DeckBuilder.showCommon() 时也弹分组选择
+    function showCommonCards() { openCommonPop(); }
+
     function initCommonBtn() {
         var b = document.getElementById('dbCommonBtn');
         if (!b) return;
-        b.addEventListener('click', function () {
+        b.addEventListener('click', function (ev) {
             if (!builderActive) return;
-            if (_commonOn) exitCommonCards();
-            else showCommonCards();
+            ev.stopPropagation();
+            openCommonPop();          // 每次点击都弹分组选择（当前分组会高亮）
         });
     }
 

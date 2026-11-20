@@ -1,0 +1,9 @@
+{
+  "cookieSecret": "请改成随机长字符串",
+  "communityCookieSecret": "请改成随机长字符串",
+  "srvproReadUser": "readonly",
+  "srvproReadPass": "请填 srvpro 只读账号口令",
+  "tabulatorApiKey": "",
+  "tms_secret_id": "",
+  "tms_secret_key": ""
+}

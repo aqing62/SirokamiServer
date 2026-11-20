@@ -26,7 +26,12 @@
 
   var q = new URLSearchParams(location.search);
   var state = {
-    url: q.get('ws') || ((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.hostname + ':7912'),
+    // PATCH(白神服) 2026-11-03: 兜底不再拼 hostname:7912（那个端口没服务，会 ERR_CONNECTION_REFUSED）
+    url: q.get('ws') || (function () {
+      var h = location.hostname;
+      if (h === 'localhost' || h === '127.0.0.1') return (location.protocol === 'https:' ? 'wss://' : 'ws://') + h + ':7912';
+      return 'wss://api.ygopro3.cn/ws';
+    })(),
     room: q.get('room') || '',
     name: q.get('name') || localStorage.getItem('yp_name') || ('玩家' + Math.floor(Math.random() * 900 + 100)),
     sock: null, scanner: null,
@@ -37,7 +42,14 @@
     pending: null,         // 当前等待应答的请求 {msg, kind, ...}
     armed: null,           // 已选"操作类型"，等待点卡（如 召唤/攻击/发动）
     picked: [],            // 多选已选中的位置
+    // 单个“当前行动方”倒计时（照 MDPro3 TimerHandler）：player 0=自己、1=对方
+    timer: { time: null, player: 0, at: 0, limit: 300 },
     lastRetry: 0,
+    // PATCH(白神服) 2026-11-20: 已公开（翻开/确认）的卡：'ctl:loc:seq' → code。
+    //   引擎给 SELECT_CARD 的候选卡时，对手卡组的卡 code 常常是 0（只给位置），
+    //   但同一批卡在**前一条** MSG_CONFIRM_CARDS / CONFIRM_DECKTOP 里是带卡号的 ——
+    //   原来没记住，选择框就只能画"里侧卡片"（用户实测 ✗）。
+    revealCodes: {},
   };
 
   // ─────────────────────────────── 小工具
@@ -75,6 +87,108 @@
   //     名签写着"我在下方"，而我的卡（正面朝上的手牌、我的怪兽）全画在上面 —— 世界镜像了。
   // 所以在转发的边界把整个世界翻过来：决斗位 1 ↔ 0。查看器始终活在"我在决斗位 0、在下方"
   // 的世界里，viewer-live.js 一行都不用改。
+  /**
+   * PATCH(白神服) 2026-11-07: 观战自动对齐座位 ——
+   *   srvpro 在换边时会把「房间 pos」和「牌局 player」整体互换，客户端拿不到这个标记，
+   *   于是名字可能贴到对面。这里用**手卡张数**做指纹：
+   *     拉 /api/lobby/spectate 拿到两个房间玩家的 handc（按 pos0/pos1），
+   *     和查看器里两侧手卡数比对；只有"交叉匹配且两者不相等"时才判定为互换，并只换一次。
+   *   连续 2 次一致才动手，避免思考阶段张数波动误判。
+   */
+  var _alignState = { lastSig: '', hits: 0, swapped: false };
+  var _seatAlignTries = 0, _seatAlignDone = false;
+  function autoAlignWatchSeats() {
+    // PATCH(白神服) 2026-11-19：**停用**「按张数/手卡/LP 猜座位」的启发式。
+    //   它会在对局中途把名字对调（两人张数恰好相等/交叉时必然误判），
+    //   用户看到的就是「桌位名字偶尔对换」。座位现在由 onDuelStart 里
+    //   依据 MSG_START.playerType（srvpro: 观战 0x10/0x11）算出的 seatOrder 决定，
+    //   属于协议层事实，不需要猜。
+    return;
+    /* eslint-disable no-unreachable */
+    try {
+      // PATCH(白神服) 2026-11-15: 座位对齐唯一入口 ——
+      //   用房间实时数据（每人的额外/卡组/手卡）和查看器 Start 里的张数比对，
+      //   判定 srvpro 是否把「房间 pos」和「牌局 player」互换了；换过就只换一次名字。
+      if (!state.watchMode || !state.room) return;
+      if (_seatAlignDone || _seatAlignTries > 8) return;
+      _seatAlignTries++;
+      if (!window.__live || !window.__live.handCount) return;
+      var h0 = window.__live.handCount(0), h1 = window.__live.handCount(1);
+      fetch('/api/lobby/spectate?t=' + Date.now(), { cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          var room = ((j && j.rooms) || []).filter(function (x) { return x.roomName === state.room; })[0];
+          if (!room || !room.players || room.players.length < 2) return;
+          // 判定优先级：初始卡组张数（m0/m1）> 手卡数 > LP
+          var q = {};
+          try { new URLSearchParams(location.search).forEach(function (v, k) { q[k] = v; }); } catch (e) {}
+          var m0 = Number(q.m0), m1 = Number(q.m1);
+          var x0 = (q.x0 === '' || q.x0 === undefined) ? NaN : Number(q.x0);
+          var x1 = (q.x1 === '' || q.x1 === undefined) ? NaN : Number(q.x1);
+          var sd = (window.__live.startDeck ? window.__live.startDeck() : [null, null]);
+          var sx = (window.__live.startExtra ? window.__live.startExtra() : [null, null]);
+          var aligned = false, crossed = false, how = '';
+
+          // 判据：房间玩家的额外张数（0 也算有效）> 卡组张数 > 手卡数
+          var rp = room.players.slice().sort(function (a, b) { return (a.pos | 0) - (b.pos | 0); });
+          var rx0 = (rp[0] && typeof rp[0].extrac === 'number') ? rp[0].extrac : null;
+          var rx1 = (rp[1] && typeof rp[1].extrac === 'number') ? rp[1].extrac : null;
+          if (sx[0] !== null && sx[1] !== null && rx0 !== null && rx1 !== null && rx0 !== rx1) {
+            aligned = (sx[0] === rx0 && sx[1] === rx1);
+            crossed = (sx[0] === rx1 && sx[1] === rx0);
+            how = 'extra';
+          }
+          if (!aligned && !crossed && sd[0] !== null && sd[1] !== null && m0 > 0 && m1 > 0 && m0 !== m1) {
+            aligned = (sd[0] === m0 && sd[1] === m1);
+            crossed = (sd[0] === m1 && sd[1] === m0);
+            how = 'deck';
+          }
+          // ③ 用双方 LP 比对（最可靠：血量基本不会相同）
+          if (!aligned && !crossed) {
+            try {
+              var lpPair = (window.__live && window.__live.lpPair) ? window.__live.lpPair() : null;
+              var rlp0 = rp[0] && typeof rp[0].lp === 'number' ? rp[0].lp : null;
+              var rlp1 = rp[1] && typeof rp[1].lp === 'number' ? rp[1].lp : null;
+              if (lpPair && rlp0 !== null && rlp1 !== null && (rlp0 !== rlp1 || lpPair[0] !== lpPair[1])) {
+                aligned = (lpPair[0] === rlp0 && lpPair[1] === rlp1);
+                crossed = (lpPair[0] === rlp1 && lpPair[1] === rlp0);
+                how = 'lp';
+              }
+            } catch (e) {}
+          }
+          if (!aligned && !crossed) {
+            var a = rp[0] && rp[0].handc, b = rp[1] && rp[1].handc;
+            if (typeof a === 'number' && typeof b === 'number' && a !== b) {
+              aligned = (a === h0 && b === h1);
+              crossed = (a === h1 && b === h0);
+              how = 'hand';
+            }
+          }
+          if (!aligned && !crossed) {
+            try { logLine('↕ 观战对齐：暂无法判断（房间额外 ' + rx0 + '/' + rx1 + '，局内额外 ' + sx[0] + '/' + sx[1]
+              + '，房间手卡 ' + (rp[0] && rp[0].handc) + '/' + (rp[1] && rp[1].handc) + '，局内手卡 ' + h0 + '/' + h1 + '）', 'rp-log-hint'); } catch (e) {}
+            return;
+          }
+          var sig = aligned ? 'ok' : 'swap';
+          if (sig !== _alignState.lastSig) { _alignState.lastSig = sig; _alignState.hits = 0; }
+          _alignState.hits++;
+          if (_alignState.hits < 2) return;
+          var howText = how === 'extra' ? '额外张数' : (how === 'deck' ? '初始卡组张数' : (how === 'lp' ? 'LP' : '手卡数'));
+          if (sig === 'swap') {
+            try { window.__live.swapSides(); } catch (e) {}
+            logLine('↕ 观战：检测到双方座位互换（依据：' + howText + '），已自动对齐', 'rp-log-hint');
+          }
+          _seatAlignDone = true;
+        })
+        .catch(function () {});
+    } catch (e) {}
+  }
+  // setInterval(autoAlignWatchSeats, 5000);  // 2026-11-19 停用（见函数内说明）
+
+  // PATCH(白神服) 2026-11-19: **不再把 myDuelPos 告诉查看器**。
+  //   查看器那边也有一次 seatOf() 翻转，两边同时翻 = 翻两次，名字就会「偶尔对换」
+  //   （谁先收到翻转通知，谁的名字先翻）。现在只在本文件这一层翻世界，
+  //   查看器永远活在「视角座位」里（0=下/我），名字靠 setSeatOrder 的映射决定。
   function flipSeat(n) { return state.myDuelPos === 1 ? (1 - n) : n; }
 
   /** hex 里内嵌的座位字节（查看器有几处直接读 hex，不走 f 字段）——只翻 0/1 值 */
@@ -86,6 +200,30 @@
     return hex.slice(0, at) + (v === 0 ? '01' : '00') + hex.slice(at + 2);
   }
 
+  /** ConfirmCards 每张卡都带 controller，hex 里也要按视角翻 */
+  function flipConfirmCardsHex(hex) {
+    if (!hex || hex.length < 8) return hex;
+    var byte = function (i) { return parseInt(hex.substr(i * 2, 2), 16); };
+    var locOk = { 1: 1, 2: 1, 4: 1, 8: 1, 16: 1, 32: 1, 64: 1 };
+    for (var b = 0; b < 2; b++) {
+      var base = b === 0 ? 1 : 0;       // 先试带消息类型字节的布局
+      var cnt = byte(base + 2);
+      if (!cnt || cnt > 64) continue;
+      var ok = true;
+      for (var i = 0; i < cnt; i++) {
+        var off = base + 3 + i * 7;
+        if ((off + 7) * 2 > hex.length) { ok = false; break; }
+        var ctl = byte(off + 4), loc = byte(off + 5) & 0x7f;
+        if ((ctl !== 0 && ctl !== 1) || !locOk[loc]) { ok = false; break; }
+      }
+      if (!ok) continue;
+      var out = hex;
+      for (var j = 0; j < cnt; j++) out = flipHexByte(out, base + 3 + j * 7 + 4);
+      return out;
+    }
+    return hex;
+  }
+
   /**
    * 翻转一个 envelope 的座位编号。f 字段与 hex 字节都要翻：
    *   - UpdateData：查看器用 m.hex 第 1 字节判"这是谁的手牌"（player）
@@ -95,18 +233,97 @@
    */
   function flipEnvelope(env) {
     if (!env || state.myDuelPos !== 1) return env;
+    function fv(v) {
+      if (v === 0 || v === 1 || v === '0' || v === '1') return flipSeat(Number(v));
+      return v;
+    }
     var f = env.f || (env.f = {});
-    if (typeof f.player === 'number') f.player = flipSeat(f.player);
-    if (typeof f.controller === 'number') f.controller = flipSeat(f.controller);
-    if (f.attacker && typeof f.attacker.controller === 'number') f.attacker.controller = flipSeat(f.attacker.controller);
+    // Win.player 留给查看器按“绝对牌局座位”映射：viewer 的 playerName() 会再按
+    // myDuelPos/metaSwap 转成画面座位。这里若先翻一次就会“日志你赢了、横幅写对手”。
+    // PATCH(白神服) 2026-11-19: Win 的 player 也要翻。
+    //   原来故意留着"绝对决斗位"，让查看器用 myDuelPos 再映射一次；但查看器那层
+    //   双翻转已经删掉（它现在只认"视角座位"），于是决斗位 1 的玩家赢了会显示
+    //   「对手获胜」（用户实测：赢了却恭喜对面）✗。这里统一翻成视角座位。
+    //   ⚠ duel-client 自己的 onDuelEnd(m) 用的是原始 msg，另外有 flipSeat()，
+    //     不受这里影响。
+    if (f.player !== undefined && f.player !== null) f.player = fv(f.player);
+    if (f.controller !== undefined && f.controller !== null) f.controller = fv(f.controller);
+    // ConfirmCards 的 cards 数组里每张卡还带自己的 controller（检索公开时用），
+    // 原来只翻了顶层 f.controller → 我方检索的卡会被标到对面手牌上（用户实测 ✗）。
+    if (Array.isArray(f.cards)) {
+      f.cards.forEach(function (c) {
+        if (c && c.controller !== undefined && c.controller !== null) c.controller = fv(c.controller);
+      });
+    }
+    if (Array.isArray(f.info)) {
+      f.info.forEach(function (c) {
+        if (c && c.controller !== undefined && c.controller !== null) c.controller = fv(c.controller);
+      });
+    }
+    if (f.attacker && f.attacker.controller !== undefined && f.attacker.controller !== null) f.attacker.controller = fv(f.attacker.controller);
+    if (f.target && f.target.controller !== undefined && f.target.controller !== null) f.target.controller = fv(f.target.controller);
     ['previous', 'current'].forEach(function (k) {
       var zone = f[k];
-      if (zone && typeof zone.controller === 'number') zone.controller = flipSeat(zone.controller);
+      if (zone && zone.controller !== undefined && zone.controller !== null) zone.controller = fv(zone.controller);
     });
     if (env.name === 'UpdateData' || env.name === 'PayLpCost') env.hex = flipHexByte(env.hex, 1);
     else if (env.name === 'PosChange') env.hex = flipHexByte(env.hex, 5);
     else if (env.name === 'Move') { env.hex = flipHexByte(env.hex, 5); env.hex = flipHexByte(env.hex, 9); }
+    else if (env.name === 'Attack') env.hex = flipHexByte(env.hex, 5);   // 目标 controller
+    else if (env.name === 'ConfirmCards') env.hex = flipConfirmCardsHex(env.hex);
+    else if (/^(Summoning|SpSummoning|FlipSummoning|Summoned|SpSummoned|FlipSummoned|Chaining)$/.test(env.name)) {
+      env.hex = flipHexByte(env.hex, 5);   // 召唤/发动：code(4) ctl(1)...
+    }
+    // PATCH(白神服) 2026-11-19: Start / ReloadField 的「双方数据块」也要整体交换，
+    //   否则决斗位 1 的玩家会看到「自己卡组数 = 对手的」。
+    //   MSG_START 布局：[0]msg [1]playerType [2]rule
+    //                  [3..6]lp0        [7..10]lp1
+    //                  [11..14]deck0+extra0   [15..18]deck1+extra1
+    //   → 只交换这两对**等长块**（lp0↔lp1、卡组块0↔卡组块1），不能整段对调。
+    if (env.name === 'Start') {
+      var _p0 = f.player0, _p1 = f.player1;
+      if (_p0 || _p1) { f.player0 = _p1; f.player1 = _p0; }
+      if (env.hex && env.hex.length >= 38) {
+        env.hex = swapHexHalves(env.hex, 3, 7, 4);     // lp0 ↔ lp1
+        env.hex = swapHexHalves(env.hex, 11, 15, 4);   // (deck0,extra0) ↔ (deck1,extra1)
+      }
+    }
+    if (env.name === 'ReloadField' && Array.isArray(f.players) && f.players.length >= 2) {
+      var _rp0 = f.players[0]; f.players[0] = f.players[1]; f.players[1] = _rp0;
+    }
     return env;
+  }
+
+  /** 交换 hex 里两段等长字节（a/b 是字节下标，len 是字节长度） */
+  function swapHexHalves(hex, a, b, len) {
+    try {
+      var A = hex.substr(a * 2, len * 2), B = hex.substr(b * 2, len * 2);
+      if (A.length !== len * 2 || B.length !== len * 2) return hex;
+      return hex.slice(0, a * 2) + B + hex.slice((a + len) * 2, b * 2) + A + hex.slice((b + len) * 2);
+    } catch (e) { return hex; }
+  }
+
+  /**
+   * 查看器需要的、但 ygopro-web-browser 的 envelope 表里没有的消息。
+   * 这里的 f 字段名必须与 viewer-live.js 的 case 一致。
+   */
+  var EXTRA_ENVELOPE = { 162: 1, 35: 1, 32: 1, 39: 1 };
+  function buildExtraEnvelope(id, m) {
+    if (!m) return null;
+    try {
+      if (id === 162) {
+        // MSG_RELOAD_FIELD：duelRule + players[2]（lp/mzone/szone/各种 count/extraPCount）+ chains
+        return {
+          name: 'ReloadField',
+          f: { duelRule: m.duelRule, players: m.players || [], chains: m.chains || [] },
+          hex: '',
+        };
+      }
+      if (id === 35) return { name: 'SwapGraveDeck', f: { player: m.player }, hex: '' };
+      if (id === 32) return { name: 'ShuffleDeck', f: { player: m.player }, hex: '' };
+      if (id === 39) return { name: 'ShuffleExtra', f: { player: m.player }, hex: '' };
+    } catch (e) {}
+    return null;
   }
 
   // ─────────────────────────────── 里侧怪兽的"翻转"（翻转召唤）
@@ -316,27 +533,51 @@
     (deck.side || []).forEach(function (id) { if (state.sidingOrigin[id] === undefined) state.sidingOrigin[id] = 'side'; });
     var d = document.createElement('div');
     d.id = 'ypSiding';
-    d.style.cssText = 'position:fixed;inset:0;z-index:85;overflow:auto;background:#0a0a0c;'
-      + 'background-image:radial-gradient(900px 500px at 50% 0%, rgba(216,30,68,.18), rgba(10,10,12,0) 70%);'
-      + 'font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#ece9e4;padding:18px 20px 96px;';
-    d.innerHTML = '<div style="max-width:1180px;margin:0 auto">'
-      + '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px">'
-      + '<div style="font-size:19px;font-weight:800;letter-spacing:2px;color:#F0E68C">备牌阶段</div>'
-      + '<div style="font-size:13px;color:#9b97a1">单击换边（主/额外 ⇄ 副）· 也可以直接把卡拖到目标区域 · 三区张数要和改前一致才能确认</div>'
-      + '<div id="ypSidingLeft" style="margin-left:auto;font-size:15px;font-weight:800;color:#FF8A8A"></div>'
+    d.style.cssText = 'position:fixed;inset:0;z-index:100060;display:flex;flex-direction:column;background:#0a0a0c;'
+      + 'background-image:radial-gradient(900px 500px at 50% 0%, rgba(216,30,68,.16), rgba(10,10,12,0) 70%);'
+      + 'font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#ece9e4;';
+    d.innerHTML = '<style>'
+      + '#ypSiding .ypSHead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:12px 18px 10px;'
+      + 'border-bottom:1px solid rgba(216,30,68,.28)}'
+      + '#ypSiding .ypSCols{flex:1;min-height:0;display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:10px;padding:10px 14px}'
+      + '@media (max-width:820px){#ypSiding .ypSCols{grid-template-columns:1fr;overflow:auto}}'
+      + '#ypSiding .ypSCol{display:flex;flex-direction:column;min-height:0;background:rgba(255,255,255,.02);'
+      + 'border:1px solid rgba(255,255,255,.07);border-radius:10px;overflow:hidden}'
+      + '#ypSiding .ypSColHead{display:flex;align-items:center;gap:8px;padding:7px 10px;font-size:12.5px;'
+      + 'color:#cfc8bd;border-bottom:1px solid rgba(255,255,255,.07);background:rgba(255,255,255,.03)}'
+      + '#ypSiding .ypSColHead b{font-size:13px;font-weight:800;color:#F0E68C}'
+      + '#ypSiding .ypSColHead .n{margin-left:auto;font-weight:700;color:#9a9aa4}'
+      + '#ypSiding .ypSColHead .n.bad{color:#FF8A8A}'
+      + '#ypSiding .ypSGrid{flex:1;min-height:0;overflow:auto;padding:8px;display:grid;'
+      + 'grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:6px;align-content:start}'
+      + '#ypSiding .ypSGrid.drag{outline:2px dashed rgba(255,215,0,.8);outline-offset:-3px}'
+      + '#ypSiding .ypSGrid img{border-radius:5px;transition:transform .12s ease,box-shadow .12s ease}'
+      + '#ypSiding .ypSGrid img:hover{transform:translateY(-2px);box-shadow:0 6px 14px rgba(0,0,0,.6)}'
+      + '#ypSiding .ypSFoot{display:flex;align-items:center;gap:12px;padding:10px 18px;'
+      + 'border-top:1px solid rgba(216,30,68,.32);background:rgba(10,10,12,.97)}'
+      + '</style>'
+      + '<div class="ypSHead">'
+      + '<div style="font-size:17px;font-weight:800;letter-spacing:2px;color:#F0E68C">备牌阶段</div>'
+      + '<div style="font-size:12.5px;color:#9b97a1">单击卡牌换边（主/额外 ⇄ 副），也可直接拖拽 · 三区张数要与改前一致</div>'
+      + '<div id="ypSidingLeft" style="margin-left:auto;font-size:14px;font-weight:800;color:#FF8A8A"></div>'
       + '</div>'
-      + '<div id="ypSidingBody"></div>'
-      + '</div>'
-      + '<div style="position:fixed;left:0;right:0;bottom:0;padding:12px 20px;background:rgba(10,10,12,.97);'
-      + 'border-top:1px solid rgba(216,30,68,.4);display:flex;gap:12px;justify-content:flex-end;align-items:center">'
-      + '<span id="ypSidingMsg" style="margin-right:auto;font-size:13px;color:#9b97a1"></span>'
-      + '<button id="ypSidingNo" style="padding:11px 22px;border-radius:999px;background:transparent;'
-      + 'border:2px solid rgba(216,30,68,.8);color:#F0E68C;font-weight:700;letter-spacing:2px;cursor:pointer;font-family:inherit">不换，直接开始</button>'
-      + '<button id="ypSidingOk" style="padding:11px 26px;border-radius:999px;border:none;cursor:pointer;'
-      + 'background:linear-gradient(135deg,#D4AF37,#FFD700);color:#1a1a2e;font-weight:800;letter-spacing:2px;font-family:inherit">确定换牌</button>'
+      + '<div id="ypSidingBody" class="ypSCols"></div>'
+      + '<div class="ypSFoot">'
+      + '<span id="ypSidingMsg" style="font-size:12.5px;color:#9b97a1"></span>'
+      + '<span style="flex:1"></span>'
+      + '<button id="ypSidingNo" style="padding:9px 18px;border-radius:999px;background:transparent;'
+      + 'border:2px solid rgba(216,30,68,.8);color:#F0E68C;font-weight:700;letter-spacing:1px;cursor:pointer;font-family:inherit">不换，直接开始</button>'
+      + '<button id="ypSidingOk" style="padding:10px 24px;border-radius:999px;border:none;cursor:pointer;'
+      + 'background:linear-gradient(135deg,#D4AF37,#FFD700);color:#1a1a2e;font-weight:800;letter-spacing:1.5px;font-family:inherit">确定换牌</button>'
       + '</div>';
     document.body.appendChild(d);
     var lobby = document.getElementById('lobby'); if (lobby) lobby.style.display = 'none';
+    try { var _mq2 = document.getElementById('ypMatching'); if (_mq2) _mq2.remove(); } catch (e) {}
+    // 备牌期间把「投降」按钮藏起来（它在场地里 z-index 很高，会压到备牌界面标题栏上）
+    try {
+      var _sbtn = document.getElementById('ypSurrender');
+      if (_sbtn) { _sbtn.__prevDisplay = _sbtn.style.display; _sbtn.style.display = 'none'; }
+    } catch (e) {}
     var mm = (minutes && minutes > 0) ? minutes : 3;
     var endAt = Date.now() + mm * 60000;
     state.sidingTimer = setInterval(function () {
@@ -353,14 +594,47 @@
     document.getElementById('ypSidingNo').onclick = function () { submitSiding('未换牌，直接开始下一局'); };
   }
 
+  // PATCH(白神服) 2026-11-16: 卡图统一走查看器的链（先行号段 100000000~198999999 优先先行图床）——
+  //   原来这些地方写死 OCG → 先行 → siro，而 OCG 镜像站对先行号会返回**另一张图**，
+  //   于是观战/换牌/亮牌里显示成不对的卡图（用户实测 ✗）
+ 
+  function picChainOf(id) {
+    // PATCH(白神服) 2026-11-16: 本站 /thumbcard 优先（服务端有缓存、命中率高、校验过格式）
+    //   注意：之前这里被插成了一行"逗号表达式"，picChainOf 实际没定义 → 亮牌/换牌图全部报错
+    var tc = '/thumbcard/' + id + '.jpg?w=300&v=20261118d';
+    try {
+      if (window.__live && window.__live.picChainOf) {
+        var ch = window.__live.picChainOf(id);
+        if (ch && ch.length) return [tc].concat(ch);
+      }
+    } catch (e) {}
+    var n = Number(id) || 0;
+    var pre = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + id + '.jpg';
+    var ocg = 'https://cdn.233.momobako.com/ygopro/pics/' + id + '.jpg';
+    var diy = 'https://api.ygopro3.cn/pics/siro/' + id + '.jpg';
+    return (n >= 100000000 && n < 199000000)
+      ? [tc, pre, diy, ocg, 'cover.jpg']
+      : [tc, ocg, pre, diy, 'cover.jpg'];
+  }
+
+  function picImgStyle(extra) {
+    return 'display:block;object-fit:cover;border-radius:4px;' + (extra || '');
+  }
+  /** 生成 <img>（失败自动按链回退） */
+  function picImgHtml(id, style, attrs) {
+    var ch = picChainOf(id);
+    return '<img ' + (attrs || '') + ' alt="' + id + '" loading="lazy"'
+      + ' src="' + ch[0] + '"'
+      + ' onerror="(function(el){var c=el.getAttribute(&quot;data-chain&quot;).split(&quot;|&quot;);var i=parseInt(el.getAttribute(&quot;data-ci&quot;)||0,10)+1;'
+      + 'if(i<c.length){el.setAttribute(&quot;data-ci&quot;,i);el.src=c[i];}else{el.onerror=null;}})(this)"'
+      + ' data-chain="' + ch.join('|').replace(/"/g, '&quot;') + '" data-ci="0"'
+      + ' style="' + style + '">';
+  }
+
   function sidingCardHtml(id, from) {
-    return '<img draggable="true" data-siding-id="' + id + '" data-siding-from="' + from + '" alt="' + id + '" loading="lazy"'
-      + ' src="https://cdn.233.momobako.com/ygopro/pics/' + id + '.jpg"'
-      + ' onerror="this.onerror=null;this.src=\'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + id + '.jpg\';'
-      + 'this.onerror=function(){this.onerror=null;this.src=\'https://api.ygopro3.cn/pics/siro/' + id + '.jpg\';'
-      + 'this.onerror=function(){this.src=\'cover.jpg\';}};"'
-      + ' style="width:100%;aspect-ratio:421/614;object-fit:cover;border-radius:4px;border:1px solid #2a3542;'
-      + 'background:#101720;cursor:grab;display:block">';
+    return picImgHtml(id,
+      picImgStyle('width:100%;aspect-ratio:421/614;border:1px solid #2a3542;background:#101720;cursor:grab'),
+      'draggable="true" data-siding-id="' + id + '" data-siding-from="' + from + '"');
   }
 
   /** 把一张卡从 from 区移到 to 区 */
@@ -391,77 +665,115 @@
     if (!state.deck) return;
     var box = document.getElementById('ypSidingBody');
     if (!box) return;
-    var b = state.sidingBase || {};
+    var b0 = state.sidingBase || {};
     var chk = sidingCheck();
-    function sect(title, key, ids, tip) {
-      var want = b[key];
-      var now = ids.length;
-      var color = (want === undefined || want === now) ? '#9a9aa4' : '#FF8A8A';
-      return '<div style="font-size:13px;color:' + color + ';margin:14px 0 6px">' + title
-        + '（' + now + (want === undefined || want === now ? '' : ' / 应为 ' + want) + ' 张）'
-        + (tip ? '<span style="color:#6f6f78">　' + tip + '</span>' : '') + '</div>'
-        + '<div data-siding-zone="' + key + '" style="display:grid;grid-template-columns:repeat(10,minmax(0,1fr));'
-        + 'gap:5px;min-height:40px;padding:4px;border-radius:6px;border:1px dashed rgba(216,30,68,.35)">'
-        + ids.map(function (id) { return sidingCardHtml(id, key); }).join('') + '</div>';
+
+    function col(title, key, ids, tip) {
+      var want = b0[key];
+      var now = (ids || []).length;
+      var bad = !(want === undefined || want === now);
+      return '<div class="ypSCol">'
+        + '<div class="ypSColHead"><b>' + title + '</b>'
+        + '<span style="color:#6f6f78;font-size:11.5px">' + (tip || '') + '</span>'
+        + '<span class="n' + (bad ? ' bad' : '') + '">' + now + (bad ? ' / ' + want : '') + ' 张</span></div>'
+        + '<div class="ypSGrid" data-siding-zone="' + key + '">'
+        + (ids || []).map(function (id) { return sidingCardHtml(id, key); }).join('')
+        + '</div></div>';
     }
-    box.innerHTML = sect('主卡组', 'main', state.deck.main || [], '点一下 / 拖到副卡组 = 换出去')
-      + sect('额外卡组', 'extra', state.deck.extra || [], '点一下 / 拖到副卡组 = 换出去')
-      + sect('副卡组', 'side', state.deck.side || [], '点一下 = 回它原来那一区');
-    // 单击
+
+    box.innerHTML = col('主卡组', 'main', state.deck.main, '⇄ 副')
+      + col('额外卡组', 'extra', state.deck.extra, '⇄ 副')
+      + col('副卡组', 'side', state.deck.side, '⇄ 回原区');
+
     box.querySelectorAll('img[data-siding-id]').forEach(function (im) {
       im.onclick = function () {
         var id = Number(im.getAttribute('data-siding-id'));
         var from = im.getAttribute('data-siding-from');
         if (from === 'side') {
-          var origin = (state.sidingOrigin || {})[id] || 'main';   // 副卡组 → 回原区（主或额外）
+          var origin = (state.sidingOrigin || {})[id] || 'main';
           if (origin === 'side') origin = 'main';
           sidingMove(id, 'side', origin);
         } else {
-          sidingMove(id, from, 'side');                            // 主/额外 → 副卡组
+          sidingMove(id, from, 'side');
         }
         renderSiding();
       };
-      // 拖动
       im.ondragstart = function (ev) {
         state.sidingDrag = { id: Number(im.getAttribute('data-siding-id')), from: im.getAttribute('data-siding-from') };
         try { ev.dataTransfer.setData('text/plain', String(state.sidingDrag.id)); ev.dataTransfer.effectAllowed = 'move'; } catch (e) {}
       };
     });
-    // 各区都是放置区
+
     box.querySelectorAll('[data-siding-zone]').forEach(function (zone) {
-      zone.ondragover = function (ev) { ev.preventDefault(); zone.style.borderColor = 'rgba(255,215,0,.8)'; };
-      zone.ondragleave = function () { zone.style.borderColor = 'rgba(216,30,68,.35)'; };
+      zone.ondragover = function (ev) {
+        ev.preventDefault();
+        zone.classList.add('drag');
+      };
+      zone.ondragleave = function () { zone.classList.remove('drag'); };
       zone.ondrop = function (ev) {
         ev.preventDefault();
-        zone.style.borderColor = 'rgba(216,30,68,.35)';
+        zone.classList.remove('drag');
         var drag = state.sidingDrag;
+        state.sidingDrag = null;
         if (!drag) return;
         var to = zone.getAttribute('data-siding-zone');
-        if (to === 'side' || to === drag.from) {
-          // 拖进副卡组：主/额外都行；拖回自己那区：从副卡组回去也可以
-          if (to === drag.from) return;
-          if (to === 'side') { sidingMove(drag.id, drag.from, 'side'); state.sidingDrag = null; renderSiding(); return; }
-        }
-        // 拖到 主/额外：只有当卡现在在副卡组里才允许（等于"回哪一区"）
-        if (drag.from === 'side' && (to === 'main' || to === 'extra')) { sidingMove(drag.id, 'side', to); renderSiding(); }
-        state.sidingDrag = null;
+        if (to === drag.from) return;
+        if (to === 'side') { sidingMove(drag.id, drag.from, 'side'); renderSiding(); return; }
+        if (drag.from === 'side') { sidingMove(drag.id, 'side', to); renderSiding(); }
       };
     });
-    // 底部校验状态
-    var ok = document.getElementById('ypSidingOk');
-    var msgEl = document.getElementById('ypSidingMsg');
-    if (ok) {
-      ok.disabled = !chk.ok;
-      ok.style.opacity = chk.ok ? '1' : '.45';
-      ok.style.cursor = chk.ok ? 'pointer' : 'not-allowed';
-    }
-    if (msgEl) {
-      msgEl.textContent = chk.ok
-        ? ('✓ 张数与改前一致（主 ' + (state.deck.main || []).length + ' / 额外 ' + (state.deck.extra || []).length + ' / 副 ' + (state.deck.side || []).length + '），可以确认')
-        : ('✗ 还不能确认：' + chk.bad.join('；'));
-      msgEl.style.color = chk.ok ? '#8ee6a8' : '#FF8A8A';
-    }
+
+    try {
+      var msgEl = document.getElementById('ypSidingMsg');
+      var okBtn = document.getElementById('ypSidingOk');
+      if (okBtn) {
+        okBtn.disabled = !chk.ok;
+        okBtn.style.opacity = chk.ok ? '1' : '.45';
+        okBtn.style.cursor = chk.ok ? 'pointer' : 'not-allowed';
+      }
+      if (msgEl) {
+        msgEl.textContent = chk.ok
+          ? ('✓ 张数与改前一致（主 ' + (state.deck.main || []).length + ' / 额外 ' + (state.deck.extra || []).length + ' / 副 ' + (state.deck.side || []).length + '），可以确认')
+          : ('✗ 还不能确认：' + chk.bad.join('；'));
+        msgEl.style.color = chk.ok ? '#8ee6a8' : '#FF8A8A';
+      }
+    } catch (e) {}
   }
+
+  // 调试用：手动打开备牌界面（不影响正常流程）
+  try {
+    window.__ypSidingTest = function (deck) {
+      state.deck = deck || { main: [], extra: [], side: [] };
+      ensureSidingUI(3);
+    };
+  } catch (e) {}
+
+  // 调试用：模拟「翻开 N 张 → 要求从里面选」的界面（不需要真连服）
+  //   例：__ypSimReveal([1234,5678,9012],{controller:0,location:1,seq0:26})
+  //       __ypSimSelect([{code:0,controller:0,location:1,sequence:26}, ...])
+  try {
+    window.__ypSimReveal = function (codes, opts) {
+      opts = opts || {};
+      var ctl = (opts.controller !== undefined) ? opts.controller : 0;
+      var loc = (opts.location !== undefined) ? opts.location : 1;
+      var seq0 = (opts.seq0 !== undefined) ? opts.seq0 : 0;
+      var cards = (codes || []).map(function (code, i) {
+        return { code: code, controller: ctl, location: loc, sequence: seq0 + i };
+      });
+      revealFromMsg({ cards: cards, count: cards.length }, opts.who || '自己');
+      return cards.length;
+    };
+    window.__ypSimSelect = function (infos, opts) {
+      opts = opts || {};
+      var m = {
+        identifier: 15, min: opts.min || 1, max: opts.max || 1, player: 0,
+        cards: infos || [], prepareResponse: function () { return {}; },
+      };
+      var P = { msg: m, kind: 'card', hintTitle: opts.hint || '请选择要特殊召唤的卡', cands: [] };
+      highlightCandidates(P, infos || []);
+      return showNoCellChooser(P);
+    };
+  } catch (e) {}
 
   function submitSiding(why) {
     var chk = sidingCheck();
@@ -471,53 +783,72 @@
     if (state.sidingTimer) { clearInterval(state.sidingTimer); state.sidingTimer = null; }
     if (state.sidingFallbackTimer) { clearTimeout(state.sidingFallbackTimer); state.sidingFallbackTimer = null; }
     state.sidingActive = false;
+    try {
+      var _sb2 = document.getElementById('ypSurrender');
+      if (_sb2) _sb2.style.display = _sb2.__prevDisplay || '';
+    } catch (e) {}
     logLine('↩ 备牌：' + why + '（主 ' + (state.deck.main || []).length + ' / 额外 ' + (state.deck.extra || []).length
       + ' / 副 ' + (state.deck.side || []).length + '）', 'rp-log-phase');
     // ⚠ 备牌结束后是**新的一局**：把上一局的痕迹清掉 ——
     //   客户端会把对局状态存进 localStorage('yp_duel_<room>')，重连/重放时会拿它重建场地；
     //   不清的话新一局可能把上一局的盘面重建出来（用户反馈"备牌结束之后场地没有刷新"）。
     try { localStorage.removeItem('yp_duel_' + state.room); } catch (e) {}
+    try { localStorage.removeItem(_countsKey()); } catch (e) {}
     state.picked = []; state.pending = null; state.duelStarted = false;
-    state.myDuelPos = -1; state.lastPosChange = null; state.lastSearch = null;
+    state.myDuelPos = -1;
+    // 备牌后是新的一局：READY 状态必须重置，否则 uploadDeckAndReady 会直接 return，
+    // 看门狗再重发也被挡掉 → 日志一直“还没开始下一局”（用户实测 ✗）。
+    state.readySent = false;
+    state.readyResent = false;
+    state._loginWait = 0;
+    try { state.autoLoginTries = 0; autoLoginIfNeeded(); } catch (e) {}
+      try { if (window.__live && window.__live.setMyDuelPos) window.__live.setMyDuelPos(state.watchMode ? null : state.myDuelPos); } catch (e) {} state.lastPosChange = null; state.lastSearch = null;
     setUiPhase('duel');
-    uploadDeckAndReady();
-    // ★ 备牌后强制刷新页面：新一局的场地**从零重建** ✓
-    //   为什么用刷新：查看器只在收到 MSG_START 时重置模型，而实测备牌后第二局场地仍是上一局的
-    //   (用户多次反馈)。刷新后客户端会重连回**同一房间**(房间名已持久化)，服务端发完整快照
-    //   (MSG_START + 各区 UpdateData 全量) → 查看器重建，场地必然干净，不用去猜是哪一步没生效。
-    //   先给 1.2 秒把"卡组+准备"发出去，服务端记住我们的状态后再刷新。
+    // ★ PATCH(白神服) 2026-11-17：备牌后**不再刷新页面**
+    //   原来这里是 `location.replace(...)` 强制刷新：刷新会把 WebSocket 断开，
+    //   服务端在"备牌已提交、下一局即将开始"的窗口里看到掉线 → 直接判 FLEE 掉线惩罚，
+    //   玩家看到的就是"莫名其妙失去连接"（实测 14:20 / 14:23 两次，14:23 那次被判负）。
+    //   改成**就地重置查看器**（__live.reset）：场地/统计/消息队列全部清零，
+    //   服务端随后发来的 MSG_START + 全量 UpdateData 正常重建新一局，连接不断。
     if (!state.sidingReloading) {
       state.sidingReloading = true;
-      logLine('↻ 备牌已提交 → 1.2 秒后刷新页面让新一局场地从零重建', 'rp-log-phase');
-      // ★ 打标记：刷新重连后显示"等待对手备牌"界面（用户要求 ✓ 原来会退回匹配画面 ✗）
       try { sessionStorage.setItem('yp_wait_siding', String(Date.now())); } catch (e) {}
-      setTimeout(function () {
-        try {
-          var u = new URL(location.href);
-          u.searchParams.set('auto', '1');
-          u.searchParams.set('r', String(Date.now()));
-          location.replace(u.toString());
-        } catch (e) { location.reload(); }
-      }, 1200);
+      var _resetOk = false;
+      try {
+        if (window.__live && window.__live.reset) {
+          window.__live.reset({ roomName: state.room || '', players: [] });
+          _resetOk = true;
+          logLine('↻ 备牌已提交 → 就地重置场地（不刷新页面，避免断线被判掉线）', 'rp-log-phase');
+        }
+      } catch (e) {}
+      if (!_resetOk) {
+        // 老页面（没有 reset API）才退回刷新
+        logLine('↻ 备牌已提交 → 页面较旧，1.2 秒后刷新重建场地', 'rp-log-phase');
+        setTimeout(function () {
+          try {
+            var u = new URL(location.href);
+            u.searchParams.set('auto', '1');
+            u.searchParams.set('r', String(Date.now()));
+            location.replace(u.toString());
+          } catch (e2) { location.reload(); }
+        }, 1200);
+      }
     }
-    // 备牌提交后，服务端如果**拒绝**这个卡组，在备牌阶段是没有提示的 → 玩家就"卡死"在这里。
-    // 所以加个看门狗：8 秒内没有新对局开始，就当作卡组没通过校验，说清楚并退回大厅（别让人干等）。
-    // 备牌提交后服务端没开下一局 → **先重发**（备牌阶段的 ready 时序容易踩空：卡组先到、ready 被忽略），
-    // 连续 3 次都不行再退回大厅。原来一遇到就报"卡组不合规"并把人踢回大厅 ✗（用户实测：没改任何卡也被踢）
+    uploadDeckAndReady();
+    // 备牌提交后是“等待对方换备”，不是失败。服务端要等双方都 READY 才开下一局，
+    // 对方慢慢换牌是完全正常的游戏流程 —— 绝不能倒计时后自动退回大厅。
+    // 这里只做等待提示，不做任何自动 abort。
     if (state.sidingWatchdog) clearTimeout(state.sidingWatchdog);
-    var _sdTries = 0;
+    var _sdWaitN = 0;
     state.sidingWatchdog = setTimeout(function _sdWatch() {
       if (state.duelStarted) { state.sidingWatchdog = null; return; }
-      _sdTries++;
-      if (_sdTries <= 3) {
-        logLine('↻ 还没开始下一局 → 重发卡组 + 准备（第 ' + _sdTries + ' 次）', 'rp-log-phase');
-        try { uploadDeckAndReady(); } catch (e) {}
-        state.sidingWatchdog = setTimeout(_sdWatch, 6000);
-        return;
+      _sdWaitN++;
+      if (_sdWaitN === 1) {
+        logLine('⏳ 已提交备牌，正在等待对方准备（不会自动退出）', 'rp-log-phase');
+      } else if (_sdWaitN % 4 === 0) {
+        logLine('⏳ 仍在等待对方换备…如确认对方已离开，可手动退出房间', 'rp-log-hint');
       }
-      state.sidingWatchdog = null;
-      logLine('⚠ 备牌提交后重发 3 次仍未开始下一局 → 退回大厅', 'rp-log-err');
-      abortMatch('备牌提交后一直没能开始下一局 —— 请回大厅重新匹配（如果是连续出现，请把日志发给维护者）');
+      state.sidingWatchdog = setTimeout(_sdWatch, 15000);
     }, 8000);
   }
 
@@ -528,12 +859,60 @@
    * 消息类没导出，所以跟聊天帧一样手拼：send() 只要 identifier + toPayload()。
    */
 
+  function clearDuelImageCache() {
+    try { if (window.__live && window.__live.clearImageCache) window.__live.clearImageCache(); } catch (e) {}
+  }
+
   function leaveRoomGracefully() {
     state.leaving = true;
     try { sessionStorage.removeItem('yp_room_saved'); } catch (e) {}   // 换新房间要重新抽房名
     try { send({ identifier: 19, toPayload: function () { return new Uint8Array(0); } }); } catch (e) {}
     setTimeout(function () { try { if (state.sock) state.sock.close(); } catch (e) {} }, 120);
   }
+
+  /**
+   * PATCH(白神服) 2026-11-20: 等太久没配到对手 → **原地换房重进**（不刷新页面）。
+   *   整页重载的问题：WebSocket 重连、画面闪、背景音乐从头放，而且 rerollCount 被清空
+   *   → 每 40 秒无限重刷（用户实测等待页约 42 秒刷一次）。
+   *   这里只重置「房间相关」状态：日志、卡组、音乐、界面都不动。
+   */
+  function rerollRoomInPlace() {
+    try { sessionStorage.removeItem('yp_room_saved'); sessionStorage.removeItem('yp_room_saved_at'); } catch (e) {}
+    try { leaveRoomGracefully(); } catch (e) {}       // 会发 leave 并置 leaving=true（旧 socket 关闭不触发重连）
+    setTimeout(function () {
+      try {
+        // 旧连接彻底摘掉，避免 onclose 把状态又改回去
+        if (state.sock) {
+          try { state.sock.onclose = null; state.sock.onerror = null; state.sock.onmessage = null; } catch (e) {}
+          try { state.sock.close(); } catch (e) {}
+        }
+      } catch (e) {}
+      state.sock = null;
+      // 房间相关状态清零（保留日志/卡组/音乐/界面）
+      state.joined = false;
+      state.playerNames = {};
+      state.ready = {};
+      state.mySeat = -1;
+      state.duelStarted = false;
+      state.everHadOpponent = false;
+      state.oppLeftNoticed = false;
+      state.reconnectStopped = false;
+      state.reconnectTries = 0;
+      state.leaving = false;
+      state.myDuelPos = -1;
+      state.room = ladderRoom();
+      renderLobby();
+      setHud('换房间重试中…', 'warn');
+      try {
+        joinRoom();
+        setTimeout(function () { try { uploadDeckAndReady(); } catch (e) {} }, 1500);
+      } catch (e) {
+        setHud('换房失败：' + e.message, 'err');
+        logLine('换房失败：' + e.message, 'rp-log-err');
+      }
+    }, 350);
+  }
+  try { window.__ypReroll = rerollRoomInPlace; } catch (e) {}   // 诊断/自测用
 
   function abortMatch(reasonText) {
     if (state.matchAborted) return;
@@ -551,6 +930,7 @@
         + '</div>';
     }
     setTimeout(function () {
+      clearDuelImageCache();
       location.href = 'lobby.html?err=' + encodeURIComponent(String(reasonText || ''));
     }, 3000);
   }
@@ -567,12 +947,37 @@
   }
 
   function ensureMatchingOverlay(noticeText) {
-    if (document.getElementById('ypMatching')) return;
+    // PATCH(白神服) 观战模式：观战者不需要「匹配中」遮罩（也避免被其它流程重新弹出来）
+    if (state.watchMode) return;
+    // 备牌界面开着时也不要弹匹配遮罩（它的自愈定时器会每 400ms 补一层，必须挡在这里）
+    if (document.getElementById('ypSiding') || document.getElementById('ypWaitSiding')) return;
+    // PATCH(白神服) 2026-11-16: 正在等对手备牌（Bo3 换备后刷新重连）→ 绝不能弹匹配遮罩，
+    //   否则玩家会以为"又要重新匹配"（用户实测 ✗）。等备牌界面由 showSidingWait() 负责。
+    try {
+      if (sessionStorage.getItem('yp_wait_siding')) {
+        var _m = document.getElementById('ypMatching');
+        if (_m) _m.remove();
+        return;
+      }
+    } catch (e) {}
+    var _exist = document.getElementById('ypMatching');
+    if (_exist) {
+      // PATCH(白神服) 2026-11-06: 已经有一层遮罩时，用新的提示文案更新它（比如「没有可用卡组」）
+      if (noticeText) {
+        try {
+          var _ti = _exist.querySelector('div > div:nth-child(2)');
+          if (_ti) _ti.textContent = noticeText;
+        } catch (e) {}
+      }
+      return;
+    }
     var lobby = document.getElementById('lobby');
     if (lobby) lobby.style.display = 'none';          // 藏掉「决斗准备」面板
     var d = document.createElement('div');
     d.id = 'ypMatching';
-    d.style.cssText = 'position:fixed;inset:0;z-index:12;display:flex;align-items:center;justify-content:center;'
+    // PATCH(白神服) 2026-11-06: 遮罩 z-index 12 太低 —— 阶段条 #ypCtl 是 9200，会盖在遮罩上面，
+    //   匹配界面左下角就会多出一条金色小条（用户实测问"这个黄色的圈是什么" ✗）。
+    d.style.cssText = 'position:fixed;inset:0;z-index:100050;display:flex;align-items:center;justify-content:center;'
       + 'background:#0a0a0c;background-image:radial-gradient(900px 500px at 50% 30%, rgba(216,30,68,.18), rgba(10,10,12,0) 70%);'
       + 'pointer-events:auto;opacity:0;transform:scale(.985);transition:opacity .42s ease, transform .42s ease;';
     d.innerHTML = '<div style="text-align:center">'
@@ -597,6 +1002,7 @@
       cancelBtn.disabled = true;
       cancelBtn.textContent = '正在取消…';
       leaveRoomGracefully();
+      clearDuelImageCache();
       setTimeout(function () { location.href = 'lobby.html'; }, 350);
     };
     // 等了多久（让玩家知道不是卡住）
@@ -610,9 +1016,16 @@
     // 盘面一显示（= 猜拳切对局界面）就立刻撤掉并把定时器停掉。
     var timer = setInterval(function () {
       var el = document.getElementById('ypMatching');
+      try {
+        var _ctl = document.getElementById('ypCtl');
+        if (_ctl) _ctl.style.display = el && !state.duelStarted ? 'none' : '';
+      } catch (e) {}
       // ⚠ 用 modalShowing() 而不是 offsetParent：对局区现在是 position:fixed，
       //   offsetParent 恒为 null → 判断永远不成立 → 遮罩永远不撤，把猜拳/弹窗全盖住(实测踩到 ✗)
-      if (state.duelStarted || modalShowing()) {
+      // PATCH(白神服) 2026-11-06: 只有**对局真的开始**（进入决斗界面）才撤遮罩。
+      //   之前只要 #replayModal 可见就撤 —— 但「决斗准备 / 等待对手」面板也在里面，
+      //   进房后遮罩就消失了（用户实测：有匹配动画，过一会又没了 ✗）。
+      if (state.duelStarted || state.uiPhase === 'duel') {
         if (el) el.remove();
         clearInterval(timer);
         return;
@@ -620,6 +1033,25 @@
       if (!el) ensureMatchingOverlay();     // 被清掉了就补一层
       if (lobby && lobby.style.display !== 'none') lobby.style.display = 'none';
     }, 400);
+  }
+
+  /**
+   * 宣言类应答（卡名/数字/属性/种族）的兜底发送。
+   * PATCH(白神服) 2026-11-06: 「光之护封壁」宣言数字时，库的 prepareResponse 返回空 →
+   * respond() 只打一句日志就返回 → 面板不动、玩家以为卡死（用户实测 ✗）。
+   * 协议上 COTS_RESPONSE 的负载就是 4 字节小端整数（数字本身 / 位掩码），这里手写兜底。
+   */
+  function announceSend(val) {
+    try {
+      var b = new Uint8Array(4);
+      var v = val >>> 0;
+      b[0] = v & 0xff; b[1] = (v >>> 8) & 0xff; b[2] = (v >>> 16) & 0xff; b[3] = (v >>> 24) & 0xff;
+      respond(b);
+      return true;
+    } catch (e) {
+      logLine('⚠ 宣言应答发送失败：' + e.message, 'rp-log-err');
+      return false;
+    }
   }
 
   function respond(body) {
@@ -744,11 +1176,30 @@
   var _revealEls = [];
   function showCardReveal(code, who) {
     if (!code) return;
+    // 卡图没就绪就先等（避免亮出一张黑卡）——最多等 2 秒
+    try {
+      if (window.__live && window.__live.imgLoadedFlag && window.__live.preloadImg) {
+        if (!window.__live.imgLoadedFlag(code)) {
+          var _guardKey = 'ypRevealWait_' + code;
+          if (!window[_guardKey]) {
+            window[_guardKey] = 1;
+            window.__live.preloadImg(code).then(function () {
+              window[_guardKey] = 0;
+              try { showCardReveal(code, who); } catch (e) {}
+            });
+            setTimeout(function () { window[_guardKey] = 0; }, 2200);
+            return;
+          }
+        }
+      }
+    } catch (e) {}
     var box = document.getElementById('ypReveal');
     if (!box) {
       box = document.createElement('div');
       box.id = 'ypReveal';
-      box.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:64px;z-index:88;display:flex;'
+      // PATCH(白神服) 2026-11-06: 亮牌层原来 z-index:88，而场地/弹窗是 9000+ →
+      //   翻开（确认卡组顶、检索亮牌，例：強欲而謙虚之壺）的卡被场地盖住，双方都看不到（用户实测 ✗）
+      box.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:52px;z-index:100070;display:flex;'
         + 'gap:10px;flex-wrap:wrap;justify-content:center;pointer-events:none;'
         + 'font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif';
       document.body.appendChild(box);
@@ -756,16 +1207,12 @@
     var it = document.createElement('div');
     it.style.cssText = 'background:rgba(10,10,12,.94);border:1px solid rgba(212,175,55,.75);border-radius:10px;'
       + 'padding:8px 10px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.7);pointer-events:auto';
-    it.innerHTML = '<img alt="' + code + '" style="width:88px;aspect-ratio:421/614;object-fit:cover;border-radius:4px;display:block"'
-      + ' src="https://cdn.233.momobako.com/ygopro/pics/' + code + '.jpg"'
-      + ' onerror="this.onerror=null;this.src=\'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/' + code + '.jpg\';'
-      + 'this.onerror=function(){this.onerror=null;this.src=\'https://api.ygopro3.cn/pics/siro/' + code + '.jpg\';'
-      + 'this.onerror=function(){this.src=\'cover.jpg\';}};">'
+    it.innerHTML = picImgHtml(code, picImgStyle('width:clamp(74px, 13vw, 104px);aspect-ratio:421/614')) +
       + '<div style="font-size:11.5px;color:#F0E68C;margin-top:5px;max-width:96px;overflow:hidden;text-overflow:ellipsis;'
-      + 'white-space:nowrap">' + (who ? ('[' + who + '] ') : '') + cardLabel({ code: code }) + '</div>';
+      + 'white-space:nowrap">' + (who ? ('[' + who + '] ') : '') + cardLabel(code) + '</div>';
     box.appendChild(it);
     _revealEls.push(it);
-    logLine('👁 ' + (who || '') + ' 亮出：' + cardLabel({ code: code }) + '（' + code + '）', 'rp-log-hint');
+    logLine('👁 ' + (who || '') + ' 亮出：' + cardLabel(code) + '（' + code + '）', 'rp-log-hint');
     // 最多同时显示 4 张，多的把最老的挤掉；每张 6 秒后自动消失
     while (_revealEls.length > 4) { var old = _revealEls.shift(); if (old && old.parentNode) old.parentNode.removeChild(old); }
     setTimeout(function () {
@@ -776,8 +1223,174 @@
   }
 
   /** 从亮牌类消息里把卡号捞出来（不同消息字段名不一样，都兜一下） */
+
+  /**
+   * PATCH(白神服) 2026-11-07: 连锁时点改成「先选卡 → 确认/取消」。
+   *   原来是点卡图**立即发动**，误触就发出去了（玩家反馈）。
+   *   现在：卡图可选中（红框高亮），点「确认」才发动，点「取消」= 不连锁。
+   */
+  function picSrcOf(code) {
+    try {
+      if (window.__live && window.__live.picChain) {
+        var ch = window.__live.picChain(code);
+        if (ch && ch.length) return ch[0];
+      }
+    } catch (e) {}
+    return code + '.jpg';
+  }
+
+  function showChainPicker(chains, forced, m) {
+    var old = document.getElementById('ypChainPick');
+    if (old && old.parentNode) old.parentNode.removeChild(old);
+
+    var ov = document.createElement('div');
+    ov.id = 'ypChainPick';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:100065;background:rgba(0,0,0,.55);'
+      + 'display:flex;align-items:center;justify-content:center;padding:16px;'
+      + 'font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;';
+
+    var box = document.createElement('div');
+    box.style.cssText = 'background:#141118;border:1px solid rgba(216,30,68,.55);border-radius:14px;'
+      + 'padding:14px 16px;max-width:min(760px,94vw);max-height:86vh;overflow:auto;'
+      + 'box-shadow:0 18px 50px rgba(0,0,0,.7);';
+    box.innerHTML = '<div style="color:#F0E68C;font-weight:800;font-size:15px;letter-spacing:1px;margin-bottom:10px">可连锁发动效果'
+      + (forced ? '<span style="font-size:11.5px;color:#FF8A8A;font-weight:600;margin-left:8px">（这一问可能需要给出连锁）</span>' : '')
+      + '</div>';
+
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:10px;flex-wrap:wrap;justify-content:center';
+    var sel = -1;
+    var okBtn = null;
+
+    chains.forEach(function (c, i) {
+      var it = document.createElement('div');
+      it.style.cssText = 'width:104px;cursor:pointer;border:2px solid transparent;border-radius:10px;'
+        + 'padding:4px;text-align:center;transition:border-color .15s,background .15s';
+      var sub = c.forced ? '（强制）' : '';
+      var tip = '';
+      try { tip = (typeof sysText === 'function' && sysText(c.desc)) ? sysText(c.desc) : ''; } catch (e) {}
+      // PATCH(白神服) 2026-11-07: 连锁项偶尔没有卡号（code=0）→ 图片 404 空白，
+      //   明明手牌里已经加载过。这里按格位从场地模型兜底取卡号，再加 onerror 兜底换图源。
+      var _cc = (typeof c.code === 'number' && c.code > 0) ? c.code : 0;
+      if (!_cc) {
+        try {
+          var _ctl = (c.controler !== undefined ? c.controler : c.controller);
+          if (window.__live && window.__live.cardCodeAt && _ctl !== undefined && c.location !== undefined) {
+            _cc = window.__live.cardCodeAt(_ctl, c.location, c.sequence || 0);
+          }
+        } catch (e) {}
+      }
+      var _src = picSrcOf(_cc || c.code);
+      it.innerHTML = '<img src="' + _src + '" alt="' + (_cc || c.code) + '" data-code="' + (_cc || 0) + '" '
+        + 'style="width:92px;aspect-ratio:59/86;object-fit:cover;border-radius:6px;display:block;margin:0 auto">'
+        + '<div style="font-size:11.5px;color:#dbe6f1;margin-top:4px;line-height:1.35">'
+        + (cardLabel(c.code) || ('卡' + c.code)) + sub + '</div>'
+        + (tip ? '<div style="font-size:10.5px;color:#8d8d96;margin-top:2px">' + tip + '</div>' : '');
+      try {
+        var _img = it.querySelector('img');
+        if (_img) {
+          _img.onerror = function () {
+            this.onerror = null;
+            this.src = FACE_DOWN_IMG;      // 最后兜底：卡背，至少不是空白
+          };
+        }
+      } catch (e) {}
+      it.onclick = function () {
+        sel = i;
+        Array.prototype.forEach.call(row.children, function (x, j) {
+          x.style.borderColor = (j === sel) ? '#D81E44' : 'transparent';
+          x.style.background = (j === sel) ? 'rgba(216,30,68,.12)' : 'transparent';
+        });
+        if (okBtn) { okBtn.disabled = false; okBtn.style.opacity = '1'; }
+      };
+      row.appendChild(it);
+    });
+    box.appendChild(row);
+
+    var bar = document.createElement('div');
+    bar.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;margin-top:14px';
+
+    okBtn = document.createElement('button');
+    okBtn.textContent = '确认';
+    okBtn.disabled = true;
+    okBtn.style.cssText = 'padding:8px 24px;border-radius:999px;border:1px solid rgba(216,30,68,.85);'
+      + 'background:rgba(216,30,68,.18);color:#FFD700;font-weight:800;font-size:14px;cursor:pointer;'
+      + 'font-family:inherit;opacity:.5;letter-spacing:2px';
+    okBtn.onclick = function () {
+      if (sel < 0) return;
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+      respond(m.prepareResponse(YGO.IndexResponse(sel)));
+    };
+
+    var cancelBtn = document.createElement('button');
+    cancelBtn.textContent = '取消';
+    cancelBtn.style.cssText = 'padding:8px 24px;border-radius:999px;border:1px solid rgba(255,255,255,.25);'
+      + 'background:transparent;color:#cfc8bd;font-size:14px;cursor:pointer;font-family:inherit;letter-spacing:2px';
+    cancelBtn.onclick = function () {
+      if (ov.parentNode) ov.parentNode.removeChild(ov);
+      respond(m.prepareResponse(null));      // 不连锁
+    };
+
+    bar.appendChild(okBtn);
+    bar.appendChild(cancelBtn);
+    box.appendChild(bar);
+    ov.appendChild(box);
+    document.body.appendChild(ov);
+  }
+
+  // ── 「已公开的卡」记账（确认/翻开用）────────────────────────────────
+  //   PATCH(白神服) 2026-11-20: 引擎给 SELECT_CARD 的候选里，对手卡组的卡 code 常是 0
+  //   （只给 controller/location/sequence），但**前一条** CONFIRM_CARDS / CONFIRM_DECKTOP
+  //   是带卡号的。这里把见过的公开卡记下来，选卡框就能画成正面卡图而不是"里侧卡片"。
+  function revealKeyOf(c) {
+    if (!c || typeof c === 'number') return '';
+    var ctl = (c.controller !== undefined) ? c.controller : 0;
+    var loc = (c.location !== undefined) ? (c.location & 0x7f) : 0;
+    var seq = (c.sequence !== undefined) ? c.sequence : 0;
+    return ctl + ':' + loc + ':' + seq;
+  }
+  function rememberRevealed(c) {
+    try {
+      if (!c || typeof c === 'number') return;
+      var code = c.code || 0;
+      if (!code) return;
+      var k = revealKeyOf(c);
+      if (k) state.revealCodes[k] = code;
+    } catch (e) {}
+  }
+  /** 这一格之前被公开过吗？返回卡号，没有就 0 */
+  function revealedCodeOf(info) {
+    try {
+      if (!info) return 0;
+      return state.revealCodes[revealKeyOf(info)] || 0;
+    } catch (e) { return 0; }
+  }
+
   function revealFromMsg(msg, who) {
     var arr = msg.cards || msg.info || msg.list || [];
+    // 先记账：后面 SELECT_CARD 的候选没带卡号时要用
+    arr.forEach(rememberRevealed);
+    // 额外卡组公开（时空之七星等「给对方观看额外」效果）：服务端可能一次给多张。
+    // 原来逐张 showCardReveal，后一张会顶掉前一张，看起来就是“根本没展示额外”。
+    try {
+      var _loc = (msg.location || 0) & 0x7f;
+      var _hasExtra = _loc === LOC.EXTRA || arr.some(function (c) {
+        return c && c.location !== undefined && ((c.location & 0x7f) === LOC.EXTRA);
+      });
+      if (_hasExtra && arr.length > 1) {
+        showChooser((who ? who + ' ' : '') + '额外卡组公开（' + arr.length + ' 张）',
+          arr.map(function (c, i) {
+            var code = (typeof c === 'number') ? c : (c && c.code) || 0;
+            return {
+              label: code ? cardLabel(code) : '（里侧/未公开）',
+              code: code, sub: '额外卡组[' + (i + 1) + ']', faceDown: !code,
+              f: function () { hideChooser(); },
+            };
+          }),
+          { footer: [{ t: '关闭', f: hideChooser }] });
+        return;
+      }
+    } catch (e) {}
     arr.forEach(function (c) {
       if (typeof c === 'number') { showCardReveal(c, who); return; }
       if (c && c.code) showCardReveal(c.code, who);
@@ -785,34 +1398,87 @@
   }
 
 
-  /** 剩余时间小条（"时点"）：固定在右上角，横竖屏都在，秒数 < 30 变红闪烁提示 */
-  var _timeEl = null;
-  function showTimeLeft(sec) {
-    if (!_timeEl) {
-      _timeEl = document.createElement('div');
-      _timeEl.id = 'ypTimeLeft';
-      _timeEl.style.cssText = 'position:fixed;right:10px;top:8px;z-index:72;padding:6px 12px;border-radius:999px;'
-        + 'background:rgba(10,10,12,.9);border:1px solid rgba(212,175,55,.75);color:#F0E68C;'
-        + 'font:800 15px/1 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-variant-numeric:tabular-nums;'
+  /** 单个“当前行动方”倒计时（照 MDPro3 TimerHandler）：只显示秒数，自己黄色/对方红色 */
+  var _timerEl = null;
+  function _timerRemain() {
+    try {
+      var t = state.timer;
+      if (!t || t.time === null || t.time === undefined) return null;
+      // 只显示服务器推送的 left_time；不做前端递减（服务器每秒推送真实剩余秒数）
+      return Math.max(0, Math.ceil(Number(t.time) || 0));
+    } catch (e) { return null; }
+  }
+  function _ensureTimerEl() {
+    var host = document.getElementById('replayField') || document.body;
+    if (_timerEl && _timerEl.parentNode && _timerEl._host === host) return _timerEl;
+    try {
+      ['ypTimeLeft', 'ypTimeMe', 'ypTimeOpp'].forEach(function (id) {
+        var o = document.getElementById(id);
+        if (o && o.parentNode) o.parentNode.removeChild(o);
+      });
+      var el = document.createElement('div');
+      el.id = 'ypTimeLeft';
+      el.style.cssText = 'position:' + (host.id === 'replayField' ? 'absolute' : 'fixed') + ';z-index:9700;display:none;'
+        + 'padding:5px 11px;border-radius:999px;'
+        + 'font:800 18px/1 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-variant-numeric:tabular-nums;'
         + 'pointer-events:none;letter-spacing:1px';
-      document.body.appendChild(_timeEl);
+      host.appendChild(el);
+      if (host.id === 'replayField' && getComputedStyle(host).position === 'static') host.style.position = 'relative';
+      el._host = host;
+      _timerEl = el;
+    } catch (e) { return null; }
+    return _timerEl;
+  }
+  function _renderTimer() {
+    if (state.watchMode) {
+      if (_timerEl) _timerEl.style.display = 'none';
+      return;
     }
-    var s = Math.max(0, Math.floor(sec));
-    var mm = Math.floor(s / 60), ss = s % 60;
-    _timeEl.textContent = '⏱ ' + mm + ':' + String(ss).padStart(2, '0');
-    if (s <= 30) {
-      _timeEl.style.borderColor = 'rgba(255,80,80,.95)';
-      _timeEl.style.color = '#FF8A8A';
-      _timeEl.style.background = 'rgba(60,10,14,.92)';
+    var el = _ensureTimerEl();
+    if (!el) return;
+    var remain = _timerRemain();
+    if (remain === null) { el.style.display = 'none'; return; }
+    var self = (state.timer.player === 0);
+    el.style.display = 'block';
+    el.textContent = String(remain);
+    el.title = (self ? '我方' : '对方') + '剩余时间（秒）';
+    if (self) {
+      el.style.left = '10px'; el.style.right = 'auto';
+      el.style.top = 'auto'; el.style.bottom = '34px';
+      el.style.background = 'rgba(40,36,10,.9)';
+      el.style.border = '2px solid rgba(240,230,140,.85)';
+      el.style.color = '#FFE94A';
     } else {
-      _timeEl.style.borderColor = 'rgba(212,175,55,.75)';
-      _timeEl.style.color = '#F0E68C';
-      _timeEl.style.background = 'rgba(10,10,12,.9)';
+      el.style.right = '10px'; el.style.left = 'auto';
+      el.style.top = '34px'; el.style.bottom = 'auto';
+      el.style.background = 'rgba(48,10,14,.92)';
+      el.style.border = '2px solid rgba(255,90,90,.9)';
+      el.style.color = '#FF6B6B';
     }
+  }
+  window.__placeTimeLeft = _renderTimer;
+  function _setTimer(player, sec, limit) {
+    try {
+      state.timer = {
+        time: Math.max(0, Number(sec) || 0),
+        player: (Number(player) === 1) ? 1 : 0,
+        at: Date.now(),
+        limit: Number(limit) || TURN_LIMIT_SEC || 300,
+      };
+      _renderTimer();
+      _startServerClockTick();
+    } catch (e) {}
+  }
+  function showTimeLeft(sec) {
+    // MDPro3 只由 STOC_TIME_LIMIT 驱动；时间确认只在本方走表时同步一下
+    if (!state.timer || state.timer.player === 0) _setTimer(0, sec);
   }
 
 
-  /** 给"发动效果"类按钮贴 CDB 提示（牌堆菜单/连锁选项复用） */
+  /** 给"发动效果"类按钮贴 CDB 提示（牌堆菜单/连锁选项复用）
+   *  PATCH(白神服) 2026-11-19：**不再改按钮文字**，只挂 title。
+   *  真实客户端只有多选项时才显示效果说明（SelectOption / 效果选择盘），
+   *  单个效果一律只显示「发动」——这里保持「发动效果（N）」这类原文案。 */
   function decoratePileHints(root, pairs) {
     // pairs: [{btn, code, idx}] —— 懒加载回来后逐个贴
     pairs.forEach(function (it) {
@@ -821,9 +1487,7 @@
         var hs = hintCache[String(it.code)] || [];
         var h = hs[it.idx || 0];
         if (!h) return;
-        var base = (it.btn.textContent || '').replace(/^发动效果[：:]?/, '');
-        it.btn.textContent = '发动效果：' + h + (base && base.indexOf('（') >= 0 ? base.slice(base.indexOf('（')) : '');
-        it.btn.title = h;
+        it.btn.title = h;          // 悬停可见；按钮文字保持原样
       };
       fetchHints(it.code);
       apply();
@@ -849,10 +1513,20 @@
       document.body.appendChild(el);
     }
     function side(mine, who) {
-      var v = _cnt[mine ? state.myDuelPos : (1 - (state.myDuelPos || 0))] || {};
-      return who + ' 手' + (v.hand === null ? '?' : v.hand)
-        + ' 卡' + (v.deck === null ? '?' : v.deck)
-        + ' 额' + (v.extra === null ? '?' : v.extra);
+      // PATCH(白神服) 2026-11-19: 卡组/额外**只认查看器的牌堆模型**（那里已经有来源优先级），
+      //   这里再存一份 _cnt.deck/extra 就会出现两个数字打架（用户看到的"张数反复变"）。
+      //   手卡仍然用 _cnt（查看器手牌是隐藏卡背，数不了张数时更准）。
+      var viewSeat = mine ? 0 : 1;                       // 查看器世界：0=下方/我，1=上方/对方
+      var abs = (state.myDuelPos === 1) ? (1 - viewSeat) : viewSeat;
+      var hand = (_cnt[abs] && _cnt[abs].hand !== null && _cnt[abs].hand !== undefined) ? _cnt[abs].hand : null;
+      var deck = null, extra = null;
+      try {
+        var c = (window.__live && window.__live.debugCounts) ? window.__live.debugCounts() : null;
+        if (c && Array.isArray(c.deck)) deck = c.deck[viewSeat];
+        if (c && Array.isArray(c.extra)) extra = c.extra[viewSeat];
+      } catch (e) {}
+      var fmt = function (v) { return (v === null || v === undefined || isNaN(Number(v))) ? '?' : String(v); };
+      return who + ' 手' + fmt(hand) + ' 卡' + fmt(deck) + ' 额' + fmt(extra);
     }
     try { el.textContent = side(false, '对方') + '\n' + side(true, '自己'); } catch (e) {}
   }
@@ -871,9 +1545,18 @@
   function fillOpponentHand() {
     try {
       var me = (state.myDuelPos === 0 || state.myDuelPos === 1) ? state.myDuelPos : null;
+      try { if (window.__live && window.__live.setMyDuelPos) window.__live.setMyDuelPos(state.watchMode ? null : state.myDuelPos); } catch (e) {}
       if (me === null) return;
       var oppDuelPos = 1 - me;
       var n = _cnt[oppDuelPos] ? _cnt[oppDuelPos].hand : null;
+      // PATCH(白神服) 2026-11-07: 以**查看器模型**为准 —— _cnt 里的 hand 是进房时的旧值，
+      //   对手手牌打成 0 张后还按旧值贴卡背 → 手卡 0 却显示一堆（用户实测 ✗）
+      try {
+        if (window.__live && window.__live.handCount) {
+          var _mn = window.__live.handCount(flipSeat(oppDuelPos));
+          if (typeof _mn === 'number') n = _mn;
+        }
+      } catch (e) {}
       if (n === null || n < 0) return;
       // 查看器的视角座位：自己是 0，对手是 1（flipSeat 的语义）
       var viewSeat = flipSeat(oppDuelPos);
@@ -929,26 +1612,14 @@
     return null;
   }
   function markFaceDown(ctl, loc, seq, on) {
+    // PATCH(白神服) 2026-11-08: 不再贴 .yp-fd-back 覆盖层 —— 查看器现在自己会画里侧卡背
+    //   （.rp-card.rp-card-down，按 59/86 比例）。原来这层 inset:0 会铺满格子，
+    //   于是"对方盖牌占满格子"（用户实测 ✗）。
     try {
-      if (ctl !== 0 && ctl !== 1) return;
-      var el = fdZoneEl(ctl, loc, seq);
-      if (!el) return;
-      var cur = el.querySelector('.yp-fd-back');
-      if (on) {
-        if (cur) return;
-        var d = document.createElement('div');
-        d.className = 'yp-fd-back';
-        d.style.cssText = 'position:absolute;inset:0;border-radius:3px;z-index:3;'
-          + 'background:#101720 url("' + FACE_DOWN_IMG + '") center/cover no-repeat;'
-          + 'box-shadow:0 0 0 1px rgba(120,90,60,.6) inset';
-        if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
-        el.appendChild(d);
-        // 位置键记下来，翻面/离场时按它摘（避免 seq 被查看器重排后找不到）
-        state.fdZones = state.fdZones || {};
-        state.fdZones[ctl + ':' + loc + ':' + seq] = 1;
-      } else if (cur) {
-        cur.remove();
-        if (state.fdZones) delete state.fdZones[ctl + ':' + loc + ':' + seq];
+      var _el = fdZoneEl(ctl, loc, seq);
+      if (_el) {
+        var _old = _el.querySelector('.yp-fd-back');
+        if (_old && _old.parentNode) _old.parentNode.removeChild(_old);
       }
     } catch (e) {}
   }
@@ -969,6 +1640,8 @@
    */
   function fixPileCounts() {
     try {
+      // 观战一律跳过：_cnt 来自进房时的旧值/数量条，会把查看器算好的角标写回旧值（界面闪 37）
+      if (state.watchMode) return;
       var me = (state.myDuelPos === 0 || state.myDuelPos === 1) ? state.myDuelPos : null;
       if (me === null) return;
       [0, 1].forEach(function (dp) {
@@ -983,15 +1656,12 @@
           // ★ 只在"我们确实知道且大于 0"时才覆盖角标 ✓
           //   否则会把查看器算好的数字冲成 0（用户截图里卡组/额外都显示 0 ✗）
           if (b && n > 0 && b.textContent !== String(n)) b.textContent = String(n);
-          // 有卡但没有牌面 → 补一张卡背（额外卡组对对手永远是里侧）
-          if (n > 0 && !el.querySelector('img, .yp-pile-back')) {
-            var d = document.createElement('div');
-            d.className = 'yp-pile-back';
-            d.style.cssText = 'position:absolute;inset:0;border-radius:4px;z-index:2;'
-              + 'background:#101720 url("' + FACE_DOWN_IMG + '") center/cover no-repeat';
-            if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
-            el.appendChild(d);
-          }
+          // PATCH(白神服) 2026-11-07: 这里原来会补一张 **铺满格子** 的 .yp-pile-back 卡背，
+          //   而 viewer 的 fillPile 已经画了按比例（59/86）的 .rp-card 卡背 →
+          //   两套叠在一起，玩家看到「一会儿占满、一会儿正常」（用户实测 ✗）。
+          //   现在：卡背只由 fillPile 负责，这里只清掉可能残留的旧覆盖层。
+          var _oldBack = el.querySelector('.yp-pile-back');
+          if (_oldBack && _oldBack.parentNode) _oldBack.parentNode.removeChild(_oldBack);
         });
       });
     } catch (e) {}
@@ -1044,78 +1714,21 @@
 
 
   /**
-   * 对局倒计时（本地兜底）。
-   * 用户反馈"选手老是不知道快到时间了" —— 服务端的 STOC_TIME_LIMIT 不一定发/字段名不定，
-   * 所以这里每回合开始时按服务器时限(config hostinfoTimeLimit = 300 秒)本地自己倒计时；
-   * 服务端真发了绝对值就覆盖它（以服务端为准）。剩 60 秒变橙、30 秒变红并闪烁。
+   * 对局倒计时：只显示服务器 STOC_TIME_LIMIT 推送的 left_time。
+   * 服务端每秒推送真实剩余秒数；前端不再自行递减/本地兜底。
    */
   var TURN_LIMIT_SEC = 300;
-  var _cdTimer = null, _cdLeft = 0;
-  function renderCountdown() {
-    var el = document.getElementById('ypTimeLeft');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'ypTimeLeft';
-      el.style.cssText = 'position:fixed;right:10px;top:8px;z-index:9700;padding:8px 14px;border-radius:10px;'
-        + 'background:rgba(10,10,12,.92);border:2px solid rgba(212,175,55,.8);color:#F0E68C;'
-        + 'font:800 18px/1 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;font-variant-numeric:tabular-nums;'
-        + 'pointer-events:none;letter-spacing:1px';
-      document.body.appendChild(el);
-    }
-    var s = Math.max(0, Math.floor(_cdLeft));
-    var mm = Math.floor(s / 60), ss = s % 60;
-    el.textContent = '⏱ ' + mm + ':' + String(ss).padStart(2, '0');
-    if (s <= 30) {
-      el.style.borderColor = '#ff5050'; el.style.color = '#fff'; el.style.background = 'rgba(150,20,25,.95)';
-      el.style.fontSize = '21px';
-    } else if (s <= 60) {
-      el.style.borderColor = '#ffb347'; el.style.color = '#ffd9a0'; el.style.background = 'rgba(60,40,10,.95)';
-      el.style.fontSize = '19px';
-    } else {
-      el.style.borderColor = 'rgba(212,175,55,.8)'; el.style.color = '#F0E68C'; el.style.background = 'rgba(10,10,12,.92)';
-      el.style.fontSize = '18px';
-    }
+  function _startServerClockTick() {}
+  function startServerClockTick() {}
+  function renderServerClock() { _renderTimer(); }
+  function renderCountdown() { _renderTimer(); }
+
+  function startTurnCountdown() {
+    // 新回合先隐藏旧读数，等服务器下一秒推送真实值
+    state.timer = { time: null, player: 0, at: 0, limit: TURN_LIMIT_SEC };
+    _renderTimer();
   }
-  function startTurnCountdown(sec, restore) {
-    if (restore) {
-      // 刷新/重连后恢复：读回"本回合截止时间"，算出还剩多少
-      try {
-        var dl = Number(localStorage.getItem('yp_turn_deadline') || 0);
-        var at = Number(localStorage.getItem('yp_turn_deadline_at') || 0);
-        if (dl > Date.now() && (Date.now() - at) < 360000) {
-          _cdLeft = Math.round((dl - Date.now()) / 1000);
-          logLine('⏱ 恢复本回合倒计时：还剩 ' + Math.floor(_cdLeft / 60) + ':' + String(_cdLeft % 60).padStart(2, '0') + '（刷新前剩这么多）', 'rp-log-hint');
-        } else {
-          _cdLeft = TURN_LIMIT_SEC;
-        }
-      } catch (e) { _cdLeft = TURN_LIMIT_SEC; }
-    } else {
-      _cdLeft = (typeof sec === 'number' && sec > 0) ? sec : TURN_LIMIT_SEC;
-      // 记下截止时间戳（刷新/重连后靠它接着跑）
-      try {
-        localStorage.setItem('yp_turn_deadline', String(Date.now() + _cdLeft * 1000));
-        localStorage.setItem('yp_turn_deadline_at', String(Date.now()));
-      } catch (e) {}
-    }
-    renderCountdown();
-    if (_cdTimer) clearInterval(_cdTimer);
-    _cdTimer = setInterval(function () {
-      _cdLeft -= 1;
-      if (_cdLeft <= 0) {
-        _cdLeft = 0;
-        renderCountdown();
-        clearInterval(_cdTimer); _cdTimer = null;
-        try { logLine('⏱ 本回合时限到（服务端会按超时处理）', 'rp-log-err'); } catch (e) {}
-        return;
-      }
-      renderCountdown();
-    }, 1000);
-  }
-  function stopTurnCountdown() {
-    if (_cdTimer) { clearInterval(_cdTimer); _cdTimer = null; }
-    var el = document.getElementById('ypTimeLeft');
-    if (el) el.textContent = '';
-  }
+  function stopTurnCountdown() {}
 
 
   /**
@@ -1129,7 +1742,7 @@
       var host = null;
       // ① 先按卡号找场上的卡图（最稳：不看 data-zone 约定）
       if (code) {
-        var imgs = document.querySelectorAll('#replayModal img, .replay-field img, .rp-cell img');
+        var imgs = document.querySelectorAll('#replayModal img, .replay-field img, .rp-cell img, .rp-hand img, #frRoot img');
         for (var i = 0; i < imgs.length; i++) {
           var src = String(imgs[i].src || '');
           if (src.indexOf('/' + code + '.') >= 0 || src.indexOf(code + '.jpg') >= 0) { host = imgs[i].parentNode; break; }
@@ -1160,7 +1773,7 @@
       d.appendChild(st);
       host.appendChild(d);
       requestAnimationFrame(function () { d.style.opacity = '1'; });
-      logLine('🚫 效果被无效：' + (code ? cardLabel({ code: code }) : '（无卡号）'), 'rp-log-err');
+      logLine('🚫 效果被无效：' + (code ? cardLabel(code) : '（无卡号）'), 'rp-log-err');
       setTimeout(function () {
         try {
           d.style.animation = 'ypNegOut .35s ease both';
@@ -1249,7 +1862,7 @@
       // 关键词：作为(连接/超量/同调)素材 + 不会被对方的效果破坏 / 不受对方效果影响
       var mat = /(作为|当作)[^。]{0,12}(连接|超量|同调|融合)?素材/.test(joined);
       var prot = /不会被对方的效果破坏|不受对方(的)?效果影响|不会成为对方的效果的对象/.test(joined);
-      if (mat && prot) return cardLabel({ code: code }) + ' 效果适用中';
+      if (mat && prot) return cardLabel(code) + ' 效果适用中';
       return null;
     } catch (e) { return null; }
   }
@@ -1275,7 +1888,7 @@
       // 同一只怪只留一条
       state.fxTags = state.fxTags.filter(function (x) { return x.code !== code; });
       state.fxTags.push({ code: code, text: text });
-      logLine('▸ ' + text + '（' + cardLabel({ code: code }) + '）', 'rp-log-hint');
+      logLine('▸ ' + text + '（' + cardLabel(code) + '）', 'rp-log-hint');
       try { applyEffectTags(); } catch (e) {}
       try { paintMaterialBadges(); } catch (e) {}
     } catch (e) {}
@@ -1304,7 +1917,34 @@
             state.fxTags = (state.fxTags || []).filter(function (x) { return x.code !== code; });
             state.fxTags.push({ code: code, text: '宣言：' + name });
             try { applyEffectTags(); } catch (e) {}
-            logLine('▸ 宣言标注：' + name, 'rp-log-hint');
+            // PATCH(白神服) 2026-11-17: 光贴自绘标签会被下一次重绘冲掉（用户实测：闪一下就没了）。
+            //   写进查看器的 announcedByCell → 跟着格子一起重绘，稳定留在卡图上 ✓
+            try {
+              var dm = state.declareMsg || {};
+              if (window.__live && window.__live.setAnnounced) {
+                var ctl0 = (dm.controller !== undefined ? dm.controller : (dm.controler || 0));
+                var loc0 = (dm.location !== undefined ? dm.location : dm.zone) & 0x7f;
+                var seq0 = (dm.sequence !== undefined ? dm.sequence : (dm.index || 0)) | 0;
+                if (loc0 === 4 || loc0 === 8) {
+                  var key = flipSeat(ctl0) + ':' + loc0 + ':' + seq0;
+                  var prevAnn = (state.__annByKey && state.__annByKey[key]) || [];
+                  var names = prevAnn.filter(function (n) { return n !== name; });
+                  names.push(name);
+                  state.__annByKey = state.__annByKey || {};
+                  state.__annByKey[key] = names;
+                  window.__live.setAnnounced(key, names);
+                }
+              }
+            } catch (e) {}
+            // PATCH(白神服) 2026-11-17: 宣言也走「卡片式日志」→ 左边有卡图，认得出是哪张卡（用户要求）
+            try {
+              if (window.__live && window.__live.logCard) {
+                window.__live.logCard({ ctl: (state.myDuelPos === 1 ? 1 : 0), code: code,
+                  action: '宣言', name: name, note: '' });
+              } else {
+                logLine('▸ 宣言标注：' + name, 'rp-log-hint');
+              }
+            } catch (e) { logLine('▸ 宣言标注：' + name, 'rp-log-hint'); }
           }, 400);
           setTimeout(function () { clearInterval(_t); }, 120000);   // 保险：2 分钟自动停
         } catch (e) {}
@@ -1354,15 +1994,35 @@
           logLine('（已上报公网 IP 供天梯计分判定：' + String(ip).trim() + '）', 'rp-log-hint');
         } catch (e) {}
       };
-      fetch('https://api.ipify.org?format=json', { cache: 'no-store' })
-        .then(function (r) { return r.json(); })
-        .then(function (j) { send(j && j.ip); })
-        .catch(function () {
-          return fetch('https://ifconfig.me/ip', { cache: 'no-store' })
-            .then(function (r) { return r.text(); })
-            .then(function (t) { send(t); })
-            .catch(function () {});
-        });
+      // PATCH(白神服) 2026-11-06: ipify 在国内网络常常连不上（ERR_CONNECTION_REFUSED），
+      //   改成多个回显服务依次尝试，优先用国内可达的，全失败就静默跳过（不影响对局）。
+      var mirrors = [
+        { url: 'https://myip.ipip.net/json', json: true, pick: function (j) { return j && (j.ip || (j.data && j.data.ip)); } },
+        { url: 'https://ip.3322.net', text: true },
+        { url: 'https://api.ip.sb/ip', text: true },
+        { url: 'https://ifconfig.me/ip', text: true },
+        { url: 'https://api.ipify.org?format=json', json: true, pick: function (j) { return j && j.ip; } }
+      ];
+      var mi = 0;
+      function tryNext() {
+        if (mi >= mirrors.length) return;                  // 全部失败 → 跳过（不影响对局）
+        var m = mirrors[mi++];
+        var ctl = (window.AbortController) ? new AbortController() : null;
+        var to = ctl ? setTimeout(function () { try { ctl.abort(); } catch (e) {} }, 3500) : 0;
+        var opts = { cache: 'no-store' };
+        if (ctl) opts.signal = ctl.signal;
+        fetch(m.url, opts)
+          .then(function (r) { return m.json ? r.json() : r.text(); })
+          .then(function (v) {
+            if (to) clearTimeout(to);
+            var ip = m.json ? m.pick(v) : String(v || '');
+            ip = String(ip || '').trim();
+            if (/^[0-9a-fA-F:.]{3,45}$/.test(ip)) send(ip);
+            else tryNext();
+          })
+          .catch(function () { if (to) clearTimeout(to); tryNext(); });
+      }
+      tryNext();
     } catch (e) {}
   }
 
@@ -1377,7 +2037,9 @@
       var loc = info.location, seq = info.sequence;
       if (loc === undefined || seq === undefined) return null;
       if ((loc & 0x7f) !== 4 && (loc & 0x7f) !== 8) return null;      // 只关心 怪兽区/魔陷区 上的宿主
-      return flipSeat(ctl) + ':' + (loc & 0x7f) + ':' + seq;          // 与查看器 data-zone 同口径 ✓
+      var vc = flipSeat(ctl);
+      if ((loc & 0x7f) === 4 && seq >= 5) return emzKey(vc, seq);
+      return vc + ':' + (loc & 0x7f) + ':' + seq;          // 与查看器 data-zone 同口径 ✓
     } catch (e) { return null; }
   }
   function matKeyOfMove(f) {
@@ -1386,7 +2048,9 @@
       var loc = (f.location !== undefined) ? f.location : (f.info ? f.info.location : undefined);
       var seq = (f.sequence !== undefined) ? f.sequence : (f.info ? f.info.sequence : undefined);
       if (ctl === undefined || loc === undefined || seq === undefined) return null;
-      return flipSeat(ctl) + ':' + ((loc | 0) & 0x7f) + ':' + seq;
+      var vc = flipSeat(ctl);
+      if (((loc | 0) & 0x7f) === 4 && seq >= 5) return emzKey(vc, seq);
+      return vc + ':' + ((loc | 0) & 0x7f) + ':' + seq;
     } catch (e) { return null; }
   }
   /** 记一笔素材变化（to=OVERLAY 加、from=OVERLAY 减） */
@@ -1437,9 +2101,9 @@
       var list = (state.mats && state.mats[zoneKey]) || [];
       if (!list.length) { logLine('这只怪身上没有超量素材', 'rp-log-hint'); return; }
       var items = list.slice().reverse().map(function (code) {
-        return { t: cardLabel({ code: code }), img: code, tip: '超量素材' };
+        return { t: cardLabel(code), img: code, tip: '超量素材' };
       });
-      showChooser((hostCode ? cardLabel({ code: hostCode }) + '：' : '') + '超量素材（' + list.length + ' 张）', items, {});
+      showChooser((hostCode ? cardLabel(hostCode) + '：' : '') + '超量素材（' + list.length + ' 张）', items, {});
     } catch (e) {
       try { logLine('素材列表打开失败', 'rp-log-err'); } catch (e2) {}
     }
@@ -1474,23 +2138,35 @@
     try {
       var box = $('ypCardInfo');
       if (!box) return;
+      var _portraitInfo = false;
+      try { _portraitInfo = window.matchMedia && window.matchMedia('(orientation: portrait), (max-width: 1100px)').matches; } catch (e) {}
+      var _imgBox = $('ypInfoImgBox');
       var el = document.getElementById('ypInfoScore');
       if (!el) {
         el = document.createElement('div');
         el.id = 'ypInfoScore';
         el.style.cssText = 'grid-column:1 / -1;font:700 12.5px/1.5 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;'
           + 'color:#FFD700;margin-top:2px';
-        var series = document.getElementById('ypInfoSeries');
-        if (series && series.parentNode) series.parentNode.insertBefore(el, series.nextSibling);
-        else box.appendChild(el);
+        if (_portraitInfo && _imgBox) _imgBox.appendChild(el);
+        else {
+          var series = document.getElementById('ypInfoSeries');
+          if (series && series.parentNode) series.parentNode.insertBefore(el, series.nextSibling);
+          else box.appendChild(el);
+        }
       }
+      // 竖屏时角标必须挂在卡图盒里，才能叠在卡图上
+      if (_portraitInfo && _imgBox && el.parentNode !== _imgBox) _imgBox.appendChild(el);
       var s = scoreOfCard(code);
       if (s && s.score !== null) {
-        el.textContent = '分值 ' + s.score + (s.forbidden ? '　⚠ 禁用卡' : '');
+        el.textContent = _portraitInfo ? String(s.score) : ('分值 ' + s.score + (s.forbidden ? '　⚠ 禁用卡' : ''));
+        el.title = '分值 ' + s.score + (s.forbidden ? '（禁用卡）' : '');
+        el.style.display = '';
         el.style.color = s.forbidden ? '#ff6b6b' : '#FFD700';
       } else {
-        el.textContent = _scoreMap ? '分值 —（不在分值表里）' : '分值 读取中…';
-        el.style.color = '#9b97a1';
+        // 不在分值表的卡不再显示“分值 —（不在分值表里）”，直接隐藏
+        el.textContent = '';
+        el.title = '';
+        el.style.display = 'none';
         if (!_scoreMap) loadScoreMap().then(function () { if (state.infoCode === code) paintCardInfoScore(code); });
       }
     } catch (e) {}
@@ -1502,40 +2178,78 @@
      这时服务端在等对手备牌结束 ✗ 原来的界面退回"匹配/房间"画面 ✗ 有误导性（以为要重新匹配 ✓）
      做法：提交备牌前打一个 sessionStorage 标记（刷新后还在 ✓）→ 重连后显示等待浮层 ✓
           下一局一开始（MSG_START / 盘面出现待应答）就自动收起 ✓ */
-  function showSidingWait() {
+  function showSidingWait(opts) {
+    var _o = opts || {};
     try {
       if (document.getElementById('ypWaitSiding')) return;
+      // 保险：把可能残留的匹配遮罩撤掉（它的自愈定时器会补，所以在上面的 guard 里也挡了）
+      var _mq = document.getElementById('ypMatching');
+      if (_mq) _mq.remove();
+
       var d = document.createElement('div');
       d.id = 'ypWaitSiding';
       d.style.cssText = 'position:fixed;inset:0;z-index:9600;display:flex;align-items:center;justify-content:center;'
-        + 'background:radial-gradient(900px 500px at 50% 10%, rgba(216,30,68,.22), rgba(8,8,10,.96) 70%);'
+        + 'background:radial-gradient(900px 520px at 50% 12%, rgba(212,175,55,.16), rgba(8,8,10,.965) 70%);'
         + 'font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#ece9e4;text-align:center';
       d.innerHTML = '<div>'
-        + '<div style="width:54px;height:54px;margin:0 auto 20px;border-radius:50%;'
-        + 'border:3px solid rgba(212,175,55,.25);border-top-color:#FFD700;animation:ypWaitSpin 1s linear infinite"></div>'
-        + '<div style="font-size:22px;font-weight:800;letter-spacing:3px;color:#F0E68C;margin-bottom:8px">等待对手备牌</div>'
-        + '<div style="font-size:13px;color:#9b97a1;line-height:1.9">你的备牌已提交 ✓　对手还在调整副卡组<br>'
-        + '对手确认后会自动开始下一局，请不要关闭页面</div>'
+        // 三张卡来回换位 —— 一眼看出"在换备牌"，和匹配的转圈完全不同
+        + '<div class="ypSwRow">'
+        + '<span class="ypSwCard a"></span><span class="ypSwCard b"></span><span class="ypSwCard c"></span>'
+        + '</div>'
+        + '<div style="font-size:21px;font-weight:800;letter-spacing:3px;color:#F0E68C;margin:22px 0 8px">'
+        + (_o.spectator ? '备牌阶段 · 双方换备中' : '备牌阶段 · 等待对手') + '</div>'
+        + '<div style="font-size:13px;color:#9b97a1;line-height:1.9">'
+        + (_o.spectator
+            ? '本局已结束，双方正在调整副卡组<br>下一局开始会<b style="color:#cfe0ff">自动继续观战</b>，不用退出重进'
+            : '你的备牌已提交 ✓　对手还在调整副卡组<br>对手确认后会自动开始下一局，<b style="color:#cfe0ff">不用重新匹配</b>，请不要关闭页面')
+        + '</div>'
         + '<div id="ypWaitSec" style="margin-top:16px;font-size:12px;color:#7d7d86">已等待 0 秒</div>'
         + '<div style="margin-top:18px"><button id="ypWaitLeave" style="padding:8px 18px;border-radius:999px;'
         + 'border:1px solid rgba(216,30,68,.7);background:rgba(24,10,14,.8);color:#ff8a9b;cursor:pointer;'
         + 'font:700 13px/1 inherit">离开对局（回大厅）</button></div>'
         + '</div>'
-        + '<style>@keyframes ypWaitSpin{to{transform:rotate(360deg)}}</style>';
+        + '<style>'
+        + '.ypSwRow{position:relative;width:170px;height:106px;margin:0 auto}'
+        + '.ypSwCard{position:absolute;top:8px;width:56px;height:80px;border-radius:7px;'
+        + 'background:linear-gradient(160deg,rgba(212,175,55,.85),rgba(140,110,30,.55));'
+        + 'border:1px solid rgba(255,236,170,.8);box-shadow:0 8px 22px rgba(0,0,0,.55);'
+        + 'animation:ypSwSwap 2.4s cubic-bezier(.4,.05,.6,.95) infinite}'
+        + '.ypSwCard.a{left:0;animation-delay:0s}'
+        + '.ypSwCard.b{left:57px;animation-delay:.15s;opacity:.95}'
+        + '.ypSwCard.c{left:114px;animation-delay:.3s}'
+        + '.ypSwCard::after{content:"";position:absolute;inset:8px 8px auto 8px;height:34px;border-radius:3px;'
+        + 'background:rgba(20,16,26,.35)}'
+        + '@keyframes ypSwSwap{'
+        + '0%,18%{transform:translateY(0) rotate(-3deg)}'
+        + '45%{transform:translateY(-14px) rotate(2deg)}'
+        + '72%,100%{transform:translateY(0) rotate(-3deg)}}'
+        + '</style>';
       document.body.appendChild(d);
+      // 把「决斗准备」面板藏掉，等备牌界面独立成一层（不然背景里还能看到房间面板）
+      try { var _lb = document.getElementById('lobby'); if (_lb) _lb.style.display = 'none'; } catch (e) {}
       var t0 = Date.now();
       var el = d.querySelector('#ypWaitSec');
       d.__timer = setInterval(function () {
-        var s = Math.floor((Date.now() - t0) / 1000);
-        if (el) el.textContent = '已等待 ' + s + ' 秒' + (s >= 60 ? '（对手可能超时了，服务端会按备牌时限处理）' : '');
-        // 下一局开始了就自动收起 ✓
+        var s0 = Math.floor((Date.now() - t0) / 1000);
+        if (el) el.textContent = '已等待 ' + s0 + ' 秒' + (s0 >= 60 ? '（对手可能超时了，服务端会按备牌时限处理）' : '');
         if (state.duelStarted || state.sidingActive || state.pending) hideSidingWait();
       }, 1000);
       var btn = d.querySelector('#ypWaitLeave');
-      if (btn) btn.onclick = function () { hideSidingWait(); abortMatch('你已离开备牌等待，回大厅重新匹配'); };
-      logLine('⏳ 自己的备牌已提交 → 显示等待对手备牌界面', 'rp-log-phase');
+      if (btn) {
+        btn.textContent = _o.spectator ? '退出观战（回大厅）' : '离开对局（回大厅）';
+        btn.onclick = function () {
+          hideSidingWait();
+          if (_o.spectator) { location.href = 'lobby.html'; return; }
+          abortMatch('你已离开备牌等待，回大厅重新匹配');
+        };
+      }
+      logLine('⏳ 自己的备牌已提交 → 显示「备牌阶段 · 等待对手」界面', 'rp-log-phase');
     } catch (e) {}
   }
+  try {
+    window.__ypSidingWaitTest = function (spectator) { showSidingWait({ spectator: !!spectator }); };
+  } catch (e) {}
+
   function hideSidingWait() {
     try {
       var d = document.getElementById('ypWaitSiding');
@@ -1554,8 +2268,63 @@
     } catch (e) { return false; }
   }
 
+  /**
+   * 点超量怪的「◆N」角标 → 列出素材卡（用户要求：超量素材列表）
+   * 素材卡号由查看器 materialsAt() 提供（从 QUERY.OVERLAY_CARD 解析）
+   */
+  (function bindMaterialBadgeClick() {
+    try {
+      document.addEventListener('click', function (ev) {
+        var el = ev.target;
+        if (!el || !el.closest) return;
+        var mb = el.closest('.rp-mats');
+        if (!mb) return;
+        ev.stopPropagation();
+        var cell = mb.closest('[data-zone]');
+        if (!cell) return;
+        var zone = String(cell.getAttribute('data-zone') || '');
+        var codes = [];
+        if (zone === 'emz:L' || zone === 'emz:R') {
+          // 额外怪兽区是双方共用格：按左右映射尝试两个座位的模型
+          var _left = zone === 'emz:L';
+          var _cands = [[0, _left ? 5 : 6], [1, _left ? 6 : 5]];
+          for (var _ci = 0; _ci < _cands.length; _ci++) {
+            try {
+              var _cc = (window.__live && window.__live.materialsAt)
+                ? window.__live.materialsAt(_cands[_ci][0], 4, _cands[_ci][1]) : [];
+              if (_cc && _cc.length) { codes = _cc; break; }
+            } catch (e) {}
+          }
+        } else {
+          var parts = zone.split(':');
+          if (parts.length < 3) return;
+          var viewCtl = Number(parts[0]), loc = Number(parts[1]), seq = Number(parts[2]);
+          var ctl = (viewCtl === flipSeat(0)) ? 0 : 1;
+          try { codes = (window.__live && window.__live.materialsAt) ? window.__live.materialsAt(ctl, loc, seq) : []; } catch (e) {}
+        }
+        if (!codes || !codes.length) {
+          // 没有卡号（对手视角没解析到）→ 至少告诉玩家数量
+          logLine('◆ ' + (mb.textContent || '') + '（素材卡号未公开）', 'rp-log-hint');
+          return;
+        }
+        showChooser('超量素材（' + codes.length + '）', codes.map(function (cd) {
+          return {
+            label: cardLabel(cd), code: cd,
+            f: function () { hideChooser(); try { window.__live && window.__live.showCard && window.__live.showCard(cd, '素材'); } catch (e) {} }
+          };
+        }));
+      }, true);
+    } catch (e) {}
+  })();
+
   function scheduleReconnect() {
     if (state.matchAborted || state.leaving || state.reconnectStopped) return;
+    // PATCH(白神服) 观战：对局结束（房间随之结束）后不要再自动重连 ——
+    //   否则会重进/新建房间再补发一遍历史 → 观战看起来在「无限循环播放」。
+    if (state.watchMode && state.watchEnded) {
+      setHud('🏁 观战结束（本局已打完）· 点下方「退出观战」回大厅', 'info');
+      return;
+    }
     if (state.reconnectTimer) return;
     state.reconnectTries = (state.reconnectTries || 0) + 1;
     // 连太多次就停：防止"忘了关的页面"永远重连、永远占房间（实测踩过：一堆默认名僵尸房 ✗）
@@ -1578,7 +2347,205 @@
     }, delay);
   }
 
+  var watchEnded = false;   // 观战：本局是否已结束（只做提示，不关场地）
+
+  // PATCH(白神服) 2026-11-03 观战缓冲：把进房时补发的局面消息攒起来一次渲染
+  function watchScheduleFlush() {
+    if (!state.watchBuffering) return;
+    clearTimeout(state.watchFlushTimer);
+    state.watchFlushTimer = setTimeout(watchFlush, 1200);
+  }
+
+  // PATCH(白神服) 观战：把日志/抬头里的玩家名换成真实选手名（观战昵称只用于进房）
+  function watchApplyNames() {
+    if (!state.watchMode) return;
+    try {
+      var qq = new URLSearchParams(location.search);
+      var p0 = qq.get('p0') || '', p1 = qq.get('p1') || '';
+      state.playerNames = state.playerNames || {};
+      if (p0) state.playerNames[0] = p0;
+      if (p1) state.playerNames[1] = p1;
+      if (typeof renderRoomPlayers === 'function') renderRoomPlayers();
+      if (window.__live && window.__live.redraw) window.__live.redraw();
+      window.dispatchEvent(new Event('resize'));
+    } catch (e) {}
+  }
+
+  function playPendingWatchDuel() {
+    if (!state.watchMode || !state.watchPendingDuelBuf) return;
+    try {
+      var st = (window.__live && window.__live.status) ? window.__live.status() : null;
+      var _pendingAge = Date.now() - (state.watchPendingDuelAt || 0);
+      if (st && st.buffered > (st.played || 0) + 2 && _pendingAge < 15000) {
+        setTimeout(playPendingWatchDuel, 600);
+        return;
+      }
+      var buf = state.watchPendingDuelBuf;
+      state.watchPendingDuelBuf = null;
+      var last = -1;
+      for (var i = 0; i < buf.length; i++) if (buf[i] && buf[i].name === 'Start') last = i;
+      if (last > 0) buf = buf.slice(last);
+      buf = buf.filter(function (e) { return e && e.name !== 'Win'; });
+      var q = new URLSearchParams(location.search);
+      try {
+        if (window.__live && window.__live.reset) {
+          window.__live.reset({
+            roomName: state.room,
+            players: [
+              { pos: 0, name: q.get('p0') || '', mainc: Number(q.get('m0') || 0), extrac: Number(q.get('x0') || 0) },
+              { pos: 1, name: q.get('p1') || '', mainc: Number(q.get('m1') || 0), extrac: Number(q.get('x1') || 0) },
+            ],
+          });
+        }
+      } catch (e) {}
+      state.watchBetweenGames = false;
+      state.watchEnded = false;
+      state.watchSawWin = 0;
+      state.watchBuffering = false;
+      state.watchBuf = [];
+      state.watchReplayedOnce = true;
+      state.watchReplayBatch = true;
+      state.watchPlayback = true;
+      if (window.__live && window.__live.pushMany) window.__live.pushMany(buf);
+      var sp = parseFloat(q.get('speed') || '1');
+      if (!(sp > 0)) sp = 1;
+      if (window.__live && window.__live.setSpeed) window.__live.setSpeed(sp);
+      if (window.__live && window.__live.setAnimSuppress) window.__live.setAnimSuppress(false);
+      if (window.__live && window.__live.play) window.__live.play();
+      logLine('▶ bo1 播放完毕，自动进入 bo2（' + buf.length + ' 条）', 'rp-log-phase');
+      watchApplyNames();
+    } catch (e) {
+      logLine('⚠ 自动进入下一局失败：' + e.message, 'rp-log-err');
+    }
+  }
+
+  function watchFlush() {
+    if (state.watchFlushing) return;
+    state.watchBuffering = false;
+    state.watchFlushing = true;
+    var buf = state.watchBuf || [];
+    state.watchBuf = [];
+    try {
+      var q = new URLSearchParams(location.search);
+      // 座位 ↔ 决斗位互换？Start 消息里 playerType 低位=1 表示互换。
+      // 互换时：决斗位 0（画面下方）其实是「座位 1」那位玩家 → 名字要交换，
+      //   否则会出现「某人没用过某卡，观战却显示他发动」（用户实测）。
+      var _swapped = false;
+      var _ptStart = null;
+      for (var _bi = 0; _bi < buf.length; _bi++) {
+        var _be = buf[_bi];
+        if (_be && _be.name === 'Start' && _be.f && typeof _be.f.playerType === 'number') {
+          _ptStart = _be.f.playerType;
+          _swapped = !!(_ptStart & 0x1);
+          break;
+        }
+      }
+      state.watchNameSwap = _swapped;
+      function _nm(seat, key) { return q.get('p' + seat) || ''; }
+      function _num(seat, key) { var v = parseInt(q.get(key) || '', 10); return isNaN(v) ? 0 : v; }
+      var _p0n = _nm(0), _p1n = _nm(1);
+      var _p0m = _num(0, 'm0'), _p1m = _num(1, 'm1');
+      var _p0x = _num(0, 'x0'), _p1x = _num(1, 'x1');
+      // PATCH(白神服) 2026-11-19: meta.players 保持「pos=房间座位」的自然顺序，
+      //   换边只体现在 seatOrder 上 —— 原来在这里就把名字交换，加上查看器那边的
+      //   映射又换一次 = 换两次（名字又对回去了，观战看到的就是「偶尔对换」）。
+      if (window.__live && window.__live.reset) {
+        window.__live.reset({
+          roomName: state.room,
+          players: [
+            { pos: 0, name: _p0n, mainc: _p0m, extrac: _p0x },
+            { pos: 1, name: _p1n, mainc: _p1m, extrac: _p1x },
+          ],
+        });
+      }
+      try {
+        if (window.__live && window.__live.setSeatOrder) {
+          // 与 onDuelStart 用同一套规则（观战：0x10 不换 / 0x11 换边）
+          window.__live.setSeatOrder(computeSeatOrder(true, -1, -1, _ptStart));
+        }
+      } catch (e) {}
+      // PATCH(白神服) 2026-11-04: 服务端补发的历史里可能有「上一局的 Win + 本局的 Start」，
+      //   而查看器自身的 Start 处理会把进度归零并清盘 → 观战会反复重放（用户实测）。
+      //   回放前先过滤：只保留第一次 Start，丢掉历史里的 Win。
+      // PATCH(白神服) 2026-11-05: 从**最近一次 MSG_START** 开始播 ——
+      //   三局两胜里服务端会把「前一局的 Win + 本局的 Start」一起补发；原来只保留第一个 Start，
+      //   于是本局开局被丢掉、直接接在上一局的残局后面 → 观战看起来"从中间开始"（用户反馈 ✗）。
+      var _lastStart = -1;
+      for (var _bi2 = 0; _bi2 < buf.length; _bi2++) {
+        if (buf[_bi2] && buf[_bi2].name === 'Start') _lastStart = _bi2;
+      }
+      // 观战进入 bo2/bo3：服务端会再补发一段带 Start 的批次。若仍按“第一次回放”
+      // 直接 bulkApply，会把新一局叠在 bo1 上，看起来就是 bo1 循环播放。
+      // 带 Start 的后续批次必须清盘后当作新一局重播。
+      var _newDuelBatch = (state.watchReplayedOnce && _lastStart >= 0);
+      if (_newDuelBatch) {
+        // bo1 还在播时先排队，等播放器把 bo1 播完再清盘接 bo2。
+        var _stNow = (window.__live && window.__live.status) ? window.__live.status() : null;
+        if (_stNow && _stNow.buffered > (_stNow.played || 0) + 2) {
+          state.watchPendingDuelBuf = buf.slice();
+          state.watchPendingDuelAt = Date.now();
+          logLine('⏳ 下一局已收到，等 bo1 播完自动接上…', 'rp-log-phase');
+          setTimeout(playPendingWatchDuel, 600);
+          return;
+        }
+        try {
+          var _qn = new URLSearchParams(location.search);
+          if (window.__live && window.__live.reset) {
+            window.__live.reset({
+              roomName: state.room,
+              players: [
+                { pos: 0, name: _qn.get('p0') || '', mainc: Number(_qn.get('m0') || 0), extrac: Number(_qn.get('x0') || 0) },
+                { pos: 1, name: _qn.get('p1') || '', mainc: Number(_qn.get('m1') || 0), extrac: Number(_qn.get('x1') || 0) },
+              ],
+            });
+          }
+        } catch (e) {}
+        state.watchReplayedOnce = false;
+        state.watchReplayBatch = false;
+        state.watchPlayback = false;
+        state.watchBetweenGames = false;
+        state.watchEnded = false;
+        state.watchSawWin = 0;
+        logLine('▶ 观战进入下一局（已清空上一局画面）', 'rp-log-phase');
+      }
+      if (_lastStart > 0) buf = buf.slice(_lastStart);
+      buf = buf.filter(function (e) { return e && e.name !== 'Win'; });
+      if (window.__live && window.__live.pushMany) window.__live.pushMany(buf);
+
+      // PATCH(白神服) 观战：同一场对局只「从头播一次」。
+      //   断线重连/局间重进时服务端会再补发整场历史，若每次都从头播 → 观战会反复循环上一局 ✗
+      if (state.watchReplayedOnce) {
+        if (window.__live && window.__live.bulkApply) window.__live.bulkApply(buf);
+        state.watchPlayback = true;      // 之后只 push，跟着实时增量走
+        logLine('👁 观战已追上当前局面（重连补齐 ' + buf.length + ' 条）', 'rp-log-ok');
+        watchApplyNames();
+        return;
+      }
+      state.watchReplayedOnce = true;
+      var sp = parseFloat(q.get('speed') || '1');
+      if (!(sp > 0)) sp = 1;
+      if (window.__live && window.__live.setSpeed) window.__live.setSpeed(sp);
+      if (window.__live && window.__live.setAnimSuppress) window.__live.setAnimSuppress(false);
+      if (window.__live && window.__live.play) window.__live.play();
+      state.watchPlayback = true;   // 之后新消息只 push，交给播放器按节奏消化
+      // PATCH(白神服) 2026-11-05: 观战的手牌**只认 handc 对账**（用户确认消息流那套是错的）：
+      //   一进观战就锁住 Draw/Move/UpdateData 对手牌的增删，避免和 handc 互相覆盖。
+      /* PATCH: 不再锁手牌（消息流为唯一来源） */
+      // PATCH(白神服) 2026-11-04: 补发的历史里含「上一局的 Win + 本局的 Start」，
+      //   如果不屏蔽，Win 会置 watchBetweenGames、紧接着的 Start 就会 reset 并重播 → 无限循环重放。
+      state.watchReplayBatch = true;
+      logLine('👁 观战回放中：共 ' + buf.length + ' 条消息，' + sp + ' 倍速从头播放', 'rp-log-ok');
+    } catch (e) {
+      logLine('⚠ 观战回放启动失败：' + e.message, 'rp-log-err');
+    } finally {
+      state.watchFlushing = false;
+    }
+    watchApplyNames();
+    setTimeout(watchApplyNames, 600);
+  }
+
   function joinRoom() {
+    try { state.debugReq = (new URLSearchParams(location.search).get('debug') === '1'); } catch (e) { state.debugReq = false; }
     if (!state.room) { setHud('请先填房间名', 'warn'); return; }
     if (!applyInjectedDeck() && !state.deck) state.deck = deckFromCodes(DEFAULT_CODES);
     loadStrings();                                    // 提示文案表（strings.conf → /api/strings）
@@ -1596,7 +2563,22 @@
     state.sock.onopen = function () {
       if (state.reconnectTries) logLine('✓ 重连成功（第 ' + state.reconnectTries + ' 次尝试）', 'rp-log-ok');
       state.reconnectTries = 0;
+      state.fieldRequested = false;      // 重连后要重新向服务器要一次场上信息
       send(new YGO.YGOProCtosPlayerInfo().fromPartial({ name: state.name }));
+      // F5/整页重连：必须在 JoinGame 之前恢复 myDuelPos，服务器随后发来的
+      // ReloadField/Start 才能按正确视角落位；否则先按 identity 铺场再换位 = 格子错乱。
+      try {
+        if (!state.watchMode && state.myDuelPos < 0) {
+          var _rawDp = localStorage.getItem('yp_duel_' + state.room);
+          var _dp = _rawDp ? JSON.parse(_rawDp) : null;
+          if (_dp && typeof _dp.duelPos === 'number') {
+            state.myDuelPos = _dp.duelPos;
+            if (state.mySeat < 0 && typeof _dp.seat === 'number') state.mySeat = _dp.seat;
+            state.duelStarted = true;
+          }
+        }
+        restoreSavedCounts();
+      } catch (e) {}
       // lflist：卡表序号。服务端 `room.js` 的判定是：
       //   `hostinfo.lflist >= 0` → 取 lflist.conf 里第 N 个表（**从 0 开始数**）；**`-1` → 空表 = 无禁限**。
       //   ⚠ 所以**不能默认发 0**：0 会被解释成"第一张卡表(2026.10)"，等于把无禁限房变成有禁限 ✗（实测踩过）。
@@ -1604,6 +2586,18 @@
       var jf = { version: 0x1362, gameid: 0, pass: state.room };
       if (state.lflist !== undefined && state.lflist !== null) jf.lflist = state.lflist;
       send(new YGO.YGOProCtosJoinGame().fromPartial(jf));
+      // 断线重连（同一页面 socket 掉了重连）：服务端不一定再发 TypeChange，
+      // 这里补一次「请求场上信息」，免得重连后画面空白（用户反馈）。
+      if (state.duelStarted && !state.watchMode) {
+        setTimeout(function () {
+          if (state.fieldRequested) return;
+          state.fieldRequested = true;
+          try {
+            send(new YGO.YGOProCtosRequestField());
+            logLine('↻ 重连：已请求当前场上信息', 'rp-log-phase');
+          } catch (e) {}
+        }, 2000);
+      }
       setHud('已连接，进房中…（卡表：' + (state.lflist === -1 ? '无禁限' :
         (state.lflist !== undefined && state.lflist !== null ? ('第 ' + state.lflist + ' 个表' + (state.lflistName ? ' ' + state.lflistName : '')) : '服务端默认')) + '）', 'ok');
     };
@@ -1624,6 +2618,63 @@
     state.sock.onerror = function () { setHud('连接错误', 'err'); scheduleReconnect(); };
   }
 
+  /** 刷新/重连：服务端可能不再发 Start/DeckCount，把牌堆张数从本地快照补回来 */
+  function _countsKey() {
+    return 'yp_counts_' + (state.room || '');
+  }
+  function saveDuelCounts() {
+    try {
+      if (!state.duelStarted || state.watchMode || !window.__live || !window.__live.debugCounts) return;
+      var c = window.__live.debugCounts();
+      if (!c || !Array.isArray(c.deck) || !Array.isArray(c.extra)) return;
+      if ((c.deck[0] === null || c.deck[0] === undefined) && (c.deck[1] === null || c.deck[1] === undefined)) return;
+      localStorage.setItem(_countsKey(), JSON.stringify({
+        v: 2,
+        myDuelPos: state.myDuelPos,
+        seat: state.mySeat,
+        deck: c.deck, extra: c.extra, at: Date.now()
+      }));
+    } catch (e) {}
+  }
+  function restoreSavedCounts(forceZero) {
+    try {
+      if (state.watchMode || !window.__live || !window.__live.setCounts) return;
+      var raw = localStorage.getItem(_countsKey());
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      // v1 是旧版“绝对座位”顺序，P2 会反；直接丢弃，等 ReloadField/DeckCount 重建。
+      if (!d || d.v !== 2 || !Array.isArray(d.deck) || Date.now() - (d.at || 0) > 6 * 3600 * 1000) {
+        try { localStorage.removeItem(_countsKey()); } catch (e) {}
+        return;
+      }
+      // 快照是本地视角顺序；决斗位必须一致，且不能覆盖已经由 Reload/Start 确定的值。
+      if (state.myDuelPos !== 0 && state.myDuelPos !== 1) return;
+      if (d.myDuelPos !== undefined && d.myDuelPos !== state.myDuelPos) {
+        try { localStorage.removeItem(_countsKey()); } catch (e) {}
+        return;
+      }
+      try {
+        var _curC = window.__live.debugCounts ? window.__live.debugCounts() : null;
+        // 只补“未知”的一侧，绝不覆盖 Reload/Start 已经写入的权威值。
+        var _deck = [null, null], _extra = [null, null];
+        for (var _ci = 0; _ci < 2; _ci++) {
+          var _cd = _curC && Array.isArray(_curC.deck) ? _curC.deck[_ci] : null;
+          var _cx = _curC && Array.isArray(_curC.extra) ? _curC.extra[_ci] : null;
+          var _sd = (d.deck && d.deck[_ci] !== undefined) ? d.deck[_ci] : null;
+          var _sx = (d.extra && d.extra[_ci] !== undefined) ? d.extra[_ci] : null;
+          // 重放 Start 在 observer view 下可能把某一侧写成 0；调用方明确要求时，
+          // 用本地快照把“0 但快照 >0”的侧补回来（0 张真实卡组快照也会是 0）。
+          if (forceZero && _cd === 0 && _sd > 0) _cd = _sd;
+          if (forceZero && _cx === 0 && _sx > 0) _cx = _sx;
+          _deck[_ci] = (_cd !== null && _cd !== undefined) ? _cd : _sd;
+          _extra[_ci] = (_cx !== null && _cx !== undefined) ? _cx : _sx;
+        }
+        window.__live.setCounts(_deck, _extra, 'snapshot');
+        logLine('↻ 已恢复卡组/额外张数（' + _deck.join(' / ') + '）', 'rp-log-phase');
+      } catch (e) {}
+    } catch (e) {}
+  }
+
   /**
    * 上传卡组 + 准备。
    * ⚠ 重连场景（刷新后重进）必须**等卡组真的到位**再发：`?ydk=` 是异步 fetch 的，
@@ -1632,6 +2683,22 @@
    */
   function uploadDeckAndReady(attempt) {
     attempt = attempt || 0;
+    // PATCH(白神服) 2026-11-05: 天梯房要求「已登录」才允许 READY。
+    //   以前是进房后 1.5 秒直接发 READY，若 /login 握手慢一点（或大厅点得快、时序挤在一起）
+    //   服务端会拒掉准备 → 玩家看到「准备失败」。现在：有官网账号时先等登录成功再准备。
+    var _needLogin = !!(window._duelUser && window._duelUser.account && window._duelUser.pass);
+    if (_needLogin && !state.loggedInOk && !state.loginFailed) {
+      state._loginWait = (state._loginWait || 0) + 1;
+      if (state._loginWait <= 30) {                       // 最多等 ~9 秒
+        if (state._loginWait === 1 || state._loginWait % 6 === 0) {
+          logLine('⏳ 等待游戏服登录完成再准备（第 ' + state._loginWait + ' 次）…', 'rp-log-hint');
+        }
+        if (state._loginWait === 1) { try { autoLoginIfNeeded(); } catch (e) {} }
+        setTimeout(function () { uploadDeckAndReady(attempt); }, 300);
+        return;
+      }
+      logLine('⚠ 登录一直没成功 → 仍然尝试准备（这局可能不计天梯）', 'rp-log-err');
+    }
     if (!state.deck) {
       if (attempt === 0) logLine('… 等卡组加载完成后再准备（重连/首次进房）', 'rp-log-hint');
       if (attempt < 20) { setTimeout(function () { uploadDeckAndReady(attempt + 1); }, 300); return; }
@@ -1652,19 +2719,41 @@
   function restoreDuelPosIfNeeded() {
     if (state.myDuelPos >= 0) return false;
     var raw = null;
+    // 观战不需要"恢复自己的座位"：既没有自己的座位，也没有本地记录 → 直接跳过，
+    //   否则每条消息都会打一行「已按上次记录恢复视角」（用户截图：日志刷屏）
+    if (state.watchMode) return false;
+    if (state._posRestoreTried) return false;
+    state._posRestoreTried = true;
     try { raw = localStorage.getItem('yp_duel_' + state.room); } catch (e) {}
     if (!raw) return false;
     var saved;
     try { saved = JSON.parse(raw); } catch (e) { return false; }
     if (!saved || typeof saved.duelPos !== 'number') return false;
-    state.myDuelPos = saved.duelPos;
+    if (!state.watchMode) state.myDuelPos = saved.duelPos;   // 观战不恢复座位（否则整局消息会被翻转）
     if (typeof saved.seat === 'number' && state.mySeat < 0) state.mySeat = saved.seat;
     state.duelStarted = true;
-    // ⚠ **不要在这里 reset 查看器**：重放里还会来一条 MSG_START，onDuelStart 已经会 reset；
-    //   这里再清一次会把"重放过程中已经重建好的场地模型"抹掉 —— 玩家看到的就是"重连回来场上卡全没了"
+    // 刷新后新页面的查看器还没建过 #replayField .rp-board。
+    // 服务端重连可能只发全量 UpdateData（不再发 MSG_START），此时不 reset 就永远没有场地 DOM
+    // → 玩家看到的就是“重连回来场地信息全丢”。先建空场，后面的重放/快照再填。
+    var _didReset = false;
+    try {
+      if (!document.querySelector('#replayField .rp-board') && window.__live && window.__live.reset) {
+        window.__live.reset({ roomName: state.room || '', players: [] });
+        _didReset = true;
+        logLine('↻ 重连：已重建场地容器，等待服务端重放/快照填充', 'rp-log-phase');
+      }
+    } catch (e) {}
+    // 即使场地 DOM 已存在也要补张数：刷新重连时模板里可能已有空 .rp-board，
+    // 之前只在 _didReset 时恢复，导致卡组/额外一直显示 ?。
+    restoreSavedCounts();
+    // ⚠ 这里不能无条件 reset：重放里还会来 MSG_START，onDuelStart 已经会 reset；
+    //   再清一次会把“重放过程中已经重建好的场地模型”抹掉 —— 玩家看到的就是“重连回来场上卡全没了”
     //   （实测复现：模型 怪兽区/魔陷区/墓地全空，但日志里整局都重放过了）。这里只把视角/座位补回来。
     setUiPhase('duel');
-    logLine('↻ 已按上次记录恢复视角（决斗位 ' + state.myDuelPos + '）—— 服务端正在重放这一局', 'rp-log-phase');
+    if (!state._posRestoreLogged) {
+      state._posRestoreLogged = true;
+      logLine('↻ 已按上次记录恢复视角（决斗位 ' + state.myDuelPos + '）—— 服务端正在重放这一局', 'rp-log-phase');
+    }
     return true;
   }
 
@@ -1717,6 +2806,7 @@
     state.duelStarted = false;
     state.myDuelPos = -1;
     state.readySent = false;               // 回大厅后可以再准备下一局
+    try { localStorage.removeItem(_countsKey()); } catch (e) {}
     state.lastPosChange = null; state.lastSearch = null; state.lastSummoning = null; state.lastFromHand = null;
     state.picked = []; state.armed = null;
     clearPending();
@@ -1778,39 +2868,173 @@
     // 关键：**手卡发动的卡**（灰流丽这类手坑）以前在这一层没有任何显示，对方玩家只能看到
     // 后面进墓地的那条移动记录，不知道发动的是哪张。引擎给了 code 就说明是公开信息
     // （没给 code=0 才是里侧卡），所以按 code 有无决定显不显示，不会泄露隐藏卡。
-    if (msg && msg.constructor && msg.constructor.name === 'YGOProMsgChaining') {
+    var _inner = (msg && msg.msg) ? msg.msg : msg;
+    // PATCH(白神服) 2026-11-20: 换局 / 洗牌 / 重载场地后，「已公开」记账全部作废
+    //   —— 牌堆顺序变了，同一个 seq 很可能已经是另一张卡，留着会标错卡。
+    try {
+      var _cnm = (_inner && _inner.constructor) ? _inner.constructor.name : '';
+      if (/^YGOProMsg(Start|ShuffleDeck|ReloadField)$/.test(_cnm)) state.revealCodes = {};
+    } catch (e) {}
+    if (_inner && _inner.constructor && _inner.constructor.name === 'YGOProMsgChaining') {
       try {
-        var LOCN = { 0x01: '手卡', 0x02: '怪兽区', 0x04: '魔法陷阱区', 0x08: '墓地', 0x10: '除外区', 0x20: '额外卡组', 0x40: '卡组', 0x80: '灵摆区' };
-        _chainLinks = [];
-        (msg.chains || []).forEach(function (c) {
-          if (!c) return;
-          try { _chainLinks.push({ code: c.code, ctl: c.controler, loc: c.location, seq: c.sequence }); } catch (e) {}
-          
-          var who = (flipSeat(c.controler) === 0) ? '你' : '对方';
-          var where = LOCN[c.location] || ('位置' + c.location);
-          var what = (c.code ? ('『' + cardLabel({ code: c.code }) + '』') : '一张里侧卡片');
-          logLine('⚡ ' + who + '发动了 ' + what + '（' + where + '）', 'rp-log-chain');
-        });
+        var LOCN = { 0x01: '卡组', 0x02: '手卡', 0x04: '怪兽区', 0x08: '魔法陷阱区', 0x10: '墓地', 0x20: '除外区', 0x40: '额外卡组', 0x80: '灵摆区' };
+        // YGOProMsgChaining 是**单个连锁项**（code/controller/location/sequence/chainCount），
+        // 不是 chains 数组。之前遍历 _inner.chains（undefined）→ _chainLinks 永远空，
+        // 连锁被无效时找不到卡图，只能打“没找到卡图，仅提示”。
+        var _cn = (_inner.chainCount !== undefined && _inner.chainCount > 0)
+          ? _inner.chainCount : (_chainLinks.length + 1);
+        _chainLinks[_cn - 1] = {
+          code: _inner.code, ctl: _inner.controller,
+          loc: _inner.location, seq: _inner.sequence
+        };
+        var c = {
+          code: _inner.code, controler: _inner.controller,
+          location: _inner.location, sequence: _inner.sequence
+        };
+        var who = (flipSeat(c.controler) === 0) ? '你' : '对方';
+        var where = LOCN[c.location] || ('位置' + c.location);
+        var what = (c.code ? ('『' + cardLabel(c.code) + '』') : '一张里侧卡片');
+        logLine('⚡ ' + who + '发动了 ' + what + '（' + where + '）', 'rp-log-chain');
       } catch (e) { logLine('⚠ 连锁信息解析失败：' + (e && e.message), 'rp-log-err'); }
     }
+    // ChainEnd 后下一次连锁重新编号，清掉旧 link，避免无效动画命中上一波。
+    try {
+      if (_inner && _inner.constructor && /^YGOProMsgChainEnd$/.test(_inner.constructor.name)) _chainLinks = [];
+    } catch (e) {}
+    // PATCH(白神服) 2026-11-07: **取消自动切换左侧卡片信息** ——
+    //   原来每次发动效果/特召/检索都会把面板切到那张卡（用户觉得干扰 ✗）。
+    //   现在只记录"最近涉及的卡"，面板只在你悬停/点击卡片时才变。
+    try {
+      var _ic = involvedCode(msg);
+      if (_ic) {
+        state.lastAutoCode = _ic;
+        // 观战：面板由**回放应用到某条消息时**驱动（见 __ypFollowCard），这里不再实时切换
+      }
+    } catch (e) {}
 
     if (msg instanceof YGO.YGOProStocJoinGame) {
       state.joined = true;
+      state.everHadOpponent = false;    // 刚进房：还没见过对手
+      state.oppLeftNoticed = false;
       $('roomInfo').textContent = '房间 ' + state.room;
+      // PATCH(白神服) 2026-11-14: 断线/刷新重连的握手不依赖服务端提示文字 ——
+      //   服务端 pre_reconnect 流程会先发 JOIN_GAME，再等我们发 UPDATE_DECK；
+      //   只要这是"重连"（之前掉过线，或对局已开始），就主动补一次 UPDATE_DECK + READY。
+      //   原来只在看到「未完成的对局」这句提示时才补，文案一变/没翻译就永远不补 → 60 秒后判负 ✗
+      try {
+        var _hadLocalDuel = false;
+        try { _hadLocalDuel = !!(state.room && localStorage.getItem('yp_duel_' + state.room)); } catch (e) {}
+        if (!state.watchMode && (state.reconnectTries > 0 || state.duelStarted || _hadLocalDuel)) {
+          clearTimeout(state.reconnectDeckTimer);
+          state.reconnectDeckTimer = setTimeout(function () {
+            try {
+              logLine('↻ 重连握手：补发 UPDATE_DECK + READY', 'rp-log-phase');
+              uploadDeckAndReady();
+            } catch (e) {}
+          }, 700);
+        }
+      } catch (e) {}
       return;
+    }
+    // PATCH(白神服) 2026-11-16: 备牌阶段（STOC_WAITING_SIDE = 0x08）——
+    //   服务端在等双方换备时会给房间里所有人（含观战）发这条。
+    //   观战原来什么都不显示，上一局打完直接卡住 → "衔接怪怪的"（用户反馈 ✗）
+    if (msg && msg.constructor && msg.constructor.name === 'YGOProStocWaitingSide') {
+      try {
+        if (state.watchMode) {
+          showSidingWait({ spectator: true });
+          setHud('🛠 备牌阶段 · 双方正在换备（下一局会自动继续）', 'info');
+        } else if (!document.getElementById('ypSiding')) {
+          // 玩家自己：正常流程会弹自己的换备界面；这里只是兜底
+          showSidingWait({});
+        }
+      } catch (e) {}
     }
     if (msg instanceof YGO.YGOProStocTypeChange) {
       state.mySeat = msg.playerPosition;
       state.isHost = !!msg.isHost;
       logLine('我进房了：座位 ' + state.mySeat + (state.isHost ? '（房主）' : '') + (state.mySeat === 7 ? '（观战）' : ''));
       // 拿到座位 = 真正进房了 → 这时才发 /login 自动登录（早于这一刻服务端会收不到）
-      if (state.mySeat !== 7) setTimeout(autoLoginIfNeeded, 800);
+      // PATCH(白神服) 2026-11-05: 观战者（座位 7）也要登录 —— 观战必须带账号身份
+      setTimeout(autoLoginIfNeeded, 150);
+      // PATCH(白神服) 2026-11-06: 断线重连后必须**向服务器要一次场上信息**（CTOS 48），
+      //   否则重连回来的画面是空的/旧的（用户实测：重连后场上没有卡）。
+      //   观战不发：观战已经有整段历史补发，再请求会导致重复回放。
+      if (!state.watchMode && !state.fieldRequested) {
+        state.fieldRequested = true;
+        setTimeout(function () {
+          try {
+            send(new YGO.YGOProCtosRequestField());
+            logLine('↻ 已向服务器请求当前场上信息', 'rp-log-phase');
+          } catch (e) {
+            logLine('⚠ 请求场上信息失败：' + e.message, 'rp-log-err');
+          }
+        }, 700);
+      }
+      // PATCH(白神服) 观战：进房成功就撤掉遮罩，否则看不到场地
+      if (state.watchMode) {
+        var _ypm = document.getElementById('ypMatching');
+        if (_ypm) { _ypm.style.opacity = '0'; setTimeout(function(){ if (_ypm.parentNode) _ypm.remove(); }, 260); }
+        setHud('👁 观战中（只读，无法操作）', 'info');
+      }
       if (state.mySeat === 7) {
+        // PATCH(白神服) 2026-11-03: 观战者（座位 7）进房后必须主动请求场地，
+        // 否则服务端不下发当前局面 → 观战页面空白（用户反馈"没看见场地"）。
+        try {
+          // PATCH(白神服) 2026-11-03: 观战不再关闭动画（用户要求特效）。
+          //   卡死的真因是 showCardInfo 无限递归，与动画无关；补发消息由缓冲回放逐步消化，不会一次性炸。
+          // 观战缓冲：服务端进房时会一次性补发当前局面（成百上千条），
+          // 先全部攒起来，静默 700ms 后一次性渲染，避免主线程被逐条渲染锁死。
+          if (state.watchMode) {
+            // 观战：日志/抬头用真实选手名（房间里的名字是我们自己的观战昵称，不能直接用）
+            try {
+              var _q1 = new URLSearchParams(location.search);
+              var p0Name = _q1.get('p0') || '', p1Name = _q1.get('p1') || '';
+              state.playerNames = state.playerNames || {};
+              if (p0Name) state.playerNames[0] = p0Name;
+              if (p1Name) state.playerNames[1] = p1Name;
+            } catch (e) {}
+            // 观战者没有「准备→开局」流程，必须手动切到对局界面，
+            // 否则 #replayModal 仍是 display:none → 场地一片黑（实测踩到）
+            try { setUiPhase('duel'); } catch (e) {}
+            state.watchBuffering = true;
+            state.watchBuf = [];
+            try {
+              if (window.__live && window.__live.reset) {
+                var _q0 = new URLSearchParams(location.search);
+                window.__live.reset({
+                  roomName: state.room,
+                  players: [
+                    { pos: 0, name: _q0.get('p0') || '' },
+                    { pos: 1, name: _q0.get('p1') || '' },
+                  ],
+                });
+              }
+            } catch (e) {}
+            watchScheduleFlush();
+          }
+          // ⚠ 不要在这里发 CTOS_REQUEST_FIELD：服务端会把整局消息一次性补发，
+          //   客户端逐条渲染直接把页面卡死（实测整页无响应，只能强关）。
+          //   观战改为「进场后按增量消息渲染」，历史场面看不到，但后续每个回合都能正常看。
+          logLine('👁 观战已就绪：只显示进场之后发生的操作（历史场面不回溯）', 'rp-log-hint');
+        } catch (e) {
+          logLine('⚠ 观战初始化失败：' + e.message, 'rp-log-err');
+        }
+        // ⚠ PATCH(白神服) 2026-11-04: 观战**不再**请求场地。
+        //   服务端已改为「观战者进房即补发当前这局完整消息流」，再发 CTOS_REQUEST_FIELD
+        //   会让整局消息来两遍 → 追上实时那一刻像"重放"（用户实测 ✗）。
+        if (state.watchMode) {
+          logLine('📡 观战已从本局开头回放（服务端补发整局历史）', 'rp-log-hint');
+        }
         // 观战 = 两个座位都有人。最常见原因：你上次断线后服务端**保留了你的席位**（约 3 分钟），
         // 换个昵称再进就挤不进座位了 —— 所以把"怎么办"直接写清楚（玩家反馈过"进不去房间了"）。
-        logLine('⚠ 两个座位都已占用 → 你进来是观战者。若刚断过线：用**原来的昵称**重新加入即可接回原座位；'
-          + '否则请换一个房间名开新局。', 'rp-log-err');
-        setHud('房间满了（你是观战者）：用原昵称可接回自己那一席，或换个房间名开新局', 'warn');
+        if (state.watchMode) {
+          setHud('👁 观战中（只读，无法操作）', 'info');
+        } else {
+          logLine('⚠ 两个座位都已占用 → 你进来是观战者。若刚断过线：用**原来的昵称**重新加入即可接回原座位；'
+            + '否则请换一个房间名开新局。', 'rp-log-err');
+          setHud('房间满了（你是观战者）：用原昵称可接回自己那一席，或换个房间名开新局', 'warn');
+        }
         // 天梯模式房名固定（M#），座位可能被"断线保留"占着 → **自动重试进房**，
         // 否则玩家会卡在观战者状态、连"准备"按钮都没有（实测被反馈："点不了准备"）。
         if (state.room === 'M#' && !state.observerRetry) {
@@ -1847,8 +3071,50 @@
       renderLobby(); maybeStart();
       return;
     }
+    if (msg && ((msg.constructor && msg.constructor.name === 'YGOProStocHsWatchChange') || msg.watch_count !== undefined)) {
+      try {
+        state.watchCount = msg.watch_count | 0;
+        window.__ypWatchCount = state.watchCount;
+        var _wcEl = document.getElementById('watchCount');
+        if (_wcEl) _wcEl.textContent = ' · ' + state.watchCount + ' 人观战';
+      } catch (e) {}
+      return;
+    }
     if (msg instanceof YGO.YGOProStocChat) {
-      logLine('[聊天] ' + msg.msg, 'rp-log-hint');
+      // player_type: 0/1 玩家座位，8 系统，其他多为观战/系统提示
+      var _cp = (msg.player_type | 0);
+      var _cpre = '[聊天] ';
+      // 自己刚发出的消息：服务端的 player_type 有时是 ingame 座位、有时是相对座位，
+      // 单靠 0/1 取名会串到对手。发送时记录文本，回显在 8s 内直接认作自己。
+      var _echo = !!(state.lastSentChat && state.lastSentChat.text === msg.msg
+        && (Date.now() - state.lastSentChat.at) < 8000);
+      if (_echo) state.lastSentChat = null;
+      if (_cp === 8) _cpre = '[系统] ';
+      else if (_echo) {
+        _cpre = '[聊天] ' + (state.name || accountName() || '我') + ': ';
+      }
+      else if (_cp === 0 || _cp === 1) {
+        // 非回显：服务端 player_type 是 ingame 绝对座位，自己的消息仍按 myDuelPos 认自己。
+        var _mySeat = (state.mySeat === 0 || state.mySeat === 1) ? state.mySeat : -1;
+        var _myDp = (state.myDuelPos === 0 || state.myDuelPos === 1) ? state.myDuelPos : -1;
+        var _who;
+        // 观战/换边时 playerNames 的键是房间座位，而 STOC_CHAT.player_type 是牌局座位；
+        // 直接 playerNames[_cp] 会把两人的聊天对调。查看器 playerName() 已按画面做了映射。
+        var _pn = '';
+        try { _pn = (window.__live && window.__live.playerName) ? window.__live.playerName(_cp) : ''; } catch (e) {}
+        if (_pn && _pn !== 'P0' && _pn !== 'P1') {
+          _who = _pn;
+        } else if (_myDp >= 0 && _cp === _myDp) {
+          _who = state.name || accountName() || '我';
+        } else if (_mySeat >= 0) {
+          _who = (state.playerNames && state.playerNames[1 - _mySeat]) || '对手';
+        } else {
+          _who = (state.playerNames && state.playerNames[_cp]) || ('玩家' + _cp);
+        }
+        _cpre = '[聊天] ' + _who + ': ';
+      }
+      else if (_cp === 7) _cpre = '[观战] ';
+      logLine(_cpre + msg.msg, 'rp-log-hint');
       // 自动登录的回执：服务端登录成功会发「登录成功！账号: X 显示名: Y 权限: Z」
       // 自己被系统请出房间（挂机超时 / 备牌超时 等）→ 天梯形态下说清原因并回大厅，
       // 否则玩家会盯着一个已经没自己座位的房间界面发呆。
@@ -1880,7 +3146,15 @@
       if (msg.msg && msg.msg.indexOf('登录成功') >= 0) {
         state.loggedInOk = true;
         setHud('已登录官网账号，本局计入天梯 ✓', 'ok');
+        // 兜底：如果 READY 在登录之前就发出去被服务端拒了，这里补发一次
+        if (!state.duelStarted && state.readySent && !state.readyResent) {
+          state.readyResent = true;
+          state.readySent = false;
+          logLine('↻ 登录晚于准备 → 补发一次 READY（避免"准备失败"）', 'rp-log-phase');
+          setTimeout(function () { uploadDeckAndReady(); }, 300);
+        }
       } else if (msg.msg && msg.msg.indexOf('密码错误') >= 0) {
+        state.loginFailed = true;
         setHud('自动登录失败：密码错误（本局不计天梯）', 'err');
       }
       // 服务端按昵称重连"未完成的对局"（enableReconnect）。实测服务端会把你放回**原座位**并提示
@@ -1920,9 +3194,31 @@
       } catch (e) {}
       return;
     }
+    // PATCH(白神服) 2026-11-07: 服务器权威倒计时（STOC_TIME_LIMIT = 0x18）
+    //   · 每回合/每次操作服务端都会重置或返还时间并重发，前端只负责显示 + 秒间插值
+    //   · player 是"当前在思考的一方"，据此决定用黄色(自己)还是红色(对方)样式
+    if (msg.msg instanceof YGO.YGOProStocTimeLimit) {
+      try {
+        var _tl = msg.msg;
+        var _p = (_tl.player | 0);
+        // 分别写入双方时钟：当前思考方 active 走表，另一方保留读数并暂停
+        _setTimer(flipSeat(_p), Math.max(0, _tl.left_time | 0), TURN_LIMIT_SEC);
+      } catch (e) {}
+      // 服务器时间到了就不再跑本地兜底倒计时
+      try { stopTurnCountdown(); } catch (e) {}
+    }
     if (msg instanceof YGO.YGOProStocSelectHand) {
       setUiPhase('duel');   // 猜拳开始 → 房间 UI 退场（这是对局流程的第一步，玩家要求此时就退场）
       setHud('请出拳');
+      // PATCH(白神服) 2026-11-07: 开局预读**整副卡组**的效果文本（主/额外/副）——
+      //   原来只有点"发动效果"时才懒加载 ①/② 文本，玩家常看到"选项一/选项二"空标签
+      try {
+        if (state.deck && window.__prefetchHints) {
+          var _codes = (state.deck.main || []).concat(state.deck.extra || [], state.deck.side || []);
+          window.__prefetchHints(_codes);
+          if (window.__warmCardImgs) window.__warmCardImgs(_codes);
+        }
+      } catch (e) {}
       // 参照真实客户端：猜拳是三个**手势图**按钮（不是文字），这里用内联 SVG 画（不依赖任何素材）
       var handBtns = [
         { t: '石头', svg: GESTURE.rock, f: function () { send(new YGO.YGOProCtosHandResult().fromPartial({ res: 2 })); afterLobbyAnswer('已出拳'); } },
@@ -1933,6 +3229,9 @@
       return;
     }
     if (msg instanceof YGO.YGOProStocSelectTp) {
+      // PATCH(白神服) 2026-11-05: 备牌等待浮层（z-index 9600）会盖住「选先攻/后攻」按钮
+      //   → 一到先后攻阶段就把它收掉（用户实测：备牌完看不到选先后攻的 UI）
+      try { hideSidingWait(); } catch (e) {}
       setUiPhase('duel');   // 猜拳/先后攻一开始就让房间 UI 退场（原来等到 MSG_START 才退）
       setHud('请选择先后攻');
       // 顺序按玩家要求 & 真实客户端（截图里是先攻在上、后攻在下）：上=先攻，下=后攻
@@ -1945,8 +3244,20 @@
     if (msg && msg.constructor && msg.constructor.name === 'YGOProStocDeckCount') {
       try {
         var _p0 = msg.player0DeckCount || {}, _p1 = msg.player1DeckCount || {};
-        setCount(0, 'deck', _p0.main); setCount(0, 'extra', _p0.extra);
-        setCount(1, 'deck', _p1.main); setCount(1, 'extra', _p1.extra);
+        // 服务端给玩家发的 STOC_DECK_COUNT 是**相对顺序**：player0=自己、player1=对手
+        // （见 srvpro prepareStocDeckCount：duelPos / 1-duelPos）。
+        // _cnt 内部按绝对座位存，这里按 myDuelPos 反过来落位。
+        var _mdp = (state.myDuelPos === 0 || state.myDuelPos === 1) ? state.myDuelPos
+          : ((state.mySeat === 0 || state.mySeat === 1) ? state.mySeat : 0);
+        setCount(_mdp, 'deck', _p0.main); setCount(_mdp, 'extra', _p0.extra);
+        setCount(1 - _mdp, 'deck', _p1.main); setCount(1 - _mdp, 'extra', _p1.extra);
+        // 尚未开局时把权威张数也写进查看器；查看器用本地视角 [自己,对手]，
+        // 所以直接传 player0/player1，不再按 myDuelPos 翻转。
+        try {
+          if (!state.duelStarted && window.__live && window.__live.setCounts) {
+            window.__live.setCounts([_p0.main, _p1.main], [_p0.extra, _p1.extra], 'deckcount');
+          }
+        } catch (e) {}
       } catch (e) {}
     }
     if (msg instanceof YGO.YGOProStocTimeLimit) {
@@ -1962,17 +3273,13 @@
           if (!state.timeLimitLogged) {
             state.timeLimitLogged = true;
             var _ks = []; for (var _k in msg) { try { if (typeof msg[_k] === 'number') _ks.push(_k + '=' + msg[_k]); } catch (e) {} }
-            logLine('（时限消息字段：' + (_ks.join(' ') || '(没有数字字段)') + '）', 'rp-log-hint');
+            /* PATCH: 调试行已移除（用户要求日志干净） */
           }
         } else {
-          if (typeof startTurnCountdown === 'function') {
-            _cdLeft = Number(_sec);
-            try {   // 服务端权威值 → 同步截止时间戳，刷新后也按它算
-              localStorage.setItem('yp_turn_deadline', String(Date.now() + _cdLeft * 1000));
-              localStorage.setItem('yp_turn_deadline_at', String(Date.now()));
-            } catch (e) {}
-            renderCountdown();
-          }
+          try {
+            // 时间确认（时点）只更新自己这一侧的秒数，另一侧保留
+            if (typeof showTimeLeft === 'function') showTimeLeft(Number(_sec));
+          } catch (e) {}
         }
       } catch (e) {}
       return;
@@ -2026,6 +3333,24 @@
             _host.location = _mInfo.location; _host.sequence = _mInfo.sequence;
           }
           trackMaterial(_mm.code || 0, _mm.from, _mm.to, _host);
+          // 宿主离开场上（去墓地/除外/手牌/额外/成为素材）：
+          // 它名下的素材角标必须一起清掉，否则格子复用时会挂着旧 ⬢N。
+          try {
+            var _fPlain = (_mm.from | 0) & 0x7f;
+            var _toPlain = (_mm.to !== undefined) ? ((_mm.to | 0) & 0x7f) : -1;
+            var _toOverlay = (_mm.to !== undefined) && ((_mm.to & 0x80) !== 0);
+            var _hostLeaves = (_fPlain === 4 || _fPlain === 8)
+              && (_toOverlay || (_toPlain !== 4 && _toPlain !== 8));
+            if (_hostLeaves) {
+              var _oldMatKey = matZoneKey({
+                controller: _mm.player, location: _mm.from, sequence: _mm.fromSequence
+              });
+              if (_oldMatKey && state.mats && state.mats[_oldMatKey]) {
+                delete state.mats[_oldMatKey];
+                paintMaterialBadges();
+              }
+            }
+          } catch (e) {}
         } catch (e) {}
       }
       // 手牌进出：MSG_MOVE 含 from/to（LOC.HAND = 2）—— 只统计 MSG_DRAW 会漏"手牌回卡组"，
@@ -2099,11 +3424,83 @@
           }
         } catch (e) {}
       }
-      if (id === 4) onDuelStart(msg.msg);
-      else if (id === 5) onDuelEnd(msg.msg);                 // MSG_WIN：回大厅
-      if (YGO.isMapped(id)) {
-        var env = YGO.toEnvelope(msg.msg, innerBytes);
+      if (id === 4) {
+        var _isNewWatchDuel = state.watchMode && (state.watchBetweenGames || state.watchSawWin);
+        // 回放批次里（补发的历史消息流）的 Start 是过去那一局的开局 → 完全忽略
+        if (state.watchMode && state.watchReplayBatch && !_isNewWatchDuel) {
+          // 忽略：不 reset、不重播
+        } else
+        // PATCH(白神服) 观战：三局两胜里第二/三局会重新发 MSG_START
+        //   → 必须清掉上一局的消息，重新从这一局开头播，不能继续循环上一局
+        if (_isNewWatchDuel) {
+          state.watchBetweenGames = false;
+          state.watchPlayback = false;
+          state.watchBuffering = true;
+          state.watchBuf = [];
+          state.watchEnded = false;          // 新一局来了 → 允许继续
+          state.watchSawWin = 0;
+          /* PATCH: 已停用 handLock */
+          state.watchReplayedOnce = false;   // 新的一局允许再从头播
+          try {
+            var _q3 = new URLSearchParams(location.search);
+            function _n3(k) { var v = parseInt(_q3.get(k) || '', 10); return isNaN(v) ? 0 : v; }
+            if (window.__live && window.__live.reset) {
+              window.__live.reset({
+                roomName: state.room,
+                players: [
+                  { pos: 0, name: _q3.get('p0') || '', mainc: _n3('m0'), extrac: _n3('x0') },
+                  { pos: 1, name: _q3.get('p1') || '', mainc: _n3('m1'), extrac: _n3('x1') },
+                ],
+              });
+            }
+          } catch (e) {}
+          logLine('▶ 新的一局开始（已清空上一局画面）', 'rp-log-phase');
+        }
+        // ⚠ 观战**不能**翻消息里的 player：观战画面固定「决斗位 0 在下」，
+        //   要调的是「谁的名字显示在下」，而不是翻行动归属（翻错会出现「某人没用过某卡却显示他发动」）。
+        if (state.watchMode && state.watchPlayback && !state.watchBetweenGames) {
+          // PATCH(白神服) 观战：回放流本身也含 Start 消息 —— 如果这里再走 onDuelStart
+          //   就会 reset 场地并把进度打回开头 → 观战「循环播」的元凶之一。
+          //   回放过程中的 Start 直接忽略（真正的换局由 watchBetweenGames 分支处理）。
+        } else {
+          onDuelStart(msg.msg);
+        }
+      }
+      else if (id === 5) {
+        if (state.watchMode) state.watchSawWin = Date.now();
+        // PATCH(白神服) 观战：别人的对局结束 ≠ 我结束，不能走 onDuelEnd（会把场地关掉、显示"你输了"）
+        if (state.watchMode && state.watchReplayBatch) {
+          // 回放批次里上一局的 Win：忽略（否则会置 watchBetweenGames → 下一条 Start 触发重播）
+        } else if (state.watchMode && state.watchBuffering) {
+          // 缓冲回放里的结束消息：不截断回放，但要记下「本局已结束」——
+          //   否则房间结束后客户端会自动重连重进 → 又补发一遍历史（看起来像循环播放）
+          state.watchEnded = true;
+          state.watchBetweenGames = true;
+        } else if (state.watchMode) {
+          logLine('🏁 本局已结束，等待下一局…', 'rp-log-phase');
+          setHud('🏁 本局已结束，等待下一局开始…', 'info');
+          watchEnded = true;
+          state.watchBetweenGames = true;     // 等 MSG_START 再开新局
+          state.watchEnded = true;            // 若一直没等到 START（房间结束）就停止重连
+          state.watchPlayback = false;        // 停止消费旧消息，避免反复播上一局
+          try { if (window.__live && window.__live.pause) window.__live.pause(); } catch (e) {}
+        } else {
+          onDuelEnd(msg.msg);                 // MSG_WIN：回大厅
+        }
+      }
+      // PATCH(白神服) 2026-11-19：补齐 envelope 白名单缺口。
+      //   YGO.toEnvelope() 只映射 51 个 id，没映射的消息会被**整条丢掉**。以下是必需的：
+      //     162 MSG_RELOAD_FIELD   ← 重连快照（卡组/额外张数的权威来源；缺它 → 重连后显示 0）
+      //      35 MSG_SWAP_GRAVE_DECK← 卡组↔墓地交换（张数整体变化）
+      //      32 MSG_SHUFFLE_DECK / 39 MSG_SHUFFLE_EXTRA ← 洗牌演出与日志
+      if (YGO.isMapped(id) || EXTRA_ENVELOPE[id]) {
+        var env = YGO.isMapped(id) ? YGO.toEnvelope(msg.msg, innerBytes)
+                                   : buildExtraEnvelope(id, msg.msg);
         if (env) {
+          // PATCH(白神服) 2026-11-07: 把"这条消息涉及的卡"记在 envelope 上 ——
+          //   观战是**从头回放**的，实时到达的消息和画面对不上（用户发现的面板显示错卡 ✗）。
+          //   由查看器在**真正应用这条消息时**回调 __ypFollowCard，面板才会和画面同步。
+          try { env.__code = involvedCode(msg.msg); } catch (e) {}
           // 把 Hint 的 desc 编号换成 strings.conf 里的真实文案（真实客户端就是这么显示的）
           if (env.name === 'Hint' && env.f && env.f.desc !== undefined) {
             var ht2 = sysText(env.f.desc);
@@ -2121,7 +3518,40 @@
             window.__ypDeckTop[env.f.player] = { code: env.f.code, faceDown: !!env.f.faceDown };
             logLine('卡组顶端公开：' + (env.f.faceDown ? '（里侧）' : cardLabel(env.f.code)) + '（座位 ' + env.f.player + '）', 'rp-log-hint');
           }
+          // 有些人肉/第三方服务端把 UpdateData 的 query 只放在解码后的 msg.msg 上，
+          // toEnvelope 生成的 f 里没有 cards/raw → 动态攻守永远进不了查看器。
+          // 这里以原始消息为准补回（在 flipEnvelope 之前，座位翻转仍统一处理）。
+          try {
+            if (msg.msg && env.name === 'UpdateData') {
+              env.f = env.f || {};
+              if (msg.msg.player !== undefined) env.f.player = msg.msg.player;
+              if (msg.msg.location !== undefined) env.f.location = msg.msg.location;
+              if (Array.isArray(msg.msg.cards)) env.f.cards = msg.msg.cards;
+              if (Array.isArray(msg.msg.raw)) env.f.raw = msg.msg.raw;
+              if (msg.msg.hex) env.f.hex = msg.msg.hex;
+            } else if (msg.msg && env.name === 'UpdateCard' && msg.msg.card) {
+              env.f = env.f || {};
+              if (msg.msg.controller !== undefined) env.f.controller = msg.msg.controller;
+              if (msg.msg.location !== undefined) env.f.location = msg.msg.location;
+              if (msg.msg.sequence !== undefined) env.f.sequence = msg.msg.sequence;
+              env.f.card = msg.msg.card;
+            }
+          } catch (e) {}
           flipEnvelope(env);
+          // 观战/实战：洗牌消息不一定被查看器当场消费（观战队列/批量），
+          // 这里在消息到达时直接触发一次洗牌动画；查看器看到 __shuffleFxDone 跳过重复。
+          try {
+            if ((env.name === 'ShuffleDeck' || env.name === 'ShuffleExtra') && !state.watchBuffering
+                && window.__live && window.__live.shufflePileFx) {
+              var _sf = env.f || {};
+              var _sp = Number(_sf.player);
+              if (_sp === 0 || _sp === 1) {
+                window.__live.shufflePileFx(_sp, env.name === 'ShuffleExtra' ? 'extra' : 'deck', true);
+                env.__shuffleFxDone = true;
+              }
+            }
+          } catch (e) {}
+
           // ?debug=1：把每条对局消息的短名与关键字段打出来（排查"重放没落到模型上"这类问题）
           if (state.debug) {
             var ff = env.f || {};
@@ -2137,6 +3567,18 @@
               previous: ff.previous, current: ff.current, count: ff.count, cards: ff.cards ? ('[' + ff.cards.length + ']') : undefined,
               raw: __rawBrief,
             }), 'rp-log-hint');
+          }
+          if (state.watchMode && state.watchBuffering) {
+            // 观战缓冲：先攒消息，等补发结束一次性回放（逐条渲染会把主线程锁死）
+            state.watchBuf.push(env);
+            if (state.watchBuf.length > 3000) state.watchBuf.splice(0, state.watchBuf.length - 3000);
+            watchScheduleFlush();
+            return;
+          }
+          if (state.watchMode && state.watchPlayback) {
+            // 观战回放中：只入队，播放器（live 模式 tick）按节奏消费，带特效但不爆量
+            window.__live.push(env);
+            return;
           }
           window.__live.push(env); window.__live.flush(); refreshPhaseLabel();
         }
@@ -2201,8 +3643,16 @@
         state.lastPosChange = { code: pcCode, previous: pcPrev, current: pcCur, controller: pcCtl, location: pcLoc, sequence: pcSeq };
         logLine('↕ ' + cardLabel(pcCode) + ' 表示形式变化：0x' + Number(pcPrev).toString(16) + ' → 0x' + Number(pcCur).toString(16) +
           '（座位 ' + pcCtl + ' / 区域 ' + pcLoc + ' / seq' + pcSeq + '）', 'rp-log-hint');
-        // 守备位(0x4) → 变成守备就是"向左转"，否则"转回直立"（两个方向必须不同 ✗）
-        animateZoneKey(pcCtl, pcLoc, pcSeq, (pcCur & 0x4) ? 'rot-def' : 'rot-atk');
+        // PATCH(白神服) 2026-11-05: 魔陷（后场）翻开时不要"旋转 90°"的表示形式动画 ——
+        //   那个是怪兽攻击↔守备转向用的，盖放的陷阱翻开只是"翻面"（用户实测 ✗）。
+        //   规则：里侧→表侧 一律用翻面；魔陷其它姿态变化不播动画；怪兽才用转向动画。
+        var _fdPrev = ((pcPrev | 0) & 0x8) !== 0;
+        var _fdCur = ((pcCur | 0) & 0x8) !== 0;
+        var _animMode = '';
+        if (_fdPrev && !_fdCur) _animMode = 'flip';                    // 翻开（怪兽/魔陷都只是翻面）
+        else if (pcLoc === LOC.SZONE) _animMode = '';                   // 魔陷不横置，不播转向
+        else _animMode = (pcCur & 0x4) ? 'rot-def' : 'rot-atk';
+        if (_animMode) animateZoneKey(pcCtl, pcLoc, pcSeq, _animMode);
       }
       else if (id === 40) {                                  // 新回合：提示是谁的回合
         try { startTurnCountdown(); } catch (e) {}   // 新回合 → 时限重置
@@ -2215,10 +3665,66 @@
     }
   }
 
+  /**
+   * 视角座位 → 房间 pos 的映射（唯一实现，便于测试 / 排查）。
+   * PATCH(白神服) 2026-11-19：**玩家的映射与决斗位无关** ——
+   *   本文件在消息边界已经把世界翻成「我恒在视角座位 0」，所以视角 0 永远是我
+   *   （房间 pos = mySeat），视角 1 是另一个人。
+   *   原来这里还按 myDuelPos 再翻一次 → 决斗位 1 的玩家名字/张数/胜负全反
+   *   （用户实测：赢了却恭喜对面 ✗）。
+   * 观战：srvpro 对 watcher 发 isPosSwapped ? 0x11 : 0x10，
+   *   0x11 表示「决斗位 0」其实是房间座位 1。
+   */
+  function computeSeatOrder(watchMode, mySeat, myDuelPos, playerType) {
+    if (watchMode) {
+      var pt = (typeof playerType === 'number') ? playerType : null;
+      var swapped = (pt !== null && (pt & 0xf0)) ? (((pt & 0x0f) === 1) ? 1 : 0) : 0;
+      return swapped ? [1, 0] : [0, 1];
+    }
+    if (mySeat === 0 || mySeat === 1) return [mySeat, 1 - mySeat];
+    return [0, 1];
+  }
+  try { window.__ypComputeSeatOrder = computeSeatOrder; } catch (e) {}
+
   function onDuelStart(m) {
     state.duelStarted = true;
-    state.myDuelPos = m.playerNumber;
+    // PATCH(白神服) 2026-11-07: **观战不解码自己的座位** ——
+    //   观战开始的那条 Start 也带 playerNumber，原来直接写进 myDuelPos（常是 1），
+    //   于是 flipEnvelope 把整局消息的 controller 全部翻转 ✗
+    //   结果：张数两头对调、检索亮牌跑到对面手牌（用户实测）。
+    //   只有"自己打"才需要这个座位信息。
+    // ⚠ 重连重放的 Start 可能是 observerView（playerType 0x10/低 0），
+    //   不能覆盖 onopen 从本地记录恢复的真实 myDuelPos；只有全新一局
+    //   （myDuelPos<0，例如备牌后已清空）才采纳 Start 的 playerNumber。
+    // PATCH(白神服) 2026-11-19: **每局都要按 START 校正自己的决斗位**。
+    //   bo3 换边（srvpro isPosSwapped）后决斗位会变；原来「只在未知时才采纳」，
+    //   第二局起就不翻世界了 → 自己的卡画到上面、名字也跟着错（用户截图：上下反了）。
+    //   只有 observer view（高 4 位 0x10）才不覆盖。
+    if (!state.watchMode) {
+      var _ptSelf = (typeof m.playerType === 'number') ? m.playerType : m.playerNumber;
+      var _obsFlag = (typeof m.observerFlag === 'number') ? m.observerFlag
+        : ((typeof _ptSelf === 'number') ? (_ptSelf & 0xf0) : null);
+      var _pn = (typeof m.playerNumber === 'number') ? m.playerNumber
+        : ((typeof _ptSelf === 'number') ? (_ptSelf & 0x0f) : null);
+      if (_pn === 0 || _pn === 1) {
+        if (_obsFlag === 0) state.myDuelPos = _pn;            // 玩家视角：永远以 Start 为准
+        else if (state.myDuelPos < 0) state.myDuelPos = _pn;  // observer view：只在自己未知时兜底
+      }
+    }
     setUiPhase('duel');    // 对局开始 → 展开盘面/日志（与猜拳阶段同一个入口，保证两边状态一致）
+    // ── 座位映射（视角座位 → 房间 pos）：**唯一来源，完全由协议决定** ──
+    //  PATCH(白神服) 2026-11-19：删掉所有"按张数/LP/先手猜"的启发式（那正是名字偶尔对换的根源）。
+    //    · 玩家：视角座位 0 = 我（消息已在 flipEnvelope 翻成"我恒为 0"），
+    //            所以映射就是 [mySeat, 1-mySeat]，**与决斗位无关**。
+    //            之前按 myDuelPos 再翻一次 → 决斗位 1 的玩家名字/张数/胜负全反 ✗
+    //    · 观战：srvpro room.ts 对 watcher 发 isPosSwapped ? 0x11 : 0x10
+    //            → 决斗位 0 对应房间 pos (swapped ? 1 : 0)
+    try {
+      var _pt = (typeof m.playerType === 'number') ? m.playerType
+        : (typeof m.playerNumber === 'number') ? m.playerNumber : null;
+      var _order = computeSeatOrder(state.watchMode, state.mySeat, state.myDuelPos, _pt);
+      if (window.__live && window.__live.setSeatOrder) window.__live.setSeatOrder(_order);
+    } catch (e) {}
     // 记住这一局的座位与决斗位：刷新页面重连时，服务端**重放整局**但不一定再发 MSG_START，
     // 没有它客户端就不知道该把谁画在下方（flipSeat 会用错），所以持久化下来。
     try { localStorage.setItem('yp_duel_' + state.room, JSON.stringify({ seat: state.mySeat, duelPos: state.myDuelPos, name: state.name })); } catch (e) {}
@@ -2253,15 +3759,41 @@
         });
         if (!_infos.length) logLine('（开局没解出双方数量字段，先按抽卡增量更新）', 'rp-log-hint');
       } catch (e) {}
-          var myInfo = state.myDuelPos === 1 ? m.player1 : m.player0;
+    // MSG_START 的 player0/player1 是**绝对座位**；C++ 用 LocalPlayer(0/1) 映射到本地视角。
+    // myDuelPos=1 时，自己的数量在 player1。
+    var myInfo = state.myDuelPos === 1 ? m.player1 : m.player0;
     var opInfo = state.myDuelPos === 1 ? m.player0 : m.player1;
     // 重连时服务端重放的 MSG_START 里卡组数是 0（实测）→ 别把已经显示的卡组数冲成 0：
     // 我方用自己的牌组长度兜底，对手沿用上一局的已知值。
     var myCount = (myInfo && myInfo.deckCount) || (state.deck && state.deck.main ? state.deck.main.length : 0) || (state.lastDeckCount && state.lastDeckCount[0]) || 0;
     var opCount = (opInfo && opInfo.deckCount) || (state.lastDeckCount && state.lastDeckCount[1]) || 0;
+    var myExtra = (myInfo && (myInfo.extraCount !== undefined ? myInfo.extraCount : myInfo.extrac))
+      || (state.deck && state.deck.extra ? state.deck.extra.length : 0)
+      || (state.lastExtra && state.lastExtra[0]) || 0;
+    var opExtra = (opInfo && (opInfo.extraCount !== undefined ? opInfo.extraCount : opInfo.extrac))
+      || (state.lastExtra && state.lastExtra[1]) || 0;
     state.lastDeckCount = [myCount, opCount];
-    var me = { pos: 0, name: state.name, mainc: myCount };
-    var opp = { pos: 1, name: (state.playerNames && state.playerNames[1 - state.mySeat]) || '对手', mainc: opCount };
+    state.lastExtra = [myExtra, opExtra];
+    // PATCH(白神服) 观战：MSG_START 里的双方名字要用「真实选手」，不能用观战者自己的昵称
+    var _watchP = null;
+    if (state.watchMode) {
+      try { var _q2 = new URLSearchParams(location.search); _watchP = [_q2.get('p0') || '', _q2.get('p1') || '']; } catch (e) {}
+    }
+    var _wp0 = _watchP ? _watchP[0] : '';
+    var _wp1 = _watchP ? _watchP[1] : '';
+    // PATCH(白神服) 2026-11-19: 名字**一律按房间 pos 原序**写进 meta，
+    //   换边由 seatOrder 决定（见上面的 setSeatOrder）。原来这里再按 watchNameSwap 换一次
+    //   → 与 seatOrder 叠加 = 换两次 = 名字又反回去（"偶尔对换"的另一个来源）。
+    // PATCH(白神服) 2026-11-19: 名字 / 状态必须按**房间 pos** 写进 meta。
+    //   原来固定 me.pos=0 / opp.pos=1（视角顺序），而 seatOrder 是「视角座位 → 房间 pos」，
+    //   于是 mySeat=1 的玩家会去 meta 里找 pos=1 的对手 → 上下名字反（用户实测 ✗）。
+    var _meSeat = (state.mySeat === 0 || state.mySeat === 1) ? state.mySeat : null;
+    var me = { pos: (_meSeat === null ? 0 : _meSeat), name: _wp0 || state.name, mainc: myCount, extrac: myExtra };
+    var opp = {
+      pos: (_meSeat === null ? 1 : 1 - _meSeat),
+      name: _wp1 || (state.playerNames && state.playerNames[1 - state.mySeat]) || '对手',
+      mainc: opCount, extrac: opExtra,
+    };
     // 玩家视角下消息里的 0 = 自己 → 视角固定"我在下"
     // ⚠ 重连时服务端会把整局**重放**一遍，而 `MSG_START` 可能排在重放流的**后段** ——
     //   这时无条件 reset 会把"刚被重放重建好的场地"连同日志一起清空（玩家报的"重连回来场上卡没了"）。
@@ -2279,6 +3811,18 @@
     } else {
       logLine('↻ 盘面已在重放中，跳过清场（重连恢复）', 'rp-log-phase');
     }
+    // Start 里的重连张数经常是 0/缺失；把已知值写回查看器，再用本地快照只补 null 侧。
+    // 这样 F5 后开局不会把 onopen 已恢复的卡组/额外清成 0。
+    try {
+      if (window.__live && window.__live.setCounts) {
+        window.__live.setCounts(
+          [myCount > 0 ? myCount : null, opCount > 0 ? opCount : null],
+          [myExtra > 0 ? myExtra : null, opExtra > 0 ? opExtra : null],
+          'start-client'
+        );
+      }
+      restoreSavedCounts(true);
+    } catch (e) {}
     if (window.__live.loadCards) window.__live.loadCards().catch(function () {});
     $('lobby').style.display = 'none';
     logLine('★ 对局开始：我在下方（决斗位 ' + state.myDuelPos + '）'
@@ -2448,6 +3992,17 @@
     // 切到对局界面时轻轻戳一次重绘，让数量立刻显示（用户反馈：刚进游戏看不到数量）
     if (phase === 'duel') {
       try { if (typeof startTurnCountdown === 'function') startTurnCountdown(0, true); } catch (e) {} try { setTimeout(function () { window.dispatchEvent(new Event('resize')); }, 120); } catch (e) {} }
+    // PATCH(白神服) 2026-11-20: 音乐跟着界面阶段走（只在这一处切换，避免两首叠着放）
+    //   room = 房间/匹配等待 → wait-bgm.js；duel = 对局中 → duel-bgm.js
+    try {
+      if (phase === 'duel') {
+        if (window.__ypWaitBgm && window.__ypWaitBgm.stop) window.__ypWaitBgm.stop();
+        if (window.__ypDuelBgm && window.__ypDuelBgm.start) window.__ypDuelBgm.start();
+      } else {
+        if (window.__ypDuelBgm && window.__ypDuelBgm.stop) window.__ypDuelBgm.stop();
+        if (window.__ypWaitBgm && window.__ypWaitBgm.start) window.__ypWaitBgm.start();
+      }
+    } catch (e) {}
     var lobby = $('lobby'), modal = $('replayModal');
     if (!lobby || !modal) return;
     if (state.uiPhase === phase) return;
@@ -2495,7 +4050,10 @@
       var autoForm = new URLSearchParams(location.search).get('auto') === '1';
       if (autoForm && state.joined && !state.duelStarted) {
         var nPlayers = Object.keys(state.playerNames || {}).length;
-        if (nPlayers < 2 && !state.oppLeftNoticed) {
+        // PATCH(白神服) 2026-11-07: 只有「之前确实有对手、现在走了」才算对手离开。
+        //   原来只要房里人数 < 2 就弹「对手已离开房间」，刚匹配进房（本来就你一个人）也会弹（用户实测 ✗）
+        if (nPlayers >= 2) state.everHadOpponent = true;
+        if (nPlayers < 2 && state.everHadOpponent && !state.oppLeftNoticed) {
           state.oppLeftNoticed = true;
           logLine('⚠ 对手已不在房间里（断线或已被请出）→ 正在等新对手', 'rp-log-err');
           ensureMatchingOverlay('对手已离开房间，正在等新对手…');
@@ -2524,9 +4082,11 @@
               return;
             }
             logLine('↻ 进房 40 秒还没开局 → 换一个房间重试（第 ' + state.rerollCount + ' 次）', 'rp-log-phase');
-            try { sessionStorage.removeItem('yp_room_saved'); sessionStorage.removeItem('yp_room_saved_at'); } catch (e) {}
-            leaveRoomGracefully();
-            setTimeout(function () { location.href = 'duel.html?auto=1&r=' + Date.now(); }, 400);
+            // PATCH(白神服) 2026-11-20: **原地重进房，不再整页刷新**。
+            //   原来是 `location.href = 'duel.html?auto=1&r=...'` → 整页重载：
+            //   WebSocket 断、画面闪一下、背景音乐从头再来，而且 state.rerollCount
+            //   跟着被清空 → 每 40 秒无限重刷（用户实测：等 42 秒左右画面就刷新一次 ✗）。
+            rerollRoomInPlace();
           }, 40000);
         }
       } else if (state.waitRerollTimer && (state.duelStarted || _nP >= 2)) {
@@ -2539,7 +4099,7 @@
     $('btnStart').title = bothReady ? '开始决斗'
       : ('还不能开始：' + ((state.mySeat >= 0 && state.ready[state.mySeat]) ? '对手还没准备' : '你还没点「准备」'));
     // 把"卡在哪一步"直接写在顶栏，省得盯着屏幕猜
-    if (state.mySeat === 7) setHud('房间满了（你是观战者）：用原昵称可接回自己那一席，或换个房间名开新局', 'warn');
+    if (state.mySeat === 7) setHud(state.watchMode ? '👁 观战中（只读，无法操作）' : '房间满了（你是观战者）：用原昵称可接回自己那一席，或换个房间名开新局', state.watchMode ? 'info' : 'warn');
     else if (state.mySeat < 0) return;
     else if (inRoom.length < 2) {
       if (state.isHost) setHud('房里现在只有你一人（对手进程还没进来）。对手要跑：node duel.mjs --solo --room ' + state.room, 'warn');
@@ -2618,7 +4178,11 @@
     if (m.options) brief += ' 选项=[' + m.options.join(',') + ']';
     if (m.sumVal !== undefined) brief += ' 目标合计=' + m.sumVal;
     if (m.positions !== undefined) brief += ' positions=0x' + Number(m.positions).toString(16);
-    logLine('◀ 请求 ' + m.constructor.name.replace(/^YGOProMsg/, '') + '（' + P.kind + '）' + brief, 'rp-log-hint');
+    // PATCH(白神服) 2026-11-06: 每个请求都打一行「◀ 请求 SelectChain … 连锁项=0」太吵（用户要求去掉）。
+    //   需要排查时在地址后面加 ?debug=1 再显示。
+    if (state.debugReq) {
+      logLine('◀ 请求 ' + m.constructor.name.replace(/^YGOProMsg/, '') + '（' + P.kind + '）' + brief, 'rp-log-hint');
+    }
     renderPending();
   }
 
@@ -2715,10 +4279,7 @@
         //   （玩家实测："这张卡有什么不能放弃的吗？又不是必发效果"）。
         //   所以：自解失败时一律**给出「不连锁」**，真被服务端拒还有 RETRY 兜底 ✓。
         var forced = dec ? !!dec.forced : false;
-        if (!dec && (m.chains || []).length) {
-          logLine('（连锁请求的报文长度与预期布局不符，退回按库解码：长度 ' +
-            ((state.pending.raw || []).length) + '，库 count=' + m.count + '）', 'rp-log-hint');
-        }
+        /* PATCH(白神服): 报文长度调试行已移除（只保留 ?debug=1 时的原始字节输出） */
         // ?debug=1 时把连锁请求的原始字节和库解出来的字段都打出来 —— 用来核对
         // "服务端到底有没有消息级 forced 字节"（库与引擎的布局版本可能不一致，靠猜容易错）
         if (state.debug) {
@@ -2731,7 +4292,6 @@
         }
         // 没有可连锁项且不强制 → 自动跳过连锁，不弹窗
         if (!chains.length && !forced) {
-          logLine('（没有可连锁的效果 → 自动不连锁）', 'rp-log-hint');
           respond(m.prepareResponse(null));
           return;
         }
@@ -2755,8 +4315,9 @@
         // ⚠ 永远给出「不连锁」：forced 这个字节我这边**两次都判断错**（自解布局对不上/读到的不是那一位 ✗），
         //   宁可让玩家能放弃；真遇到引擎强制的场合，服务端会 RETRY，我的恢复逻辑会把面板重新弹出来并提示 ✓
         //   （玩家两次反馈："这张卡有什么不能放弃的吗？又不是必发效果" / "怎么又不能放弃了"）。
-        cb.push({ t: '不连锁', f: function () { respond(m.prepareResponse(null)); } });
-        showActions(cb, '请选择要发动的效果 / 或选「不连锁」' + (forced ? '（服务端提示：这一问可能需要给出连锁）' : ''));
+        // 改成「先选卡 → 确认 / 取消」的弹窗（避免点卡图立即发动、误触）
+        setHud('连锁时点：' + chains.length + ' 个可连锁项（点卡图选中后按「确认」）');
+        showChainPicker(chains, forced, m);
         break;
       }
       case 'card': case 'tribute': case 'sum': {
@@ -2872,8 +4433,19 @@
           var meta = state.cardsById && state.cardsById[v];
           var txt = sysText(v);
           var label, img = 0;
+          // PATCH(白神服) 2026-11-05: 选项值有两种 —— 卡号，或「(卡号<<4)|效果序号+1」的 description id。
+          //   后者原来直接显示成 "#1032019313"（用户实测：勇气之心两个效果看不懂 ✗）。
+          //   这里解码出卡号与序号，再取该卡的 CDB 效果提示（/api/cardhints）当按钮文字。
+          var _descCard = (v >>> 4), _descIdx = (v & 0xF);
+          var _descHints = (_descCard > 0 && hintCache[String(_descCard)]) ? hintCache[String(_descCard)] : null;
+          if (!_descHints && _descCard > 0 && typeof fetchHints === 'function') {
+            try { fetchHints(_descCard); } catch (e) {}
+          }
+          var _dh = _descHints ? String(_descHints[_descIdx] || '').trim() : '';
           if (meta) { label = meta.name || ('#' + v); img = v; }          // 卡号 → 卡图 + 卡名
+          else if (_dh) { label = _dh; }                                   // 效果提示（特殊召唤 / 加入手卡…）
           else if (txt) label = txt;                                       // strings.conf 文案（如"送去墓地"）
+          else if (_descCard > 0) { label = '效果 ' + (_descIdx || 1); }   // 至少有个人话
           else label = '选项 ' + (i + 1) + '（#' + v + '）';
           return {
             t: label, img: img || undefined, sub: opts.length > 1 ? ('#' + v) : '',
@@ -2890,8 +4462,21 @@
           for (var i = 0; i < 7; i++) if (m.availableAttributes & (1 << i)) ab.push({ t: (attrName(1 << i) || ('属性' + (i + 1))), f: (function (b) { return function () { respond(m.prepareResponse(b)); }; })(1 << i) });
         } else if (m.identifier === 140) {    // 种族：25 位 —— 同样用真实名字（龙/战士/魔法师…）
           for (var j = 0; j < 25; j++) if (m.availableRaces & (1 << j)) ab.push({ t: (raceName(1 << j) || ('种族' + (j + 1))), f: (function (b) { return function () { respond(m.prepareResponse(b)); }; })(1 << j) });
-        } else if (m.identifier === 143) {    // 数字：提交下标
-          ab = (m.numbers || []).map(function (n, k) { return { t: '数字 ' + n, f: (function (idx) { return function () { respond(m.prepareResponse(idx)); }; })(k) }; });
+        } else if (m.identifier === 143) {    // 数字：宣言具体数值
+          ab = (m.numbers || []).map(function (n, k) {
+            return {
+              t: '数字 ' + n,
+              f: (function (idx, val) {
+                return function () {
+                  try {
+                    var r = m.prepareResponse ? m.prepareResponse(idx) : null;
+                    if (r && r.length) { respond(r); return; }
+                  } catch (e) {}
+                  announceSend(val);            // 兜底：直接发数值
+                };
+              })(k, n)
+            };
+          });
         } else if (m.identifier === 142) {    // 卡名宣言（如「禁止令」）
           // 卡名输入 + 候选列表（原来用原生 prompt 且要输卡号 ✗）
           // ⚠ 无论玩家怎么操作都必须发应答，否则对局永远卡在这一问
@@ -3003,7 +4588,7 @@
   // 真实客户端里"要不要发动/连锁"、"选攻击还是守备"都是**看卡图点**，不是读文字。
   // 这里统一用查看器同一套多源回退链（DIY → 先行 → OCG → 镜像 → cover.jpg）画卡图。
 
-  var FACE_DOWN_IMG = 'cover2.jpg';   // 官网的卡背就是 cover2.jpg（replay-viewer.css 用的也是它）
+  var FACE_DOWN_IMG = 'cover2.jpg?v=20261108a';   // 官网的卡背就是 cover2.jpg（replay-viewer.css 用的也是它）
 
   /** 猜拳手势（内联 SVG，白色描边风格，跟真实客户端的三个手形按钮对应） */
   // 猜拳手势图（对应协议：石头=res 2 / 剪刀=res 1 / 布=res 3）
@@ -3055,18 +4640,50 @@
     return (map[p] || '场上') + (seq === undefined ? '' : '[' + (seq + 1) + ']');
   }
 
+  // PATCH(白神服) 2026-11-07: 卡图内存缓存 —— 同一个卡号只解析一次 URL、只创建一次 Image，
+  //   之后直接复用已加载好的图像，点开墓地/除外不会再"重新加载一遍"（用户要求）
+  var _imgCache = {};          // code → { src, ok }
+  var _imgWarm = {};           // code → Image（已解码）
   function cardImgEl(code, opts) {
     opts = opts || {};
     var im = document.createElement('img');
     im.className = 'yp-cardimg' + (opts.cls ? ' ' + opts.cls : '');
     im.alt = String(code || '');
     if (opts.faceDown || !code) { im.src = FACE_DOWN_IMG; im.classList.add('yp-cardback'); return im; }
+    var c = Number(code) | 0;
+    var cached = _imgCache[c];
+    if (cached) {
+      im.src = cached;
+      var warm = _imgWarm[c];
+      if (warm && warm.complete && warm.naturalWidth) im.classList.add('yp-ready');
+      return im;
+    }
     var chain = window.__live && window.__live.picChain ? window.__live.picChain(code) : [String(code) + '.jpg'];
     var i = 0;
-    im.onerror = function () { i++; if (i < chain.length) im.src = chain[i]; };
+    im.onerror = function () { i++; if (i < chain.length) { im.src = chain[i]; } };
+    im.onload = function () {
+      _imgCache[c] = im.src;
+      try { var w = new Image(); w.src = im.src; _imgWarm[c] = w; } catch (e) {}
+      im.classList.add('yp-ready');
+    };
     im.src = chain[0];
     return im;
   }
+  // 预热：把一票卡号提前加载进缓存（开局/打开列表前调用）
+  window.__warmCardImgs = function (codes) {
+    try {
+      (codes || []).forEach(function (code) {
+        var c = Number(code) | 0;
+        if (!c || _imgWarm[c]) return;
+        var chain = window.__live && window.__live.picChain ? window.__live.picChain(c) : [String(c) + '.jpg'];
+        var w = new Image();
+        var k = 0;
+        w.onerror = function () { k++; if (k < chain.length) w.src = chain[k]; };
+        w.onload = function () { _imgWarm[c] = w; _imgCache[c] = w.src; };
+        w.src = chain[0];
+      });
+    } catch (e) {}
+  };
 
   /** 图片按钮：{ t, img, rotate, faceDown, svg, sub, tip, disabled, key } */
   function makeBtn(b) {
@@ -3132,6 +4749,9 @@
    * 这类候选一律走这个选择盘：点卡图切换/确认。
    */
   function showChooser(title, items, opts) {
+    // PATCH(白神服) 观战兜底：候选很多时不再走卡图选择盘（几十张卡图会卡死页面），
+    //   统一改用纯文字轻量列表。正常对局不受影响。
+
     hideChooser();
     opts = opts || {};
     var box = document.createElement('div');
@@ -3219,8 +4839,41 @@
    *
    * 返回 true 表示已经用选择框接管了这次选择（调用方就不必再渲染一份「确定/取消」）。
    */
+  /** 选择对象按“我方视角的场地位置”排序：
+   *  额外怪兽区 → 怪兽区左→右 → 魔陷区左→右 → 其它区。
+   *  DOM 的 rect.left 天然处理了对手镜像；没有 DOM 的候选退回 seq 镜像。 */
+  function sortSelectionCands(list) {
+    function keyOf(cd) {
+      var info = cd.info || {};
+      var loc = (info.location === undefined ? 0 : info.location) & 0x7f;
+      var seq = (info.sequence === undefined ? 0 : info.sequence);
+      var grp = 9;
+      if (loc === LOC.MZONE) grp = (seq >= 5) ? 0 : 1;
+      else if (loc === LOC.SZONE) grp = 2;
+      else if (loc === LOC.FZONE) grp = 3;
+      else if (loc === LOC.PZONE) grp = 4;
+      var x = seq;
+      try {
+        var el = cd.el || (window.__live && window.__live.cellAt ? window.__live.cellAt(info.controller, loc, seq) : null);
+        if (el && el.getBoundingClientRect) {
+          var r = el.getBoundingClientRect();
+          if (r.width || r.height) x = r.left;
+        } else {
+          var viewCtl = flipSeat(info.controller || 0);
+          x = (viewCtl === 1) ? (1000 - seq) : seq;
+        }
+      } catch (e) {}
+      return [grp, x, seq];
+    }
+    return (list || []).slice().sort(function (a, b) {
+      var ka = keyOf(a), kb = keyOf(b);
+      for (var i = 0; i < 3; i++) if (ka[i] !== kb[i]) return ka[i] - kb[i];
+      return 0;
+    });
+  }
+
   function showNoCellChooser(P) {
-    var all = P.cands || [];
+    var all = sortSelectionCands(P.cands || []);
     if (!all.length) return false;
     var m = P.msg;
     var isUnselect = P.kind === 'unselect';
@@ -3249,6 +4902,9 @@
         // 引擎给**选择项**里的卡信息时经常不带卡号（对手场上的表侧卡也是 0）✗
         // → 从场地模型里取真实卡号（查看器的模型里表侧卡是有 code 的）+ 用它的 faceDown 兜底。
         var codeUse = info.code || 0;
+        // PATCH(白神服) 2026-11-20: 候选没带卡号时，用**之前公开过**的同一张卡补上
+        //   （例：不可见之手 —— CONFIRM_CARDS 翻开对手卡组 3 张，随后 SELECT_CARD 只给位置）
+        if (!codeUse) codeUse = revealedCodeOf(info);
         try {
           var model = (window.__live && window.__live.cardsAt) ? window.__live.cardsAt(flipSeat(info.controller || 0), (info.location || 0) & 0x7f) : null;
           if (model) for (var mi = 0; mi < model.length; mi++) {
@@ -3365,12 +5021,17 @@
       //     → 函数在那个作用域里是 undefined → 从未执行 → 用户反馈"禁止令没显示卡名" ✓ 现在直连 ✓
       try {
         var _dc = (m && m.code) ? m.code : (state.lastPick && state.lastPick.code ? state.lastPick.code : 0);
-        var _dn = (typeof cardLabel === 'function') ? cardLabel({ code: code }) : String(code);
+        var _dn = (typeof cardLabel === 'function') ? cardLabel(code) : String(code);
         if (_dc && _dn) {
-          state.fxTags = (state.fxTags || []).filter(function (x) { return x.code !== _dc; });
-          state.fxTags.push({ code: _dc, text: '宣言：' + _dn });
-          try { applyEffectTags(); } catch (e) {}
-          logLine('▸ 宣言标注：' + _dn + ' → ' + (typeof cardLabel === 'function' ? cardLabel({ code: _dc }) : _dc), 'rp-log-hint');
+          // PATCH(白神服) 2026-11-07: 改用查看器的「卡上标签」（位置和攻守一致，只显示卡名）
+          var _ok = false;
+          try { if (window.__live && window.__live.announceByCode) _ok = window.__live.announceByCode(_dc, [_dn]); } catch (e) {}
+          if (!_ok) {
+            state.fxTags = (state.fxTags || []).filter(function (x) { return x.code !== _dc; });
+            state.fxTags.push({ code: _dc, text: _dn });
+            try { applyEffectTags(); } catch (e) {}
+          }
+          logLine('▸ 宣言：' + _dn, 'rp-log-hint');
         }
       } catch (e) {}
       respond(m.prepareResponse(code));
@@ -3532,7 +5193,12 @@
     var loc = c.location !== undefined ? c.location : c.zone;
     if ((loc & 0x7f) === LOC.HAND) {
       var cont = document.querySelector('[data-zone="' + flipSeat(c.controller || 0) + ':' + LOC.HAND + '"]');
-      return cont ? cont.children[c.sequence || 0] : null;
+      if (!cont) return null;
+      // PATCH(白神服) 2026-11-17: 手牌 seq 有空洞时 DOM 顺序 ≠ seq，
+      //   原来用 children[seq] 会高亮/选中**另一张卡**（用户实测：想丢 A 实际丢了 B ✗）
+      var seq = c.sequence || 0;
+      var bySeq = cont.querySelector('[data-seq="' + seq + '"]');
+      return bySeq || cont.children[seq] || null;
     }
     return document.querySelector('[data-zone="' + viewZoneOf(c) + '"]');
   }
@@ -3786,12 +5452,13 @@
     b.textContent = n;
   }
 
-  /** 额外卡组选择盘：显示所有可从额外卡组特召的怪（卡图 + 名称） */
-  function showExtraChooser(P) {
-    var list = P.extraActs || [];
+  /** 额外卡组选择盘：显示所有可从额外卡组特召/发动的怪（卡图 + 名称） */
+  function showExtraChooser(P, subset, modeLabel) {
+    var list = subset || P.extraActs || [];
     if (!list.length) return false;
+    var mode = modeLabel || '特殊召唤';
     var title = ((state.lastPick && state.lastPick.code) ? cardLabel(state.lastPick.code) + ' 的效果：' : '')
-      + '请选择要特殊召唤的卡';
+      + (mode === '发动效果' ? '请选择要发动的卡' : '请选择要特殊召唤的卡');
     showChooser(title, list.map(function (a) {
       var code = a.info.code || 0;
       var seq = a.info.sequence === undefined ? 0 : a.info.sequence;
@@ -3799,9 +5466,9 @@
       return {
         label: cardLabel(code), code: code, sub: '额外[' + (seq + 1) + ']',
         f: function () {
-          // 记住这次特召的是哪张（下一次选素材时提示里会点名，玩家能看出是"哪种召唤方式"）
-          rememberPick('特殊召唤', a.info);
-          logLine('► 特殊召唤：' + cardLabel(code) + '（额外[' + (seq + 1) + '] → index ' + a.index + '）', 'rp-log-hint');
+          // 记住这次操作的是哪张（下一次选素材时提示里会点名，玩家能看出是"哪种召唤方式"）
+          rememberPick(mode, a.info);
+          logLine('► ' + mode + '：' + cardLabel(code) + '（额外[' + (seq + 1) + '] → index ' + a.index + '）', 'rp-log-hint');
           respondIndexed(P.msg, a.type, a.index);
         },
       };
@@ -3842,8 +5509,88 @@
     }
   } catch (e) {}
 
+  // ── 同一张卡的多个“发动效果”：照 MDPro3 做二级选择 ──
+  // 第一层菜单只显示一个「发动效果」；点开后列出每个效果的 desc（CDB 提示），再提交。
+  function effectChoiceLabel(a, i) {
+    var info = a.info || {};
+    var code = info.code || 0;
+    var txt = '';
+    try {
+      if (info.desc !== undefined && sysText(info.desc)) {
+        txt = fillDesc(sysText(info.desc), [zoneText(info.location, info.sequence), cardLabel(code)]);
+      }
+    } catch (e) {}
+    if (!txt) {
+      try {
+        var hs = hintCache[String(code)] || [];
+        txt = String(hs[i] || '').trim();
+      } catch (e) {}
+    }
+    return txt || ('效果 ' + (i + 1));
+  }
+  function effectKeyOf(a) {
+    var info = a.info || {};
+    return [info.code, info.controller, info.location, info.sequence].join('|');
+  }
+  function showEffectChoice(acts) {
+    var P = state.pending;
+    hideCardMenu();
+    var btns = (acts || []).map(function (a, i) {
+      return {
+        t: effectChoiceLabel(a, i),
+        img: (a.info && a.info.code) || undefined,
+        tip: '选择这个效果发动',
+        f: function () {
+          var info = a.info || {};
+          logLine('► 发动效果：' + cardLabel(info.code) + '（' + effectChoiceLabel(a, i) + '）', 'rp-log-hint');
+          rememberPick('发动效果', info);
+          respondIndexed(P.msg, a.type, a.index);
+        },
+      };
+    });
+    if (btns.length) showActions(btns, '选择效果');
+  }
+  function collapseEffectActions(actions) {
+    var list = (actions || []).slice();
+    var groups = {}, order = [];
+    list.forEach(function (a) {
+      if (!a) return;
+      var isEffect = a.label === '发动效果' || a.type === 5;
+      if (!isEffect) return;
+      var k = effectKeyOf(a);
+      if (!groups[k]) { groups[k] = []; order.push(k); }
+      groups[k].push(a);
+    });
+    var folded = {};
+    order.forEach(function (k) {
+      if (groups[k].length > 1) {
+        folded[k] = groups[k];
+      }
+    });
+    if (!Object.keys(folded).length) return list;
+    var out = [];
+    list.forEach(function (a) {
+      if (!a) return;
+      var isEffect = a.label === '发动效果' || a.type === 5;
+      var k = effectKeyOf(a);
+      if (isEffect && folded[k]) {
+        if (out._folded && out._folded[k]) return;
+        out._folded = out._folded || {};
+        out._folded[k] = 1;
+        out.push({
+          label: '发动效果', type: 5, index: a.index, info: a.info,
+          _effectActs: folded[k],
+          f: function () { showEffectChoice(folded[k]); },
+        });
+      } else {
+        out.push(a);
+      }
+    });
+    return out;
+  }
   function showCardMenu(el, actions, pt) {
     hideCardMenu();
+    actions = collapseEffectActions(actions || []);
     var box = document.createElement('div');
     box.id = 'ypCardMenu';
     box.className = 'yp-menu';
@@ -3859,6 +5606,7 @@
       }
       b.onclick = function (ev) {
         ev.stopPropagation();
+        if (typeof a.f === 'function' && a._effectActs) { a.f(); return; }
         var P = state.pending;
         hideCardMenu();
         // ⚠ 菜单项有两种：① 卡片操作（带 type/index，走 respondIndexed）；② 自带回调（牌堆菜单的
@@ -3868,7 +5616,8 @@
         if (!P) return;
         // 把"点了哪张卡 → 发了哪个下标"记进日志：手卡选错卡时一眼能看出是映射错还是命中错
         var info = a.info || {};
-        logLine('► ' + (a.label || a.t) + '：' + cardLabel(info.code) +
+        var _actName = (a.label === '攻击') ? '选择攻击者' : (a.label || a.t);
+        logLine('► ' + _actName + '：' + cardLabel(info.code) +
           '（' + seatName(info.controller) + locName(info.location) + ' seq' + info.sequence +
           ' → index ' + a.index + '）', 'rp-log-hint');
         rememberPick(a.label || a.t, info);   // 记住"这一手选了什么"，下一步选素材的提示会点名
@@ -3918,6 +5667,39 @@
 
   /** 卡号 → 效果提示文本（CDB texts.str1..str8，懒加载 + 缓存） */
   var hintCache = {};
+  // PATCH(白神服) 2026-11-07: 批量预读效果文本（自己的手牌/场上卡）——
+  //   用户要求"全局读取，别等发效果才加载两种效果选项文本"。
+  //   一次最多 40 个卡号，冷却 800ms，避免刷爆接口。
+  var _pfPending = [], _pfTimer = null, _pfLast = 0;
+  window.__prefetchHints = function (codes) {
+    try {
+      if (!codes || !codes.length) return;
+      codes.forEach(function (c) {
+        c = Number(c) | 0;
+        if (c > 0 && !hintCache[String(c)] && _pfPending.indexOf(c) < 0) _pfPending.push(c);
+      });
+      if (_pfTimer || !_pfPending.length) return;
+      var wait = Math.max(0, 800 - (Date.now() - _pfLast));
+      _pfTimer = setTimeout(function () {
+        _pfTimer = null;
+        _pfLast = Date.now();
+        var batch = _pfPending.splice(0, 40);
+        if (!batch.length) return;
+        batch.forEach(function (c) { hintCache[String(c)] = []; });   // 占位，防重复
+        fetch('/api/cardhints?ids=' + batch.join(','))
+          .then(function (r) { return r.ok ? r.json() : {}; })
+          .then(function (j) {
+            batch.forEach(function (c) {
+              hintCache[String(c)] = (j && j[String(c)]) || [];
+            });
+            if (typeof state.onHintsReady === 'function') state.onHintsReady();
+            try { if (typeof decorateAllPileHints === 'function') { /* 菜单是动态的，无需刷新 */ } } catch (e) {}
+          })
+          .catch(function () {});
+        if (_pfPending.length) window.__prefetchHints([]);
+      }, wait);
+    } catch (e) {}
+  };
   function fetchHints(code) {
     var k = String(code);
     if (hintCache[k]) return hintCache[k];
@@ -3940,14 +5722,21 @@
     var items = Array.prototype.slice.call(box.querySelectorAll('.yp-menu-item'));
     var eff = items.filter(function (b) { return (b.textContent || '').indexOf('发动效果') >= 0; });
     if (!eff.length) return;
-    // ★ 只有 1 个效果时也把 CDB 提示挂上去（用户反馈：很多卡只显示泛泛的"发动效果"很奇怪）
+    // ★ 只有 1 个效果时**不要把效果名写进按钮**（PATCH 2026-11-19）
+    //   真实客户端（KoishiPro event_handler.cpp:ShowMenu）里「发动」按钮的文案是固定的
+    //   strings.conf 1150「发动」，效果说明只在**多选项**时通过 SelectOption/效果选择盘给出
+    //   （对应 lua 的 e1:SetDescription(aux.Stringid(id,0))）。
+    //   原来这里拼成「发动效果：特殊召唤」，玩家会以为只能干这一件事。
     if (eff.length === 1) {
       var one = eff[0];
       var h1 = fetchHints(code);
       var apply1 = function () {
-        var hs = hintCache[String(code)] || [];
+        var hs = (hintCache[String(code)] || []).filter(function (h) {
+          return h && !/^是否/.test(String(h).trim()) && !/[？?]$/.test(String(h).trim());
+        });
         if (!hs.length) return;
-        one.textContent = '发动效果：' + hs[0];
+        // 文案保持「发动效果」；说明只放到 title（悬停可见），不占按钮文字
+        one.textContent = '发动效果';
         one.title = hs[0];
       };
       apply1();
@@ -3962,11 +5751,26 @@
       if (ev && ev.stopPropagation) ev.stopPropagation();
       hideCardMenu();
       var hints = fetchHints(code);
+      // PATCH(白神服) 2026-11-05: CDB 里 str1 常常是**问句**（「是否使用「勇气之心」的效果？」），
+      //   后面的 str2/str3 才是真正的效果名（特殊召唤 / 加入手卡）。
+      //   原来直接 hints[i] → 第 1 个效果显示成问句、第 2 个显示成"特殊召唤"，对不上（用户实测 ✗）。
+      //   这里把问句型提示过滤掉，只留真正的效果名。
+      var _realHints = (hints || []).filter(function (h) {
+        if (!h) return false;
+        var t = String(h).trim();
+        if (!t) return false;
+        if (/^是否/.test(t)) return false;
+        if (/[？?]$/.test(t)) return false;
+        return true;
+      });
       var items2 = eff.map(function (b, i) {
         var num = '①②③④⑤⑥⑦⑧⑨'[i] || ('(' + (i + 1) + ')');
-        var hint = hints[i] || b.textContent || '';
+        var hint = _realHints[i] || ('效果 ' + (i + 1));
         return { label: num + ' ' + hint, f: function () {
-          logLine('▸ 发动效果' + num + '：' + (hints[i] || '(无提示)'), 'rp-log-hint');
+          // PATCH(白神服) 2026-11-17: 只有一个效果时只写「发动」，不要一长串效果文本
+          //   （多选项时仍然把提示写进日志，方便区分是哪个效果）
+          if (hints.length > 1) logLine('▸ 发动效果' + num + '：' + (_realHints[i] || '(无提示)'), 'rp-log-hint');
+          else logLine('发动', 'rp-log-hint');
           b.click();                                          // 走原来的提交路径（不做任何重映射）
         } };
       });
@@ -4075,6 +5879,9 @@
       var dt0 = window.__ypDeckTop && window.__ypDeckTop[ctl];
       var code = top.code;
       var backOnly = !code || (dt0 && dt0.faceDown);
+      // PATCH(白神服) 2026-11-07: 里侧卡背**只交给 fillPile 画**（viewer 里那套尺寸是准的）。
+      //   这里再叠一张 .yp-pile-top 就是两套机制 → 玩家看到「效果处理时正常、处理完又变大」（用户实测 ✗）。
+      if (backOnly) { if (old) old.parentNode.removeChild(old); return; }
       if (old && old.getAttribute('data-code') === String(code) && old.getAttribute('data-back') === String(!!backOnly)) return;
       if (old) old.parentNode.removeChild(old);
       var img = document.createElement('img');
@@ -4144,6 +5951,34 @@
   /** 点牌堆弹出的小菜单（发动效果 / 查看列表）——参照真实客户端 */
   function showPileMenu(pileKey, pt) {
     var P = state.pending;
+    // 额外卡组：不要再“点一下直接弹特召列表”。真实客户端先给菜单：
+    //   有可发动效果 → 发动效果 / 特殊召唤 / 查看列表
+    //   只有可特召   → 特殊召唤 / 查看列表
+    //   单纯查看     → 查看列表
+    if (String(pileKey).indexOf('extra:') === 0) {
+      var eActs = (P && P.extraActs) ? P.extraActs.slice() : [];
+      var effActs = eActs.filter(function (a) { return a.label === '发动效果' || a.type === 5; });
+      var spActs = eActs.filter(function (a) { return a.label === '特殊召唤' || a.type === 1; });
+      var eItems = [];
+      if (effActs.length) {
+        eItems.push({
+          label: '发动效果（' + effActs.length + '）',
+          f: function () { hideCardMenu(); showExtraChooser(P, effActs, '发动效果'); },
+        });
+      }
+      if (spActs.length) {
+        eItems.push({
+          label: '特殊召唤（' + spActs.length + '）',
+          f: function () { hideCardMenu(); showExtraChooser(P, spActs, '特殊召唤'); },
+        });
+      }
+      eItems.push({
+        label: '查看列表',
+        f: function () { hideCardMenu(); showPileList(pileKey); },
+      });
+      showCardMenu(document.querySelector('[data-pile="' + pileKey + '"]'), eItems, pt);
+      return;
+    }
     var acts = (P && P.pileActs && P.pileActs[pileKey]) || [];
     var items = [];
     if (acts.length) {
@@ -4158,7 +5993,7 @@
               sub: kindName + '[' + ((cd.info.sequence === undefined ? 0 : cd.info.sequence) + 1) + ']',
               f: function () {
                 hideChooser();
-                logLine('► 发动效果：' + cardLabel(cd.info.code) + '（' + kindName + ' seq' + cd.info.sequence + '）', 'rp-log-hint');
+                logLine('发动 · ' + cardLabel(cd.info.code), 'rp-log-hint');   // 参考 MDPro3：発動 + 卡名
                 rememberPick('发动效果', cd.info);
                 submitPileEntry(P, cd);          // 候选条目用 index、动作条目用 type+index（统一处理）
               },
@@ -4173,11 +6008,57 @@
     });
     showCardMenu(document.querySelector('[data-pile="' + pileKey + '"]'), items, pt);
   }
+  // PATCH(白神服) 观战：牌堆列表用纯文字轻量弹窗 ——
+  //   原来的卡图选择盘在墓地几十张时会加载上百张图（每张 6 个图床兜底），
+  //   实测会直接把页面卡死（连刷新都反应不过来，只能强关）。
+  function showWatchPileList(title, cards) {
+    var old = document.getElementById('ypWatchPile');
+    if (old) old.remove();
+    var box = document.createElement('div');
+    box.id = 'ypWatchPile';
+    box.style.cssText = 'position:fixed;z-index:9800;left:50%;top:50%;transform:translate(-50%,-50%);'
+      + 'width:min(420px,88vw);max-height:70vh;display:flex;flex-direction:column;'
+      + 'background:rgba(14,18,24,.98);border:1px solid rgba(212,175,55,.45);border-radius:10px;'
+      + 'box-shadow:0 18px 50px rgba(0,0,0,.6);font:13px/1.5 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;color:#dbe6f1';
+    var head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.1)';
+    head.innerHTML = '<span style="flex:1;font-weight:700;color:#FFD700">' + title + '</span>';
+    var close = document.createElement('button');
+    close.textContent = '✕';
+    close.style.cssText = 'cursor:pointer;background:transparent;border:1px solid rgba(255,255,255,.25);'
+      + 'border-radius:6px;color:#cfc8bd;padding:2px 8px;font-family:inherit';
+    close.onclick = function () { box.remove(); };
+    head.appendChild(close);
+    box.appendChild(head);
+    var list = document.createElement('div');
+    list.style.cssText = 'overflow-y:auto;padding:8px 12px 12px;scrollbar-width:none';
+    if (!cards.length) {
+      list.innerHTML = '<div style="color:#8d8d96;padding:12px 0">（空）</div>';
+    } else {
+      cards.slice(0, 80).forEach(function (c, i) {
+        var row = document.createElement('div');
+        row.style.cssText = 'padding:3px 0;border-bottom:1px dashed rgba(255,255,255,.06)';
+        row.textContent = '#' + (i + 1) + '  ' + (c.code ? cardLabel(c.code) : '（里侧/未公开）');
+        list.appendChild(row);
+      });
+      if (cards.length > 80) {
+        var more = document.createElement('div');
+        more.style.cssText = 'color:#8d8d96;padding:6px 0';
+        more.textContent = '还有 ' + (cards.length - 80) + ' 张…';
+        list.appendChild(more);
+      }
+    }
+    box.appendChild(list);
+    document.body.appendChild(box);
+    return true;
+  }
+
   function showPileList(pileKey) {
     var parts = String(pileKey).split(':');
     var kind = parts[0], ctlView = Number(parts[1] || 0);
     var locMap = { grave: LOC.GRAVE, removed: LOC.REMOVED, extra: LOC.EXTRA, deck: LOC.DECK };
     var loc = locMap[kind];
+
     if (!loc) return false;
     var cards = (window.__live && window.__live.cardsAt) ? window.__live.cardsAt(ctlView, loc) : [];
     // PATCH(白神服): 卡组列表补候选 —— 卡组平时是隐藏的，查看器模型里没有卡号 ✗
@@ -4201,7 +6082,19 @@
     } catch (e) {}
     // 额外卡组：查看器只记数量、不存卡号（历史遗留），改从查看器补丁写入的侧通道取
     if (loc === LOC.EXTRA && !cards.length && window.__ypExtra && window.__ypExtra[ctlView]) {
-      cards = window.__ypExtra[ctlView].map(function (code, i) { return { seq: i, code: code, pos: 0, faceDown: false }; });
+      cards = window.__ypExtra[ctlView].map(function (v, i) {
+        var code = (typeof v === 'number') ? v : ((v && v.code) || 0);
+        return { seq: i, code: code, pos: 0, faceDown: false };
+      });
+    }
+    // PATCH(白神服) 2026-11-07: 额外卡组被「魔兽的大饵」之类除外后，角标已经是 2，
+    //   但列表还显示 15 张（__ypExtra 是开局时的全量）→ 按当前张数截断
+    if (loc === LOC.EXTRA) {
+      try {
+        var _dc = (window.__live && window.__live.debugCounts) ? window.__live.debugCounts() : null;
+        var _cap = _dc ? _dc.extra[ctlView] : null;
+        if (typeof _cap === 'number' && cards.length > _cap) cards = cards.slice(0, Math.max(0, _cap));
+      } catch (e) {}
     }
     var P = state.pending;
     // 当前请求在这片区域里的候选（按 sequence 对齐）
@@ -4218,14 +6111,21 @@
     });
     var title = (kind === 'grave' ? '墓地' : kind === 'removed' ? '除外区域' : kind === 'extra' ? '额外卡组' : '卡组') +
       '（' + (ctlView === 0 ? '我方' : '对方') + '，' + cards.length + ' 张）' + (hasCand ? ' —— 点卡选择' : ' —— 仅供查看');
-    var items = cards.map(function (c) {
+    // PATCH(白神服) 观战：墓地/除外可能有几十张，一次全量渲染卡图会明显卡顿（用户实测"点开就卡住"）
+    //   → 最多列 60 张，且未公开卡（code=0）不走卡图，直接画卡背。
+    var _listCards = cards.slice(0, 60);
+    try { if (window.__warmCardImgs) window.__warmCardImgs(_listCards.map(function (c) { return c.code; })); } catch (e) {}
+    var items = _listCards.map(function (c) {
       var cd = candBySeq[c.seq];
       return {
-        label: cardLabel(c.code) + (c.faceDown && !c.code ? '（里侧）' : ''), code: c.code,
+        label: cardLabel(c.code) + (c.faceDown && !c.code ? '（里侧）' : ''), code: c.code || 0,
         sub: '#' + (c.seq + 1), faceDown: !c.code,
         f: cd ? function () { respond(P.msg.prepareResponse(YGO.IndexResponse(cd.index))); } : function () {},
       };
     });
+    if (cards.length > 60) {
+      items.push({ label: '还有 ' + (cards.length - 60) + ' 张（列表最多显示 60）', code: 0, faceDown: true, sub: '', f: function () {} });
+    }
     if (!items.length) items.push({ label: '（空的）', code: 0, sub: '', f: function () {} });
     var footer = [
       {
@@ -4272,7 +6172,9 @@
     }
     return out;
   }
-  var SPELL_KINDS = [[0x80, '仪式'], [0x2000000, '速攻'], [0x20000, '永续'], [0x40000, '装备'], [0x80000, '场地'], [0x100000, '反击'], [0x10000, '通常']];
+  // YGOPro type 位：速攻=0x10000（不是 0x2000000，后者是怪兽的“特殊召唤”标志）。
+  // 普通魔法没有子类型位，靠 kinds 为空回退“通常”。
+  var SPELL_KINDS = [[0x80, '仪式'], [0x10000, '速攻'], [0x20000, '永续'], [0x40000, '装备'], [0x80000, '场地'], [0x100000, '反击']];
   function typeLine(code, meta, txt) {
     var type = (txt && txt.t) || 0;
     if (type & 1) {                                    // 怪兽：只用标志位，对齐真实客户端的 [怪兽|效果|调整]
@@ -4331,15 +6233,122 @@
     try { if (state.cardsById && state.cardsById[code]) return state.cardsById[code]; } catch (e) {}
     return null;
   }
+  /**
+   * PATCH(白神服) 2026-11-06: 左侧卡片信息自动跟随「最近涉及的卡」——
+   *   对方发动 E紧急呼唤 → 面板显示 E紧急呼唤；检索的天空侠上手（Move 到手卡）→ 面板切到天空侠。
+   *   玩家手动悬停/点选卡片时暂停自动更新（state.infoHover），离开后自动接管。
+   */
+  function involvedCode(m) {
+    try {
+      // PATCH(白神服) 2026-11-07: 传进来的可能是 STOC 外层（YGOProStocGameMsg），
+      //   真正的消息在 .msg 里 —— 之前直接看外层构造器名，永远匹配不到 Chaining/Move ✗
+      //   （观战时"发动效果左侧不显示卡片"就是这个原因）
+      var msg = (m && m.msg) ? m.msg : m;
+      var n = (msg && msg.constructor) ? msg.constructor.name : '';
+      if (n === 'YGOProMsgChaining' && msg.chains && msg.chains.length) {
+        var c = msg.chains[msg.chains.length - 1];
+        return (c && c.code) || 0;
+      }
+      if (n === 'YGOProMsgSummoning' || n === 'YGOProMsgSpSummoning' || n === 'YGOProMsgSet'
+          || n === 'YGOProMsgFlipSummoning') {
+        return (typeof msg.code === 'number' && msg.code > 0) ? msg.code : 0;
+      }
+      if (n === 'YGOProMsgMove') {
+        // PATCH(白神服) 2026-11-07: Move 太频繁（送墓/回卡组都会触发），
+        //   一有 Move 就把面板切走 → 明明在连锁 A，面板却显示刚进墓地的 B（用户实测 ✗）。
+        //   只跟随"检索"：卡组(0x40) → 手牌(0x02)。
+        var _fl = msg.from ? (msg.from.location & 0x7f) : null;
+        var _tl = msg.current ? (msg.current.location & 0x7f) : null;
+        if (_fl === 0x40 && _tl === 0x02) {
+          return (typeof msg.code === 'number' && msg.code > 0) ? msg.code : 0;
+        }
+        return 0;
+      }
+      if (n === 'YGOProMsgDraw' && msg.cards && msg.cards.length) return msg.cards[0] || 0;
+    } catch (e) {}
+    return 0;
+  }
+  // 查看器应用回放/观战消息时回调：把"这条消息涉及的卡"同步到左侧面板
+  window.__ypFollowCard = function (code) {
+    try {
+      code = Number(code) | 0;
+      if (!code) return;
+      state.lastAutoCode = code;
+      // 观战和实战都自动跟随最新涉及的卡；悬停时 autoInfo 内部会暂停
+      autoInfo(code);
+    } catch (e) {}
+  };
+  function autoInfo(code) {
+    try {
+      if (code) state.lastAutoCode = code;
+      if (!code || state.infoHover || state.infoPinned) return;
+      if (state.infoCode === code) return;
+      showCardInfo(code);
+    } catch (e) {}
+  }
+  // 观战/实战：日志里的卡片式行（.rp-lrow）出现新卡图时，左栏自动跟随。
+  // 不依赖 involvedCode（Chaining/Move 的字段形状经常对不上），直接读最终渲染出来的日志。
+  function watchLiveLogInfo() {
+    try {
+      var body = document.querySelector('#replayField .replay-log-body') || document.querySelector('.replay-log-body');
+      if (!body) return;
+      var scan = function () {
+        var rows = body.querySelectorAll('.rp-lrow, .rp-log-line');
+        for (var i = rows.length - 1; i >= 0; i--) {
+          var imgs = rows[i].querySelectorAll('img');
+          if (!imgs.length) continue;
+          var im = imgs[imgs.length - 1];
+          var c = Number(im.getAttribute('data-code') || 0);
+          if (!c) {
+            var m = String(im.getAttribute('src') || '').match(/(\d{1,9})\.jpg/);
+            if (m) c = Number(m[1]);
+          }
+          if (c) { autoInfo(c); return; }
+        }
+      };
+      body._liveInfoScan = scan;
+      if (!body._liveInfoObs) {
+        body._liveInfoObs = new MutationObserver(function (muts) {
+          for (var i = 0; i < muts.length; i++) {
+            var add = muts[i].addedNodes || [];
+            for (var j = 0; j < add.length; j++) {
+              var n = add[j];
+              if (!n || n.nodeType !== 1) continue;
+              if ((n.classList && (n.classList.contains('rp-lrow') || n.classList.contains('rp-log-line')))
+                  || (n.querySelector && n.querySelector('.rp-lrow, .rp-log-line'))) {
+                scan();
+                return;
+              }
+            }
+          }
+        });
+        body._liveInfoObs.observe(body, { childList: true, subtree: true });
+      }
+      scan();
+    } catch (e) {}
+  }
+
+  /** 从卡图 URL 取卡号；卡背 cover2.jpg 绝不能当卡号 2（会在控制台刷 2.jpg 404） */
+  function codeFromCardImg(src) {
+    try {
+      src = String(src || '');
+      if (!src || /cover2|cardback|back\.jpg/i.test(src)) return 0;
+      var m = src.match(/(\d+)\.jpg/);
+      var code = m ? Number(m[1]) : 0;
+      return (code >= 10 && code <= 99999999) ? code : 0;
+    } catch (e) { return 0; }
+  }
   /** 显示左侧卡片信息面板（卡图 + 名称/卡号 + 类别/种族属性 + 等级攻守 + 系列 + 效果文本） */
   function showCardInfo(code) {
-    if (!code) return;
+    code = Number(code) || 0;
+    if (code < 10) return;
     var box = $('ypCardInfo');
     if (!box) return;
     state.infoCode = code;
     // 卡图：**预加载后再替换**（旧图先留着），并且占位框已按卡牌比例固定高度 → 中途不闪、不跳动
     var im = $('ypInfoImg'), hint = $('ypInfoImgHint');
-    var chain = (window.__live && window.__live.picChain) ? window.__live.picChain(code) : [code + '.jpg'];
+    var chain = (window.__live && window.__live.infoPicChain) ? window.__live.infoPicChain(code)
+      : ((window.__live && window.__live.picChain) ? window.__live.picChain(code) : [code + '.jpg']);
     var probe = new Image();
     var ci = 0;
     probe.onload = function () {
@@ -4368,11 +6377,54 @@
       probe.onload = probe.onload || null;
     }
     if (hint && !im.classList.contains('ready')) hint.style.display = '';
+    // PATCH(白神服) 2026-11-08: 图片**已缓存**时有时不会触发 onload（或探针被后续悬停打断），
+    //   提示就永远停在「卡图加载中…」（用户实测 ✗）。这里加兜底：
+    //   · im 自己 onload → ready
+    //   · 1.6 秒还没 ready → 显示「（无卡图）」，不再转圈
+    try {
+      im.onload = function () { im.classList.add('ready'); if (hint) hint.style.display = 'none'; };
+      im.onerror = function () { if (hint) { hint.textContent = '（无卡图）'; hint.style.display = ''; } };
+      clearTimeout(state._infoHintTimer);
+      state._infoHintTimer = setTimeout(function () {
+        if (state.infoCode !== code) return;
+        if (!im.classList.contains('ready')) {
+          if (hint) { hint.textContent = '（无卡图）'; hint.style.display = ''; }
+        }
+      }, 1600);
+    } catch (e) {}
     probe.src = chain[0];
     var meta = metaOf(code);
     var txt = state.cardTexts ? state.cardTexts[code] : null;
-    $('ypInfoName').textContent = cardLabel(code) + ' [' + code + ']';
-    $('ypInfoType').textContent = typeLine(code, meta, txt) || '';
+    var _nameEl = $('ypInfoName'), _typeEl = $('ypInfoType'), _codeEl = $('ypInfoCode');
+    var _nameText = cardLabel(code) + ' [' + code + ']';
+    var _typeText = typeLine(code, meta, txt) || '';
+    var _landLayout = false;
+    try { _landLayout = window.matchMedia('(orientation: landscape) and (max-height: 900px) and (max-width: 1100px)').matches; } catch (e) {}
+    if (_landLayout) {
+      // 手机横屏：卡名 / 卡号 / 类型 / 攻守 / 字段 分五行
+      _nameEl.textContent = cardLabel(code);
+      if (_codeEl) { _codeEl.textContent = '[' + code + ']'; _codeEl.style.display = ''; }
+      _typeEl.textContent = _typeText;
+      _typeEl.style.display = '';
+    } else {
+      _nameEl.textContent = _nameText;
+      if (_codeEl) { _codeEl.textContent = ''; _codeEl.style.display = 'none'; }
+      _typeEl.textContent = _typeText;
+      // 手机竖屏：类型字段跟卡号同一行，节省高度
+      try {
+        var _portrait = window.matchMedia && window.matchMedia('(orientation: portrait), (max-width: 1100px)').matches;
+        if (_portrait && _typeText) {
+          var _tspan = document.createElement('span');
+          _tspan.className = 'yp-info-type-inline';
+          _tspan.textContent = ' ' + _typeText;
+          _nameEl.appendChild(_tspan);
+          _typeEl.textContent = '';
+          _typeEl.style.display = 'none';
+        } else {
+          _typeEl.style.display = '';
+        }
+      } catch (e) {}
+    }
     $('ypInfoStat').textContent = statLine(meta, txt) || '';
     var sets = setNames(txt ? txt.s : 0);
     $('ypInfoSeries').textContent = sets.length ? ('系列：' + sets.join('、')) : '';
@@ -4380,7 +6432,19 @@
     // 分值（用户要求 ✓ 左侧信息栏显示这张卡的分值）
     try { paintCardInfoScore(code); } catch (e) {}
     layoutCardInfo();
-    if (!txt) loadCardTexts().then(function () { if (state.infoCode === code) showCardInfo(code); });
+    // PATCH(白神服) 2026-11-03: 这里原来是无条件递归 ——
+    //   如果卡文表里**根本没有这张卡**（DIY/先行卡很常见），loadCardTexts 回来了还是没有 txt，
+    //   于是 again → showCardInfo(code) → 又 !txt → … 无限递归，页面直接卡死（越等越卡）。
+    //   现在：每张卡只重试一次，且只有真的拿到卡文才重排。
+    if (!txt) {
+      state.infoRetry = state.infoRetry || {};
+      if (!state.infoRetry[code]) {
+        state.infoRetry[code] = 1;
+        loadCardTexts().then(function () {
+          if (state.infoCode === code && state.cardTexts && state.cardTexts[code]) showCardInfo(code);
+        });
+      }
+    }
   }
   function hideCardInfo() {
     // 面板是**常驻**的（三栏布局的左栏）：鼠标移开只是停止更新，内容留着，方便对照
@@ -4392,16 +6456,21 @@
   function onBoardClick(ev) {
     var el = ev.target.closest('[data-zone], [data-pile]');
     if (!el) return;
+    // PATCH(白神服) 2026-11-05: 手机上容易连点同一个格子 → 200ms 内重复触发直接忽略
+    try {
+      var _k = (el.getAttribute('data-zone') || el.getAttribute('data-pile') || '') + '|' + (ev.type || 'click');
+      var _now = Date.now();
+      if (state._lastTap && state._lastTap.k === _k && _now - state._lastTap.t < 200) return;
+      state._lastTap = { k: _k, t: _now };
+    } catch (e) {}
     var P = state.pending;
     var pileKey = el.getAttribute && el.getAttribute('data-pile');
 
     // 0) 牌堆：**任何时候都能点开**（不依赖当前有没有待应答的请求）——
     //    真实客户端也是点墓地就能看内容。规则：
-    //      · 额外卡组有可特召的怪 → 直接弹"选择要特殊召唤的卡"选择盘；
+    //      · 额外卡组 → 弹菜单：发动效果 / 特殊召唤 / 查看列表（不再直接弹特召盘）；
     //      · 其它牌堆 → 弹小菜单：有可发动效果时给「发动效果」，恒有「查看列表」。
     if (pileKey && /^(grave|removed|extra|deck):/.test(pileKey)) {
-      var extraPick = (pileKey === 'extra:0' && P && P.extraActs && P.extraActs.length);
-      if (extraPick) { showExtraChooser(P); ev.stopPropagation(); return; }
       showPileMenu(pileKey, { x: ev.clientX, y: ev.clientY });
       ev.stopPropagation();
       return;
@@ -4582,6 +6651,8 @@
   }
   /** 把弹窗与控件条摆到场地上的位置（场地尺寸/窗口变化后要重摆） */
   function layoutOverlays() {
+    // PATCH(白神服) 2026-11-08: 每秒重摆时也把倒计时钉到场地左上角（场地建好/旋转/窗口变化都能跟上）
+    try { if (window.__placeTimeLeft) window.__placeTimeLeft(); } catch (e) {}
     var r = fieldRect();
     var pr = $('ypPrompt');
     if (!r) {
@@ -4615,6 +6686,8 @@
   }
 
   function showActions(btns, title, opts) {
+    // PATCH(白神服): 出现任何选择面板时，收起备牌等待浮层（否则会盖住面板）
+    try { hideSidingWait(); } catch (e) {}
     var box = $('ypPromptBtns');
     var ttl = $('ypPromptTitle');
     var panel = $('ypPrompt');
@@ -4725,7 +6798,7 @@
   //        并 POST 到站点接口（本地由 serve.mjs 的 /api/clientlog 收集，生产由官网接管 ✓）。
   (function __ypErrHook() {
     var seen = 0;
-    function report(kind, detail, stack) {
+    function report(kind, detail, stack, extra) {
       if (seen++ > 20) return;                       // 防刷屏
       var recent = (state && state.recentIds ? state.recentIds.slice(-30) : []);
       var payload = {
@@ -4785,19 +6858,63 @@
     $('replayField').addEventListener('mouseover', function (ev) {
       var card = ev.target.closest ? ev.target.closest('.rp-card') : null;
       if (!card) return;
+      state.infoHover = true;      // 手动悬停优先，暂停自动跟随
       var img = card.querySelector('img');
       var code = 0;
-      if (img) { var m = String(img.getAttribute('src') || '').match(/(\d+)\.jpg/); if (m) code = Number(m[1]); }
+      if (img) { code = codeFromCardImg(img.getAttribute('src')); }
+      // 效果“表侧表示放置”的卡可能没有 img / img 是卡背（code=0），
+      // 但模型里 code 或 knownCode 是有的 → 按格位从查看器补。
+      if (!code) {
+        try {
+          var cell = card.closest('[data-zone]');
+          var z = cell && cell.getAttribute('data-zone');
+          if (z && z.indexOf(':') > 0) {
+            var zp = z.split(':').map(Number);
+            if (window.__live && window.__live.cardCodeAt) {
+              code = window.__live.cardCodeAt(zp[0], zp[1], zp[2]) || 0;
+            }
+          }
+          if (!code && cell) code = Number(cell.getAttribute('data-code') || 0) || 0;
+          if (!code) code = Number(card.getAttribute('data-code') || 0) || 0;
+        } catch (e) {}
+      }
       if (code && code !== state.infoCode) showCardInfo(code);
     }, true);
     $('replayField').addEventListener('mouseout', function (ev) {
       var to = ev.relatedTarget;
       if (to && to.closest && (to.closest('#ypCardInfo') || to.closest('.rp-card'))) return;  // 移到面板/另一张卡 → 不关
-      hideCardInfo();
+      state.infoHover = false;
+      // 观战/实战：悬停结束都回到“最近涉及的卡”
+      if (state.lastAutoCode) {
+        try { showCardInfo(state.lastAutoCode); } catch (e) {}
+      }
+    }, true);
+    // 对局日志里的卡图：悬停也切换到左侧信息；移出后恢复最新涉及的卡
+    document.addEventListener('mouseover', function (ev) {
+      var thumb = ev.target && ev.target.closest ? ev.target.closest('.rp-lthumb') : null;
+      if (!thumb) return;
+      var code = Number(thumb.getAttribute('data-code') || 0);
+      if (!code) {
+        code = codeFromCardImg(thumb.getAttribute('src'));
+      }
+      if (!code) return;
+      state.infoHover = true;
+      if (code !== state.infoCode) showCardInfo(code);
+    }, true);
+    document.addEventListener('mouseout', function (ev) {
+      var thumb = ev.target && ev.target.closest ? ev.target.closest('.rp-lthumb') : null;
+      if (!thumb) return;
+      var to = ev.relatedTarget;
+      if (to && to.closest && (to.closest('#ypCardInfo') || to.closest('.rp-lthumb') || to.closest('.rp-card'))) return;
+      state.infoHover = false;
+      if (state.lastAutoCode) {
+        try { showCardInfo(state.lastAutoCode); } catch (e) {}
+      }
     }, true);
     // 场地尺寸随窗口变化 → 重摆弹窗、控件条与卡牌选择盘
     window.addEventListener('resize', function () { layoutOverlays(); layoutChooser(); layoutCardInfo(); });
     setInterval(function () {
+      try { watchLiveLogInfo(); } catch (e) {}
       // ── 相位看门狗：房间/对局两块 UI 的显隐**每秒校正一次**。
       //    为什么需要它：查看器（replay-viewer）自己会在收到对局消息时把盘面 display 打开，
       //    与我的相位切换打架 → 出现"猜拳时房间 UI 没退场""进对局后看不见盘面"（实测被反馈）。
@@ -4807,6 +6924,61 @@
         if (mEl) mEl.style.display = wantRoom ? 'none' : '';
         if (lEl) lEl.style.display = wantRoom ? '' : 'none';
       } catch (e) {}
+      // PATCH(白神服) 观战：还没追上进度时不放动画 —— 回放会连着触发几十个卡牌飞行动画，
+      //   节点/合成层堆积会把页面拖死（实测：点墓地时整页卡死，连刷新都做不到）。
+      try {
+        if (state.watchMode && window.__live && window.__live.setAnimSuppress && window.__live.status) {
+          var st0 = window.__live.status();
+          var lag = (st0.buffered || 0) - (st0.played || 0);
+          if (state.watchReplayBatch && lag <= 2) state.watchReplayBatch = false;   // 已追上实时
+          // PATCH(白神服) 2026-11-05: 观战手牌只留一个数据源 —— 追上实时后锁定消息流的手牌增删，
+          //   之后仅由 handc 对账（5 秒）纠正；回放期间反之（消息流为准）。避免两边互相覆盖导致"时多时少"。
+          try {
+            /* PATCH: handLock 已停用 */
+          } catch (e) {}
+          // PATCH(白神服) 2026-11-03: **不再**按积压条数静音动画。
+          //   长对局 lag 一直 >500，导致整场观战一点特效都没有（用户实测）。
+          //   需要临时静音时请显式调用 __live.setAnimSuppress(true)（目前没有地方这么做）。
+          // ⚠ 不要在这里再发 CTOS_REQUEST_FIELD 做「对账」！
+          //   服务端给观战者的补发现已是**当前这局的完整消息流**（含 MSG_START），
+          //   再请求一次会让客户端把整局又吃一遍 → 追上实时的那一刻看起来像"重放"（用户实测 ✗）。
+          //   张数偏差改由 /api/lobby/spectate 的 handc 对账（每 5 秒）。
+        }
+      } catch (e) {}
+      /* PATCH(白神服) 2026-11-06: 观战手牌对账只**追上实时之后**做（lag<=2），
+            回放期间完全交给消息流；否则两边互相覆盖会出现「时多时少」。
+            目的：修「对方式 0 张手卡却仍然显示一堆卡背」——纯消息流在隐藏手牌上会漏删。 */
+      try {
+        if (state.watchMode && window.__live && window.__live.status && window.__live.setHandCount) {
+          var _st2 = window.__live.status();
+          var _lag2 = (_st2.buffered || 0) - (_st2.played || 0);
+          state._handT = (state._handT || 0) + 1;
+          // PATCH(白神服) 2026-11-07: 停手牌对账。手牌张数现在完全由服务端的
+          //   MSG_UPDATE_DATA(HAND) 快照 + Draw/Move/Set 增量维护（2026-11-06 已修好根因）；
+          //   再叠一层「每 5 秒按 live handc 覆盖」会在**进度不推进时**（思考/效果处理中）
+          //   把尚未播放到的消息造成的差异强行抹平 → 手卡数量忽多忽少（用户实测 ✗）。
+          if (false && _lag2 <= 2 && state._handT % 5 === 0 && !state._handBusy) {
+            state._handBusy = true;
+            fetch('/api/lobby/spectate?t=' + Date.now())
+              .then(function (r) { return r.json(); })
+              .then(function (j) {
+                var rooms = (j && j.rooms) || [];
+                var room = null;
+                for (var i = 0; i < rooms.length; i++) {
+                  if (rooms[i].roomName === state.room) { room = rooms[i]; break; }
+                }
+                if (!room || !room.players || room.players.length < 2) return;
+                var ps = room.players;
+                var ord = state.watchNameSwap ? [ps[1], ps[0]] : [ps[0], ps[1]];
+                window.__live.setHandCount(0, ord[0].handc | 0);
+                window.__live.setHandCount(1, ord[1].handc | 0);
+              })
+              .catch(function () {})
+              .then(function () { state._handBusy = false; });
+          }
+        }
+      } catch (e) {}
+
       if (state.duelStarted) {
         layoutOverlays(); if (state.chooserOpen) layoutChooser(); refreshPhaseLabel();
         markPilesForPending();        // 牌堆发光会被高亮清理抹掉 → 每秒重挂一次（自愈）
@@ -4916,6 +7088,35 @@
         }
       }).catch(function () {});
     }
+    // PATCH(白神服) 2026-11-06: 从大厅「开始匹配」进来（?auto=1）时**先**把匹配动画铺上 ——
+    //   之前要等下面那段 auto 分支才创建遮罩，一旦中途提前 return / 抛错 / 连接异常，
+    //   玩家看到的就是"点了开始匹配没有任何动画"（用户实测 ✗）。
+    try {
+      if (q.get('auto') === '1' && q.get('watch') !== '1' && !document.getElementById('ypMatching')) {
+        ensureMatchingOverlay();
+      }
+    } catch (e) {}
+
+    // PATCH(白神服) 2026-11-03 观战模式：不需要卡组、不准备、不匹配，只以观战者身份进房
+    if (q.get('watch') === '1') {
+      state.watchMode = true;
+      try {
+        var _tw = document.getElementById('ypTimeLeft');
+        if (_tw) _tw.style.display = 'none';
+        var _twm = document.getElementById('ypTimeMe'), _two = document.getElementById('ypTimeOpp');
+        if (_twm) _twm.style.display = 'none';
+        if (_two) _two.style.display = 'none';
+      } catch (e) {}
+      try { window.__ypWatchMode = true; } catch (e) {}
+      document.body.classList.add('watch-mode');
+      if (!q.get('room')) { setHud('缺少房间名，无法观战', 'err'); return; }
+      state.room = q.get('room');
+      setHud('正在进入观战…');
+      setTimeout(function () {
+        try { joinRoom(); } catch (e) { setHud('进房失败：' + e.message, 'err'); logLine('进房失败：' + e.message, 'rp-log-err'); }
+      }, 300);
+      return;
+    }
     if (q.get('auto') === '1' && !deckFromInjection()) {
       // 天梯/比赛形态必须有卡组（官网大厅里选好再进来）；否则不进匹配，只提示
       ensureMatchingOverlay('没有可用卡组');
@@ -4952,6 +7153,17 @@
 
   // 调试/自动化探针（也方便你自己在控制台里看状态）
   window.__yp = {
+    /** 发送聊天（STOC_CHAT/CTOS_CHAT） */
+    chat: function (text) {
+      try {
+        text = String(text == null ? '' : text).trim();
+        if (!text) return false;
+        if (text.length > 200) text = text.slice(0, 200);
+        state.lastSentChat = { text: text, at: Date.now() };
+        send(chatFrame(text));
+        return true;
+      } catch (e) { return false; }
+    },
     /** 手动开一次备牌界面（自动化验证/回归用；正常由服务端备牌提示触发） */
     siding: function (minutes) { ensureSidingUI(minutes || 3); },
     surrender: function () { try { send({ identifier: 20, toPayload: function () { return new Uint8Array(0); } }); return true; } catch (e) { return false; } },
@@ -5069,7 +7281,7 @@
       var acts = (state.pending && state.pending.acts) || null;
       Array.prototype.forEach.call(cont.children, function (el, i) {
         var img = el.querySelector('img');
-        var code = img ? Number((String(img.getAttribute('src')).match(/(\d+)\.jpg/) || [])[1] || 0) : 0;
+        var code = img ? codeFromCardImg(img.getAttribute('src')) : 0;
         var r = el.getBoundingClientRect();
         var my = acts && acts.get(el) ? acts.get(el) : [];
         out.push({
@@ -5231,5 +7443,9 @@
       if (state.duelStarted || state.sidingActive || state.pending) hideSidingWait();
     }, 1000);
   } catch (e) {}
+
+  // 卡组/额外张数快照：刷新/重连时服务端可能不再发 Start/DeckCount，靠本地补
+  try { setInterval(saveDuelCounts, 2000); } catch (e) {}
+  try { window.addEventListener('beforeunload', saveDuelCounts); window.addEventListener('pagehide', saveDuelCounts); } catch (e) {}
 })();
 

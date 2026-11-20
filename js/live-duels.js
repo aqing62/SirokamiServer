@@ -4,6 +4,11 @@
 
 var POLL_INTERVAL_LIVE = 5000;
 var adminLoggedIn = false;
+var adminVia = null;        // 'site' = 官网账号 sudo；'cookie' = 管理员账号密码
+var adminAccount = '';
+var adminCanAct = false;    // 是否能执行动作（死三/关房/广播）
+var adminCanKick = false;   // 是否能关房（仅 sudo）
+var adminRole = '';         // 管理员 / 稽查员
 var livePollTimer = null;
 var liveDuelsOpen = false;
 
@@ -110,10 +115,15 @@ function renderLiveDuels(rooms) {
             '<td>' + deck2 + '</td>';
         if (adminLoggedIn) {
             var rid = escAttr(room.roomid || room.roomname);
-            html += '<td class="actions-cell">' +
-                '<button class="action-btn-sm death-btn" onclick="window._death(\'' + rid + '\')">死三</button>' +
-                '<button class="action-btn-sm kick-btn" onclick="window._kick(\'' + rid + '\')">关闭</button>' +
-                '</td>';
+            html += '<td class="actions-cell">';
+            if (adminCanAct) {
+                html += '<button class="action-btn-sm death-btn" onclick="window._death(\'' + rid + '\')">死三</button>';
+            }
+            // 关房只有超级管理员（sudo）能点；稽查员只能死三
+            if (adminCanKick) {
+                html += '<button class="action-btn-sm kick-btn" onclick="window._kick(\'' + rid + '\')">关闭</button>';
+            }
+            html += '</td>';
         }
         html += '</tr>';
     });
@@ -164,10 +174,17 @@ function fmtInfo(s) {
 
 async function restoreAdminSession() {
     try {
-        var r = await fetch('/api/admin/status');
+        var r = await fetch('/api/admin/status?t=' + Date.now(), { cache: 'no-store' });
         var d = await r.json();
-        adminLoggedIn = d.loggedIn;
-    } catch(e) { adminLoggedIn = false; }
+        adminLoggedIn = !!d.loggedIn;
+        adminVia = d.via || null;
+        adminAccount = d.account || '';
+        adminCanAct = !!d.canAct;
+        adminCanKick = !!d.canKick;
+        adminRole = d.role || '';
+    } catch (e) {
+        adminLoggedIn = false; adminVia = null; adminAccount = ''; adminCanAct = false;
+    }
     updateAdminUI();
 }
 
@@ -184,6 +201,9 @@ async function adminLogin() {
         var d = await r.json();
         if (!d.ok) { toast(d.error || '登录失败'); return; }
         adminLoggedIn = true;
+        adminVia = 'cookie';
+        adminAccount = u;
+        adminCanAct = true;
         updateAdminUI();
         toast('管理员登录成功');
         fetchLiveRooms();
@@ -212,14 +232,18 @@ async function sendShout() {
 
 window._death = function(rid) {
     if (!adminLoggedIn) return;
+
     if (!confirm('确定对该房间开始死三倒计时？')) return;
     fetch('/api/admin?death=' + encodeURIComponent(rid)).then(function(r) { return r.json(); }).then(function(d) {
+        if (d && d.error) { toast(d.error); return; }
         toast(d && d[0] === 'death ok' ? '死三已启动' : '失败'); fetchLiveRooms();
     }).catch(function() { toast('操作失败'); });
 };
 
 window._kick = function(rid) {
     if (!adminLoggedIn) return;
+    if (!adminCanKick) { toast('关房需要超级管理员（sudo）权限'); return; }
+
     if (!confirm('确定关闭该房间？')) return;
     fetch('/api/admin?kick=' + encodeURIComponent(rid)).then(function(r) { return r.json(); }).then(function(d) {
         toast(d && d[0] === 'kick ok' ? '已关闭' : '失败'); fetchLiveRooms();
@@ -229,10 +253,19 @@ window._kick = function(rid) {
 function updateAdminUI() {
     var lf = document.getElementById('adminLoginForm');
     var li = document.getElementById('adminLoggedIn');
+    var nm = document.getElementById('adminNameDisplay');
     if (adminLoggedIn) {
-        lf.style.display = 'none'; li.style.display = 'flex';
+        lf.style.display = 'none';
+        li.style.display = 'flex';
+        if (nm) {
+            var roleTxt = adminRole || '管理员';
+            nm.textContent = (adminVia === 'site')
+                ? ('👤 官网账号 ' + (adminAccount || '') + '（' + roleTxt + '）')
+                : ('👤 ' + (adminAccount || '管理员'));
+        }
     } else {
-        lf.style.display = 'flex'; li.style.display = 'none';
+        lf.style.display = 'flex';
+        li.style.display = 'none';
     }
 }
 

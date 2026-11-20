@@ -4,7 +4,13 @@
   const API_URL = 'https://api.ygopro3.cn/api/ladder';
   const DECKS_API_URL = 'https://api.ygopro3.cn/api/ladder/decks';
   const DUELS_API_URL = 'https://api.ygopro3.cn/api/ladder/duels';
-  const CARD_STATS_URL = 'https://api.ygopro3.cn/api/ladder/card-stats';
+  // PATCH(白神服) 2026-11-15: 改走站点自己的接口 —— srvpro 那份会把自战统计进去
+  const CARD_STATS_URL = '/api/ladder/card-stats';
+  // 2026-11-20: 玩家称号（站点接口，带稀有度：白/绿/蓝/黄/红，紫=任务称号）
+  const TITLES_URL = '/api/ladder/titles';
+  const RARITY_KEYS = ['白', '绿', '蓝', '黄', '红', '紫'];
+  const RARITY_NAMES = { '白': '普通', '绿': '优秀', '蓝': '稀有', '黄': '史诗', '红': '传说', '紫': '任务' };
+  let _titlesCache = { t: 0, map: {} };
   const OCG_PIC_URL = 'https://cdn.233.momobako.com/ygopro/pics/';
   const SUPER_PRE_URL = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
   const DIY_PIC_URL = 'https://api.ygopro3.cn/pics/siro/';
@@ -51,7 +57,7 @@
         return `
         <tr class="${isHighlight ? 'search-highlight' : ''}" data-player="${escapeHtml(p.name)}">
           <td class="rank-num">${i + 1}</td>
-          <td class="rank-name">${escapeHtml(p.name)}</td>
+          <td class="rank-name"><span class="rank-player">${escapeHtml(p.name)}</span>${titleLineHtml(p.name)}</td>
           <td class="rank-rating">${p.rating}</td>
           <td class="rank-record">${p.wins}胜 ${p.losses}负 ${p.draws}平</td>
           <td class="rank-winrate">${p.winRate}</td>
@@ -88,8 +94,72 @@
     return div.innerHTML;
   }
 
+  /** 拉玩家称号（60 秒缓存；接口挂了不影响榜单） */
+  async function loadPlayerTitles(force) {
+    if (!force && Date.now() - _titlesCache.t < 60000) return _titlesCache.map;
+    try {
+      const resp = await fetch(TITLES_URL + '?t=' + Date.now(), { cache: 'no-store' });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const data = await resp.json();
+      _titlesCache = { t: Date.now(), map: (data && data.titles) || {} };
+    } catch (e) {
+      // 45 秒后再试，期间继续用旧缓存
+      _titlesCache.t = Date.now() - 45000;
+    }
+    return _titlesCache.map;
+  }
+
+  /** 玩家名下方的称号（主 + 副），按稀有度上色 */
+  function titleLineHtml(name) {
+    const list = _titlesCache.map[name];
+    if (!list || !list.length) return '';
+    const parts = list.map(function (t) {
+      const rarity = RARITY_KEYS.indexOf(t.rarity) >= 0 ? t.rarity : '紫';
+      return '<span class="rank-title" data-rarity="' + rarity + '" title="'
+        + (RARITY_NAMES[rarity] || '任务') + '称号">' + escapeHtml(t.title) + '</span>';
+    });
+    return '<span class="rank-titles">' + parts.join('<i class="rank-title-dot">·</i>') + '</span>';
+  }
+
   function sortCards(ids) {
     return (ids || []).slice().sort(function (a, b) { return a - b; });
+  }
+
+  // PATCH(白神服) 2026-11-03 先行卡图：按卡片来源选主图床
+  //   先行卡（pre）必须首选 super-pre；本站/OCG 图床上很多先行卡是空白占位图（返回 200，
+  //   不会触发 onerror，兜底救不回来）→ 直接按来源决定主 URL。
+  function picUrls(id) {
+    var c = resolveCardInfo(id);
+    var src = c && c.source;
+    if (src === 'pre') {
+      return [SUPER_PRE_URL + id + '.jpg', OCG_PIC_URL + id + '.jpg', DIY_PIC_URL + id + '.jpg'];
+    }
+    if (src === 'diy') {
+      // PATCH(白神服) 2026-11-07: DIY 卡优先用**本站图床**（它才是 DIY 图源）；
+      //   只有本站缺图时才退到 super-pre / OCG（用户反馈：DIY 图源不能先试 super-pre）
+      return [DIY_PIC_URL + id + '.jpg', SUPER_PRE_URL + id + '.jpg', OCG_PIC_URL + id + '.jpg'];
+    }
+    // 卡表里查不到来源时：DIY 卡号段（>= 60000000）按本站图床优先，避免再去 404 萌卡
+    if (!c && parseInt(id, 10) >= 60000000) {
+      return [DIY_PIC_URL + id + '.jpg', SUPER_PRE_URL + id + '.jpg', OCG_PIC_URL + id + '.jpg'];
+    }
+    return [OCG_PIC_URL + id + '.jpg', SUPER_PRE_URL + id + '.jpg', DIY_PIC_URL + id + '.jpg'];
+  }
+
+  /** 生成一张卡图 <img>：三级兜底 + 落到本站 DIY 图床时自动加 DIY 角标 */
+  function cardImgHtml(id, cls) {
+    var urls = picUrls(id);
+    var handler = "this.onerror=function(){this.src='" + FALLBACK_PIC + "'}";
+    for (var i = urls.length - 1; i >= 1; i--) {
+      var inner = handler;
+      var next = urls[i];
+      handler = "this.onerror=function(){" + inner + ";this.src='" + next + "'}";
+    }
+    var onload = "this.onload=function(){var w=this.closest('.card-img-wrapper');"
+      + "if(w&&this.src.indexOf('api.ygopro3.cn/pics/siro')>=0&&!w.querySelector('.card-diy-badge')){"
+      + "var b=document.createElement('div');b.className='card-diy-badge';b.textContent='DIY';w.appendChild(b);}}";
+    return '<img src="' + urls[0] + '" class="' + (cls || 'deck-card-img') + '" alt="' + id
+      + '" loading="lazy" onload="' + onload + '" onerror="' + handler + '">';
   }
 
   function cardImgs(ids, scoreMap) {
@@ -103,7 +173,7 @@
           scoreBadge = '<div class="card-score-badge">' + scoreMap[id].score + '</div>';
         }
       }
-      return '<div class="card-img-wrapper" data-card-id="' + id + '"><img src="' + OCG_PIC_URL + id + '.jpg" class="deck-card-img" alt="' + id + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + SUPER_PRE_URL + id + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'' + DIY_PIC_URL + id + '.jpg\';this.onload=function(){var w=this.closest(\'.card-img-wrapper\');if(w&&!w.querySelector(\'.card-diy-badge\')){var b=document.createElement(\'div\');b.className=\'card-diy-badge\';b.textContent=\'DIY\';w.appendChild(b);}};this.onerror=function(){this.src=\'' + FALLBACK_PIC + '\';}}">' + scoreBadge + '</div>';
+      return '<div class="card-img-wrapper" data-card-id="' + id + '">' + cardImgHtml(id) + scoreBadge + '</div>';
     }).join('');
   }
 
@@ -194,7 +264,7 @@
     var tip = ensureTooltip();
     var isMonster = card.typeInfo && card.typeInfo.baseType === '怪兽';
     var atkDef = isMonster
-      ? '<div class="tooltip-atkdef">ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (card.def < 0 ? '?' : card.def) + '</div>'
+      ? '<div class="tooltip-atkdef">ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (((card.type | 0) & 0x4000000) ? '—' : (card.def < 0 ? '?' : card.def)) + '</div>'
       : '';
     var raceAttr = isMonster
       ? '<div class="tooltip-raceattr">' + card.attrName + ' | ' + card.raceName + (card.level ? ' | Lv' + card.level : '') + '</div>'
@@ -265,6 +335,11 @@
   // ── 查看指定玩家的对局记录列表 ──
   async function fetchPlayerDuels(playerName) {
     deckModalTitle.textContent = '⚔ ' + playerName + ' 的对局记录';
+    // 对局记录用小窗（卡组视图仍然用大窗）
+    try {
+      var _m1 = document.querySelector('#deckModalOverlay .deck-modal');
+      if (_m1) _m1.classList.add('narrow');
+    } catch (e) {}
     deckModalBody.innerHTML = '<div class="deck-loading">加载中...</div>';
     deckModalDl.style.display = 'none';
     deckModalOverlay.classList.add('active');
@@ -335,8 +410,15 @@
     }
   }
 
+  // 调试/外部调用（也方便网站其它地方直接打开对局记录）
+  try { window.fetchPlayerDuels = fetchPlayerDuels; } catch (e) {}
+
   async function fetchPlayerDeck(playerName) {
     deckModalTitle.textContent = playerName + ' - 最近胜局卡组';
+    try {
+      var _m2 = document.querySelector('#deckModalOverlay .deck-modal');
+      if (_m2) _m2.classList.remove('narrow');
+    } catch (e) {}
     deckModalBody.innerHTML = '<div class="deck-loading">加载中...</div>';
     deckModalOverlay.classList.add('active');
     document.body.style.overflow = 'hidden';
@@ -455,7 +537,7 @@
     if (e.key === 'Escape') closeDeckModal();
   });
 
-  async function fetchRanking() {
+  async function fetchRanking(opts) {
     const search = (searchInput.value || '').trim();
     // 带时间戳防缓存：赛季重置后必须立刻看到最新榜单
     let url = API_URL + '?t=' + Date.now();
@@ -464,6 +546,8 @@
     }
 
     try {
+      // 先拿称号：进入排名页时强制刷新（换完称号立刻可见），搜索时用 60 秒缓存
+      await loadPlayerTitles(!!(opts && opts.refreshTitles));
       const resp = await fetch(url, { cache: 'no-store' });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
@@ -499,6 +583,9 @@
       const resp = await fetch(CARD_STATS_URL);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
+      // PATCH(白神服) 2026-11-13: 先等卡表就绪 —— picUrls() 要靠 card.source 选图床，
+      //   卡表没加载时 DIY 卡会退回 OCG 图床（70700025 之前就是这样显示错源 ✗）
+      try { await loadCardInfoMap(); } catch (e) {}
 
       deckModalBody.innerHTML = `
         <div class="stats-tabs">
@@ -507,7 +594,7 @@
         </div>
         <div class="stats-panel active" id="statsPanelUsage">${renderPodiumGrid(data.topUsed)}</div>
         <div class="stats-panel" id="statsPanelWinrate">${renderPodiumGrid(data.topWinRate)}</div>
-        <div class="stats-footer">统计对局数: ${data.totalDuels}场</div>
+        <div class="stats-footer">${seasonLabel(data)} · 统计对局数: ${data.totalDuels} 场（已排除自战 / 同一账号占两边座位）</div>
       `;
 
       // Tab switching
@@ -527,9 +614,16 @@
 
   function statCardImg(c) {
     return '<div class="stat-card" title="#' + c.cardId + ' 使用率' + c.usageRate + ' 胜率' + c.winRate + ' 胜' + c.wins + '/' + c.total + '">' +
-      '<img src="' + OCG_PIC_URL + c.cardId + '.jpg" class="deck-card-img" alt="' + c.cardId + '" loading="lazy" onerror="this.onerror=null;this.src=\'' + SUPER_PRE_URL + c.cardId + '.jpg\';this.onerror=function(){this.onerror=null;this.src=\'' + DIY_PIC_URL + c.cardId + '.jpg\';this.onerror=function(){this.src=\'' + FALLBACK_PIC + '\';}}">' +
+      cardImgHtml(c.cardId) +
       '<div class="stat-card-info"><span class="stat-card-rate">使用' + c.usageRate + '</span><span class="stat-card-count">胜率' + c.winRate + ' (' + c.wins + '/' + c.total + ')</span></div>' +
       '</div>';
+  }
+
+
+  function seasonLabel(data) {
+    var s = data && data.season;
+    if (s && s.name) return '统计范围: ' + s.name + '（' + (s.start || '') + ' 起）';
+    return '统计范围: 本赛季';
   }
 
   function renderPodiumGrid(cards) {
@@ -641,24 +735,22 @@
     if (e.key === 'Enter') fetchRanking();
   });
 
+  // 进入排名页（含侧边栏点击）：80ms 去抖 —— class 先移除再加回会触发两次 Observer
+  let _enterTimer = 0;
+  function enterRanking() {
+    clearTimeout(_enterTimer);
+    _enterTimer = setTimeout(function () {
+      fetchRanking({ refreshTitles: true });
+      fetchWinrate();
+    }, 80);
+  }
+
   // Load on section show
-  const observer = new MutationObserver(function (mutations) {
-    for (const m of mutations) {
-      if (
-        m.type === 'attributes' &&
-        m.attributeName === 'class' &&
-        section.classList.contains('active')
-      ) {
-        fetchRanking();
-        fetchWinrate();
-      }
-    }
+  const observer = new MutationObserver(function () {
+    if (section.classList.contains('active')) enterRanking();
   });
   observer.observe(section, { attributes: true, attributeFilter: ['class'] });
 
   // Also load on first click of sidebar button
-  document.getElementById('playerRankingBtn').addEventListener('click', function () {
-    fetchRanking();
-    fetchWinrate();
-  });
+  document.getElementById('playerRankingBtn').addEventListener('click', enterRanking);
 })();

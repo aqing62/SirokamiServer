@@ -27,7 +27,7 @@ html, body { margin: 0; padding: 0; background: #0f1216; color: #e8e8e8; font-fa
   .rp-modal { display: block; position: static !important; background: none !important; padding: 0 !important; }
   .rp-modal-box { width: 100% !important; max-width: none !important; height: calc(100vh - 150px); margin: 0 !important; border-radius: 0 !important; }
   .rp-modal-head, .replay-input-bar, .replay-controls { display: none !important; }
-  #replayMain { display: grid !important; grid-template-columns: var(--yp-info-w, 300px) minmax(0, 1fr) var(--yp-log-w, 340px);
+  #replayMain { display: grid !important; grid-template-columns: var(--yp-info-w, 360px) minmax(0, 1fr) var(--yp-log-w, 340px);
     /* ⚠ 行高必须显式锁成 minmax(0,1fr)：默认 auto 时，左栏长效果文本的"最小高度"会撑高整行，
        场地跟着变高、盘面重新布局 —— 玩家看到的"每操作一次画面往下移一点"就是这个。 */
     grid-template-rows: minmax(0, 1fr);
@@ -41,8 +41,7 @@ html, body { margin: 0; padding: 0; background: #0f1216; color: #e8e8e8; font-fa
   #replayMain > .replay-log > .replay-log-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 
   /* 卡组顶端公开（天变地异等）：把顶端那张画在牌堆上 */
-  .yp-pile-top { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
-    border-radius: 4px; z-index: 4; pointer-events: auto; box-shadow: 0 0 0 2px #7ee787 inset; }
+  .yp-pile-top { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: auto; height: 100%; max-width: 100%; aspect-ratio: 59 / 86; object-fit: cover; border-radius: 4px; z-index: 4; pointer-events: auto; box-shadow: 0 0 0 2px #7ee787 inset; }
 
   /* ── 牌堆发光：墓地里"有可发动的效果"时提示玩家这里能点（点击弹 发动效果/查看列表）── */
   .yp-pile-glow { box-shadow: 0 0 0 2px #ffd24a, 0 0 14px 3px rgba(255,210,74,.55) !important;
@@ -54,6 +53,16 @@ html, body { margin: 0; padding: 0; background: #0f1216; color: #e8e8e8; font-fa
   .rp-lv { position: absolute; top: 2px; left: 3px; z-index: 3; font-size: 11px; font-weight: 800;
     color: #dbe6f1; text-shadow: 0 1px 2px #000, 0 0 3px #000; pointer-events: none; }
   .rp-lv-tuner { color: #ffd24a; }
+
+  /* PATCH(白神服) 2026-11-15: 指示物 / 连锁序号角标（挂格位上，不随卡面旋转）*/
+  .rp-counter { position: absolute; left: 3px; bottom: 2px; z-index: 4; font-size: 10.5px; font-weight: 800;
+    padding: 0 3px; border-radius: 4px; line-height: 14px; color: #e9ffd8;
+    background: rgba(38, 66, 28, .9); border: 1px solid rgba(150, 220, 110, .75); pointer-events: none; }
+  .rp-chain { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); z-index: 6;
+    font-size: 10.5px; font-weight: 800; padding: 0 4px; border-radius: 4px; line-height: 14px;
+    color: #1b1206; background: linear-gradient(180deg, #ffe08a, #f0bf3d);
+    border: 1px solid rgba(255, 236, 170, .9); box-shadow: 0 0 6px rgba(255, 210, 90, .6); pointer-events: none; }
+
 
   /* ── 决斗准备（房间）面板：照真实客户端的版式 —— 左=决斗者/卡组，右=房间规则，底=开始/退出 ── */
   #lobby { padding: 14px; display: flex; justify-content: center; }
@@ -283,7 +292,7 @@ html, body { margin: 0; padding: 0; background: #0f1216; color: #e8e8e8; font-fa
     /* 卡图占位框：固定长宽比 → 图片加载前后高度一致，下面文字不跳动 */
     #ypInfoImgBox { position: relative; width: 100%; aspect-ratio: 421 / 614; margin-bottom: 6px;
       border-radius: 6px; overflow: hidden;
-      background: #101720 url('cover2.jpg') center/cover no-repeat, linear-gradient(135deg, #1b2430, #0e141c 60%, #1b2430); }
+      background: #101720 url('cover2.jpg?v=20261108a') center/cover no-repeat, linear-gradient(135deg, #1b2430, #0e141c 60%, #1b2430); }
     #ypInfoImg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; opacity: 0; transition: opacity .12s ease; }
     #ypInfoImg.ready { opacity: 1; }
     #ypInfoImgHint { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
@@ -294,3 +303,92 @@ html, body { margin: 0; padding: 0; background: #0f1216; color: #e8e8e8; font-fa
     #ypInfoSeries { color: #b7a6ff; margin-bottom: 4px; }
     #ypInfoText { color: #cfd8e3; white-space: pre-wrap; }
 
+
+
+/* PATCH(白神服) 2026-11-15: 浏览器自动填充会把输入框刷成白底黑字（看着像"样式丢了"）——
+   用内阴影覆盖自动填充背景，保持深色主题 */
+.de-field input:-webkit-autofill,
+.de-field input:-webkit-autofill:hover,
+.de-field input:-webkit-autofill:focus,
+.de-field input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #23202b inset !important;
+  box-shadow: 0 0 0 1000px #23202b inset !important;
+  -webkit-text-fill-color: #f2eee6 !important;
+  caret-color: #f2eee6 !important;
+  transition: background-color 9999s ease-out 0s;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   卡片式决斗日志（参考 MDPro3 / Master Duel 的决斗记录）
+   一行 = 归属色条 + 卡图缩略 + 动作 + 卡名 + 位置变迁
+   ══════════════════════════════════════════════════════════════ */
+.rp-lrow{display:flex;align-items:center;gap:6px;padding:3px 4px 3px 0;border-radius:5px;
+  line-height:1.25;font-size:12px;color:#d8d3c8;position:relative;margin:1px 0}
+.rp-lrow:hover{background:rgba(255,255,255,.05)}
+.rp-lbar{flex:0 0 3px;align-self:stretch;min-height:20px;border-radius:2px;background:#6b7280}
+.rp-lrow.side-a .rp-lbar{background:#3b82f6}
+.rp-lrow.side-b .rp-lbar{background:#ef4444}
+.rp-lthumb{flex:0 0 auto;width:22px;height:32px;border-radius:3px;object-fit:cover;background:#171519;
+  border:1px solid rgba(255,255,255,.12)}
+.rp-lthumb.blank{display:inline-block;background:transparent;border:none}
+.rp-lmain{flex:1;min-width:0;display:flex;flex-wrap:wrap;align-items:center;gap:4px}
+.rp-laction{color:#ffe08a;font-weight:700;font-size:11px}
+.rp-lname{color:#eae4d8;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:150px}
+.rp-lflow{display:inline-flex;align-items:center;gap:2px;font-size:10.5px;color:#9aa0aa}
+.rp-lflow b{font-weight:600;background:rgba(255,255,255,.07);border-radius:3px;padding:0 3px}
+.rp-lflow i{font-style:normal;color:#6f7581}
+.rp-lnote{font-size:10.5px;color:#8f95a1}
+.rp-lchain{font-size:10px;font-weight:800;color:#111;background:#ffd24a;border-radius:3px;padding:0 3px}
+.rp-lrow.chain{margin-left:10px;border-left:2px solid rgba(255,210,74,.35);padding-left:4px}
+.rp-lrow.indent{margin-left:18px}
+
+/* 抽卡条目：一次列出多张（能看到就卡图，看不到就卡背） */
+.rp-lthumbs{display:inline-flex;align-items:center;gap:3px;flex-wrap:nowrap}
+.rp-lthumb.back{display:inline-block;background:linear-gradient(160deg,#2a2438,#14101c);
+  border:1px solid rgba(212,175,55,.35)}
+.rp-lmore{font-size:10.5px;color:#9aa0aa;margin-left:2px}
+.rp-lnames{font-size:10.5px;color:#9a958a;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+
+/* 表示形式变更（攻击↔守备）→ 原地旋转带过渡（参考 MDPro3 的 ModelAt/ResetModelRotation） */
+.rp-card, .rp-card img { transition: transform .16s ease; }
+.rp-card.rp-def img, .rp-card.rp-flip img { transition: transform .16s ease; }
+
+/* ══════════════════════════════════════════════════════════════
+   PATCH(白神服) 2026-11-17: 手机横屏的「决斗准备」——尽量不滚动，
+   所有元素挤进同一屏；右侧房间规则收进「规则」抽屉
+   ══════════════════════════════════════════════════════════════ */
+.yp-rules-toggle { display: none; }
+
+@media (orientation: landscape) and (max-height: 620px) {
+  /* 大厅容器：锁定在一屏内，不再靠页面滚动 */
+  #lobby { padding: 4px 6px; height: 100vh; box-sizing: border-box; overflow: hidden;
+    align-items: stretch; }
+  #lobby .yp-room-box {
+    width: min(98vw, 1040px); max-height: 100%; display: flex; flex-direction: column;
+    border-radius: 8px;
+  }
+  #lobby .yp-room-title {
+    padding: 3px 10px; font-size: 12px; display: flex; align-items: center; gap: 8px;
+  }
+  #lobby .yp-rules-toggle {
+    display: inline-block; margin-left: auto; padding: 1px 8px; font-size: 11px;
+    border-radius: 6px; border: 1px solid #4a7398; background: rgba(24,34,46,.9);
+    color: #cfe6ff; cursor: pointer; font-family: inherit;
+  }
+  /* 主体：两列塞进剩余高度，内容自己滚（不撑高整页） */
+  #lobby .yp-room-body {
+    flex: 1; min-height: 0; overflow: auto; grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+    gap: 8px; padding: 5px 9px; font-size: 12px;
+  }
+  #lobby .yp-room-left { gap: 4px; }
+  #lobby .yp-room-sec { font-size: 11px; }
+  #lobby .yp-player-row .nm { padding: 2px 7px; font-size: 12px; }
+  #lobby .yp-room-right { font-size: 11px; line-height: 1.4; padding-left: 8px; }
+  #lobby .yp-room-note { font-size: 11px; }
+  #lobby .yp-room-row .yp-btn { padding: 3px 9px; font-size: 12px; }
+  #lobby .yp-room-foot { padding: 4px; gap: 8px; flex: 0 0 auto; }
+  #lobby .yp-room-foot .yp-btn { padding: 4px 14px; font-size: 12.5px; min-width: 84px; }
+  /* 抽屉：收起时右侧规则隐藏，左列占满 */
+  #lobby .yp-room-box.rules-hidden .yp-room-body { grid-template-columns: minmax(0,1fr); }
+  #lobby .yp-room-box.rules-hidden .yp-room-right { display: none; }
+}

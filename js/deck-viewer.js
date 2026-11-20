@@ -195,7 +195,8 @@
         var tip = ensureTooltip();
         var isMonster = card.typeInfo && card.typeInfo.baseType === '怪兽';
         var atkDef = isMonster
-            ? '<div class="tt-atkdef">ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (card.def < 0 ? '?' : card.def) + '</div>'
+            ? '<div class="tt-atkdef">ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' +
+          (((card.type & 0x4000000) || /连接/.test(card.cat || card.typeText || '')) ? '—' : (card.def < 0 ? '?' : card.def)) + '</div>'
             : '';
         var raceAttr = isMonster
             ? '<div class="tt-raceattr">' + (card.attrName || '') + ' | ' + (card.raceName || '') + (card.level ? ' | Lv' + card.level : '') + '</div>'
@@ -242,10 +243,43 @@
             });
     }
 
-    function positionTooltip(e, tip) {
+    // PATCH(白神服) 2026-11-17: 卡效浮层不许超出屏幕
+    //   手机横屏按住靠上的卡时，浮层原来固定 top:8px 且不限高 → 文本溢出屏幕外
+    var _tipEvent = null;
+    function clampTooltip(e, tip) {
+        var vw = window.innerWidth, vh = window.innerHeight;
+        // 保持 CSS 里的原始尺寸（max-width 280px 等），这里只夹位置，不改宽高
+        var tw = tip.offsetWidth;
+        var th = tip.offsetHeight;
+        var left, top;
         if (isMobile) {
-            tip.style.left = Math.max(4, (window.innerWidth - tip.offsetWidth) / 2) + 'px';
-            tip.style.top = '8px';
+            left = Math.max(6, Math.round((vw - tw) / 2));
+            top = 8;
+            // 优先贴着按下的卡：卡在屏幕上半就放下方，下半就放上方，再兜底夹在屏幕内
+            var py = e && (e.clientY || (e.touches && e.touches[0] && e.touches[0].clientY));
+            if (typeof py === 'number') {
+                top = (py < vh / 2) ? Math.round(py + 24) : Math.round(py - th - 24);
+            }
+        } else {
+            var px = e ? e.clientX : 10;
+            var py2 = e ? e.clientY : 10;
+            left = px + 14;
+            top = py2 + 10;
+            if (left + tw > vw - 10) left = px - tw - 14;
+            if (top + th > vh - 10) top = py2 - th - 10;
+        }
+        if (top + th > vh - 8) top = vh - th - 8;
+        if (top < 8) top = 8;                       /* 浮层比屏幕还高时贴顶显示 */
+        if (left + tw > vw - 6) left = vw - tw - 6;
+        if (left < 6) left = 6;
+        tip.style.left = Math.round(left) + 'px';
+        tip.style.top = Math.round(top) + 'px';
+    }
+
+    function positionTooltip(e, tip) {
+        _tipEvent = e || _tipEvent;
+        if (isMobile) {
+            clampTooltip(_tipEvent, tip);
         } else {
             var x = e.clientX + 14;
             var y = e.clientY + 10;
@@ -255,7 +289,13 @@
             if (y + th > window.innerHeight - 10) y = e.clientY - th - 10;
             tip.style.left = x + 'px';
             tip.style.top = y + 'px';
+            clampTooltip(e, tip);
         }
+        // 卡图/卡效文本异步加载会改变高度 → 下一帧再夹一次，保证始终在屏幕内
+        requestAnimationFrame(function () {
+            if (!_tooltipEl || _tooltipEl.style.display === 'none') return;
+            clampTooltip(_tipEvent, _tooltipEl);
+        });
     }
 
     // 解析 ygocdb types 字符串（"[怪兽|效果] 龙/暗\n[★7] 2500/2000"）为 DIY 展示结构
@@ -287,7 +327,7 @@
             var m2 = lines[1].match(/^\[★(\d+)\]\s*(\d+|-{1,2}|\?)\s*\/\s*(\d+|-{1,2}|\?)/);
             if (m2) {
                 res.raceAttr = (res.raceAttr ? res.raceAttr + ' | ' : '') + 'Lv' + m2[1];
-                res.atkDef = 'ATK ' + m2[2] + ' / DEF ' + m2[3];
+                res.atkDef = 'ATK ' + m2[2] + ' / DEF ' + ((Number(m2[6]) & 0x4000000) ? '—' : m2[3]);
             }
         }
         return res;

@@ -487,10 +487,14 @@ async function loadPoolMeta() {
 
 // ── 范围匹配 (使用预解析的数值) ──────────────────────────
 function matchRange(cardVal, minInput, maxInput) {
-    const minVal = minInput.value.trim() === '' ? null : Number(minInput.value);
-    const maxVal = maxInput.value.trim() === '' ? null : Number(maxInput.value);
+    const rawMin = minInput.value.trim();
+    const rawMax = maxInput.value.trim();
+    const minVal = rawMin === '' ? null : Number(rawMin);
+    const maxVal = rawMax === '' ? null : Number(rawMax);
     if (minVal === null && maxVal === null) return true;
-    if (minVal !== null && maxVal === null) return cardVal >= minVal;
+    // PATCH(白神服) 2026-11-17: **只填最低、不填最高 = 精确等于该值**
+    //   用户要求：攻击「0 - 不填」是"只看 0 攻击力"，不是"0 到无限"；星级同理
+    if (minVal !== null && maxVal === null) return cardVal === minVal;
     if (minVal === null && maxVal !== null) return cardVal <= maxVal;
     return cardVal >= minVal && cardVal <= maxVal;
 }
@@ -539,9 +543,16 @@ function getFilteredCards() {
     // 分值区间：没有分值的卡不参与（填了区间就是在查分值表）
     if (scoreMinEl && scoreMaxEl &&
         (scoreMinEl.value.trim() !== '' || scoreMaxEl.value.trim() !== '')) {
+        const sMinRaw = scoreMinEl.value.trim();
+        const sMaxRaw = scoreMaxEl.value.trim();
+        // PATCH(白神服) 2026-11-17: **分值填 0 = 只看没有分值的卡**（用户要求）
+        const onlyNoScore = (sMinRaw === '0' && sMaxRaw === '');
         filtered = filtered.filter(c => {
-            if (c._score === null || c._score === undefined) return false;
-            return matchRange(c._score, scoreMinEl, scoreMaxEl);
+            const s = c._score;
+            const noScore = (s === null || s === undefined || s === 0);
+            if (onlyNoScore) return noScore;
+            if (s === null || s === undefined) return false;
+            return matchRange(s, scoreMinEl, scoreMaxEl);
         });
     }
 
@@ -847,7 +858,7 @@ function initCardPoolModule() {
         const metaJob = loadPoolMeta();
 
         // 直接从服务端获取预解析好的 JSON（服务端已用 Python sqlite3 处理 CDB）
-        const res = await fetch("/api/cards");
+        const res = await fetch("/api/cards?t=" + Date.now());
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         allCards = await res.json();
 

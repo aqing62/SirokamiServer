@@ -10,11 +10,11 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>开始匹配 · 白神服</title>
 <!-- 顺序不能变：先官网回放样式（场地/日志），再客户端样式 -->
-<link rel="stylesheet" href="css/replay-viewer.css?v=20261004i">
-<link rel="stylesheet" href="css/duel-client.css?v=20261020s">
+<link rel="stylesheet" href="css/replay-viewer.css?v=20261118c42">
+<link rel="stylesheet" href="css/duel-client.css?v=20261117s">
 <script>
 /* 决斗客户端的 WebSocket 端点：由站点统一定（客户端启动时读 URL 里的 ?ws=）。
    放在 <head> 且用 replaceState 打补丁 —— 客户端脚本读的是 location.search，
@@ -127,7 +127,22 @@
   #replayModal { box-sizing: border-box !important; }
   /* 手机横屏：左右再缩一档，把宽度全给中间；手卡/按钮仍保持够大 */
   #replayModal .replay-main { grid-template-columns: 11% minmax(0, 1fr) 15% !important; gap: 5px !important; }
-  #replayModal .rp-hand .rp-card { width: 54px; height: 78px; }
+  /* PATCH(白神服) 2026-11-05: 手机竖屏手牌太小 → 放大（原来 54x78），并按张数自适应 */
+  /* 手牌：放大一档，但**用高度**兜住（原来只放大宽度，手牌行变高把名字/LP 挤出屏幕 ✗） */
+  #replayModal .rp-hand { max-height: 13.5vh !important; align-items: flex-end !important; }
+  #replayModal .rp-hand .rp-card { height: 12.6vh !important; width: auto !important;
+    max-width: 19vw !important; min-width: 44px !important; aspect-ratio: 59 / 86; }
+  :root { --yp-hand-h: 14vh; }
+
+  /* 名字/LP 固定在场地角落，手牌再高也不会被挤出去 */
+  #replayModal .rp-nametag { z-index: 30 !important; }
+  #replayModal .rp-nametag-opp { top: 2px !important; right: 4px !important; }
+  #replayModal .rp-nametag-self { bottom: 2px !important; left: 4px !important; }
+  #replayModal .rp-lp { font-size: 1.15rem !important; }
+  #replayModal .rp-player-name { font-size: .72rem !important; }
+  #replayModal .rp-hand { gap: 4px !important; overflow-x: auto !important; overflow-y: hidden !important;
+    scrollbar-width: none; -ms-overflow-style: none; }
+  #replayModal .rp-hand::-webkit-scrollbar { width: 0; height: 0; }
   #replayModal .rp-hand { gap: 3px; }
   #ypCardMenu .yp-menu-item { padding: 10px 16px !important; font-size: 14px !important; white-space: nowrap !important; }
   #replayModal .replay-log-body { padding: 6px 8px !important; }
@@ -191,7 +206,7 @@
 #ypChooser { z-index: 198 !important; }
 #ypCardMenu { z-index: 199 !important; }
 #replayModal { z-index: 10 !important; }
-#ypReveal { z-index: 201 !important; }
+#ypReveal { z-index: 100070 !important; }
 #ypTimeLeft, #ypSurrender { z-index: 205 !important; }
 
 /* ── 卡图加载提示不能挡住操作（命中测试实测：它盖在猜拳按钮上面 ✗）──
@@ -207,7 +222,7 @@
 #ypPrompt   { position: fixed !important; z-index: 9500 !important; }
 #ypCardMenu { z-index: 9450 !important; }
 #ypChooser  { z-index: 9400 !important; }
-#ypReveal   { z-index: 9600 !important; }
+#ypReveal   { z-index: 100070 !important; }
 #ypTimeLeft, #ypSurrender { z-index: 9700 !important; }
 </style>
 
@@ -238,14 +253,18 @@
 /* ypCtl-right-side */
 @media (orientation: portrait) {
   /* 竖屏：盘面几乎占满宽度，右侧没有黑边 → 阶段按钮放到**盘面下方的空白带**（横排居中） */
+  /* PATCH(白神服) 2026-11-05: 原来贴底 6px，正好压在手牌上（用户实测 ✗）
+     → 抬到手牌上方，并压缩尺寸；手牌区高度由下面 --yp-hand-h 统一控制 */
   #ypCtl {
-    left: 4px !important; right: 4px !important; top: auto !important; bottom: 6px !important;
+    left: 4px !important; right: 4px !important; top: auto !important;
+    bottom: calc(var(--yp-hand-h, 96px) + 10px) !important;
     transform: none !important;
     display: flex !important; flex-direction: row !important; justify-content: center !important;
-    align-items: center !important; gap: 10px !important; width: auto !important; grid-template-columns: none !important;
+    align-items: center !important; gap: 8px !important; width: auto !important;
+    grid-template-columns: none !important;
   }
-  #ypCtl > * { justify-self: auto !important; }
-  #ypCtl .yp-btn { padding: 8px 12px !important; font-size: 13px !important; }
+  #ypCtl > * { justify-self: auto !important; grid-column: auto !important; grid-row: auto !important; }
+  #ypCtl .yp-btn { padding: 6px 10px !important; font-size: 12px !important; }
 }
 /* ── 回合与阶段分成两行：原来挤成"自己回合1 主一"一整条，太长挡场地 ── */
 .rp-turn-label, .rp-phase {
@@ -260,7 +279,7 @@
    （备牌界面 85 / 亮牌 88 / 时点 72 / 数量条 71 / 投降 70 / 宣告 90 全被盖住过） */
 #ypSiding    { z-index: 9550 !important; }
 #ypCounts    { z-index: 9500 !important; }
-#ypReveal    { z-index: 9600 !important; }
+#ypReveal    { z-index: 100070 !important; }
 #ypTimeLeft  { z-index: 9700 !important; }
 #ypSurrender { z-index: 9700 !important; }
 #ypPrompt    { z-index: 9500 !important; }
@@ -268,7 +287,9 @@
 #ypCardMenu  { z-index: 9450 !important; }
 #ypChooser   { z-index: 9400 !important; }
 /* 匹配遮罩例外：它本来就该在场地之下（只是盖住房间面板），保持低层 */
-#ypMatching  { z-index: 12 !important; }
+/* PATCH(白神服) 2026-11-06: 原来是 12 !important → 阶段条 #ypCtl(9200) 会盖在匹配遮罩上，
+   左下角漏出一条金色小条（用户实测问"这个黄色的圈是什么"）。抬到最高层。 */
+#ypMatching  { z-index: 100050 !important; }
 </style>
 <style>
 /* siro-cardinfo-layout */
@@ -292,6 +313,7 @@
   white-space: normal !important; word-break: break-word !important; line-height: 1.3 !important;
 }
 #ypInfoType   { grid-column: 2 !important; grid-row: 2 !important; font-size: 12.5px !important; white-space: normal !important; }
+#ypInfoCode   { display: none; grid-column: 2; font-size: 10px; color: #9fd0ff; line-height: 1.2; }
 #ypInfoStat   { grid-column: 2 !important; grid-row: 3 !important; font-size: 12.5px !important; white-space: normal !important; }
 #ypInfoSeries { grid-column: 2 !important; grid-row: 4 !important; font-size: 12px !important; white-space: normal !important; color: #9b97a1 !important; }
 #ypInfoText {
@@ -306,12 +328,18 @@
    竖屏那套(#ypCtl 底部横排)在 portrait 媒体查询里，这里只作用于非竖屏 */
 #ypCtl {
   grid-template-columns: 1fr auto !important;
+  /* PATCH(白神服) 2026-11-07: 进战阶 / 结束回合 / 切洗手牌 **纵向** 排一列（用户要求） */
+  grid-template-rows: auto auto auto !important;
+  row-gap: 6px !important;
   padding-right: 22px !important;
   box-sizing: border-box !important;
+  align-items: center !important;
 }
-#ypCtl > #ypCtlMid  { justify-self: end !important; }
-#ypCtl > #ypCtlRight { justify-self: end !important; }
-#ypCtl > .yp-ctl-left { justify-self: start !important; }
+#ypCtl > .yp-ctl-left { grid-column: 1 !important; grid-row: 1 / span 3 !important; justify-self: start !important; }
+#ypCtl > #ypCtlMid   { grid-column: 2 !important; grid-row: 1 !important; justify-self: end !important; }
+#ypCtl > #ypCtlRight { grid-column: 2 !important; grid-row: 2 !important; justify-self: end !important; }
+#ypCtl > #ypUtil     { grid-column: 2 !important; grid-row: 3 !important; justify-self: end !important;
+                       display: flex !important; justify-content: flex-end !important; }
 /* 回合/阶段标签：靠右对齐并推到右侧（原来是场地正中） */
 .rp-turn-label, .rp-phase {
   text-align: right !important;
@@ -344,16 +372,9 @@
 /* siro-countdown-center */
 /* 倒计时与投降按钮重叠 → 倒计时改到**顶部正中（场地中间）**，投降保持右上
    （#ypTimeLeft 的位置原本是脚本内联的 right/top 或我早期 CSS 的 left:6px，这里统一覆盖） */
-#ypTimeLeft {
-  left: 50% !important;
-  right: auto !important;
-  transform: translateX(-50%) !important;
-  top: 6px !important;
-  text-align: center !important;
-}
-@media (orientation: portrait) {
-  #ypTimeLeft { left: 50% !important; right: auto !important; transform: translateX(-50%) !important; top: 6px !important; }
-}
+/* PATCH(白神服) 2026-11-08: 倒计时移到**场地左上角**（用户要求），不再占顶部正中 */
+/* 位置由 JS 按 #replayField 矩形设置（场地左上角），这里只管外观 */
+#ypTimeLeft { transform: none !important; text-align: left !important; }
 #ypSurrender { right: 8px !important; left: auto !important; top: 6px !important; }
 /* 左上角数量条保持原位（它不会和中间/右边的冲突） */
 </style>
@@ -657,7 +678,8 @@
     position: fixed !important;
     left: 8px !important;
     right: auto !important;
-    bottom: 8px !important;
+    /* PATCH(白神服) 2026-11-05: 抬到手牌上方（原 bottom:8px 压住手牌 ✗） */
+    bottom: calc(var(--yp-hand-h, 15.5vh) + 8px) !important;
     top: auto !important;
     width: min(58vw, 300px) !important;
     max-height: 30dvh !important;
@@ -679,6 +701,317 @@
 }
 
 </style>
+
+<style>
+/* PATCH(白神服) 2026-11-03 观战模式：复用决斗界面但只读 */
+body.watch-mode { overflow: hidden; }
+body.watch-mode #replayModal { overflow: hidden !important; }
+body.watch-mode #replayModal .replay-main { overflow: hidden !important; }
+body.watch-mode #ypSurrender,
+body.watch-mode #lobby,
+body.watch-mode #ypCtl,
+body.watch-mode #ypPrompt,
+body.watch-mode .de-entry,
+body.watch-mode #duelEntry { display:none !important; }
+body.watch-mode #ypTopBar { top: 8px; }
+body.watch-mode * { -webkit-user-select: none; user-select: none; }
+body.watch-mode #ypFieldWrap, body.watch-mode #ypField { cursor: default; }
+/* PATCH(白神服) 2026-11-08: 「退出观战」移到对局日志栏顶部（不再压在场地下方） */
+#watchBadge { position: static; z-index: 30; display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
+  margin: 0 0 6px; padding: 6px 8px; border-radius: 8px;
+  background: rgba(12,10,16,.86); border: 1px solid rgba(212,175,55,.45); color: #f2eee6;
+  font: 600 12.5px/1.25 "Microsoft YaHei","PingFang SC",system-ui,sans-serif; }
+#watchBadge b { max-width: none; }
+#watchBadge span { color: #FFD700; }
+#watchBadge b { font-weight: 500; color: #9a9aa4; max-width: 40vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#watchBadge button { padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(255,255,255,.25);
+  background: transparent; color: #cfc8bd; cursor: pointer; font: inherit; }
+#watchBadge button:hover { border-color: #ff6b6b; color: #ffb3b3; }
+</style>
+<style>
+/* siro-mobile-layout-fix 2026-11-19 */
+/* 竖屏：跳回合/切洗手牌等按钮改成一条紧凑横条，不再占半屏挡住场地 */
+@media (orientation: portrait) {
+  #replayModal #ypCtl, #ypCtl {
+    left: 4px !important; right: 4px !important;
+    bottom: calc(var(--yp-hand-h, 96px) + 4px) !important;
+    width: auto !important; max-height: 16dvh !important;
+    display: flex !important; flex-direction: row !important; flex-wrap: wrap !important;
+    justify-content: center !important; align-items: center !important;
+    gap: 3px !important; padding: 3px 4px !important;
+    background: rgba(10,10,14,.84) !important;
+    border: 1px solid rgba(212,175,55,.28) !important;
+    border-radius: 8px !important;
+    overflow-y: auto !important;
+    box-sizing: border-box !important;
+  }
+  #ypCtl > * { width: auto !important; flex: 0 0 auto !important; }
+  #ypCtl .yp-ctl-left { display: none !important; }   /* 阶段文字已由场地标题显示 */
+  #ypCtl .yp-btn {
+    width: auto !important; min-height: 0 !important;
+    padding: 4px 8px !important; font-size: 11px !important;
+    line-height: 1.2 !important; text-align: center !important;
+    border-radius: 6px !important;
+  }
+  #ypCtl #ypUtil { display: flex !important; gap: 3px !important; }
+  /* 卡号行内追加的类型/种族/属性（JS 在竖屏插入） */
+  #replayModal #ypInfoName { white-space: normal !important; }
+  .yp-info-type-inline {
+    font-size: 9.5px !important; font-weight: 500 !important;
+    color: #9fd0ff !important; margin-left: 3px !important;
+    white-space: nowrap !important;
+  }
+  /* 分值角标：与卡组查看器 .card-score-badge 同款 */
+  #replayModal #ypInfoImgBox { position: relative !important; }
+  #replayModal #ypInfoScore {
+    position: absolute !important;
+    left: 2px !important; bottom: 2px !important;
+    grid-column: auto !important; grid-row: auto !important;
+    display: block !important;
+    min-width: 18px !important; height: 17px !important;
+    line-height: 15px !important;
+    padding: 0 4px !important; margin: 0 !important;
+    background: rgba(0,0,0,.85) !important;
+    border: 1px solid #D81E44 !important;
+    border-radius: 2px !important;
+    color: #FFD700 !important;
+    font: 700 10.4px/15px "Microsoft YaHei",system-ui,sans-serif !important;
+    text-align: center !important; z-index: 6 !important;
+    box-sizing: border-box !important;
+    box-shadow: none !important;
+    pointer-events: none !important;
+  }
+  #replayModal #ypInfoScore:empty { display: none !important; }
+
+  /* 竖屏卡片信息：压缩字号/扩大文字列，效果文本尽量多显示 */
+  #replayModal #ypCardInfo {
+    grid-template-columns: 30% minmax(0,1fr) !important;
+    height: 24dvh !important; max-height: 24dvh !important;
+    gap: 2px 6px !important; padding: 4px 5px !important;
+  }
+  #replayModal #ypInfoImgBox { max-height: 23dvh !important; }
+  #replayModal #ypInfoImg { max-height: 23dvh !important; }
+  #replayModal #ypInfoName {
+    font-size: 11.5px !important; line-height: 1.25 !important;
+    white-space: normal !important; overflow: visible !important;
+    text-overflow: clip !important;
+  }
+  .yp-info-type-inline { font-size: 8.5px !important; margin-left: 2px !important; }
+  #replayModal #ypInfoStat { font-size: 10px !important; line-height: 1.25 !important; }
+  #replayModal #ypInfoSeries {
+    font-size: 9px !important; line-height: 1.25 !important;
+    white-space: normal !important; overflow: visible !important;
+  }
+  #replayModal #ypInfoText {
+    font-size: 9.8px !important; line-height: 1.35 !important;
+    max-height: none !important; min-height: 0 !important;
+    overflow-y: auto !important;
+    padding-right: 3px !important;
+  }
+}
+
+/* 横屏手机：等级/属性/攻守/指示物角标缩小，别盖住卡图 */
+@media (orientation: landscape) and (max-height: 900px) and (max-width: 1100px) {
+  .rp-lv { font-size: 8px !important; top: 0 !important; left: 1px !important; }
+  .rp-attr {
+    font-size: 8px !important; line-height: 1 !important;
+    padding: 0 1px !important; top: 0 !important; right: 1px !important;
+  }
+  .rp-stat {
+    font-size: 8.5px !important; line-height: 1.1 !important;
+    padding: 0 4px !important; bottom: 1px !important;
+    border-radius: 5px !important; max-width: 94% !important;
+  }
+  .rp-counter, .rp-chain, .rp-mats {
+    font-size: 8px !important; line-height: 10px !important;
+    padding: 0 2px !important; border-radius: 3px !important;
+    bottom: 1px !important;
+  }
+  .rp-chain { top: 0 !important; }
+  .rp-lmark { border-width: 4px !important; }
+
+  /* 横屏整体比例：信息/日志收窄，把中间让给场地 */
+  #replayModal .replay-main {
+    grid-template-columns: minmax(190px, 15%) minmax(0, 1fr) minmax(150px, 14%) !important;
+    gap: 4px !important;
+  }
+  /* 横屏观战：只留退出按钮，去掉房间/换边/人数 */
+  body.watch-mode #watchBadge {
+    width: auto !important; padding: 2px !important; margin: 0 !important;
+    background: transparent !important; border: 0 !important;
+  }
+  body.watch-mode #watchBadge > span,
+  body.watch-mode #watchBadge > b,
+  body.watch-mode #watchBadge #watchSwap,
+  body.watch-mode #watchBadge #watchCount { display: none !important; }
+  body.watch-mode #watchBadge #watchExit {
+    display: block !important; padding: 4px 10px !important; font-size: 10.5px !important;
+    border-radius: 999px !important; white-space: nowrap !important;
+  }
+  /* 横屏手牌压到最低，别盖住场地最后一行 */
+  body.watch-mode #replayModal .rp-hand {
+    max-height: 8vh !important; height: 8vh !important;
+    align-items: flex-end !important; z-index: 2 !important;
+  }
+  body.watch-mode #replayModal .rp-hand .rp-card {
+    height: 7.4vh !important; min-width: 0 !important; max-width: 10vw !important;
+  }
+  :root { --yp-hand-h: 8vh; }
+
+  /* 攻守角标强制不超过格宽 */
+  #replayModal .rp-stat {
+    max-width: 88% !important; box-sizing: border-box !important;
+    overflow: hidden !important; white-space: nowrap !important;
+    font-size: 7.5px !important; padding: 0 2px !important;
+    line-height: 1.15 !important;
+  }
+  /* 横屏卡片信息紧凑 */
+  #replayModal #ypCardInfo { padding: 4px 5px !important; gap: 2px 4px !important; }
+  #replayModal #ypInfoName { font-size: 10px !important; line-height: 1.22 !important; white-space: normal !important; }
+  #replayModal #ypInfoType { display: none !important; }
+  #replayModal #ypInfoStat { font-size: 9px !important; line-height: 1.22 !important; margin: 0 !important; }
+  #replayModal #ypInfoSeries { font-size: 8.5px !important; line-height: 1.22 !important; margin: 0 !important; white-space: normal !important; }
+  #replayModal #ypInfoText { font-size: 9px !important; line-height: 1.35 !important; max-height: none !important; overflow-y: auto !important; }
+  #replayModal #ypInfoImgBox { max-height: 31vh !important; }
+  #replayModal #ypInfoImg { max-height: 30vh !important; }
+  .yp-info-type-inline { font-size: 8px !important; margin-left: 2px !important; }
+}
+
+/* 手机/窄屏备牌：卡图放大，并在三区之间滚动，不再挤成 52px 小图 */
+@media (max-width: 820px) {
+  #ypSiding .ypSCols {
+    grid-template-columns: minmax(0, 1fr) !important;
+    overflow-y: auto !important; gap: 8px !important;
+    padding: 8px !important;
+  }
+  #ypSiding .ypSCol { max-height: 34dvh; }
+  #ypSiding .ypSGrid {
+    grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)) !important;
+    gap: 7px !important;
+  }
+  #ypSiding .ypSGrid img { width: 100% !important; }
+}
+/* 竖屏观战：左侧 30% 退出/房间，右侧 70% 日志 */
+@media (orientation: portrait) {
+  body.watch-mode #replayModal .replay-log {
+    display: grid !important;
+    grid-template-columns: 30% minmax(0, 1fr) !important;
+    grid-template-rows: auto minmax(0, 1fr) auto !important;
+    column-gap: 6px !important;
+    height: 21dvh !important; max-height: 21dvh !important;
+    overflow: hidden !important;
+  }
+  body.watch-mode #watchBadge {
+    grid-column: 1 !important; grid-row: 1 / span 3 !important;
+    width: auto !important; min-width: 0 !important;
+    margin: 0 !important; padding: 4px !important;
+    display: flex !important; flex-direction: column !important;
+    align-items: flex-start !important; justify-content: flex-start !important;
+    gap: 3px !important; overflow: hidden !important;
+    font-size: 10.5px !important; border-radius: 6px !important;
+  }
+  body.watch-mode #watchBadge b { max-width: 100% !important; font-size: 10px !important; display: block !important; }
+  body.watch-mode #watchBadge span { font-size: 10.5px !important; }
+  body.watch-mode #watchBadge button {
+    padding: 3px 7px !important; font-size: 10.5px !important; line-height: 1.2 !important;
+    max-width: 100% !important;
+  }
+  body.watch-mode #replayModal .replay-log-title {
+    grid-column: 2 !important; grid-row: 1 !important;
+    font-size: 11px !important; padding: 2px 2px 3px !important;
+  }
+  body.watch-mode #replayModal .replay-log-body {
+    grid-column: 2 !important; grid-row: 2 !important;
+    min-height: 0 !important; overflow-y: auto !important;
+  }
+  body.watch-mode #ypChatBar {
+    grid-column: 2 !important; grid-row: 3 !important;
+    min-width: 0 !important;
+  }
+}
+</style>
+<style>
+/* siro-landscape-final 2026-11-19：覆盖前面横屏 16.5/12 与 18.5vh 手牌旧规则 */
+@media (orientation: landscape) and (max-height: 900px) and (max-width: 1100px) {
+  #replayModal .replay-main {
+    grid-template-columns: minmax(210px, 14%) minmax(0, 1fr) minmax(160px, 10%) !important;
+    gap: 4px !important;
+  }
+  /* 横屏观战只留单个「退出观战」按钮 */
+  body.watch-mode #watchBadge {
+    width: auto !important; padding: 2px !important; margin: 0 !important;
+    background: transparent !important; border: 0 !important;
+  }
+  body.watch-mode #watchBadge > span,
+  body.watch-mode #watchBadge > b,
+  body.watch-mode #watchBadge #watchSwap,
+  body.watch-mode #watchBadge #watchCount { display: none !important; }
+  body.watch-mode #watchBadge #watchExit {
+    display: block !important; padding: 4px 10px !important; font-size: 10.5px !important;
+    border-radius: 999px !important; white-space: nowrap !important;
+  }
+  /* 横屏手牌放大：容器 16vh、卡片 20vh，上方对齐 + 容器裁剪，
+     卡片下方约 20% 超出可视区（用户要求放大后允许裁掉底部） */
+  body.watch-mode #replayModal .rp-hand {
+    max-height: 16vh !important; height: 16vh !important;
+    min-height: 0 !important; padding: 0 !important;
+    overflow: hidden !important; align-items: flex-start !important;
+    z-index: 2 !important;
+  }
+  body.watch-mode #replayModal .rp-hand .rp-card {
+    height: 20vh !important; max-width: 14vw !important; min-width: 0 !important;
+    flex: 0 0 auto !important;
+  }
+  body.watch-mode { --yp-hand-h: 16vh; }
+  /* 上方是对手手牌：同样放大，但 20% 从**上方**裁掉（align flex-end） */
+  body.watch-mode #replayModal .rp-opp .rp-hand {
+    height: 16vh !important; max-height: 16vh !important;
+    overflow: hidden !important; align-items: flex-end !important;
+  }
+  body.watch-mode #replayModal .rp-opp .rp-hand .rp-card {
+    height: 20vh !important; max-width: 14vw !important;
+  }
+
+  /* 攻守角标不超过格宽 */
+  #replayModal .rp-stat {
+    max-width: 86% !important; box-sizing: border-box !important;
+    overflow: hidden !important; white-space: nowrap !important;
+    font-size: 7px !important; padding: 0 2px !important; line-height: 1.1 !important;
+    bottom: 1px !important;
+  }
+  .rp-lv, .rp-attr { font-size: 8px !important; }
+  .rp-counter, .rp-chain, .rp-mats { font-size: 7.5px !important; line-height: 9px !important; }
+
+  /* 横屏卡信息紧凑，给效果文本腾地方 */
+  #replayModal #ypCardInfo { padding: 3px 5px !important; gap: 2px 4px !important; }
+  #replayModal #ypInfoName {
+    font-size: 9.5px !important; line-height: 1.2 !important;
+    margin: 0 !important; white-space: normal !important;
+  }
+  #replayModal #ypInfoType { display: none !important; }
+  .yp-info-type-inline { font-size: 8px !important; margin-left: 2px !important; }
+  #replayModal #ypInfoStat { font-size: 8.8px !important; line-height: 1.2 !important; margin: 0 !important; }
+  #replayModal #ypInfoSeries { font-size: 8.2px !important; line-height: 1.2 !important; margin: 0 !important; white-space: normal !important; }
+  #replayModal #ypInfoText {
+    font-size: 8.8px !important; line-height: 1.3 !important;
+    max-height: none !important; min-height: 0 !important; overflow-y: auto !important;
+  }
+  #replayModal #ypInfoImgBox { max-height: 28vh !important; }
+  #replayModal #ypInfoImg { max-height: 27vh !important; }
+
+  /* 分值角标：横屏也用卡图左下角，省掉一整行 */
+  #replayModal #ypInfoScore {
+    position: absolute !important; left: 2px !important; bottom: 2px !important;
+    display: block !important; min-width: 18px !important; height: 17px !important;
+    padding: 0 4px !important; line-height: 15px !important; margin: 0 !important;
+    background: rgba(0,0,0,.85) !important; border: 1px solid #D81E44 !important;
+    border-radius: 2px !important; color: #FFD700 !important;
+    font: 700 10.4px/15px "Microsoft YaHei",system-ui,sans-serif !important;
+    text-align: center !important; z-index: 6 !important; box-sizing: border-box !important;
+  }
+  #replayModal #ypInfoScore:empty { display: none !important; }
+}
+</style>
 </head>
 <body>
 
@@ -691,7 +1024,8 @@
   <!-- ── 决斗准备（房间）面板：左侧决斗者/卡组，右侧房间规则，底部开始/退出（参照真实客户端） ── -->
   <div id="lobby">
     <div class="yp-room-box">
-      <div class="yp-room-title">决斗准备</div>
+      <div class="yp-room-title">决斗准备<button class="yp-rules-toggle" id="ypRulesToggle"
+          onclick="(function(b){var box=b.closest('.yp-room-box');if(!box)return;var off=box.classList.toggle('rules-hidden');b.textContent=off?'规则 ▸':'规则 ▾';})(this)">规则 ▾</button></div>
       <div class="yp-room-body">
         <!-- 左列 -->
         <div class="yp-room-left">
@@ -728,9 +1062,10 @@
 
   <!-- 场地控件层（贴在场地中线上） -->
   <div id="ypCtl">
-    <span class="yp-ctl-left"><span id="ypPhase"></span><span id="ypUtil"></span></span>
+    <span class="yp-ctl-left"><span id="ypPhase"></span></span>
     <span id="ypCtlMid"></span>
     <span id="ypCtlRight"></span>
+    <span id="ypUtil"></span>
   </div>
 
   <!-- 左侧卡片信息面板：三栏布局的左栏，常驻（悬停/点击卡片时更新内容） -->
@@ -751,7 +1086,147 @@
     #ypInfoStat { color: #ffd479; margin-bottom: 2px; }
     #ypInfoSeries { color: #b7a6ff; margin-bottom: 4px; }
     #ypInfoText { color: #cfd8e3; white-space: pre-wrap; }
-  </style>
+  
+/* PATCH(白神服) 2026-11-05: 手机端禁用浏览器手势（双击缩放 / 双指缩放 / 长按菜单），
+   避免连点两张卡时页面被放大；滚动区域仍可正常滑动。 */
+html, body { touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+#replayModal, #replayField, #ypCtl, #ypPrompt, #ypChooser { touch-action: manipulation; }
+.rp-hand { touch-action: pan-x manipulation; }
+.rp-card, .rp-name, .rp-log-line { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+
+/* PATCH(白神服) 2026-11-05: 明牌过的卡（盖着但已知卡面）→ 半透明若隐若现 */
+/* 明牌盖卡样式已移到 css/replay-viewer.css（回放页也要用） */
+
+@media (orientation: landscape) and (max-height: 700px) {
+  /* PATCH(白神服) 2026-11-05 横屏：手牌按高度约束 ——
+     原来横屏用的还是桌面尺寸（62x89），在 390 高的手机里把手牌行撑很高，
+     名字/LP 被挤到视口外（用户实测 ✗）。 */
+  #replayModal .rp-hand { max-height: 17vh !important; align-items: flex-end !important; }
+  #replayModal .rp-hand .rp-card { height: 15.5vh !important; width: auto !important;
+    max-width: 12vw !important; min-width: 34px !important; aspect-ratio: 59 / 86; }
+  :root { --yp-hand-h: 18vh; }
+  #replayModal .rp-nametag { z-index: 30 !important; }
+  #replayModal .rp-nametag-opp { top: 1px !important; right: 3px !important; }
+  #replayModal .rp-nametag-self { bottom: 1px !important; left: 3px !important; }
+  #replayModal .rp-lp { font-size: 0.95rem !important; line-height: 1 !important; }
+  #replayModal .rp-player-name { font-size: 0.68rem !important; }
+}
+
+/* PATCH(白神服) 2026-11-05: 名签/LP 独立图层（贴在场地容器四角，手牌再高也不会被挤走） */
+#replayModal #replayField { position: relative; }
+#replayModal .rp-nametag-layer { position: absolute; inset: 0; pointer-events: none; z-index: 40; }
+#replayModal .rp-nametag { position: absolute !important; z-index: 41 !important; }
+#replayModal .rp-nametag-opp { top: 2px !important; right: 4px !important; left: auto !important; bottom: auto !important; }
+#replayModal .rp-nametag-self { bottom: 2px !important; left: 4px !important; top: auto !important; right: auto !important; }
+
+/* PATCH(白神服) 2026-11-06 横屏决斗 UI：把宽度让给场地，左侧卡图/信息不再被挤没 */
+@media (orientation: landscape) and (max-height: 700px) {
+  #replayModal .replay-main { grid-template-columns: 16.5% minmax(0, 1fr) 12% !important; gap: 4px !important; }
+  #replayModal #ypCardInfo { font-size: 9px !important; line-height: 1.35 !important; padding: 4px 5px !important; }
+  #replayModal #ypCardInfo img { max-height: 32vh !important; width: auto !important; }
+  #replayModal .replay-log { font-size: 10px !important; line-height: 1.45 !important; }
+  #replayModal .rp-log-line { font-size: 9.5px !important; }
+  #replayModal .rp-hand .rp-card { height: 17vh !important; max-width: 13vw !important; }
+  #replayModal .rp-hand { max-height: 18.5vh !important; }
+  :root { --yp-hand-h: 19vh; }
+}
+
+/* PATCH(白神服) 2026-11-06 横屏决斗 UI（第二版）：屏幕只有 ~390px 高，
+   原来格子是桌面尺寸 86x124 → 整块棋盘自然高度 ~890px，只能缩到 0.27 倍，
+   于是"手卡特别小 + 上下大片黑边 + 有用区域很窄"（用户实测）。
+   这里把格子/间距按视口高度压缩，让缩放回到 ~0.6 以上，画面才看得清。 */
+@media (orientation: landscape) and (max-height: 700px) {
+  #replayModal .rp-cell { width: var(--yp-cell-w, 20vh) !important; height: var(--yp-cell-h, 20vh) !important; }
+  #replayModal .rp-fieldrow { gap: 3px !important; margin: 1px 0 !important; }
+  #replayModal .rp-side { gap: 1px !important; padding: 1px 3px !important; }
+  #replayModal .rp-board { gap: 3px !important; }
+  #replayModal .rp-hand { min-height: 0 !important; padding: 1px !important; gap: 2px !important; max-height: 14vh !important; }
+  #replayModal .rp-hand .rp-card { height: 13.5vh !important; max-width: 9vw !important; min-width: 26px !important; }
+  #replayModal .rp-mid-info { font-size: 10px !important; }
+  #replayModal .rp-turn-label, #replayModal .rp-phase { font-size: 10px !important; }
+  :root { --yp-hand-h: 15vh; }
+}
+
+/* PATCH(白神服) 2026-11-06 横屏决斗（第三版）：真正吃掉上下黑边 ——
+   css/duel-client.css 里 .rp-modal-box 是 height: calc(100vh - 150px)（390 高只剩 240px），
+   下面还空着一大片；这里让弹窗几乎占满视口。 */
+@media (orientation: landscape) and (max-height: 700px) {
+  #replayModal { padding: 2px !important; align-items: stretch !important; }
+  #replayModal .rp-modal-box {
+    height: calc(100dvh - 6px) !important;
+    max-height: calc(100dvh - 6px) !important;
+    width: 100% !important; max-width: 100% !important;
+    margin: 0 !important; border-radius: 8px !important;
+    padding: 2px 4px 3px !important;
+  }
+  #replayModal .replay-main { height: 100% !important; min-height: 0 !important; }
+  #replayModal #replayField { height: 100% !important; }
+  #replayModal .rp-cell { width: var(--yp-cell-w, 21vh) !important; height: var(--yp-cell-h, 21vh) !important; }
+  #replayModal .rp-hand .rp-card { height: var(--yp-hand-h, 14.5vh) !important; }
+  #replayModal .rp-hand { max-height: calc(var(--yp-hand-h, 14vh) + 4px) !important; }
+}
+
+/* PATCH(白神服) 2026-11-06 横屏决斗（第四版）：左侧信息文字缩小 + 底部观战条不再压住手牌 */
+@media (orientation: landscape) and (max-height: 700px) {
+  #replayModal #ypInfoName,
+  #replayModal #ypInfoType,
+  #replayModal #ypInfoStats,
+  #replayModal #ypInfoDesc,
+  #replayModal #ypCardInfo > div { font-size: 9.5px !important; line-height: 1.4 !important; }
+  #replayModal #ypInfoName { font-size: 10.5px !important; }
+  /* 观战底栏：改成右下角小胶囊 + 半透明，不再占整行高度（此前压住手牌/浪费 36px 高度） */
+  body.watch-mode .duel-watch {
+    right: 8px !important; left: auto !important; bottom: 4px !important;
+    transform: none !important; padding: 3px 10px !important; font-size: 10.5px !important;
+    opacity: .82 !important; border-radius: 999px !important;
+  }
+}
+
+/* PATCH(白神服) 2026-11-06 横屏：中线行（除外区 / 额外怪兽区）错位修复 ——
+   棋盘是**固定像素几何**（.rp-mid-zone 454px、.rp-rail-void 86px、.rp-mid-info 86px 都按 86px 格子算的），
+   横屏把格子改成按 vh 缩放后，这些固定值没跟着变 → 中线那一行整体错位。
+   这里全部改成同一套 CSS 变量，宽度/间距始终跟格子一致。 */
+@media (orientation: landscape) and (max-height: 700px) {
+  :root {
+    --yp-cell-h: 21vh;
+    --yp-cell-w: calc(var(--yp-cell-h) * 0.69);
+    --yp-cell-gap: 3px;
+  }
+  #replayModal .rp-cell { width: var(--yp-cell-w) !important; height: var(--yp-cell-h) !important; }
+  #replayModal .rp-fieldrow { gap: var(--yp-cell-gap) !important; }
+  #replayModal .rp-board { gap: 3px !important; }
+  #replayModal .rp-rail-void { width: var(--yp-cell-w) !important; flex: 0 0 var(--yp-cell-w) !important; }
+  #replayModal .rp-mid-zone {
+    width: calc(5 * var(--yp-cell-w) + 4 * var(--yp-cell-gap)) !important;
+    flex: 0 0 calc(5 * var(--yp-cell-w) + 4 * var(--yp-cell-gap)) !important;
+    gap: var(--yp-cell-gap) !important;
+  }
+  #replayModal .rp-mid-zone .rp-mid-info {
+    width: var(--yp-cell-w) !important;
+    flex: 0 0 var(--yp-cell-w) !important;
+    font-size: 10px !important;
+  }
+  #replayModal .rp-hand { min-height: 0 !important; padding: 1px !important; gap: 2px !important; max-height: 15vh !important; }
+  #replayModal .rp-hand .rp-card { height: var(--yp-hand-h, 14vh) !important; max-width: 9vw !important; min-width: 26px !important; }
+}
+
+/* PATCH(白神服) 2026-11-16: 「具体信息」按钮 + 对局统计浮层（NS/SP/EF/ATK） */
+.yp-dstats-sub { color: #9fb3c8; font-size: .82em; }
+#ypStatsBtn { position: fixed; z-index: 40; padding: 5px 10px; border-radius: 8px;
+  border: 1px solid rgba(212,175,55,.6); background: rgba(16,14,20,.9); color: #ffe08a;
+  font: 700 12px/1.3 "Microsoft YaHei", system-ui, sans-serif; cursor: pointer; letter-spacing: .5px; }
+#ypStatsBtn:hover { background: rgba(212,175,55,.22); }
+#ypStatsBtn.on { background: rgba(212,175,55,.3); color: #fff3c4; }
+.yp-dstats { position: fixed; z-index: 39; display: none; padding: 6px 10px; border-radius: 9px;
+  background: rgba(10,9,14,.86); border: 1px solid rgba(212,175,55,.35); color: #e8e2d8;
+  font: 700 13px/1.45 "Microsoft YaHei", system-ui, sans-serif; white-space: nowrap; text-align: left; }
+.yp-dstats-top { text-align: right; }
+.yp-dstats.show { display: block; }
+.yp-dstats b { color: #ffe08a; font-weight: 800; }
+.yp-dstats span.k { color: #9fb6e8; }
+.yp-dstats-top { }
+.yp-dstats-bottom { }
+</style>
 
   <!-- 选卡/选素材的进度提示条（场地顶部，参照真实客户端） -->
   <div id="ypTopBar"></div>
@@ -780,6 +1255,7 @@
             <img id="ypInfoImg" alt="">
           </div>
           <div id="ypInfoName">悬停卡片查看详情</div>
+          <div id="ypInfoCode"></div>
           <div id="ypInfoType"></div>
           <div id="ypInfoStat"></div>
           <div id="ypInfoSeries"></div>
@@ -807,8 +1283,13 @@
 </div>
 
 <script src="js/ygopro-web-browser.js?v=20261016a"></script>
-<script src="js/viewer-live.js?v=20261022l"></script>
-<script src="js/duel-client.js?v=20261022l"></script>
+<script src="js/card-layer.js?v=20261117m"></script>
+<script src="js/field-render.js?v=20261118c44"></script>
+  <script src="js/duel-sounds.js?v=20261117d"></script>
+  <script src="js/wait-bgm.js?v=20261120a"></script>
+  <script src="js/duel-bgm.js?v=20261120c"></script>
+  <script src="js/viewer-live.js?v=20261119r"></script>
+<script src="js/duel-client.js?v=20261120e"></script>
 <script>
 /* 入口层逻辑：登录 / 显示当前卡组 / 开始匹配（不改客户端产物） */
 (function () {
@@ -824,9 +1305,33 @@
 
   // ?auto=1 = 已点过「开始匹配」→ 隐藏入口层，交给客户端自动进房
   // ?bare=1 = 直接裸奔客户端界面（自动化测试 / 别的页面嵌 iframe 时用）
-  if (q.get('auto') === '1' || q.get('bare') === '1') { entry.classList.add('hidden'); return; }
+  if (q.get('watch') === '1') {
+
+    document.body.classList.add('watch-mode');
+    entry.classList.add('hidden');
+    var wb = document.createElement('div');
+    wb.id = 'watchBadge';
+    wb.innerHTML = '<span>👁 观战中</span><b>房间：' + (q.get('room') || '-') + '</b>' +
+      '<span id="watchCount" style="color:#ffd76a;font-weight:700"></span>' +
+      '<button id="watchSwap" title="双方位置对调（自动对齐没生效时手动用）">⇅</button>' +
+      '<button id="watchExit">退出观战</button>';
+    // 放进右侧日志栏的顶部；没有日志容器时退回 body
+    var _logCol = document.querySelector('#replayModal .replay-log') || document.querySelector('.replay-log');
+    if (_logCol) _logCol.insertBefore(wb, _logCol.firstChild);
+    else document.body.appendChild(wb);
+    try {
+      var _wc0 = document.getElementById('watchCount');
+      if (_wc0 && window.__ypWatchCount) _wc0.textContent = ' · ' + window.__ypWatchCount + ' 人观战';
+    } catch (e) {}
+  }
+  if (q.get('auto') === '1' || q.get('bare') === '1' || q.get('watch') === '1') { entry.classList.add('hidden'); return; }
 
   fetch('/api/duel/whoami?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
+    // 从大厅来的登录入口：已登录就直接回大厅
+    try {
+      var _qq = new URLSearchParams(location.search);
+      if (_qq.get('from') === 'lobby' && d && d.loggedIn) { location.href = 'lobby.html'; return; }
+    } catch (e) {}
     if (!d || !d.loggedIn) return renderLogin();
     renderMatch(d);
   }).catch(function () { renderLogin(); });
@@ -853,6 +1358,11 @@
       }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
         .then(function (r) {
           if (!r.ok || !r.j || r.j.ok === false) return msg((r.j && r.j.error) || '账号或密码错误');
+          // PATCH(白神服) 2026-11-08: 从大厅进来登录的 → 登录成功后回大厅（不要停在入口页）
+          try {
+            var _q = new URLSearchParams(location.search);
+            if (_q.get('from') === 'lobby') { location.href = 'lobby.html'; return; }
+          } catch (e) {}
           location.reload();
         }).catch(function (e) { msg('登录失败：' + e.message); });
     };
@@ -918,5 +1428,319 @@
   }
 })();
 </script>
+
+<script>
+(function () {
+  var b = document.getElementById('watchExit');
+  if (b) b.onclick = function () { location.href = 'lobby.html'; };
+  // ── 「具体信息」：NS/SP/EF/ATK 统计 ──
+  //   PATCH(白神服) 2026-11-16: 按钮/面板放到 body 上（fixed 定位），
+  //   原来挂在 #replayField 里，场地重建(createFieldDOM)一次就被清掉 → "出现一会就消失"
+  (function () {
+    function boot() {
+      if (document.getElementById('ypStatsBtn')) return;
+      var btn = document.createElement('button');
+      btn.id = 'ypStatsBtn';
+      btn.textContent = '具体信息';
+      btn.title = 'NS 通常召唤 · SP 特殊召唤 · EF 效果发动 · ATK 攻击表示攻击力合计';
+      document.body.appendChild(btn);
+      function mk(cls) {
+        var d = document.createElement('div');
+        d.className = 'yp-dstats ' + cls;
+        document.body.appendChild(d);
+        return d;
+      }
+      var top = mk('yp-dstats-top');
+      var bottom = mk('yp-dstats-bottom');
+      var open = false, timer = 0;
+
+      function field() { return document.getElementById('replayField'); }
+      // 面板只显示四行：NS / SP / EF / ATK（用户要求：不要分类明细，越简单越好）
+      function line(st) {
+        st = st || {};
+        return 'NS: <b>' + (st.ns || 0) + '</b><br>SP: <b>' + (st.sp || 0) + '</b><br>EF: <b>'
+          + (st.ef || 0) + '</b><br>ATK: <b>' + (st.atk || 0) + '</b>';
+      }
+      function place() {
+        var f = field();
+        var ready = !!(f && f.querySelector('.rp-board'));
+        if (!ready) {
+          btn.style.display = 'none';
+          top.style.display = bottom.style.display = 'none';
+          return;
+        }
+        btn.style.display = 'block';
+        top.style.display = '';
+        bottom.style.display = '';
+
+        var fr = f.getBoundingClientRect();
+        var opp = f.querySelector('.rp-nametag-opp');
+        var slf = f.querySelector('.rp-nametag-self');
+        var or = opp ? opp.getBoundingClientRect() : null;
+        var sr = slf ? slf.getBoundingClientRect() : null;
+
+        // 按钮：贴场地左边缘，放在回合/阶段标签下方（没有标签时退回竖直居中）
+        var tl = f.querySelector('.rp-turn-label');
+        var tr = tl ? tl.getBoundingClientRect() : null;
+        btn.style.left = Math.round(fr.left + 6) + 'px';
+        btn.style.top = Math.round((tr && tr.height ? tr.bottom : (fr.top + fr.height / 2 - 14)) + 8) + 'px';
+
+        // 对方统计：场地右上角，紧贴对方名字下方（用 right 锚定，和面板宽度无关）
+        var tRight = Math.round(Math.min(window.innerWidth - 8, fr.right - 4));
+        top.style.left = 'auto';
+        top.style.right = (window.innerWidth - tRight) + 'px';
+        top.style.top = Math.round((or ? or.bottom : fr.top + 26) + 4) + 'px';
+
+        // 自己统计：贴**自己名字左侧**（在场地内，不要跑到左边的卡片信息栏上 —— 用户实测 ✗）
+        bottom.style.left = Math.round((sr ? sr.left : (fr.left + 8))) + 'px';
+        bottom.style.right = 'auto';
+        bottom.style.bottom = Math.round(window.innerHeight - (sr ? sr.top : fr.bottom - 26) + 4) + 'px';
+        bottom.style.top = 'auto';
+        // 贴边：不再往内推（用户要求贴着自己的名字/场地左边缘）
+      }
+      function refresh() {
+        var s2 = (window.__live && window.__live.duelStats) ? window.__live.duelStats() : null;
+        if (s2) { top.innerHTML = line(s2[1]); bottom.innerHTML = line(s2[0]); }
+        place();
+      }
+      function toggle() {
+        open = !open;
+        btn.classList.toggle('on', open);
+        top.classList.toggle('show', open);
+        bottom.classList.toggle('show', open);
+        refresh();
+        if (open) { timer = setInterval(refresh, 1000); }
+        else { clearInterval(timer); timer = 0; }
+      }
+      btn.onclick = function (e) { e.stopPropagation(); toggle(); };
+      window.addEventListener('resize', place);
+      // 场地重建后位置会变 → 低频校正（按钮/面板本身不在场地里，不会消失）
+      setInterval(function () { place(); }, 1500);
+      place();
+    }
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(boot, 600); });
+    else setTimeout(boot, 600);
+  })();
+
+  var sw = document.getElementById('watchSwap');
+  if (sw) sw.onclick = function () {
+    try {
+      if (window.__live && window.__live.swapSides) window.__live.swapSides();
+      var c = window.__live.debugCounts ? window.__live.debugCounts() : null;
+      if (c && c.meta && c.meta.players) {
+        var names = c.meta.players.map(function (x) { return x.name + ':' + x.pos; }).join('  ');
+        var lg = document.getElementById('replayLog');
+        if (lg) {
+          var d = document.createElement('div');
+          d.className = 'rp-log-line';
+          d.textContent = '⇅ 已手动换边：' + names;
+          lg.appendChild(d); lg.scrollTop = lg.scrollHeight;
+        }
+      }
+    } catch (e) {}
+  };
+})();
+</script>
+<script>
+// YGOPro 风格：F 切换全屏（输入框内不拦截）
+document.addEventListener('keydown', function (e) {
+  var t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) {
+    if (e.key === 'Escape' && t.id === 'ypChatInput') t.blur();
+    return;
+  }
+  if (e.key === '/') {
+    var ci = document.getElementById('ypChatInput');
+    if (ci) { e.preventDefault(); ci.focus(); }
+    return;
+  }
+  if (e.key === 'f' || e.key === 'F') {
+    e.preventDefault();
+    try {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
+    } catch (err) {}
+  }
+});
+
+// 站内聊天：决斗/观战都可用；输入条挂在对局日志栏底部
+(function () {
+  function ensureChatBar() {
+    if (!window.__yp || !window.__yp.chat) return;
+    if (document.getElementById('ypChatBar')) return;
+    var col = document.querySelector('#replayModal .replay-log') || document.querySelector('.replay-log');
+    if (!col) return;
+    var bar = document.createElement('div');
+    bar.id = 'ypChatBar';
+    bar.style.cssText = 'position:sticky;bottom:0;z-index:20;display:flex;gap:5px;padding:5px 6px;border-top:1px solid rgba(212,175,55,.25);background:rgba(12,10,16,.92);flex:0 0 auto;';
+    var inp = document.createElement('input');
+    inp.id = 'ypChatInput';
+    inp.maxLength = 200;
+    inp.placeholder = '输入聊天…';
+    inp.style.cssText = 'flex:1 1 auto;min-width:0;background:#1a171e;border:1px solid #3a3340;color:#e8e3da;border-radius:5px;padding:4px 7px;font:12px "Microsoft YaHei",system-ui,sans-serif;outline:none;';
+    var btn = document.createElement('button');
+    btn.textContent = '发送';
+    btn.style.cssText = 'flex:0 0 auto;background:#3a2d16;border:1px solid #d4af37;color:#ffd76a;border-radius:5px;padding:3px 9px;font:600 12px "Microsoft YaHei",system-ui,sans-serif;cursor:pointer;';
+    function doSend() {
+      var txt = inp.value;
+      if (!txt) return;
+      if (window.__yp.chat(txt)) inp.value = '';
+      inp.focus();
+    }
+    btn.onclick = doSend;
+    inp.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); ev.stopPropagation(); doSend(); }
+    });
+    bar.appendChild(inp); bar.appendChild(btn);
+    col.appendChild(bar);
+  }
+  setInterval(ensureChatBar, 800);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(ensureChatBar, 500); });
+  else setTimeout(ensureChatBar, 500);
+})();
+</script>
+<style>
+/* siro-landscape-final2：必须放在 body 内所有旧横屏样式之后才能压过 16.5/12 */
+@media (orientation: landscape) and (max-height: 900px) and (max-width: 1100px) {
+  #replayModal #replayMain.replay-main {
+    grid-template-columns: minmax(210px, 14%) minmax(0, 1fr) minmax(160px, 10%) !important;
+    gap: 4px !important;
+  }
+  body #replayModal #ypCardInfo {
+    padding: 3px 5px !important; gap: 2px 4px !important; font-size: 9px !important;
+  }
+  body #replayModal #ypInfoName {
+    font-size: 9.5px !important; line-height: 1.2 !important;
+    margin: 0 !important; white-space: normal !important;
+  }
+  body #replayModal #ypInfoType { display: none !important; }
+  body #replayModal .yp-info-type-inline { font-size: 8px !important; margin-left: 2px !important; }
+  body #replayModal #ypInfoStat { font-size: 8.8px !important; line-height: 1.2 !important; margin: 0 !important; }
+  body #replayModal #ypInfoSeries { font-size: 8.2px !important; line-height: 1.2 !important; margin: 0 !important; white-space: normal !important; }
+  body #replayModal #ypInfoText {
+    font-size: 8.8px !important; line-height: 1.3 !important;
+    max-height: none !important; min-height: 0 !important; overflow-y: auto !important;
+  }
+  body #replayModal #ypInfoImgBox {
+    width: 32% !important; max-width: 32% !important; max-height: 28vh !important;
+  }
+  body #replayModal #ypInfoImg {
+    width: 100% !important; max-width: 100% !important;
+    max-height: 27vh !important; object-fit: contain !important;
+  }
+  /* 横屏手机：音效按钮移到右上角 */
+  #duelSfxBtn {
+    top: 6px !important;
+    bottom: auto !important;
+    right: 6px !important;
+  }
+  /* 攻守角标再压一档：四位数/四位数也不能占满卡宽 */
+  body #replayModal .rp-stat {
+    font-size: 5.8px !important; line-height: 1 !important;
+    letter-spacing: -0.35px !important;
+    padding: 0 1px !important; max-width: 94% !important;
+    min-width: 0 !important; border-radius: 4px !important;
+  }
+  /* 横屏强制回到左图右文 grid：防止 max-width:780px 的竖屏 flex 规则
+     在窄 CSS 视口（高 DPI / 浏览器缩放）下把卡片信息挤成一条 */
+  body #replayModal #ypCardInfo {
+    display: grid !important;
+    grid-template-columns: 32% minmax(0, 1fr) !important;
+    grid-template-rows: auto auto auto auto auto minmax(0, 1fr) !important;
+    height: 100% !important; max-height: none !important;
+    flex-direction: initial !important; align-content: start !important;
+    gap: 2px 5px !important; padding: 4px 5px !important;
+    overflow: hidden !important;
+  }
+  body #replayModal #ypInfoImgBox {
+    grid-column: 1 !important; grid-row: 1 / span 5 !important;
+    width: 100% !important; max-width: 100% !important;
+    max-height: 30vh !important; align-self: start !important;
+  }
+  body #replayModal #ypInfoImg {
+    width: 100% !important; max-width: 100% !important;
+    height: auto !important; max-height: 30vh !important;
+    object-fit: contain !important;
+  }
+  body #replayModal #ypInfoName { grid-column: 2 !important; grid-row: 1 !important; }
+  body #replayModal #ypInfoCode {
+    display: block !important; grid-column: 2 !important; grid-row: 2 !important;
+    font-size: 8.8px !important; line-height: 1.2 !important; color: #9fd0ff !important;
+    margin: 0 !important; padding: 0 !important;
+  }
+  body #replayModal #ypInfoType {
+    display: block !important; grid-column: 2 !important; grid-row: 3 !important;
+    font-size: 8.5px !important; line-height: 1.2 !important; color: #9fd0ff !important;
+    margin: 0 !important; padding: 0 !important;
+  }
+  body #replayModal #ypInfoStat { grid-column: 2 !important; grid-row: 4 !important; }
+  body #replayModal #ypInfoSeries { grid-column: 2 !important; grid-row: 5 !important; }
+  body #replayModal #ypInfoText {
+    grid-column: 1 / -1 !important; grid-row: 6 !important;
+    min-height: 0 !important; max-height: none !important;
+    overflow-y: auto !important;
+  }
+}
+</style>
+<style>
+/* siro-desktop-layout 2026-11-19：桌面端与手机端排版完全分开 */
+@media (min-width: 1101px) {
+  /* 桌面卡片信息：上卡图 + 下信息 */
+  body #replayModal #ypCardInfo {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto auto auto auto auto minmax(0, 1fr) !important;
+    height: 100% !important; max-height: none !important;
+    gap: 3px 0 !important; padding: 8px 9px !important;
+    overflow: hidden !important;
+  }
+  body #replayModal #ypInfoImgBox {
+    grid-column: 1 !important; grid-row: 1 !important;
+    width: min(190px, 82%) !important; max-width: min(190px, 82%) !important;
+    max-height: 32vh !important; align-self: start !important; justify-self: center !important;
+  }
+  body #replayModal #ypInfoImg {
+    width: 100% !important; max-width: 100% !important;
+    height: auto !important; max-height: 32vh !important; object-fit: contain !important;
+  }
+  body #replayModal #ypInfoName {
+    grid-column: 1 !important; grid-row: 2 !important;
+    font-size: 14px !important; line-height: 1.35 !important;
+    white-space: normal !important; margin: 2px 0 0 !important;
+  }
+  body #replayModal #ypInfoCode { display: none !important; }
+  body #replayModal #ypInfoType {
+    display: block !important; grid-column: 1 !important; grid-row: 3 !important;
+    font-size: 11.5px !important; line-height: 1.35 !important;
+    color: #9fd0ff !important; margin: 0 !important;
+  }
+  body #replayModal #ypInfoStat {
+    grid-column: 1 !important; grid-row: 4 !important;
+    font-size: 11.5px !important; line-height: 1.35 !important; margin: 0 !important;
+  }
+  body #replayModal #ypInfoSeries {
+    grid-column: 1 !important; grid-row: 5 !important;
+    font-size: 10.5px !important; line-height: 1.35 !important; margin: 0 !important;
+  }
+  body #replayModal #ypInfoText {
+    grid-column: 1 !important; grid-row: 6 !important;
+    font-size: 11px !important; line-height: 1.5 !important;
+    max-height: none !important; min-height: 0 !important; overflow-y: auto !important;
+  }
+  body #replayModal .yp-info-type-inline { display: none !important; }
+
+  /* 桌面攻守：比手机大，保证能看清 */
+  body #replayModal .rp-stat {
+    font-size: 10.5px !important; line-height: 1.2 !important;
+    letter-spacing: 0 !important; padding: 0 4px !important;
+    max-width: 96% !important; border-radius: 5px !important;
+  }
+  /* 桌面连锁 C1/C2 角标缩小 */
+  body #replayModal .rp-chain {
+    font-size: 8px !important; line-height: 11px !important;
+    padding: 0 3px !important; border-radius: 3px !important;
+  }
+}
+</style>
 </body>
 </html>

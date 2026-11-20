@@ -1115,7 +1115,7 @@ function initCommunityModule() {
             });
             diyPromise = Promise.resolve(matches);
         } else {
-            diyPromise = fetch('/api/cards').then(function (r) { return r.json(); }).then(function (cards) {
+            diyPromise = fetch('/api/cards?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (cards) {
                 var m = [];
                 cards.forEach(function (card) {
                     if (m.length >= 30) return;
@@ -1221,7 +1221,7 @@ function initCommunityModule() {
                 cardName: card.name || ('#' + cardId),
                 cardType: card.typeInfo ? card.typeInfo.fullType : '',
                 attrRace: isMonster ? ((card.attrName || '') + ' | ' + (card.raceName || '') + (card.level ? ' | Lv' + card.level : '')) : '',
-                atkDef: isMonster ? ('ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (card.def < 0 ? '?' : card.def)) : '',
+                atkDef: isMonster ? ('ATK ' + (card.atk < 0 ? '?' : card.atk) + ' / DEF ' + (((card.type | 0) & 0x4000000) ? '—' : (card.def < 0 ? '?' : card.def))) : '',
                 desc: card.processedDesc || '',
             });
         } else if (window.DeckViewer && window.DeckViewer.fetchOfficialCard) {

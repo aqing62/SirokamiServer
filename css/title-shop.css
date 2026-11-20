@@ -1,0 +1,433 @@
+/* ══════════════════════════════════════════════════════════
+   称号商店（全站常驻样式）
+   ⚠ 商店弹窗是全局层（#titleShopOverlay 在 body 级），
+     样式必须常驻，不能跟着「玩家排名」section 的 CSS 一起被卸载。
+   ══════════════════════════════════════════════════════════ */
+
+.ranking-search .title-shop-btn {
+    background: linear-gradient(135deg, #3a2f14, #5c4818);
+    border: 1px solid var(--gold, #D4AF37);
+    color: #FFD96A;
+    font-weight: 700;
+    white-space: nowrap;
+}
+.ranking-search .title-shop-btn:hover {
+    background: linear-gradient(135deg, #5c4818, #7d6420);
+    border-color: #FFE58A;
+}
+
+/* 独立遮罩：不复用 .deck-modal-overlay（那是排名页 CSS，切页面会被卸载） */
+.ts-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+}
+.ts-overlay.active { display: flex; }
+
+.ts-modal {
+    display: flex;
+    flex-direction: column;
+    width: min(1000px, 96vw);
+    max-height: 90vh;
+    background: linear-gradient(180deg, #1b1b1b 0%, #131313 100%);
+    border: 1px solid #3a3a3a;
+    border-radius: 14px;
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.65), inset 0 0 0 1px rgba(212, 175, 55, 0.06);
+    overflow: hidden;
+}
+
+.ts-head {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 13px 20px;
+    border-bottom: 1px solid #2e2e2e;
+    background: linear-gradient(90deg, rgba(216, 30, 68, 0.16), rgba(212, 175, 55, 0.10) 55%, transparent);
+}
+
+.ts-head-title {
+    color: #FFD96A;
+    font-weight: 800;
+    font-size: 1.12rem;
+    letter-spacing: 0.5px;
+}
+
+.ts-close {
+    background: none;
+    border: none;
+    color: #999;
+    font-size: 1.6rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 0 4px;
+    transition: color 0.2s;
+}
+.ts-close:hover { color: #fff; }
+
+.ts-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px 20px 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--red, #D81E44) transparent;
+}
+.ts-body::-webkit-scrollbar { width: 5px; }
+.ts-body::-webkit-scrollbar-track { background: transparent; }
+.ts-body::-webkit-scrollbar-thumb { background: var(--red, #D81E44); border-radius: 3px; }
+
+/* ── 余额卡 ── */
+.ts-wallet {
+    display: flex;
+    gap: 18px;
+    align-items: stretch;
+    padding: 16px 18px;
+    border-radius: 12px;
+    background:
+        radial-gradient(120% 150% at 0% 0%, rgba(212, 175, 55, 0.18), rgba(216, 30, 68, 0.10) 45%, rgba(255, 255, 255, 0.02) 100%);
+    border: 1px solid rgba(212, 175, 55, 0.28);
+}
+
+.ts-wallet-main { flex: 1; min-width: 0; }
+
+.ts-wallet-label {
+    color: #c9b06a;
+    font-size: 0.78rem;
+    letter-spacing: 2px;
+}
+
+.ts-wallet-value {
+    color: #FFE58A;
+    font-size: 2.5rem;
+    font-weight: 900;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    text-shadow: 0 0 18px rgba(255, 213, 90, 0.3);
+}
+.ts-wallet-value small {
+    font-size: 0.85rem;
+    margin-left: 6px;
+    color: #c9b06a;
+    font-weight: 600;
+    letter-spacing: 1px;
+}
+.ts-wallet-value.empty {
+    color: #8f8f8f;
+    font-size: 1.35rem;
+    letter-spacing: 1px;
+    text-shadow: none;
+}
+
+.ts-wallet-sub {
+    color: #9a9a9a;
+    font-size: 0.78rem;
+    margin-top: 4px;
+    line-height: 1.5;
+}
+.ts-wallet-sub b { color: #FFD96A; }
+
+.ts-wallet-side {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 8px;
+    min-width: 156px;
+    padding-left: 18px;
+    border-left: 1px dashed rgba(212, 175, 55, 0.25);
+}
+.ts-wallet-side div {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    color: #9a9a9a;
+    font-size: 0.8rem;
+}
+.ts-wallet-side b {
+    color: #e8e8e8;
+    font-variant-numeric: tabular-nums;
+}
+
+.ts-login-btn {
+    align-self: center;
+    padding: 9px 18px;
+    border: 1px solid var(--gold, #D4AF37);
+    border-radius: 8px;
+    background: rgba(212, 175, 55, 0.12);
+    color: #FFD96A;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.ts-login-btn:hover { background: rgba(212, 175, 55, 0.22); }
+
+/* ── 规则说明 ── */
+.ts-rule {
+    margin: 12px 0 14px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #1c1c1c;
+    border-left: 3px solid var(--red, #D81E44);
+    color: #9a9a9a;
+    font-size: 0.78rem;
+    line-height: 1.65;
+}
+.ts-rule b { color: #FFD96A; }
+
+/* ── 稀有度筛选 ── */
+.ts-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+}
+.ts-tab {
+    padding: 6px 14px;
+    border-radius: 999px;
+    border: 1px solid #333;
+    background: #1e1e1e;
+    color: #bbb;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.ts-tab:hover { border-color: #555; color: #eee; }
+.ts-tab.active {
+    border-color: var(--gold, #D4AF37);
+    color: #FFD96A;
+    background: rgba(212, 175, 55, 0.10);
+}
+.ts-tab-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    margin-right: 5px;
+    border-radius: 50%;
+    background: #888;
+    vertical-align: middle;
+}
+.ts-tab-dot[data-rarity="白"] { background: #E8E8E8; }
+.ts-tab-dot[data-rarity="绿"] { background: #4CD38A; }
+.ts-tab-dot[data-rarity="蓝"] { background: #5AA9FF; }
+.ts-tab-dot[data-rarity="黄"] { background: #FFD24A; }
+.ts-tab-dot[data-rarity="红"] { background: #FF5F6D; }
+.ts-tab-dot[data-rarity="紫"] { background: #C08CFF; }
+
+/* ── 称号卡片 ── */
+.ts-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.ts-item {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px;
+    border-radius: 10px;
+    background: #1d1d1d;
+    border: 1px solid #2f2f2f;
+    overflow: hidden;
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+/* 稀有度顶条：白/绿/蓝/黄/红 */
+.ts-item::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    right: 0;
+    height: 2px;
+    background: var(--rarity, #4a4a4a);
+    opacity: 0.8;
+}
+.ts-item[data-rarity="白"] { --rarity: #cfd6dd; }
+.ts-item[data-rarity="绿"] { --rarity: #4CD38A; }
+.ts-item[data-rarity="蓝"] { --rarity: #5AA9FF; }
+.ts-item[data-rarity="黄"] { --rarity: #FFD24A; }
+.ts-item[data-rarity="红"] { --rarity: #FF5F6D; }
+.ts-item[data-rarity="紫"] { --rarity: #C08CFF; }
+
+.ts-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(212, 175, 55, 0.45);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.ts-item.owned { background: #181818; opacity: 0.78; }
+.ts-item.owned:hover { transform: none; box-shadow: none; }
+
+.ts-item-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.ts-tier {
+    font-size: 0.66rem;
+    padding: 2px 8px;
+    border-radius: 999px;
+    border: 1px solid;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+.ts-tier[data-rarity="白"] { color: #E8E8E8; border-color: #4a4a4a; background: #242424; }
+.ts-tier[data-rarity="绿"] { color: #4CD38A; border-color: #2f6b4a; background: #1b2f25; }
+.ts-tier[data-rarity="蓝"] { color: #5AA9FF; border-color: #2f5480; background: #1b2635; }
+.ts-tier[data-rarity="黄"] { color: #FFD24A; border-color: #6b5a20; background: #2c2413; }
+.ts-tier[data-rarity="红"] { color: #FF5F6D; border-color: #7a2b35; background: #331a1f; }
+.ts-tier[data-rarity="紫"] { color: #C08CFF; border-color: #4a3970; background: #251f36; }
+
+.ts-price {
+    color: #FFD96A;
+    font-size: 0.92rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+.ts-price::before { content: "◈ "; font-size: 0.8em; opacity: 0.85; }
+
+.ts-item-title {
+    color: #f2f2f2;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    word-break: break-all;
+}
+.ts-item.owned .ts-item-title { color: #b9b9b9; }
+
+.ts-item-desc {
+    flex: 1;
+    min-height: 2.6em;
+    color: #8b8b8b;
+    font-size: 0.73rem;
+    line-height: 1.5;
+}
+
+.ts-buy {
+    margin-top: 2px;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 7px;
+    background: var(--red, #D81E44);
+    color: #fff;
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.ts-buy:hover:not(:disabled) { background: var(--dark-red, #A51834); }
+.ts-buy:disabled { cursor: not-allowed; }
+.ts-buy.owned { background: #2c2c2c; color: #8f8f8f; }
+.ts-buy.poor { background: #262226; color: #c98d9b; }
+.ts-buy.login {
+    background: rgba(212, 175, 55, 0.12);
+    border: 1px solid rgba(212, 175, 55, 0.45);
+    color: #FFD96A;
+}
+.ts-buy.login:hover:not(:disabled) { background: rgba(212, 175, 55, 0.22); }
+
+.ts-owned-chip {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    font-weight: 800;
+    letter-spacing: 0.5px;
+    color: #1a1a1a;
+    background: linear-gradient(135deg, #FFD96A, #D4AF37);
+    vertical-align: middle;
+}
+
+.ts-empty {
+    grid-column: 1 / -1;
+    padding: 28px 0;
+    text-align: center;
+    color: #888;
+    font-size: 0.9rem;
+}
+
+/* ── 历史发放 ── */
+.ts-history {
+    margin-top: 18px;
+    padding-top: 14px;
+    border-top: 1px solid #2a2a2a;
+}
+.ts-history-title {
+    color: #c9b06a;
+    font-size: 0.8rem;
+    margin-bottom: 8px;
+    letter-spacing: 1px;
+}
+.ts-history-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.ts-history-item {
+    font-size: 0.74rem;
+    color: #a9a9a9;
+    background: #1e1e1e;
+    border: 1px solid #2f2f2f;
+    border-radius: 6px;
+    padding: 4px 10px;
+}
+.ts-history-item b { color: #FFD96A; }
+
+.ts-error {
+    padding: 30px 0;
+    text-align: center;
+    color: #c98d9b;
+    font-size: 0.9rem;
+}
+
+.ts-toast {
+    position: fixed;
+    left: 50%;
+    top: 70px;
+    transform: translateX(-50%);
+    z-index: 100050;
+    max-width: 80vw;
+    padding: 10px 20px;
+    border-radius: 8px;
+    background: rgba(28, 28, 28, 0.96);
+    border: 1px solid rgba(212, 175, 55, 0.5);
+    color: #FFE58A;
+    font-size: 0.84rem;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.ts-toast.err { border-color: rgba(216, 30, 68, 0.6); color: #ffb3c1; }
+
+/* ── 响应式 ── */
+@media (max-width: 1100px) {
+    .ts-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 820px) {
+    .ts-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ts-wallet { flex-direction: column; }
+    .ts-wallet-side {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 10px 18px;
+        min-width: 0;
+        padding-left: 0;
+        padding-top: 10px;
+        border-left: none;
+        border-top: 1px dashed rgba(212, 175, 55, 0.25);
+    }
+    .ts-wallet-value { font-size: 2.1rem; }
+}
+@media (max-width: 768px) {
+    .ranking-search .title-shop-btn { font-size: 0.85rem; padding: 10px 14px; }
+    .ts-body { padding: 12px 12px 16px; }
+    .ts-head { padding: 11px 14px; }
+}
+@media (max-width: 520px) {
+    .ts-grid { grid-template-columns: 1fr; }
+    .ts-item-desc { min-height: 0; }
+}

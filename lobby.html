@@ -6,7 +6,8 @@
 <title>决斗大厅 · 白神服</title>
 <!-- 复用官网「卡组查看器」的卡牌悬停提示（鼠标移上去显示卡名/效果文本），不做点击弹窗 -->
 <link rel="stylesheet" href="css/deck-viewer.css?v=20260903a">
-<script src="js/deck-viewer.js?v=20260903b" defer></script>
+<script src="js/deck-viewer.js?v=20261119r" defer></script>
+<script src="js/wait-bgm.js?v=20261120a" defer></script>
 <!-- 大厅页：照 MDPro3 房间面板的排版，但**只有两个模式**（天梯 M# / 比赛 D#）
      选卡组 = 打开本地文件夹挑 .ydk 上传存到账号 → 开始匹配时自动注入给客户端 -->
 <style>
@@ -234,6 +235,476 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   @media (orientation: portrait), (max-width: 780px) {
     .back-btn { top: 10px; left: 10px; padding: 8px 14px; font-size: 13px; }
   }
+.pie-item-other { cursor:pointer; }
+.pie-item-other:hover { background: rgba(212,175,55,.12); }
+</style>
+
+<style>
+/* ── PATCH(白神服) 2026-11-03 决斗大厅左右分栏：左观战（独立滚动）/ 右卡组（自适应不出滚动条）── */
+.lobby-grid { display:grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.18fr) minmax(0, 0.9fr);
+  gap:14px; align-items:stretch; }
+/* 右栏统计：上饼图 / 下先后手 */
+.stats-col { display:flex; flex-direction:column; gap:14px; min-height:0; }
+.stat-card { padding:13px 14px; display:flex; flex-direction:column; min-height:0; margin-bottom:0; }
+.stat-card h3 { margin:0 0 9px; font-size:.84rem; font-weight:800; color:#FFD700; letter-spacing:.5px;
+  display:flex; align-items:baseline; justify-content:space-between; gap:8px; }
+.stat-card h3 small { color:#8d8d96; font-weight:400; font-size:.68rem; letter-spacing:0; }
+.pie-wrap { display:flex; gap:12px; align-items:center; min-height:0; }
+.pie-svg { flex:0 0 118px; width:118px; height:118px; }
+.pie-legend { flex:1 1 auto; min-width:0; display:grid; grid-template-columns:minmax(0,1fr);
+  gap:3px 8px; max-height:158px; overflow-y:auto; scrollbar-width:none; -ms-overflow-style:none; }
+.pie-legend::-webkit-scrollbar { width:0; height:0; }
+.pie-item { display:flex; align-items:center; gap:6px; min-width:0; font-size:.72rem; color:#cfc8bd; line-height:1.5; }
+.pie-dot { width:8px; height:8px; border-radius:2px; flex:0 0 auto; }
+.pie-name { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.pie-pct { color:#FFD700; font-weight:700; flex:0 0 auto; white-space:nowrap; }
+.pie-empty { color:#7d7d86; font-size:.74rem; padding:10px 0; }
+.fs-row { display:flex; align-items:center; gap:8px; margin:8px 0; font-size:.76rem; color:#cfc8bd; }
+.fs-label { flex:0 0 40px; }
+.fs-bar { flex:1 1 auto; height:10px; border-radius:6px; background:rgba(255,255,255,.08); overflow:hidden; }
+.fs-fill { display:block; height:100%; border-radius:6px; transition:width .4s ease; }
+.fs-fill.first { background:linear-gradient(90deg,#2f8f6f,#46d8a1); }
+.fs-fill.second { background:linear-gradient(90deg,#8a5f1f,#e6ad3f); }
+.fs-val { flex:0 0 84px; text-align:right; color:#e6e1d8; font-variant-numeric:tabular-nums; }
+.fs-note { color:#7d7d86; font-size:.68rem; margin-top:8px; line-height:1.6; }
+.spec-card { display:flex; flex-direction:column; min-height:0; padding:16px 16px 12px; margin-bottom:0; }
+.spec-head { display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.spec-title { font-weight:800; color:#FFD700; letter-spacing:1px; }
+.spec-sub { font-size:.75rem; color:#8d8d96; }
+.spec-list { flex:1 1 auto; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:14px;
+  padding-right:2px; scrollbar-width:none; -ms-overflow-style:none; }
+.spec-list::-webkit-scrollbar { width:0; height:0; }
+.spec-list > .spec-row { flex: 0 0 auto; }
+.spec-row { border:1px solid rgba(255,255,255,.10); border-radius:12px; overflow:hidden;
+  background:rgba(255,255,255,.02); box-shadow:0 6px 20px rgba(0,0,0,.28); }
+.spec-band { position:relative; display:grid; grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr);
+  align-items:center; min-height:170px; }
+.spec-half { position:relative; height:100%; display:flex; flex-direction:column; align-items:center;
+  justify-content:center; gap:6px; padding:34px 44px; box-sizing:border-box; }
+.spec-half.p1 { background:linear-gradient(135deg,#0c3c3d 0%,#15595b 55%,#092f30 100%); }
+.spec-half.p2 { background:linear-gradient(225deg,#48441e 0%,#6a6329 55%,#393617 100%); }
+.spec-half .spec-first { width:86px; border-radius:4px; display:block; background:#12161d;
+  aspect-ratio:42/61; box-shadow:0 8px 20px rgba(0,0,0,.5); }
+.spec-half .spec-who { display:flex; flex-direction:column; align-items:center; gap:1px; max-width:100%; }
+.spec-half .spec-name { font-size:.8rem; color:#f3efe6; font-weight:700; overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; max-width:11em; text-shadow:0 1px 3px rgba(0,0,0,.6); }
+.spec-half .spec-lp { font-size:.72rem; color:rgba(255,255,255,.66); }
+.spec-half .spec-title { font-size:.68rem; font-weight:700; color:#FFD700;
+  text-shadow:0 1px 3px rgba(0,0,0,.65); letter-spacing:.5px; }
+.spec-avatar { position:absolute; width:46px; height:46px; border-radius:10px; object-fit:cover;
+  background:#151a22; border:2px solid rgba(255,255,255,.35); box-shadow:0 4px 12px rgba(0,0,0,.5); }
+.spec-avatar-ph { display:flex; align-items:center; justify-content:center; font-weight:800;
+  font-size:1rem; color:#FFD700; background:linear-gradient(135deg,#1b2430,#0e141c 60%,#1b2430); }
+.spec-half.p1 .spec-avatar { left:12px; top:12px; }
+.spec-half.p2 .spec-avatar { right:12px; top:12px; }   /* PATCH: 右下角会压住称号，改到右上角与左侧对齐 */
+.spec-vs { display:flex; align-items:center; justify-content:center; }
+.spec-vs b { width:54px; height:54px; border-radius:50%; display:flex; align-items:center;
+  justify-content:center; font-size:.92rem; font-weight:800; letter-spacing:.5px; color:#ff3b3b;
+  background:rgba(8,6,10,.55); border:2px solid #ff3b3b;
+  box-shadow:0 0 0 4px rgba(0,0,0,.18), 0 6px 18px rgba(0,0,0,.45); }
+.spec-actions { display:flex; gap:10px; padding:9px 10px 11px; justify-content:center;
+  background:rgba(0,0,0,.22); border-top:1px solid rgba(255,255,255,.06); }
+.spec-actions .spec-btn { padding:6px 18px; border-radius:999px; border:1.5px solid #ff3b3b;
+  background:rgba(0,0,0,.25); color:#FFD700; font-size:.78rem; font-weight:600; cursor:pointer; transition:.15s; }
+.spec-actions .spec-btn:hover { border-color:#ff6b6b; background:rgba(255,59,59,.14); color:#ffe680; }
+.spec-empty { color:#7d7d86; font-size:.82rem; text-align:center; padding:26px 8px; line-height:1.8; }
+.deck-col { display:flex; flex-direction:column; min-height:0; margin-bottom:0; }
+.deck-col .deck-box { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; padding:10px 12px; }
+.deck-col #deckCards { flex:1 1 auto; min-height:0; overflow-y:auto; overflow-x:hidden;
+  scrollbar-width:none; -ms-overflow-style:none; }
+.deck-col #deckCards::-webkit-scrollbar { width:0; height:0; }
+/* 卡组自适应：由 JS 算出每张卡宽度，10 张一行不变 */
+.deck-cards { max-width: calc(var(--lobby-card-w, 10000px) * 10 + 45px); margin-left:auto; margin-right:auto; }
+/* 卡片偏小时缩小角标，避免 DIY 角标和禁限分值角标叠在一起 */
+#deckCards.compact .card-score-badge { min-width:12px; height:11px; line-height:9px; font-size:8px;
+  border-radius:2px; padding:0 2px; bottom:1px; left:1px; }
+#deckCards.compact .card-score-badge.forbidden { font-size:7px; min-width:11px; line-height:9px; }
+#deckCards.compact .card-diy-badge { height:11px; line-height:9px; font-size:7px; padding:0 2px;
+  bottom:1px; right:1px; }
+/* 桌面端：加宽容器 + 分栏占满一屏高度（卡组自适应后不滚动，观战列表自己滚） */
+@media (min-width: 981px) {
+  .wrap { max-width: 1400px; }
+  .lobby-grid { height: calc(100vh - 214px); min-height: 480px; }
+}
+@media (max-width: 980px) {
+  .lobby-grid { grid-template-columns: minmax(0, 1fr); height:auto; }
+  .stats-col { flex-direction:column; }
+  .spec-list { max-height: 40vh; }
+  .deck-col #deckCards { overflow: visible; }
+  .deck-cards { max-width: none; }
+}
+</style>
+<style>
+/* ── 手机端专属：一行三块「头像 | 数据(迷你) | 开始匹配」+ 底部观战抽屉 ── */
+.stats-mobile { display:none; }
+.spec-handle { display:none; }
+#specBackdrop { display:none; }
+@media (max-width: 980px) {
+  .wrap { padding:10px 12px 84px; }
+  /* 返回按钮仍在左上角，但给页面顶部留出高度，避免压住头像/饼图 */
+  .wrap { padding-top:46px; }
+  .back-btn { top:8px; left:10px; padding:5px 12px; font-size:.74rem; }
+  .avatar { width:56px; height:56px; min-width:56px; min-height:56px; flex:0 0 56px; }
+
+  /* 头部：网格三列（头像 / 数据 / 开始匹配），标题和战绩另起两行 */
+  .top { display:grid; grid-template-columns:auto minmax(0,1fr) auto;
+    grid-template-areas:"av stats btn" "mid mid mid" "mine mine mine";
+    align-items:center; gap:10px 10px; margin-bottom:12px; }
+  .avatar { grid-area:av; width:56px; height:56px; border-radius:10px; }
+  .avatar span { font-size:1.15rem; }
+  .top-mid { grid-area:mid; }
+  .top .title { font-size:1.02rem; }
+  .top .who { font-size:.74rem; }
+  .mine { grid-area:mine; display:grid; grid-template-columns:repeat(4,1fr); gap:4px 6px;
+    font-size:.7rem; }
+  .mine span { font-size:.7rem; gap:4px; }
+
+  .btn.start-top { grid-area:btn; width:62px; height:62px; border-width:1.5px;
+    font-size:.66rem; letter-spacing:0; line-height:1.15; }
+
+  /* 中间的数据：超迷你，两张卡并排 */
+  .stats-mobile { grid-area:stats; display:flex; gap:8px; align-items:stretch; min-width:0; }
+  .stats-mobile .stat-card { padding:6px 7px; border-radius:10px; min-width:0; flex:1 1 0; }
+  .stats-mobile .stat-card h3 { font-size:.68rem; margin:0 0 4px; letter-spacing:0; }
+  .stats-mobile .stat-card h3 small { display:none; }
+  .stats-mobile .pie-wrap { gap:6px; }
+  .stats-mobile .pie-svg { flex:0 0 64px; width:64px; height:64px; }
+  .stats-mobile .pie-legend { display:flex; flex-direction:column; max-height:66px; gap:0; }
+  .stats-mobile .pie-item { font-size:.66rem; line-height:1.35; gap:4px; }
+  .stats-mobile .pie-item:nth-child(n+4):not(:last-child) { display:none; }   /* 手机只列前 3 名 + 「其它」 */
+  .stats-mobile .pie-dot { width:6px; height:6px; border-radius:1px; }
+  .stats-mobile .pie-pct { font-size:.66rem; }
+  .stats-mobile .pie-name { max-width:5.2em; }
+  .stats-mobile .pie-empty { font-size:.58rem; padding:2px 0; }
+  .stats-mobile .fs-row { margin:4px 0; font-size:.66rem; gap:4px; }
+  .stats-mobile .fs-label { flex:0 0 20px; }
+  .stats-mobile .fs-bar { height:8px; border-radius:4px; }
+  .stats-mobile .fs-fill { border-radius:3px; }
+  .stats-mobile .fs-val { flex:0 0 40px; font-size:.68rem; }
+  .stats-mobile .fs-note { display:none; }
+
+  .stats-col { display:none; }
+  .lobby-grid { grid-template-columns: minmax(0, 1fr); height:auto; }
+
+  /* 在线观战 → 底部抽屉 */
+  .spec-card { position:fixed; left:0; right:0; bottom:0; z-index:60; margin:0; padding:0;
+    border-radius:16px 16px 0 0; max-height:74vh;
+    transform:translateY(calc(100% - 46px)); transition:transform .26s ease;
+    background:rgba(16,14,20,.985); box-shadow:0 -12px 34px rgba(0,0,0,.55); }
+  .spec-card.open { transform:translateY(0); }
+  .spec-handle { display:flex; align-items:center; gap:8px; padding:13px 16px; cursor:pointer;
+    color:#FFD700; font-weight:800; font-size:.84rem; letter-spacing:.5px;
+    border-bottom:1px solid rgba(255,255,255,.07); }
+  .spec-handle .cnt { color:#8d8d96; font-weight:400; font-size:.72rem; flex:1 1 auto; text-align:right; }
+  .spec-handle .arrow { color:#FFD700; font-size:.8rem; transition:transform .26s ease; }
+  .spec-card.open .spec-handle .arrow { transform:rotate(180deg); }
+  .spec-head { display:none; }
+  .spec-list { max-height:calc(74vh - 48px); overflow-y:auto; padding:10px 12px 16px; }
+  #specBackdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:55; }
+  #specBackdrop.on { display:block; }
+}
+@media (max-width: 380px) {
+  /* 超窄屏不隐藏饼图，只把尺寸再压小（用户反馈：手机上看不到饼图 ✗） */
+  .stats-mobile { gap:6px; }
+  .stats-mobile .stat-card { padding:5px 6px; }
+  .stats-mobile .stat-card h3 { font-size:.56rem; }
+  .stats-mobile .pie-svg { flex:0 0 54px; width:54px; height:54px; }
+  .stats-mobile .pie-legend { max-height:56px; }
+  .stats-mobile .pie-item { font-size:.6rem; }
+  .stats-mobile .pie-item:nth-child(n+3):not(:last-child) { display:none; }  /* 只列前 2 名 + 其它 */
+  .stats-mobile .fs-row { font-size:.54rem; gap:3px; }
+  .stats-mobile .fs-val { flex:0 0 30px; }
+}
+</style>
+<style>
+/* ── 统计卡：玩家排名列表（PC 右栏 + 手机抽屉共用） ── */
+.rank-list { display:flex; flex-direction:column; gap:1px; overflow-y:auto; min-height:0;
+  scrollbar-width:none; -ms-overflow-style:none; }
+.rank-list::-webkit-scrollbar { width:0; height:0; }
+.rank-row { display:flex; align-items:center; gap:8px; padding:3px 2px; font-size:.74rem;
+  color:#cfc8bd; border-bottom:1px dashed rgba(255,255,255,.05); }
+.rank-row:last-child { border-bottom:0; }
+.rank-no { flex:0 0 20px; color:#8d8d96; font-variant-numeric:tabular-nums; text-align:right; }
+.rank-row.top1 .rank-no { color:#FFD700; font-weight:800; }
+.rank-row.top2 .rank-no { color:#d8d8e0; font-weight:700; }
+.rank-row.top3 .rank-no { color:#d08a4a; font-weight:700; }
+.rank-name { flex:1 1 auto; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#eee7da; }
+.rank-tier { flex:0 0 auto; font-size:.66rem; color:#FFD700; opacity:.9; }
+.rank-pt { flex:0 0 44px; text-align:right; color:#9fe8c0; font-variant-numeric:tabular-nums; }
+.stat-card .rank-list { margin-top:2px; }
+
+/* 手机端统计抽屉（全宽，点在两张小卡上触发） */
+.stat-drawer { display:none; }
+@media (max-width: 980px) {
+  .stats-mobile .stat-card { cursor:pointer; }
+  .stats-mobile .stat-card::after { content:'▾'; position:absolute; right:6px; top:5px;
+    color:#8d8d96; font-size:.62rem; }
+  .stats-mobile .stat-card { position:relative; }
+  .stat-drawer { display:none; margin:0 0 12px; padding:0; border:1px solid rgba(212,175,55,.3);
+    border-radius:12px; background:linear-gradient(180deg, rgba(28,24,18,.96), rgba(16,15,13,.96));
+    overflow:hidden; max-height:0; transition:max-height .32s ease; }
+  .stat-drawer.open { display:block; max-height:560px; }
+  .stat-drawer-head { display:flex; align-items:center; gap:8px; padding:10px 12px;
+    border-bottom:1px solid rgba(255,255,255,.08); }
+  .stat-drawer-head b { color:#FFD700; font-size:.82rem; font-weight:800; flex:1 1 auto; }
+  .stat-drawer-head button { background:transparent; border:1px solid rgba(255,255,255,.2);
+    color:#cfc8bd; border-radius:6px; padding:2px 9px; font-size:.72rem; cursor:pointer; font-family:inherit; }
+  .stat-drawer-body { padding:10px 12px 14px; }
+  .stat-drawer-body .pie-wrap { gap:12px; align-items:center; }
+  .stat-drawer-body .pie-svg { width:132px; height:132px; flex:0 0 132px; animation:pieGrow .38s ease both; }
+  @keyframes pieGrow { from { width:54px; height:54px; opacity:.4; } to { width:132px; height:132px; opacity:1; } }
+  .stat-drawer-body .pie-legend { display:flex; flex-direction:column; max-height:300px; overflow-y:auto;
+    scrollbar-width:none; }
+  .stat-drawer-body .pie-legend::-webkit-scrollbar { width:0; height:0; }
+  .stat-drawer-body .pie-item { font-size:.68rem; line-height:1.5; }
+  .stat-drawer-body .pie-name { max-width:6.5em; }
+  .stat-drawer-body .rank-list { max-height:300px; }
+  .stat-drawer-body .rank-row { font-size:.74rem; padding:5px 2px; }
+  .stat-drawer-body .fs-row { font-size:.75rem; margin:6px 0; }
+}
+
+/* PATCH(白神服) 2026-11-08: 有人正在排队匹配时，「开始匹配」按钮高亮闪烁 */
+#btnStart { position: relative; }
+/* PATCH(白神服) 2026-11-08: 按钮文字/位置**不动**，改成「外圈光晕一波波散开」+ 光晕强弱点跳 */
+#btnStart.hot {
+  border-color: #FF4D6D !important;
+  animation: hotGlow 1.2s ease-out infinite;
+}
+@keyframes hotGlow {
+  0%, 100% { box-shadow: 0 0 0 1px rgba(216,30,68,.35), 0 0 10px rgba(216,30,68,.35); }
+  8%       { box-shadow: 0 0 0 2px rgba(216,30,68,.60), 0 0 18px rgba(216,30,68,.60); }
+  26%      { box-shadow: 0 0 0 2px rgba(216,30,68,.75), 0 0 24px rgba(216,30,68,.75); }
+  52%      { box-shadow: 0 0 0 1px rgba(216,30,68,.40), 0 0 12px rgba(216,30,68,.40); }
+}
+/* 两圈扩散光环（每轮心跳两下）：向外散开并淡出 */
+#btnStart.hot::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 2px solid rgba(255,77,109,.8);
+  animation: hotRing 1.2s ease-out infinite;
+}
+@keyframes hotRing {
+  0%   { transform: scale(1);    opacity: .85; }
+  16%  { transform: scale(1.16); opacity: 0; }
+  26%  { transform: scale(1);    opacity: .85; }
+  44%  { transform: scale(1.2);  opacity: 0; }
+  100% { transform: scale(1.2);  opacity: 0; }
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   PATCH(白神服) 2026-11-17: 手机横屏专属布局（PC + 手机竖屏完全不受影响）
+   · 一屏装完不滚动；顶栏压缩
+   · 观战按钮贴左边缘、统计按钮贴右边缘 → 各自抽屉
+   · 卡组区：主卡组 10fr : 额外+副 8fr → 同列宽同行高，卡图尺寸一致
+   ══════════════════════════════════════════════════════════════════════ */
+.spec-toggle, .stat-toggle { display: none; }
+#statBackdrop { display: none; }
+
+@media (orientation: landscape) and (max-height: 640px) and (max-width: 1000px) {
+  html { zoom: 1; }   /* 去掉整体缩放：卡组区能多出 ~70px 高度，卡图更大 */
+  html, body { height: 100%; overflow: hidden; }
+  body .wrap { height: 100vh; box-sizing: border-box; padding: 4px 8px 6px; max-width: none;
+    display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+  body .back-btn { top: 2px; left: 4px; padding: 2px 8px; font-size: .62rem; border-radius: 8px; }
+  body .top { display: flex; flex-wrap: nowrap; gap: 8px; align-items: center; margin: 0;
+    padding: 0 0 0 6px; }
+  body .back-btn { display: none !important; }   /* 横屏不要「返回主页」，腾出左上角 */
+  body .top .avatar { width: 28px; height: 28px; min-width: 28px; min-height: 28px;
+    flex: 0 0 28px; border-radius: 8px; font-size: 14px; }
+  body .top-mid { flex: 1 1 auto; min-width: 0; }
+  body .top .title { font-size: .92rem; margin: 0; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; }
+  body .top .who, body .top .hint { display: none; }
+  body .mine { display: flex; flex: 0 0 auto; flex-wrap: nowrap; gap: 9px; font-size: .68rem; }
+  body .mine span { display: inline-flex; align-items: baseline; gap: 2px; }
+  body .mine i { font-size: .58rem; }
+  body .mine b { font-size: .74rem; }
+  body .stats-mobile { display: none; }
+  body .btn.start-top { position: static; width: auto; height: auto; flex: 0 0 auto;
+    padding: 6px 12px; font-size: .78rem; letter-spacing: 0; line-height: 1.1; border-radius: 10px; }
+  body .stats-mobile { display: none !important; }
+
+  /* 观战 / 统计：贴屏幕左右边缘 */
+  /* 观战 / 统计：做成抽屉自带的「把手」——跟着抽屉一起滑，
+     样式和抽屉本身一致（不透明 #0d1014 + 同色描边），宽度约一张卡厚 */
+  body .wrap { position: relative; padding-left: 40px; padding-right: 40px; }
+  /* 抽屉关着的时候露出把手（translate 少移动 34px），打开时整块滑进来 */
+  body .spec-card.open { transform: none; }
+  body .stats-col.open { transform: none; }
+
+  /* 把手本体：贴在自己抽屉的外侧边 */
+  body .spec-toggle, body .stat-toggle {
+    display: flex; align-items: center; justify-content: center;
+    position: absolute; top: 0; bottom: 0; width: 34px; z-index: 951;   /* 撑满抽屉（抽屉本身已和卡组同高） */
+    writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 2px;
+    margin: 0; padding: 8px 0; font-size: .76rem;
+    background: #0d1014;                 /* 与抽屉同底色，不透明 */
+    border: 1px solid rgba(216, 30, 68, .32);             /* 和抽屉同款红边，连成一整块 */
+    color: #cfe6ff; opacity: 1; box-shadow: none;
+  }
+  /* 圆角朝外：靠屏幕边缘那侧是方的，朝内容那侧是圆的；朝抽屉那侧不画边（不出现接缝） */
+  body .spec-toggle { right: 0; border-left: none !important; border-radius: 0 12px 12px 0; }
+  body .stat-toggle { left: 0; border-right: none !important; border-radius: 12px 0 0 12px; }
+  /* 抽屉展开后把手贴在抽屉内侧边，颜色保持一致 */
+  body .spec-card.open .spec-toggle { background: #0d1014; }
+
+  /* 抽屉与把手要「一个整体」：去掉所有描边/滚动条/阴影，内容不许钻进把手下面 */
+  body .spec-card, body .stats-col {
+    border: 1px solid rgba(216, 30, 68, .32) !important;      /* 恢复主题红边 */
+    box-shadow: none !important;
+    scrollbar-width: none;
+    background: #0d1014 !important;
+  }
+  body .spec-card { border-right: none !important; border-radius: 0 12px 12px 0 !important; }
+  body .stats-col { border-left: none !important; border-radius: 12px 0 0 12px !important; }
+  body .spec-card::-webkit-scrollbar,
+  body .stats-col::-webkit-scrollbar,
+  body .spec-list::-webkit-scrollbar { width: 0; height: 0; display: none; }
+  body .spec-card > *, body .stats-col > * { min-width: 0 !important; max-width: 100% !important; }
+  body .spec-card .spec-head, body .spec-card .spec-list { overflow-x: hidden !important; }
+  body .spec-card { padding-right: 46px !important; }
+  body .stats-col { padding-left: 58px !important; }
+
+  body .stats-col.open .stat-toggle { background: #0d1014; }
+
+  /* 主体：单列（观战、统计都进抽屉） */
+  body .lobby-grid { flex: 1 1 auto; min-height: 0; height: auto; display: grid;
+    grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  body .lobby-grid > .card { min-height: 0; padding: 6px 8px 4px; }
+
+  /* 观战 → 左抽屉 */
+  body .spec-card { position: fixed; left: 0; top: 38px; bottom: 6px; right: auto;
+    width: min(360px, 64vw); z-index: 900; margin: 0; padding: 8px 44px 8px 10px;
+    border-radius: 0 10px 10px 0; max-height: none;
+    transform: translateX(calc(-100% + 34px));          /* 关着时只留把手在外 */
+    transition: transform .2s ease; background: #0d1014; box-shadow: 12px 0 30px rgba(0,0,0,.55);
+    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+    box-sizing: border-box; }
+  body .spec-card.open { transform: none; }
+  body .spec-handle { display: none; }
+  body .spec-head { display: flex; flex: 0 0 auto; padding: 0 0 5px; border: 0; }
+  body .spec-title { font-size: .76rem; }
+  body .spec-sub { font-size: .64rem; }
+  body .spec-list { flex: 1 1 auto; min-height: 0; max-height: none; overflow: hidden auto; padding: 0;
+    zoom: .56; }   /* 观战卡片按比例缩，抽屉 360 宽也放得下，不会溢出盖住卡组 */
+  body #specBackdrop { display: none; position: fixed; inset: 0; z-index: 890; background: rgba(0,0,0,.45); }
+  body #specBackdrop.on { display: block; }
+
+  /* 统计 → 右抽屉 */
+  body .stats-col { display: flex; flex-direction: column; gap: 8px;
+    position: fixed; top: 38px; right: 0; bottom: 6px; width: min(450px, 78vw); z-index: 900;
+    padding: 8px 10px 8px 56px; box-sizing: border-box; overflow: auto; background: #0d1014;
+    border-left: 1px solid rgba(255,255,255,.12); box-shadow: -12px 0 30px rgba(0,0,0,.55);
+    transform: translateX(calc(100% - 34px)); transition: transform .2s ease;
+    overflow: hidden; }
+  body .stats-col.open { transform: none; }
+  body .stats-col .stat-card { padding: 8px 10px; }
+  body .stats-col .stat-card h3 { font-size: .74rem; margin-bottom: 5px; }
+  body .stats-col .pie-svg { width: 74px; height: 74px; }
+  /* 统计内容整体缩放 0.8：横向不再超出抽屉、字也不会互相压住 */
+  body .stats-col { overflow-y: auto; overflow-x: hidden; }
+  /* 只缩放卡片内容：把手保持 34px 原宽 */
+  body .stats-col .stat-card { zoom: .8; }
+  body .stats-col .stat-card { flex: 0 0 auto; min-height: 0; overflow: visible; }
+  body .stats-col .stat-card h3 { white-space: nowrap; }
+  body .stats-col .pie-wrap { flex-wrap: nowrap; }
+  body #statBackdrop { display: none; position: fixed; inset: 0; z-index: 890; background: rgba(0,0,0,.45); }
+  body #statBackdrop.show { display: block; }
+
+  /* ── 卡组区：主 10fr : 右 8fr（列宽比 = 列数比 → 卡图同宽；行高都是可用高度/4 → 同高）── */
+  body .lobby-grid > .deck-col { display: flex; flex-direction: column; min-height: 0; }
+  body .deck-col .row-inline { flex-wrap: wrap; gap: 5px; margin-bottom: 4px; }
+  body .deck-col .row-inline .k { flex: 0 0 auto; font-size: .72rem; }
+  body #deckSel { max-width: 150px; padding: 4px 24px 4px 8px; font-size: .74rem; }
+  body .deck-col .btn { padding: 4px 8px; font-size: .72rem; }
+  body .deck-box { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; padding: 4px 6px; }
+  body .deck-box > .deck-head { display: none; }
+  body #deckCards { flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 0; }
+  body .deck-col .msg { display: none; }
+
+  body .deck-panes { flex: 1 1 auto; min-height: 0; display: grid;
+    grid-template-columns: 10fr 8fr; gap: 6px; align-items: stretch; }
+  body .deck-panes-right { display: grid; grid-template-rows: minmax(0,1fr) minmax(0,1fr);
+    gap: 6px; min-height: 0; }
+  body .deck-pane { display: flex; flex-direction: column; min-height: 0; }
+  body .deck-pane-head { flex: 0 0 auto; font-size: .64rem; line-height: 1.2; margin: 0 0 2px 2px;
+    color: #FFD700; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body .deck-grid { flex: 1 1 auto; min-height: 0; gap: 3px; display: grid; }
+  body .deck-grid .card-img-wrapper { aspect-ratio: auto; min-height: 0; display: block;
+    position: relative; overflow: hidden; }
+  body .deck-grid .deck-card-img { position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; }
+  body .deck-grid .card-img-wrapper.is-placeholder { border: 1px dashed rgba(255,255,255,.10);
+    border-radius: 4px; background: rgba(255,255,255,.02); }
+
+  /* 关掉移动端点击高亮（那一下蓝色）与聚焦描边 */
+  body .spec-toggle, body .stat-toggle {
+    -webkit-tap-highlight-color: transparent !important;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none; user-select: none;
+    outline: none !important;
+    appearance: none; -webkit-appearance: none;
+  }
+  body .spec-toggle:focus, body .spec-toggle:active,
+  body .stat-toggle:focus, body .stat-toggle:active {
+    outline: none !important; box-shadow: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+    background: #0d1014 !important; color: #cfe6ff !important;
+  }
+
+  /* 把手最终样式（覆盖前面旧的白边定义）：同款红边 + 圆角朝外 */
+  body .spec-toggle, body .stat-toggle {
+    border: 1px solid rgba(216, 30, 68, .32) !important;
+    border-radius: 12px !important;
+    background: #0d1014 !important;
+    box-shadow: none !important;
+    color: #cfe6ff !important;
+  }
+  body .spec-toggle { right: 0; border-left: none !important; border-radius: 0 12px 12px 0 !important; }
+  body .stat-toggle { left: 0; border-right: none !important; border-radius: 12px 0 0 12px !important; }
+  /* 占位沿用原卡片的分值角标结构，占位里没有角标 */
+}
+</style>
+<style>
+/* siro-lobby-landscape-fix 2026-11-19 */
+@media (orientation: landscape) and (max-height: 800px) {
+  .stats-col { gap: 5px !important; }
+  .stats-col .stat-card { padding: 7px 9px !important; }
+  .stats-col .pie-wrap { gap: 7px !important; flex-wrap: nowrap !important; }
+  /* 饼图缩小，给下面的玩家排名留高度 */
+  .stats-col .pie-svg { flex: 0 0 62px !important; width: 62px !important; height: 62px !important; }
+  .stats-col .pie-legend { max-height: 72px !important; }
+  .stats-col .pie-item { font-size: .62rem !important; line-height: 1.3 !important; }
+  .stats-col .stat-card:nth-child(2) { flex: 0 0 auto !important; }
+  /* 玩家排名卡必须吃掉剩余高度，内部列表自己滚 */
+  .stats-col .stat-card:last-child {
+    flex: 1 1 auto !important; min-height: 0 !important;
+    display: flex !important; flex-direction: column !important; overflow: hidden !important;
+  }
+  .stats-col .stat-card:last-child .rank-list {
+    flex: 1 1 auto !important; min-height: 0 !important;
+    max-height: none !important; overflow-y: auto !important;
+  }
+  .stats-col .stat-card:last-child h3 { flex: 0 0 auto !important; }
+}
+#deckCards .deck-pane-label {
+  display: flex; align-items: center; justify-content: center;
+  text-align: center; box-sizing: border-box;
+  color: #FFD700; font-weight: 800; font-size: 9px; line-height: 1.3;
+  white-space: pre-line;
+  background: rgba(212,175,55,.08);
+  border: 1px solid rgba(212,175,55,.45); border-radius: 3px;
+  overflow: hidden;
+}
+#deckCards .deck-pane-extra .deck-pane-label { font-size: 9px; }
+#deckCards .deck-pane-side .deck-pane-label { font-size: 11px; letter-spacing: .5px; line-height: 1.25; }
+/* 额外/SIDE 与主卡组共用同一行高变量，卡图高度严格一致 */
+#deckCards .deck-panes .deck-grid { grid-auto-rows: var(--siro-deck-row-h, auto); }
+#deckCards .deck-panes .deck-grid > * { min-height: var(--siro-deck-row-h, 0); }
+body .deck-panes-right { gap: 3px !important; }
 </style>
 </head>
 <body>
@@ -251,16 +722,53 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       <div class="who" id="who">…</div>
       <div class="hint" id="startHint" style="display:none"></div>
     </div>
+    <!-- 手机端：统计卡（头像与开始匹配之间；桌面端隐藏，用右栏那份） -->
+    <div class="stats-mobile">
+      <div class="card stat-card" data-drawer="pie" title="点开查看完整牌系占比">
+        <h3>🥧 天梯主牌系占比 <small class="arch-sub">加载中…</small></h3>
+        <div class="pie-wrap">
+          <svg class="pie-svg arch-pie" viewBox="0 0 42 42" role="img" aria-label="天梯主牌系占比"></svg>
+          <div class="pie-legend arch-legend"></div>
+        </div>
+      </div>
+      <div class="card stat-card" data-drawer="rank" title="点开查看玩家排名">
+        <h3>🎲 当赛季先后手胜率 <small class="fs-sub">加载中…</small></h3>
+        <div class="fs-body"></div>
+      </div>
+    </div>
+
     <div class="mine" id="mine">
       <span><i>积分</i><b id="mRating">-</b></span>
       <span><i>段位</i><b id="mTier">-</b></span>
       <span><i>胜场</i><b id="mWins">-</b></span>
       <span><i>胜率</i><b id="mRate">-</b></span>
     </div>
-    <button class="btn start-top" id="btnStart">开始匹配</button>
+    <button class="btn ghost spec-toggle" id="specToggle" title="在线观战列表">观战</button>
+    <button class="btn ghost stat-toggle" id="statToggle" title="天梯统计 / 排名">统计</button>
+    <button class="btn start-top" id="btnStart" disabled title="正在验证登录状态…">开始匹配</button>
   </div>
 
-  <div class="card">
+  <!-- 手机端：统计抽屉（点上面的迷你卡展开） -->
+  <div class="stat-drawer" id="statDrawer">
+    <div class="stat-drawer-head"><b id="drawerTitle">天梯主牌系占比</b><button id="drawerClose" type="button">收起 ✕</button></div>
+    <div class="stat-drawer-body" id="drawerBody"></div>
+  </div>
+
+  <div class="lobby-grid">
+    <!-- 左：在线观战（只列随机匹配 M 房且已开局） -->
+    <div class="card spec-card">
+      <div class="spec-handle" id="specHandle">
+        <span>⚔ 在线观战</span><span class="cnt" id="specCount">加载中…</span><span class="arrow">▲</span>
+      </div>
+      <div class="spec-head">
+        <span class="spec-title">⚔ 对局 · 在线观战</span>
+        <span class="spec-sub" id="specMeta">加载中…</span>
+      </div>
+      <div class="spec-list" id="specList"></div>
+    </div>
+
+    <!-- 右：当前卡组（自适应大小，不出滚动条） -->
+    <div class="card deck-col">
     <!-- 只有天梯一种形态（比赛模式已按用户决定去掉）→ 不再需要模式选择，卡组行独自成行 -->
     <div class="row row-inline">
       <span class="k">卡组</span>
@@ -280,11 +788,45 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     <div class="msg" id="msg"></div>
   </div>
 
+    <!-- 右：统计（上：天梯主牌系饼图 / 下：当赛季先后手胜率） -->
+    <aside class="stats-col">
+      <div class="card stat-card">
+        <h3>🥧 天梯主牌系占比 <small id="archSub" class="arch-sub">加载中…</small></h3>
+        <div class="pie-wrap">
+          <svg class="pie-svg arch-pie" id="archPie" viewBox="0 0 42 42" role="img" aria-label="天梯主牌系占比"></svg>
+          <div class="pie-legend arch-legend" id="archLegend"></div>
+        </div>
+      </div>
+      <div class="card stat-card">
+        <h3>🎲 当赛季先后手胜率 <small id="fsSub" class="fs-sub">加载中…</small></h3>
+        <div id="fsBody" class="fs-body"></div>
+      </div>
+      <div class="card stat-card" style="flex:1 1 auto; min-height:0;">
+        <h3>🏆 玩家排名 <small id="rankSub">TOP 10</small></h3>
+        <div class="rank-list" id="rankList"><div class="pie-empty">加载中…</div></div>
+      </div>
+    </aside>
+  </div><!-- /lobby-grid -->
+  <div id="specBackdrop"></div>
+  <div id="statBackdrop"></div>
+
   <!-- 返回主页：和官网其它分块（卡组查看器 / 排行榜 / 论坛…）保持一致 —— 左上角 back-btn ✓ -->
-  <button class="back-btn" onclick="location.href='index.html'">← 返回主页</button>
+  <button class="back-btn" id="backHomeBtn">← 返回主页</button>
 </div>
 
 <script>
+/* PATCH(白神服) 2026-11-14: 决斗大厅的「返回主页」按来源分流 ——
+   从新版(next.html)进来就回新版大厅，从老版(index.html)进来就回老版 */
+(function () {
+  var btn = document.getElementById('backHomeBtn');
+  if (!btn) return;
+  var from = '';
+  try { from = new URLSearchParams(location.search).get('from') || ''; } catch (e) {}
+  btn.setAttribute('data-from', from);
+  btn.onclick = function () {
+    location.href = (from === 'next') ? 'next.html' : 'index.html';
+  };
+})();
 (function () {
   'use strict';
   var $ = function (i) { return document.getElementById(i); };
@@ -304,11 +846,28 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   // ── 身份 ──
   fetch('/api/duel/whoami?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
     if (!d || !d.loggedIn) {
-      $('who').innerHTML = '<a href="duel.html">未登录，点这里登录/注册 →</a>';
+      window.__lobbyLoggedIn = false;
+      var avBox = document.getElementById('avatarBox');
+      if (avBox) {
+        avBox.style.cursor = 'pointer';
+        avBox.title = '点击登录 / 注册';
+        avBox.onclick = function () {
+          if (window.__lobbyLoggedIn) return;
+          location.href = 'duel.html?from=lobby';
+        };
+      }
+      $('who').innerHTML = '<a href="duel.html?from=lobby">未登录，点这里登录/注册 →</a>';
       setStartEnabled(false);
       msg('登录后才能开始匹配');
       return;
     }
+    window.__lobbyAuthOk = true;
+    window.__lobbyLoggedIn = true;
+    (function () {
+      var av2 = document.getElementById('avatarBox');
+      if (av2) { av2.style.cursor = ''; av2.title = ''; av2.onclick = null; }
+    })();
+    window.__myName = (d && (d.name || d.account)) || '';   // 观战时用这个名字
     $('who').textContent = '已登录：' + (d.account || d.name);
     if (d.name) $('meName').textContent = d.name;    // 标题换成玩家显示名
     // 头像：用官网已有的 /api/forum/avatar/<账号>（和论坛/卡组社区同一个头像）
@@ -429,7 +988,7 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
       + badge;
     return wrap;
   }
-  function renderDeckCards(deck) {
+  function renderDeckCardsLegacy(deck) {
     if (!scoreMap) { loadScores().then(function () { renderDeckCards(deck); }); return; }
     var box = $('deckCards');
     box.innerHTML = '';
@@ -449,6 +1008,114 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     section('副卡组', deck.side || []);
     if (!box.children.length) box.innerHTML = '<div class="deck-empty">这套卡组是空的</div>';
     // 老站那套悬停提示：鼠标移到卡上显示卡名/效果文本
+    if (window.DeckViewer && window.DeckViewer.attachCardHover) {
+      window.DeckViewer.attachCardHover(box);
+    }
+  }
+
+  // PATCH(白神服) 2026-11-17: 只有「手机横屏」用新版式（主卡组 10/11/12 列、额外/副 8 列、
+  // 空白占位、卡图等大），其它情况（PC / 手机竖屏）保持原来的三段式渲染，不受影响。
+  var COMPACT_MQ = '(orientation: landscape) and (max-height: 640px) and (max-width: 1000px)';
+  function isCompactLobby() {
+    try { return window.matchMedia(COMPACT_MQ).matches; } catch (e) { return false; }
+  }
+  function renderDeckCards(deck) {
+    if (isCompactLobby()) return renderDeckCardsCompact(deck);
+    return renderDeckCardsLegacy(deck);
+  }
+  try { window.renderDeckCards = renderDeckCards; } catch (e) {}   // 调试/外部调用
+  function renderDeckCardsCompact(deck) {
+    if (!scoreMap) { loadScores().then(function () { renderDeckCardsCompact(deck); }); return; }
+    var box = $('deckCards');
+    box.innerHTML = '';
+    var main = deck.main || [], extra = deck.extra || [], side = deck.side || [];
+    var mainCols = Math.max(10, Math.ceil(Math.max(main.length, 1) / 4));
+    if (!main.length && !extra.length && !side.length) {
+      box.innerHTML = '<div class="deck-empty">这套卡组是空的</div>';
+      return;
+    }
+
+    var panes = document.createElement('div');
+    panes.className = 'deck-panes';
+    var mainPane = mkPane('deck-pane-main', '主卡组', main, mainCols, 4, false);
+    var extraPane = mkPane('deck-pane-extra', '额外卡组', extra, 8, 2, true);
+    var sidePane = mkPane('deck-pane-side', '副卡组', side, 8, 2, true);
+    var right = document.createElement('div');
+    right.className = 'deck-panes-right';
+    right.appendChild(extraPane.pane);
+    right.appendChild(sidePane.pane);
+    panes.appendChild(mainPane.pane);
+    panes.appendChild(right);
+    box.appendChild(panes);
+
+    function mkPane(cls, label, ids, cols, minRows, labelTile) {
+      var pane = document.createElement('div');
+      pane.className = 'deck-pane ' + cls;
+      var head = document.createElement('div');
+      head.className = 'deck-pane-head';
+      head.textContent = label + '（' + ids.length + ' 张）';
+      if (labelTile) {
+        // 额外卡组：保留与主卡组标题同高，只隐藏文字；副卡组在上面一排的下一格，
+        // 不能再留标题高度，否则会比主卡组第三排低一截。
+        if (cls.indexOf('side') >= 0) head.style.display = 'none';
+        else {
+          head.style.visibility = 'hidden';
+          head.setAttribute('aria-hidden', 'true');
+        }
+      }
+      pane.appendChild(head);
+      var grid = document.createElement('div');
+      grid.className = 'deck-cards deck-grid';
+      var needCells = Math.max(cols * minRows, Math.ceil(ids.length / cols) * cols || cols);
+      if (labelTile) needCells = Math.max(16, cols * minRows);   // 1 个标题格 + 15 个卡位
+      var rows = Math.ceil(needCells / cols);
+      var i;
+      if (labelTile) {
+        var lab = document.createElement('div');
+        lab.className = 'deck-pane-label';
+        lab.textContent = (label === '额外卡组') ? '额外\n卡组' : 'SI\nDE';
+        grid.appendChild(lab);
+      }
+      for (i = 0; i < ids.length; i++) grid.appendChild(deckCardImg(ids[i]));
+      var cardSlots = labelTile ? Math.max(15, ids.length) : ids.length;
+      for (i = ids.length; i < cardSlots; i++) {
+        var ph = document.createElement('div');
+        ph.className = 'card-img-wrapper is-placeholder';
+        grid.appendChild(ph);
+      }
+      pane.appendChild(grid);
+      return { pane: pane, grid: grid, cols: cols, rows: rows };
+    }
+
+    // 关键：用像素写死列宽/行高 → 主卡组(10列×4行) 与 额外/副(8列×2行) 的卡图
+    //       宽高完全一致，也不会撑出容器（上面标题不会被压、下面不会裁掉）
+    function layout() {
+      var h = box.clientHeight;
+      if (!h || h < 60) return;
+      var headH = 14;                       // 三个区块标题 + 间距
+      var rowH = Math.floor((h - headH * 3 - 16) / 4);
+      if (rowH < 24) rowH = 24;
+      var cardW = Math.floor((rowH - 3) * 59 / 86);
+      if (cardW < 14) cardW = 14;
+      try { box.style.setProperty('--siro-deck-row-h', rowH + 'px'); } catch (e) {}
+      function apply(q) {
+        q.grid.style.gridTemplateColumns = 'repeat(' + q.cols + ', ' + cardW + 'px)';
+        q.grid.style.gridTemplateRows = 'repeat(' + q.rows + ', ' + rowH + 'px)';
+        q.grid.style.width = (q.cols * cardW + (q.cols - 1) * 3) + 'px';
+        // 每个格子也写死宽高（浏览器对 aspect-ratio:auto + 绝对定位子元素不一定会 stretch）
+        for (var ci = 0; ci < q.grid.children.length; ci++) {
+          var c = q.grid.children[ci];
+          c.style.width = cardW + 'px';
+          c.style.height = rowH + 'px';
+        }
+      }
+      apply(mainPane);
+      apply(extraPane);
+      apply(sidePane);
+    }
+    layout();
+    requestAnimationFrame(layout);
+    window.addEventListener('resize', layout);
     if (window.DeckViewer && window.DeckViewer.attachCardHover) {
       window.DeckViewer.attachCardHover(box);
     }
@@ -551,6 +1218,12 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
   }
   $('btnStart').onclick = function () {
     if (this.disabled) return;
+    // 防止「登录态还没验证完就点开始匹配」（会进房后准备失败）
+    if (!window.__lobbyAuthOk) {
+      msg('正在验证登录状态，请稍候 1 秒再点…');
+      setTimeout(function () { if (window.__lobbyAuthOk) $('btnStart').disabled = false; }, 800);
+      return;
+    }
     // 先把公网 IP 报给站点（异步但不等它 —— 失败也照样能匹配 ✓）
     try {
       fetchPublicIp().then(function (ip) {
@@ -561,6 +1234,460 @@ select:focus, input:focus { outline:none; border-color:rgba(212,175,55,.6); }
     } catch (e) {}
     playTransition(function () { location.href = 'duel.html?auto=1'; });
   };
+})();
+</script>
+
+<script>
+/* PATCH(白神服) 2026-11-03: 观战列表（随机 M 房 · 已开局）+ 卡组自适应 */
+(function () {
+  'use strict';
+  var PIC_OCG = 'https://cdn.233.momobako.com/ygopro/pics/';
+  var PIC_PRE = 'https://cdn02.moecube.com:444/ygopro-super-pre/data/pics/';
+  var PIC_DIY = 'https://api.ygopro3.cn/pics/siro/';
+  var listEl = document.getElementById('specList');
+  var metaEl = document.getElementById('specMeta');
+  if (!listEl) return;
+
+  // ── 手机端：在线观战底部抽屉 ──
+  (function () {
+    var card = document.querySelector('.spec-card');
+    var handle = document.getElementById('specHandle');
+    var bd = document.getElementById('specBackdrop');
+    if (!card || !handle) return;
+    function setOpen(open) {
+      card.classList.toggle('open', open);
+      if (bd) bd.classList.toggle('on', !!open);
+    }
+    handle.addEventListener('click', function () { setOpen(!card.classList.contains('open')); });
+    if (bd) bd.addEventListener('click', function () { setOpen(false); });
+    // 抽屉里点「在线观战」跳转前先收起（返回时不会是展开状态）
+    card.addEventListener('click', function (ev) {
+      var t = ev.target;
+      if (t && t.classList && t.classList.contains('spec-watch')) setOpen(false);
+    });
+  })();
+
+  // ── 右栏统计：天梯主牌系饼图 + 当赛季先后手胜率 ──
+  var $ = function (i) { return document.getElementById(i); };   // 本 IIFE 内的局部 $（原来没有）
+  var LAST_ARCH = null;
+  var ARCH_COLORS = ['#46d8a1', '#4aa8ff', '#e6ad3f', '#ff7b72', '#b98cff', '#37c8d8',
+                     '#f0d264', '#8fd94a', '#ff9ecb', '#7f8cff', '#d98c5f', '#5fd0a0',
+                     '#c0c8d8'];
+  function donutSvg(items) {
+    var total = items.reduce(function (a, b) { return a + (b.pct || 0); }, 0) || 1;
+    var out = '<circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="rgba(255,255,255,.07)" stroke-width="7"></circle>';
+    var off = 25;
+    items.forEach(function (it, i) {
+      var pct = (it.pct || 0) / total * 100;
+      var col = it.name === '其它' ? 'rgba(160,160,172,.55)' : ARCH_COLORS[i % ARCH_COLORS.length];
+      out += '<circle cx="21" cy="21" r="15.9155" fill="transparent" stroke="' + col + '" stroke-width="7"'
+        + ' stroke-dasharray="' + pct.toFixed(2) + ' ' + (100 - pct).toFixed(2) + '"'
+        + ' stroke-dashoffset="' + off.toFixed(2) + '"></circle>';
+      off -= pct;
+    });
+    return out;
+  }
+  function each(sel, fn) {
+    [].forEach.call(document.querySelectorAll(sel), fn);
+  }
+  // 「其它」明细：长尾牌系列表（点饼图图例里的「其它」触发）
+  function showArchTail(d) {
+    var old = document.getElementById('archTailMask');
+    if (old) old.parentNode.removeChild(old);
+    var tail = (d && d.tail) || [];
+    var mask = document.createElement('div');
+    mask.id = 'archTailMask';
+    mask.style.cssText = 'position:fixed;inset:0;z-index:100060;background:rgba(4,3,8,.72);'
+      + 'display:flex;align-items:center;justify-content:center;padding:18px;'
+      + 'font-family:"Microsoft YaHei",system-ui,sans-serif';
+    var box = document.createElement('div');
+    box.style.cssText = 'width:min(560px,94vw);max-height:78vh;display:flex;flex-direction:column;'
+      + 'background:linear-gradient(180deg,#1a1720,#14121a);border:1px solid rgba(212,175,55,.42);'
+      + 'border-radius:14px;color:#ece6da;overflow:hidden';
+    var sub = '占 ' + (d.total ? ((d.tailTotal || 0) * 100 / d.total).toFixed(1) : '0') + '%'
+      + ' · ' + (d.tailCount || tail.length) + ' 个牌系 · ' + (d.tailTotal || 0) + ' 副卡组';
+    if (d.unclassified) sub += '（另有 ' + d.unclassified + ' 副无法归类）';
+    box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;padding:14px 16px;'
+      + 'border-bottom:1px solid rgba(255,255,255,.07)">'
+      + '<b style="color:#e9c96a">「其它」明细</b>'
+      + '<span style="font-size:12px;color:#8d8798">' + sub + '</span>'
+      + '<button id="archTailClose" style="margin-left:auto;width:30px;height:30px;border-radius:8px;'
+      + 'border:1px solid rgba(255,255,255,.14);background:transparent;color:#b9b3c4;cursor:pointer">✕</button></div>'
+      + '<div style="overflow:auto;padding:8px 14px 14px;scrollbar-width:thin">' + (tail.length ? tail.map(function (it) {
+          return '<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;'
+            + 'border-bottom:1px dashed rgba(255,255,255,.06)">'
+            + '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+            + esc(it.name) + '</span>'
+            + '<span style="font-size:12px;color:#9b95a6">' + it.count + ' 副</span>'
+            + '<span style="font-size:12px;color:#ffe08a;width:52px;text-align:right">' + it.pct + '%</span>'
+            + '</div>';
+        }).join('') : '<div style="padding:20px;text-align:center;color:#8d8798">没有长尾数据</div>')
+      + '</div>';
+    mask.appendChild(box);
+    document.body.appendChild(mask);
+    function close() { if (mask.parentNode) mask.parentNode.removeChild(mask); }
+    box.querySelector('#archTailClose').onclick = close;
+    mask.addEventListener('click', function (e) { if (e.target === mask) close(); });
+    document.addEventListener('keydown', function esc2(e) {
+      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', esc2, true); }
+    }, true);
+  }
+
+  function loadArch() {
+    fetch('/api/ladder/archetypes?t=' + Date.now()).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      var ok = !!(d && d.ok && (d.items || []).length);
+      // PATCH: 「其它」必须保留 —— 之前 slice(0,13) 会把它截掉，
+      //   于是 <2% 的牌系在饼图上就完全看不到（用户要求：没到 2% 的也显示，归到其它）
+      var items = [];
+      if (ok) {
+        var others = null;
+        d.items.forEach(function (it) {
+          if (it.name === '其它' || it.name === '其他' || it.name === 'Other') others = it;
+        });
+        items = d.items.filter(function (it) { return it !== others; }).slice(0, 12);
+        if (others) items = items.concat([others]);
+      }
+      each('.arch-pie', function (pie) { pie.innerHTML = ok ? donutSvg(items) : ''; });
+      each('.arch-legend', function (legend) {
+        legend.innerHTML = ok ? items.map(function (it, i) {
+          var col = it.name === '其它' ? 'rgba(160,160,172,.55)' : ARCH_COLORS[i % ARCH_COLORS.length];
+          var isOther = (it.name === '其它' || it.name === '其他');
+          return '<div class="pie-item' + (isOther ? ' pie-item-other' : '') + '"'
+            + (isOther ? ' title="点击查看「其它」里都有哪些卡组"' : '')
+            + '><span class="pie-dot" style="background:' + col + '"></span>'
+            + '<span class="pie-name" title="' + esc(it.name) + '">' + esc(it.name)
+            + (isOther ? ' ▸' : '') + '</span>'
+            + '<span class="pie-pct">' + it.pct + '%</span></div>';
+        }).join('') : '<div class="pie-empty">暂无天梯对局数据</div>';
+      });
+      LAST_ARCH = ok ? d : null;
+      // PATCH(白神服) 2026-11-16: 点「其它」看长尾明细（用户好奇其它都是什么卡组）
+      each('.arch-legend', function (legend) {
+        [].forEach.call(legend.querySelectorAll('.pie-item-other'), function (el) {
+          el.onclick = function () { showArchTail(d); };
+        });
+      });
+      each('.arch-sub', function (sub) {
+        sub.textContent = ok ? ((d.season ? d.season.name : '') + ' · 胜者 ' + d.total + ' 副 · ≥' + d.minPct + '%') : '';
+      });
+    }).catch(function () {});
+  }
+  function loadFS() {
+    fetch('/api/stats/first-second?t=' + Date.now()).then(function (r) { return r.ok ? r.json() : null; }).then(function (d) {
+      var se = d && d.season;
+      if (!se || !se.games) {
+        each('.fs-body', function (x) { x.innerHTML = '<div class="pie-empty">暂无本赛季数据</div>'; });
+        each('.fs-sub', function (x) { x.textContent = ''; });
+        return;
+      }
+      var fw = se.firstWinRate || 0, sw = se.secondWinRate || 0;
+      var html =
+        '<div class="fs-row"><span class="fs-label">先手</span>'
+        + '<span class="fs-bar"><span class="fs-fill first" style="width:' + fw + '%"></span></span>'
+        + '<span class="fs-val">' + fw.toFixed(1) + '%</span></div>'
+        + '<div class="fs-row"><span class="fs-label">后手</span>'
+        + '<span class="fs-bar"><span class="fs-fill second" style="width:' + sw + '%"></span></span>'
+        + '<span class="fs-val">' + sw.toFixed(1) + '%</span></div>'
+        + '<div class="fs-note">仅统计天梯随机匹配（M,RANDOM#）与 M# 房，赛季 ' + se.start + ' ~ ' + se.end
+        + '。</div>';
+      each('.fs-body', function (x) { x.innerHTML = html; });
+      each('.fs-sub', function (x) { x.textContent = se.name; });
+    }).catch(function () {});
+  }
+  // ── 玩家排名（PC 右栏 + 手机抽屉共用；TOP 10）──
+  var LAST_RANK = [];
+  function renderRankList(limit) {
+    if (!LAST_RANK.length) return '<div class="pie-empty">暂无排名数据</div>';
+    return LAST_RANK.slice(0, limit || 10).map(function (p, i) {
+      var cls = i === 0 ? ' top1' : i === 1 ? ' top2' : i === 2 ? ' top3' : '';
+      return '<div class="rank-row' + cls + '">'
+        + '<span class="rank-no">' + (i + 1) + '</span>'
+        + '<span class="rank-name" title="' + esc(p.name) + '">' + esc(p.name) + '</span>'
+        + '<span class="rank-tier">' + esc((p.tier || '').replace(/^S\d+\s*/, '')) + '</span>'
+        + '<span class="rank-pt">' + (p.rating == null ? '-' : p.rating) + '</span>'
+        + '</div>';
+    }).join('');
+  }
+  function loadRank() {
+    fetch('https://api.ygopro3.cn/api/ladder?t=' + Date.now())
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        LAST_RANK = (j && j.players) || [];
+        var pc = document.getElementById('rankList');
+        if (pc) pc.innerHTML = renderRankList(10);
+        var sub = document.getElementById('rankSub');
+        if (sub) sub.textContent = 'TOP ' + Math.min(10, LAST_RANK.length);
+        if (drawerKind === 'rank') renderDrawer();
+      }).catch(function () {});
+  }
+
+  // ── 手机端统计抽屉 ──
+  var drawerKind = '';
+  var drawerEl = document.getElementById('statDrawer');
+  var drawerTitle = document.getElementById('drawerTitle');
+  var drawerBody = document.getElementById('drawerBody');
+  function closeDrawer() {
+    drawerKind = '';
+    if (drawerEl) drawerEl.classList.remove('open');
+    Array.prototype.forEach.call(document.querySelectorAll('.stats-mobile .stat-card'), function (c) {
+      c.classList.remove('active');
+    });
+  }
+  function renderDrawer() {
+    if (!drawerBody) return;
+    if (drawerKind === 'pie') {
+      drawerTitle.textContent = '🥧 天梯主牌系占比（完整）';
+      var items = (LAST_ARCH && LAST_ARCH.items) || [];
+      if (!items.length) { drawerBody.innerHTML = '<div class="pie-empty">暂无数据</div>'; return; }
+      drawerBody.innerHTML = '<div class="pie-wrap">'
+        + '<svg class="pie-svg" viewBox="0 0 42 42">' + donutSvg(items) + '</svg>'
+        + '<div class="pie-legend">' + items.map(function (it, i) {
+            var col = it.name === '其它' ? 'rgba(160,160,172,.55)' : ARCH_COLORS[i % ARCH_COLORS.length];
+            return '<div class="pie-item"><span class="pie-dot" style="background:' + col + '"></span>'
+              + '<span class="pie-name" title="' + esc(it.name) + '">' + esc(it.name) + '</span>'
+              + '<span class="pie-pct">' + it.pct + '%</span></div>';
+          }).join('') + '</div></div>';
+    } else if (drawerKind === 'rank') {
+      drawerTitle.textContent = '🏆 玩家排名（TOP 10）';
+      drawerBody.innerHTML = '<div class="rank-list">' + renderRankList(10) + '</div>';
+    }
+  }
+  function openDrawer(kind) {
+    if (drawerKind === kind) { closeDrawer(); return; }
+    drawerKind = kind;
+    if (drawerEl) drawerEl.classList.add('open');
+    Array.prototype.forEach.call(document.querySelectorAll('.stats-mobile .stat-card'), function (c) {
+      c.classList.toggle('active', c.getAttribute('data-drawer') === kind);
+    });
+    renderDrawer();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('.stats-mobile .stat-card[data-drawer]'), function (c) {
+    c.addEventListener('click', function () { openDrawer(c.getAttribute('data-drawer')); });
+  });
+  var dc = document.getElementById('drawerClose');
+  if (dc) dc.addEventListener('click', function (e) { e.stopPropagation(); closeDrawer(); });
+
+
+  // PATCH(白神服) 2026-11-17: 手机横屏 —— 观战（左）/ 统计（右）抽屉
+  (function () {
+    function bind(btnId, panelSel, backId, cls) {
+      var btn = document.getElementById(btnId);
+      var panel = document.querySelector(panelSel);
+      var back = document.getElementById(backId);
+      if (!btn || !panel) return;
+      function close() { panel.classList.remove(cls); if (back) back.classList.remove(back.dataset.cls || 'on'); }
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var on = panel.classList.toggle(cls);
+        if (back) back.classList.toggle(back.dataset.cls || 'on', on);
+      });
+      if (back) { back.dataset.cls = back.dataset.cls || 'on'; back.addEventListener('click', close); }
+      document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    }
+    // 把按钮搬进抽屉内部 → 抽屉滑动时把手跟着一起动
+    (function () {
+      var sp = document.querySelector('.spec-card');
+      var sb = document.getElementById('specToggle');
+      if (sp && sb && sb.parentNode !== sp) sp.appendChild(sb);
+      var st = document.querySelector('.stats-col');
+      var stb = document.getElementById('statToggle');
+      if (st && stb && stb.parentNode !== st) st.appendChild(stb);
+    })();
+    bind('specToggle', '.spec-card', 'specBackdrop', 'open');
+    bind('statToggle', '.stats-col', 'statBackdrop', 'open');
+    var sb = document.getElementById('statBackdrop'); if (sb) sb.dataset.cls = 'show';
+  })();
+
+  loadArch();
+  loadFS();
+  loadRank();
+  setInterval(loadArch, 30000);
+  setInterval(loadFS, 60000);
+  setInterval(loadRank, 120000);
+
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : String(s); return d.innerHTML; }
+
+  // PATCH(白神服) 头像防闪：原来每次 render 都拼 ?v=Date.now() → 每 5 秒轮询都换新 URL，
+  //   浏览器重新请求 → 头像闪一下。改成「每个账号的缓存戳只在本次页面加载时取一次」。
+  var AV_VER = {};
+  function avatarSrc(account) {
+    var k = account || '';
+    if (!k) return '';
+    if (!AV_VER[k]) AV_VER[k] = String(Date.now());
+    return '/api/forum/avatar/' + encodeURIComponent(k) + '?v=' + AV_VER[k];
+  }
+
+  function firstCardImg(id) {
+    if (!id) return '<span class="spec-first"></span>';
+    // PATCH(白神服): 首卡图先 OCG → 先行 → DIY → 最后回退到站内默认卡背 cover2.jpg，
+    //   否则新卡/DIY 卡三个图床都没有时会显示破图 + 卡号文字（用户实测「64500127」那串）。
+    return '<img class="spec-first" alt="" loading="lazy" src="' + PIC_OCG + id + '.jpg"' +
+      ' onerror="if(!this.dataset.s1){this.dataset.s1=1;this.src=\'' + PIC_PRE + id + '.jpg\';}' +
+      ' else if(!this.dataset.s2){this.dataset.s2=1;this.src=\'' + PIC_DIY + id + '.jpg\';}' +
+      ' else if(!this.dataset.s3){this.dataset.s3=1;this.src=\'cover2.jpg\';} else {this.style.display=\'none\';}">';
+  }
+
+  function halfHtml(p, idx) {
+    // 天梯身份：优先用账号（avatar 接口按账号取），名字用天梯显示名
+    var av = avatarSrc(p.account || '');
+    return '<div class="spec-half p' + idx + '">' +
+      '<span class="spec-avatar spec-avatar-ph">' + esc((p.name || '?').slice(0, 1)) + '</span>' +
+      (av ? '<img class="spec-avatar" alt="" loading="lazy" src="' + av + '" onload="this.previousElementSibling&&this.previousElementSibling.remove()" onerror="this.remove()">' : '') +
+      firstCardImg(p.card) +
+      '<span class="spec-who"><span class="spec-name">' + esc(p.name) + '</span>' +
+      (p.ladderTitle ? '<span class="spec-title">' + esc(p.ladderTitle) + '</span>' : '') +
+      '</span>' +
+      '</div>';
+  }
+
+  function render(rooms) {
+    // PATCH(白神服) 内容没变就不要重建 DOM —— 否则每 5 秒轮询都会重插一次 img（头像闪）
+    var _sig = JSON.stringify(rooms.map(function (r) {
+      return [r.roomName, (r.players || []).map(function (p) {
+        return [p.name, p.account, p.card, p.ladderTitle].join('|');
+      }).join('~')];
+    }));
+    if (listEl._renderSig === _sig) return;
+    listEl._renderSig = _sig;
+    metaEl.textContent = rooms.length ? (rooms.length + ' 场进行中') : '';
+    var _sc = document.getElementById('specCount');
+    if (_sc) _sc.textContent = rooms.length ? (rooms.length + ' 场进行中') : '暂无对局';
+    if (!rooms.length) {
+      listEl.innerHTML = '<div class="spec-empty">暂时没有正在进行的随机匹配对局<br>（对局高峰期在中午后）</div>';
+      return;
+    }
+    listEl.innerHTML = rooms.map(function (r) {
+      var p0 = r.players[0], p1 = r.players[1];
+      return '<div class="spec-row" data-room="' + esc(r.roomName) + '">' +
+        '<div class="spec-band">' +
+          halfHtml(p0, 1) + '<div class="spec-vs"><b>VS</b></div>' + halfHtml(p1, 2) +
+        '</div>' +
+        '<div class="spec-actions">' +
+        '<button class="spec-btn spec-watch" data-room="' + esc(r.roomName) +
+          '" data-p0="' + esc(p0.name) + '" data-p1="' + esc(p1.name) +
+          '" data-m0="' + (p0.mainc || '') + '" data-x0="' + (p0.extrac || '') + '" data-h0="' + (p0.handc == null ? '' : p0.handc) +
+          '" data-m1="' + (p1.mainc || '') + '" data-x1="' + (p1.extrac || '') + '" data-h1="' + (p1.handc == null ? '' : p1.handc) + '">在线观战</button>' +
+        '<button class="spec-btn spec-copy" data-room="' + esc(r.roomName) + '">复制房间号</button>' +
+        '</div></div>';
+    }).join('');
+
+    Array.prototype.forEach.call(listEl.querySelectorAll('.spec-watch'), function (b) {
+      b.onclick = function () {
+        // PATCH(白神服) 2026-11-05: 观战必须登录（用登录账号的身份进观战）——
+        //   未登录不允许观战，避免出现"观战观众"这种不属于任何账号的匿名席位。
+        if (!window.__lobbyAuthOk) {
+          msg('请先登录账号再观战（右上角「未登录」→ 登录）');
+          return;
+        }
+        var room = b.getAttribute('data-room');
+        // 昵称用登录账号的显示名（服务端会按账号自动登录游戏服，观战者也是登录状态）
+        var nick = window.__myName || ('观战' + Math.floor(Math.random() * 9000 + 1000));
+        var p0 = b.getAttribute('data-p0') || '', p1 = b.getAttribute('data-p1') || '';
+        var nums = ['m0:mainc', 'x0:extrac', 'h0:handc', 'm1:mainc', 'x1:extrac', 'h1:handc'];
+        var extra = '';
+        extra = '&m0=' + (b.getAttribute('data-m0') || '') + '&x0=' + (b.getAttribute('data-x0') || '') +
+                '&h0=' + (b.getAttribute('data-h0') || '') + '&m1=' + (b.getAttribute('data-m1') || '') +
+                '&x1=' + (b.getAttribute('data-x1') || '') + '&h1=' + (b.getAttribute('data-h1') || '');
+        location.href = 'duel.html?watch=1&room=' + encodeURIComponent(room) +
+          '&name=' + encodeURIComponent(nick) +
+          '&p0=' + encodeURIComponent(p0) + '&p1=' + encodeURIComponent(p1) + extra;
+      };
+    });
+    Array.prototype.forEach.call(listEl.querySelectorAll('.spec-copy'), function (b) {
+      b.onclick = function () {
+        var room = b.getAttribute('data-room');
+        var done = function () { b.textContent = '已复制'; setTimeout(function () { b.textContent = '复制房间号'; }, 1200); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(room).then(done, done);
+        } else {
+          var ta = document.createElement('textarea');
+          ta.value = room; document.body.appendChild(ta); ta.select();
+          try { document.execCommand('copy'); } catch (e) {}
+          document.body.removeChild(ta); done();
+        }
+      };
+    });
+  }
+
+  var busy = false;
+  function load() {
+    if (busy) return;
+    busy = true;
+    fetch('/api/lobby/spectate?t=' + Date.now()).then(function (r) { return r.json(); }).then(function (d) {
+      render((d && d.rooms) || []);
+      busy = false;
+    }).catch(function () {
+      if (metaEl) metaEl.textContent = '观战列表加载失败';
+      busy = false;
+    });
+  }
+  load();
+  setInterval(load, 5000);
+
+  // PATCH(白神服) 2026-11-08: 有玩家正在等对手 → 「开始匹配」高亮，告诉玩家现在点就能配上
+  function loadQueueHint() {
+    fetch('/api/liverooms?t=' + Date.now(), { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var rooms = (j && j.rooms) || [];
+        var waiting = 0;
+        rooms.forEach(function (rm) {
+          var us = (rm.users || []).filter(function (u) { return u.pos !== 7; });
+          // PATCH(白神服) 2026-11-08: 只有「已经准备了（上传了卡组）」的等待者才算 ——
+          //   光坐在房间里没准备的人，点「直接开始」也配不上（用户要求）。
+          if (us.length === 1 && us[0].ready === true) waiting++;
+        });
+        var b = $('btnStart');
+        if (!b) return;
+        if (waiting > 0 && !b.disabled) {
+          b.classList.add('hot');
+          // PATCH(白神服) 2026-11-08: 有人在等时按钮文案改成「直接开始」（用户要求）
+          if (b.textContent.trim() !== '直接开始') b.textContent = '直接开始';
+          b.title = '有 ' + waiting + ' 人正在等你匹配，现在点就能配到';
+        } else {
+          b.classList.remove('hot');
+          if (b.textContent.trim() !== '开始匹配') b.textContent = '开始匹配';
+          if (!b.disabled) b.title = '开始匹配';
+        }
+      })
+      .catch(function () {});
+  }
+  setInterval(loadQueueHint, 8000);
+  setTimeout(loadQueueHint, 1200);
+
+
+  // ── 卡组自适应：算每张卡宽度，保证 10 张/行且整屏不用滚动 ──
+  var box = document.getElementById('deckCards');
+  function fitDeck() {
+    if (!box) return;
+    var groups = box.querySelectorAll('.deck-cards');
+    if (!groups.length) return;
+    var rows = 0;
+    Array.prototype.forEach.call(groups, function (g) { rows += Math.ceil(g.children.length / 10); });
+    if (!rows) return;
+    var secs = box.querySelectorAll('.deck-sec').length;
+    var availH = box.clientHeight;
+    var availW = box.clientWidth;
+    if (availH < 40 || availW < 100) return;      // 布局还没稳定 → 等下一次
+    var byW = (availW - 45) / 10;                 // 10 列 + 9×5px 间距
+    var byH = (availH - rows * 6 - secs * 20 - 6) / rows / (61 / 42);
+    var w = Math.floor(Math.max(38, Math.min(byW, byH)));
+    var prev = parseInt(box.style.getPropertyValue('--lobby-card-w'), 10);
+    if (!prev || Math.abs(prev - w) > 1) box.style.setProperty('--lobby-card-w', w + 'px');
+    if (w < 46) box.classList.add('compact'); else box.classList.remove('compact');
+  }
+
+  // 多拍重算：首次渲染 / 字体加载 / 宽度变化都可能让尺寸晚一步稳定
+  [0, 120, 400, 900, 1800, 3000].forEach(function (t) { setTimeout(fitDeck, t); });
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () { fitDeck(); }).observe(box);
+    if (box.parentElement) new ResizeObserver(function () { fitDeck(); }).observe(box.parentElement);
+  }
+  if (window.MutationObserver) {
+    new MutationObserver(function () { fitDeck(); }).observe(box, { childList: true, subtree: true });
+  }
+  window.addEventListener('resize', fitDeck);
+  window.addEventListener('load', fitDeck);
 })();
 </script>
 </body>
