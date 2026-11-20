@@ -324,6 +324,16 @@ document.addEventListener('DOMContentLoaded', function () {
         const sectionId = MAP[target] || 'section-main';
         setTimeout(function () {
             if (typeof window.showSection === 'function') window.showSection(sectionId);
+            // 论坛帖子深链：?goto=forum&post=<id>（分享按钮复制的链接）
+            if (target === 'forum') {
+                let pid = 0;
+                try { pid = parseInt(new URLSearchParams(location.search).get('post') || '0', 10) || 0; } catch (e) { pid = 0; }
+                if (pid > 0) {
+                    setTimeout(function () {
+                        if (typeof window._openForumPost === 'function') window._openForumPost(pid);
+                    }, 350);
+                }
+            }
             if (target === 'banlist' && typeof window.poolPresetBanlist === 'function') {
                 setTimeout(function () { window.poolPresetBanlist(); }, 900);
             } else if (target === 'newcards' && typeof window.openNewCardsModal === 'function') {
@@ -432,6 +442,7 @@ document.addEventListener('DOMContentLoaded', function () {
 window._communityLoggedIn = false;
 window._communityUsername = '';
 window._communityAuth = null; // {username, password}
+window._communityIsAdmin = false; // 论坛管理身份（由服务端按 srv_user.permissions 判定）
 
 (function () {
     var glLoginTrigger = document.getElementById('glLoginTrigger');
@@ -468,15 +479,17 @@ window._communityAuth = null; // {username, password}
         if (glModalOverlay) glModalOverlay.classList.remove('active');
     }
 
-    function setLoggedIn(username, password) {
+    function setLoggedIn(username, password, isAdmin) {
         window._communityLoggedIn = true;
         window._communityUsername = username;
         window._communityAuth = { username: username, password: password };
+        window._communityIsAdmin = !!isAdmin;
         if (glLoginTrigger) glLoginTrigger.style.display = 'none';
         if (glLoggedin) glLoggedin.style.display = 'flex';
         if (glName) glName.textContent = username;
         closeLoginModal();
         updateAvatar();
+        if (typeof window._forumNotifRefresh === 'function') window._forumNotifRefresh();
         if (typeof window._onCommunityLogin === 'function') {
             window._onCommunityLogin(username, password);
         }
@@ -486,6 +499,7 @@ window._communityAuth = null; // {username, password}
         window._communityLoggedIn = false;
         window._communityUsername = '';
         window._communityAuth = null;
+        window._communityIsAdmin = false;
         if (glLoginTrigger) glLoginTrigger.style.display = '';
         if (glLoggedin) glLoggedin.style.display = 'none';
         if (glAvatar) glAvatar.src = 'cover.jpg';
@@ -537,7 +551,7 @@ window._communityAuth = null; // {username, password}
                 body: JSON.stringify({ username: u, password: p }),
             }).then(function (r) { return r.json(); }).then(function (data) {
                 if (data.ok) {
-                    setLoggedIn(u, p);
+                    setLoggedIn(u, p, data.isAdmin);
                 } else {
                     showError(data.error || '登录失败');
                 }
@@ -663,12 +677,84 @@ window._communityAuth = null; // {username, password}
             window._communityLoggedIn = true;
             window._communityUsername = data.username;
             window._communityAuth = { username: data.username, password: '' };
+            window._communityIsAdmin = !!data.isAdmin;
             if (glLoginTrigger) glLoginTrigger.style.display = 'none';
             if (glLoggedin) glLoggedin.style.display = 'flex';
             if (glName) glName.textContent = data.username;
             updateAvatar();
+            if (typeof window._forumNotifRefresh === 'function') window._forumNotifRefresh();
         }
     }).catch(function () {});
+})();
+
+// ═══════════════════════════════════════════════════════
+// 论坛未读红点（回复我的 / 点赞我的）
+//   红点在头像右上角；具体列表在个人中心 → 论坛信息 的两个板块里
+// ═══════════════════════════════════════════════════════
+(function () {
+    var dot = document.getElementById('glAvatarDot');
+    if (!dot) return;
+
+    var EMPTY = { unread: { replies: 0, likes: 0 }, replies: [], likes: [] };
+    var data = EMPTY;
+
+    function render() {
+        var r = (data.unread && data.unread.replies) || 0;
+        var l = (data.unread && data.unread.likes) || 0;
+        var t = r + l;
+        dot.hidden = t <= 0;
+        dot.textContent = t > 9 ? '9+' : String(t);
+    }
+
+    function refresh() {
+        if (!window._communityLoggedIn) {
+            data = EMPTY;
+            render();
+            return Promise.resolve(data);
+        }
+        return fetch('/api/forum/notifications?t=' + Date.now())
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+                data = (d && d.unread) ? d : EMPTY;
+                render();
+                return data;
+            })
+            .catch(function () { return data; });
+    }
+
+    function markRead() {
+        if (!window._communityLoggedIn) return Promise.resolve();
+        return fetch('/api/forum/notifications/read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: '{}',
+        }).then(function () {
+            data = { unread: { replies: 0, likes: 0 }, replies: [], likes: [] };
+            render();
+        }).catch(function () {});
+    }
+
+    // 点红点 = 直接看「回复我的 / 点赞我的」
+    dot.addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (typeof window._openProfilePanel !== 'function'
+            && typeof initCommunityModule === 'function'
+            && !_inited['section-community']) {
+            _inited['section-community'] = true;
+            initCommunityModule();
+        }
+        if (typeof window._openProfilePanel === 'function') window._openProfilePanel('forum');
+    });
+
+    window._forumNotifRefresh = refresh;
+    window._forumNotifMarkRead = markRead;
+    window._forumNotifData = function () { return data; };
+
+    setTimeout(refresh, 1200);
+    setInterval(function () { if (!document.hidden) refresh(); }, 120000);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden && window._communityLoggedIn) refresh();
+    });
 })();
 
 // ═══════════════════════════════════════════════════════

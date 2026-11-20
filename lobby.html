@@ -7,7 +7,8 @@
 <!-- 复用官网「卡组查看器」的卡牌悬停提示（鼠标移上去显示卡名/效果文本），不做点击弹窗 -->
 <link rel="stylesheet" href="css/deck-viewer.css?v=20260903a">
 <script src="js/deck-viewer.js?v=20261119r" defer></script>
-<script src="js/wait-bgm.js?v=20261120a" defer></script>
+<!-- 匹配等待音乐只在 duel.html（真正的进房等对手阶段）里放；
+     大厅页**不放** —— 否则「取消匹配 → 回大厅」会一进大厅就又响起来（用户反馈 ✗） -->
 <!-- 大厅页：照 MDPro3 房间面板的排版，但**只有两个模式**（天梯 M# / 比赛 D#）
      选卡组 = 打开本地文件夹挑 .ydk 上传存到账号 → 开始匹配时自动注入给客户端 -->
 <style>

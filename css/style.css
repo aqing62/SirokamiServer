@@ -945,9 +945,35 @@ body {
     object-fit: cover;
 }
 .gl-name {
-    color: #F0E68C;
-    font-size: 0.85rem;
-    font-weight: 600;
+  color: #F0E68C;
+  font-size: 0.85rem;
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 铃铛：随时打开「回复我的 / 点赞我的」面板（有未读时头像上另有红点） */
+.gl-bell {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(216, 30, 68, 0.3);
+  border-radius: 8px;
+  color: #F0E68C;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.2s, border-color 0.2s;
+}
+.gl-bell:hover {
+  background: rgba(216, 30, 68, 0.15);
+  border-color: rgba(216, 30, 68, 0.6);
 }
 
 /* 登录弹窗 */
@@ -1204,4 +1230,59 @@ body {
   -webkit-text-fill-color: #f2eee6 !important;
   caret-color: #f2eee6 !important;
   transition: background-color 9999s ease-out 0s;
+}
+
+/* ═══════════════════════════════════════════════════════
+   头像上的未读红点（回复我的 / 点赞我的）
+   ═══════════════════════════════════════════════════════ */
+.gl-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.gl-avatar-dot {
+  position: absolute;
+  top: -5px;
+  right: -6px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  box-sizing: border-box;
+  background: #ff3b30;
+  color: #fff;
+  font-size: 10px;
+  line-height: 15px;
+  text-align: center;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  font-weight: 700;
+  pointer-events: auto;
+  cursor: pointer;
+  z-index: 2;
+}
+
+/* 个人中心「个人信息」里的未读小条 */
+.profile-notif {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 2px 0 10px;
+}
+.pn-chip {
+  font-size: 0.72rem;
+  color: #ffb3b3;
+  background: rgba(255, 59, 48, 0.12);
+  border: 1px solid rgba(255, 59, 48, 0.35);
+  border-radius: 10px;
+  padding: 2px 9px;
+}
+.profile-nav-item.has-dot::after {
+  content: '';
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff3b30;
+  margin-left: 6px;
+  vertical-align: middle;
 }

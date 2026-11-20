@@ -183,6 +183,42 @@ COMMUNITY_COOKIE_MAX_AGE = 604800  # 7 天
 AVATAR_DIR = ROOT / "avatars"
 AVATAR_SIZE = 64
 
+# ── 论坛管理身份 ─────────────────────────────────────────────
+#   srv_user.permissions 里出现下面任一值 = 论坛管理员（与游戏内权限口径一致）。
+#   sudo  = 超级管理员
+#   judge = 稽查员（本就是服内管理角色，论坛里也给它删帖/挪分区）
+#   ⚠ 只想让超级管理员管论坛，把 "judge" 从元组里去掉即可。
+FORUM_ADMIN_PERMS = ("sudo", "judge")
+
+
+def _is_forum_admin_perms(perms: str) -> bool:
+    plist = [x.strip() for x in (perms or "").split(",") if x.strip()]
+    return any(p in plist for p in FORUM_ADMIN_PERMS)
+
+
+_AVATAR_BAD_CHARS = set('/\\:*?"<>|')
+
+
+def _avatar_file(account: str):
+    """账号 → avatars/<账号>.png 的绝对路径；名字不合法或越界返回 None。
+
+    ⚠ 账号允许中文（游戏服账号表如此），但**绝不允许** / \\ .. 之类路径成分 ——
+      账号是用户自己注册的（注册只挡控制字符），直接用 f"{账号}.png" 拼路径
+      就能用 "../logo" 这类名字读写 avatars 目录之外的文件。
+    """
+    stem = (account or "").strip()
+    if not stem or len(stem) > 64 or stem.startswith("."):
+        return None
+    if any(ch in _AVATAR_BAD_CHARS for ch in stem) or any(ord(c) < 32 for c in stem):
+        return None
+    base = AVATAR_DIR.resolve()
+    path = (base / (stem + ".png")).resolve()
+    try:
+        path.relative_to(base)
+    except ValueError:
+        return None
+    return path
+
 # ── 腾讯云文本内容安全（TMS）配置 ─────────────────────────
 TMS_ENDPOINT = "tms.tencentcloudapi.com"
 TMS_ENABLED = True  # 设为 False 可临时关闭检测
@@ -1276,6 +1312,117 @@ def _pg_query(sql, variables=None):
 
 
 # ══════════════════════════════════════════════════════════
+# 论坛消息提醒（新回复 / 新点赞） 2026-11-20
+#
+#   srvpro2 只存回复/点赞本身，没有「已读」概念；这里在官网侧算：
+#   别人对我帖子（未删除）的回复 / 点赞，且时间晚于我上次点开提醒的时间。
+#   时间比较全部在 PG 里做（同一个时钟），不经过 Python / 浏览器的时区换算。
+#   已读时间存 community_notify_read（官网自己建表，不依赖 srvpro2 的实体）。
+# ══════════════════════════════════════════════════════════
+
+FORUM_NOTIFY_DDL = """
+CREATE TABLE IF NOT EXISTS community_notify_read (
+    "accountName" varchar(64) PRIMARY KEY,
+    "lastReadAt"  timestamp    NOT NULL DEFAULT now()
+);
+"""
+_FORUM_NOTIFY_SCHEMA_AT = {"t": 0.0, "ok": False}
+FORUM_NOTIFY_LIMIT = 30
+
+
+def ensure_forum_notify_schema(force: bool = False) -> bool:
+    """建表（幂等，10 分钟内不重复执行）。"""
+    now = time.time()
+    if not force and _FORUM_NOTIFY_SCHEMA_AT["ok"] and now - _FORUM_NOTIFY_SCHEMA_AT["t"] < 600:
+        return True
+    try:
+        _psql_run(FORUM_NOTIFY_DDL, {}, ["-tA"], timeout=20)
+        _FORUM_NOTIFY_SCHEMA_AT["ok"] = True
+    except Exception as e:
+        logger.warning(f"论坛提醒建表失败（按「全部未读」降级）: {e}")
+        _FORUM_NOTIFY_SCHEMA_AT["ok"] = False
+    _FORUM_NOTIFY_SCHEMA_AT["t"] = now
+    return _FORUM_NOTIFY_SCHEMA_AT["ok"]
+
+
+def forum_notifications(account: str, limit: int = FORUM_NOTIFY_LIMIT) -> dict:
+    """「谁回复了我 / 谁点赞了我」：返回最近 limit 条（含已读），并标出哪些是未读。
+
+    unread 里是未读条数；列表本身不按已读过滤 —— 个人中心里要能一直看到历史记录。
+    """
+    out = {"unread": {"replies": 0, "likes": 0}, "replies": [], "likes": []}
+    if not account:
+        return out
+    ensure_forum_notify_schema()
+    since = ('coalesce((select "lastReadAt" from community_notify_read '
+             'where "accountName" = :\'me\'), timestamp \'1970-01-01\')')
+    lim = str(int(limit))
+
+    def _clean(text):
+        """去掉正文里的 [deck]/[card]/[img] 标记，只留可读文字"""
+        text = re.sub(r"\[(deck|card|img)\][^\[]*\[/\1\]", " ", text or "")
+        return re.sub(r"\s+", " ", text).strip()
+
+    try:
+        rows = _pg_query(
+            "select r.id, r.\"postId\", regexp_replace(p.title, '\\s+', ' ', 'g'),\n"
+            "       r.\"authorName\", regexp_replace(left(r.content, 160), '\\s+', ' ', 'g'),\n"
+            "       extract(epoch from r.\"createTime\")::bigint,\n"
+            "       (r.\"createTime\" > " + since + ")::int,\n"
+            "       count(*) filter (where r.\"createTime\" > " + since + ") over () as unread_total\n"
+            "from community_reply r join community_post p on p.id = r.\"postId\"\n"
+            "where p.\"accountName\" = :'me' and r.\"accountName\" <> :'me'\n"
+            "  and p.\"deleteTime\" is null\n"
+            "order by r.\"createTime\" desc limit " + lim,
+            {"me": account},
+        )
+        for r in rows:
+            if len(r) < 8:
+                continue
+            out["unread"]["replies"] = int(r[7] or 0)
+            out["replies"].append({
+                "id": r[0],
+                "postId": r[1],
+                "postTitle": r[2],
+                "authorName": r[3],
+                "content": _clean(r[4])[:120],
+                "ts": int(r[5] or 0),
+                "unread": r[6] == "1",
+            })
+    except Exception as e:
+        logger.warning(f"读「回复我的」失败({account}): {e}")
+    try:
+        rows = _pg_query(
+            "select l.\"postId\", regexp_replace(p.title, '\\s+', ' ', 'g'),\n"
+            "       coalesce(nullif(u.\"displayName\", ''), l.\"accountName\"),\n"
+            "       extract(epoch from l.\"createTime\")::bigint,\n"
+            "       (l.\"createTime\" > " + since + ")::int,\n"
+            "       count(*) filter (where l.\"createTime\" > " + since + ") over () as unread_total\n"
+            "from community_like l\n"
+            "join community_post p on p.id = l.\"postId\"\n"
+            "left join srv_user u on u.\"accountName\" = l.\"accountName\"\n"
+            "where p.\"accountName\" = :'me' and l.\"accountName\" <> :'me'\n"
+            "  and p.\"deleteTime\" is null\n"
+            "order by l.\"createTime\" desc limit " + lim,
+            {"me": account},
+        )
+        for r in rows:
+            if len(r) < 6:
+                continue
+            out["unread"]["likes"] = int(r[5] or 0)
+            out["likes"].append({
+                "postId": r[0],
+                "postTitle": r[1],
+                "authorName": r[2],
+                "ts": int(r[3] or 0),
+                "unread": r[4] == "1",
+            })
+    except Exception as e:
+        logger.warning(f"读「点赞我的」失败({account}): {e}")
+    return out
+
+
+# ══════════════════════════════════════════════════════════
 # 称号商店（天梯积分 → 称号点 → 买称号） 2026-11-20
 #
 #   积分从哪来：游戏服赛季重置时（src/feats/ladder/ladder-service.ts 的
@@ -2198,6 +2345,16 @@ class VoteHandler(SimpleHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        # 页面一律让浏览器回源校验：否则浏览器按 Last-Modified 做启发式缓存，
+        # 改了 index.html 里的 ?v= 版本号，用户那边可能还在用旧页面（"怎么还没上传"）。
+        try:
+            path = (self.path or "").split("?")[0]
+            if path in ("", "/") or path.endswith(".html"):
+                buf = b"".join(self._headers_buffer or [])
+                if b"Cache-Control" not in buf:
+                    self.send_header("Cache-Control", "no-cache, must-revalidate")
+        except Exception:
+            pass
         super().end_headers()
 
     # ── 路由分发 ───────────────────────────────────────
@@ -2273,6 +2430,43 @@ class VoteHandler(SimpleHTTPRequestHandler):
             self._json_response(store.get_results())
 
         elif path == "/api/cards":
+            # ?ids=1,2,3 → 只回这几张（论坛卡片嵌入用，避免为了几个卡名拉 11MB 全表）
+            qs = self.path.split("?", 1)[1] if "?" in self.path else ""
+            want_ids = []
+            for pair in qs.split("&"):
+                k, _, v = pair.partition("=")
+                if k == "ids" and v:
+                    for part in unquote(v).split(","):
+                        part = part.strip()
+                        if part.isdigit():
+                            want_ids.append(int(part))
+            if want_ids:
+                by_id, by_alias = {}, {}
+                for c in _cards_cache:
+                    try:
+                        cid = int(c.get("id") or 0)
+                    except Exception:
+                        continue
+                    by_id.setdefault(cid, c)
+                    try:
+                        al = int(c.get("alias") or 0)
+                    except Exception:
+                        al = 0
+                    if al:
+                        by_alias.setdefault(al, c)
+                subset = []
+                for cid in want_ids:
+                    card = by_id.get(cid) or by_alias.get(cid)
+                    if card is not None:
+                        subset.append(card)
+                payload = json.dumps(subset, ensure_ascii=False).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Cache-Control", "public, max-age=3600")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
             # ETag 缓存: 304 未修改则免传输
             if self.headers.get("If-None-Match") == _cards_etag:
                 self.send_response(304)
@@ -2709,18 +2903,27 @@ class VoteHandler(SimpleHTTPRequestHandler):
 
         elif path == "/api/forum/status":
             creds = self._get_community_cookie()
+            # PATCH: 论坛管理身份（srv_user.permissions 带 sudo/judge）→ 前端据此显示管理按钮
+            is_forum_admin, _acct, perms = self._forum_admin() if creds else (False, None, "")
             self._json_response({
                 "loggedIn": creds is not None,
                 "username": creds[0] if creds else None,
+                "isAdmin": bool(is_forum_admin),
+                "perms": perms or "",
             })
+
+        elif path == "/api/forum/notifications":
+            # 论坛消息提醒：别人对我帖子的新回复 / 新点赞（已读时间存 community_notify_read）
+            creds = self._get_community_cookie()
+            data = forum_notifications(creds[0] if creds else "")
+            data["loggedIn"] = creds is not None
+            self._json_response(data)
 
         elif path.startswith("/api/forum/avatar/"):
             account_name = unquote(path.split("/api/forum/avatar/", 1)[1])
-            if not account_name:
-                self.send_error(404)
-                return
-            avatar_file = AVATAR_DIR / f"{account_name}.png"
-            if avatar_file.is_file():
+            # PATCH: 只接受 avatars/ 下的 <账号>.png（防 ../ 穿越读站点其他 png）
+            avatar_file = _avatar_file(account_name)
+            if avatar_file and avatar_file.is_file():
                 with open(avatar_file, "rb") as f:
                     data = f.read()
                 self.send_response(200)
@@ -2982,12 +3185,15 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 self._json_response({"ok": False, "error": "账号或密码错误"}, status=401)
                 return
             token = _sign_community_cookie(username, password)
+            # PATCH: 登录响应直接带管理身份，前端不用再单独查一次
+            is_forum_admin = _is_forum_admin_perms(self._site_permissions(username))
             self.send_response(200)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Set-Cookie",
                 f"{COMMUNITY_COOKIE_NAME}={token}; HttpOnly; SameSite=Strict; Max-Age={COMMUNITY_COOKIE_MAX_AGE}; Path=/")
             self.end_headers()
-            self.wfile.write(json.dumps({"ok": True, "username": username}, ensure_ascii=False).encode("utf-8"))
+            self.wfile.write(json.dumps({"ok": True, "username": username,
+                                         "isAdmin": is_forum_admin}, ensure_ascii=False).encode("utf-8"))
 
         elif path == "/api/forum/logout":
             self.send_response(200)
@@ -2996,6 +3202,25 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 f"{COMMUNITY_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Max-Age=0; Path=/")
             self.end_headers()
             self.wfile.write(json.dumps({"ok": True}, ensure_ascii=False).encode("utf-8"))
+
+        elif path == "/api/forum/notifications/read":
+            # 标记已读：把 lastReadAt 推到 now()（之后新产生的回复/点赞才算未读）
+            creds = self._get_community_cookie()
+            if not creds:
+                self._json_response({"ok": False, "error": "未登录"}, status=401)
+                return
+            ensure_forum_notify_schema()
+            try:
+                _pg_exec(
+                    'insert into community_notify_read ("accountName", "lastReadAt")\n'
+                    "values (:'me', now())\n"
+                    'on conflict ("accountName") do update set "lastReadAt" = now();\n',
+                    {"me": creds[0]},
+                )
+                self._json_response({"ok": True})
+            except Exception as e:
+                logger.warning(f"写论坛提醒已读失败({creds[0]}): {e}")
+                self._json_response({"ok": False, "error": "已读标记失败"}, status=500)
 
         elif path == "/api/title-shop/buy":
             # 购买称号：余额与扣费在一条 SQL 里完成，重复购买由主键兜底
@@ -3021,13 +3246,12 @@ class VoteHandler(SimpleHTTPRequestHandler):
     def do_DELETE(self):
         path = self.path.split("?", 1)[0]
         if path.startswith("/api/forum/"):
-            creds = self._get_community_cookie()
-            if not creds:
+            if not self._get_community_cookie():
                 self._json_response({"error": "未登录"}, status=401)
                 return
-            username, password = creds
             try:
-                data = _srvpro_delete(path, {"username": username, "pass": password})
+                # 管理员删别人的帖子：srvpro2 挡下时会自动以作者身份重放（见 _srvpro_write_as_self_or_author）
+                data, _as_author = self._srvpro_write_as_self_or_author("DELETE", path)
                 self._json_response(data)
             except Exception as e:
                 logger.error(f"论坛 DELETE 失败: {e}")
@@ -3050,11 +3274,41 @@ class VoteHandler(SimpleHTTPRequestHandler):
                 payload = json.loads(body)
             except json.JSONDecodeError:
                 payload = {}
-            username, password = creds
-            payload["username"] = username
-            payload["password"] = password
+            # ── PATCH: 编辑也要过内容审核 ──
+            #   原来只审 POST，先发正常帖再 PUT 改成违规内容即可绕过。
+            #   帖子/回复的编辑都带 title/content/tags 中的一个或多个，统一取这些字段送审。
+            check_text = " ".join(
+                str(payload.get(k) or "") for k in ("title", "content", "tags", "displayName")).strip()
+            if check_text:
+                ok, _label = _tms_check(check_text)
+                if not ok:
+                    self._json_response({"error": "内容包含违规信息，请修改后重试"}, status=400)
+                    return
+            # ── PATCH: 分区只有管理员能改 ──
+            #   普通作者编辑正文时即使前端塞了 section 也剥掉，避免「自己把帖子挪到别的分区」。
+            want_section = None
+            if payload.get("section"):
+                is_forum_admin, _acct2, _perms2 = self._forum_admin()
+                if is_forum_admin:
+                    want_section = payload.get("section")
+                else:
+                    payload.pop("section", None)
             try:
-                data = _srvpro_put(path, {"username": username, "pass": password}, payload)
+                # 管理员的写操作被 srvpro2「仅作者」规则挡下时，会自动以作者身份重放
+                data, _as_author = self._srvpro_write_as_self_or_author("PUT", path, payload)
+                # 管理员改完分区 → 回读确认。srvpro2 的 PUT 如果不认 section，
+                #   这里能立刻发现，给前端一句明确提示，而不是「看着保存成功、其实没动」。
+                m_post = re.match(r"^/api/forum/posts/(\d+)$", path)
+                if want_section and m_post and isinstance(data, dict):
+                    try:
+                        cur = _srvpro_fetch("/api/forum/posts/%d" % int(m_post.group(1)), {})
+                        got = cur.get("section") if isinstance(cur, dict) else None
+                        if got and got != want_section:
+                            data = dict(data)
+                            data["warning"] = ("正文已保存，但分区没有变 —— srvpro2 目前不支持通过编辑修改分区"
+                                               "（PUT /api/forum/posts/:id 需要接受 section 字段）")
+                    except Exception as e:
+                        logger.warning(f"分区回读失败: {e}")
                 self._json_response(data)
             except Exception as e:
                 logger.error(f"论坛 PUT 失败: {e}")
@@ -3434,6 +3688,23 @@ class VoteHandler(SimpleHTTPRequestHandler):
             logger.warning(f"查站点账号权限失败({account}): {e}")
             return ""
 
+    # ── PATCH(白神服) 2026-11-20: 论坛侧管理员判定 ──
+    #   论坛里的「管理身份」= 当前社区登录账号在 srv_user.permissions 里带 sudo/judge，
+    #   与 srvpro2 自己的判定口径一致（它也是按这张表判权限）。
+    #   ⚠ 不看 siro_admin cookie：那个是「服务器对局」管理台的独立登录，
+    #     和论坛账号可能是两个人，用它会让论坛出现「有按钮但删不掉」的假管理员。
+    def _forum_admin(self):
+        """返回 (is_admin, account, perms)。"""
+        try:
+            creds = self._get_community_cookie()
+            if not creds:
+                return False, None, ""
+            acct = creds[0]
+            perms = self._site_permissions(acct)
+            return _is_forum_admin_perms(perms), acct, perms
+        except Exception:
+            return False, None, ""
+
     def _requester_admin(self):
         """返回 (is_admin, via, account, perms)
         via = 'cookie'（管理员账号密码）或 'site'（官网账号，srv_user.permissions 带 sudo/judge）
@@ -3693,6 +3964,65 @@ class VoteHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+    # ── PATCH(白神服) 2026-11-20: 管理员代替作者写帖（兼容层） ──
+    #   srvpro2 的帖子写接口目前只认「作者本人」，管理员直接调会被 401/403/404 挡掉。
+    #   被挡时：若请求者是论坛管理员（srv_user.permissions 带 sudo/judge）→ 用**作者本人**
+    #   的账号（srv_user 里的密码，与游戏服同源）重放同一次请求。
+    #   思路与 _admin_action_creds「以本人身份执行管理动作」一致。
+    #   ⚠ 等 srvpro2 自己支持管理员操作后，这个兜底可以整段删掉；触发时日志会打 [论坛管理]。
+    def _srvpro_author_creds(self, post_id: int):
+        """取某个帖子的作者账号 + 密码；拿不到返回 None。"""
+        try:
+            post = _srvpro_fetch("/api/forum/posts/%d" % post_id, {})
+        except Exception as e:
+            logger.warning(f"取帖子作者失败({post_id}): {e}")
+            return None
+        acct = (post or {}).get("accountName") if isinstance(post, dict) else None
+        if not acct:
+            return None
+        pw = self._site_password(acct)
+        return (acct, pw) if pw else None
+
+    def _srvpro_write_as_self_or_author(self, method: str, path: str, payload: dict = None):
+        """论坛写请求（PUT/DELETE），返回 (data, as_author)。
+
+        先用请求者自己的身份调 srvpro2；被「仅作者」规则挡下且请求者是论坛管理员时，
+        改用帖子作者的账号重放一次（作者账号已不存在/被禁用则仍抛原错误）。
+        """
+        creds = self._get_community_cookie()
+        if not creds:
+            raise Exception("未登录")
+        username, password = creds
+        body = dict(payload or {})
+        body["username"] = username
+        body["password"] = password
+
+        def _call(u, p):
+            if method == "DELETE":
+                return _srvpro_delete(path, {"username": u, "pass": p})
+            return _srvpro_put(path, {"username": u, "pass": p}, body)
+
+        try:
+            return _call(username, password), False
+        except Exception as e:
+            err = str(e)
+            if not any(code in err for code in ("401", "403", "404")):
+                raise
+            m = re.match(r"^/api/forum/posts/(\d+)$", path)
+            if not m:
+                raise
+            is_forum_admin, _acct, _perms = self._forum_admin()
+            if not is_forum_admin:
+                raise
+            author = self._srvpro_author_creds(int(m.group(1)))
+            if not author or author[0] == username:
+                raise
+            body["username"] = author[0]
+            body["password"] = author[1]
+            logger.warning(f"[论坛管理] {username} 的 {method} {path} 被 srvpro2 拒绝"
+                           f"（{err[:80]}）→ 以作者 {author[0]} 身份重放")
+            return _call(author[0], author[1]), True
+
     def _proxy_forum_post(self, path: str, payload: dict):
         """将 POST 请求代理到 srvpro2 论坛 API。"""
         creds = self._get_community_cookie()
@@ -3702,9 +4032,11 @@ class VoteHandler(SimpleHTTPRequestHandler):
         username, password = creds
         query = {"username": username, "pass": password}
 
-        # ── 内容安全检测 ──
+        # ── 内容安全检测（POST；编辑走 PUT，见 do_PUT 里的同名单）──
         if path == "/api/forum/posts":
-            check_text = (payload.get("title", "") + " " + payload.get("content", "")).strip()
+            # PATCH: 标签也是公开展示的文字，一并送审（否则可把违规词塞进 tags）
+            check_text = " ".join(
+                str(payload.get(k) or "") for k in ("title", "content", "tags")).strip()
             if check_text:
                 ok, label = _tms_check(check_text)
                 if not ok:
@@ -3728,6 +4060,13 @@ class VoteHandler(SimpleHTTPRequestHandler):
         # 头像上传特殊处理：base64 → Pillow 64×64 → 存文件
         if path == "/api/forum/profile/avatar":
             try:
+                # PATCH: 先校验落盘路径（账号由用户注册，可能带 / 或 ..）
+                avatar_path = _avatar_file(username)
+                if not avatar_path:
+                    self._json_response(
+                        {"error": "当前账号名含有不支持头像的字符（/ \\ : * ? \" < > | .），无法使用头像功能"},
+                        status=400)
+                    return
                 avatar_b64 = payload.get("avatar", "")
                 if not avatar_b64:
                     self._json_response({"error": "缺少 avatar 数据"}, status=400)
@@ -3755,7 +4094,6 @@ class VoteHandler(SimpleHTTPRequestHandler):
                     out.paste(img, (offset_x, offset_y))
                     # 保存
                     AVATAR_DIR.mkdir(parents=True, exist_ok=True)
-                    avatar_path = AVATAR_DIR / f"{username}.png"
                     out.save(avatar_path, "PNG")
                 except Exception as img_err:
                     self._json_response({"error": f"图片处理失败: {img_err}"}, status=400)

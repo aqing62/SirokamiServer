@@ -138,7 +138,108 @@
     color: #F0E68C;
     font-size: 1rem;
     font-weight: 600;
-    margin-bottom: 6px;
+    margin: 8px 0 6px;
+}
+
+/* ── 帖子卡片（列表）：头像/名称/时间 → 标题 → 预览 → 分享/评论/点赞 ── */
+.cp-head {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+}
+.cp-avatar-col { flex: 0 0 auto; }
+.cp-head-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding-top: 1px;
+}
+.cp-name-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+.cp-name {
+    color: #F0E68C;
+    font-size: 0.86rem;
+    font-weight: 600;
+}
+.cp-sub-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    font-size: 0.72rem;
+    color: #777;
+    min-height: 18px;
+}
+.cp-time { color: #8a8a8a; }
+.cp-pin {
+    font-size: 0.62rem;
+    color: #ff6b6b;
+    border: 1px solid rgba(216, 30, 68, 0.45);
+    border-radius: 2px;
+    padding: 0 5px;
+    line-height: 1.5;
+}
+.cp-tag {
+    font-size: 0.65rem;
+    background: rgba(240, 230, 140, 0.08);
+    color: #cbbf7a;
+    padding: 1px 6px;
+    border-radius: 2px;
+}
+.cp-excerpt {
+    color: #9a9a9a;
+    font-size: 0.8rem;
+    line-height: 1.5;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-top: 5px;
+}
+.cp-thumbs { margin-bottom: 2px; }
+/* 帖子详情里的卡图：跟着文字一起排，不强制换行；连续卡图同一行，放不下横向滚动 */
+.cp-content { overflow-wrap: anywhere; }
+.cp-content .cp-card-inline { margin: 2px 4px 2px 0; }
+.cp-card-row {
+    display: inline-flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    vertical-align: middle;
+    max-width: 100%;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+.cp-card-row::-webkit-scrollbar { height: 4px; }
+.cp-card-row::-webkit-scrollbar-thumb { background: rgba(216, 30, 68, 0.5); border-radius: 2px; }
+.cp-card-row .cp-card-inline { flex: 0 0 auto; }
+.cp-actions {
+    display: flex;
+    align-items: center;
+    gap: 22px;
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.cp-act {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #8a8a8a;
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: color 0.15s;
+}
+.cp-act:hover { color: #F0E68C; }
+.cp-act.active { color: #ff6b6b; }
+.cp-views {
+    margin-left: auto;
+    color: #666;
+    font-size: 0.72rem;
 }
 .cp-meta {
     display: flex;
@@ -497,6 +598,59 @@
     color: var(--light-gold, #ffd);
     border-color: transparent;
 }
+/* 有未读时在 tab 右上角点一个小红点 */
+.forum-sub-tab.has-dot { position: relative; }
+.forum-sub-tab.has-dot::after {
+    content: '';
+    position: absolute;
+    top: -3px;
+    right: -3px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ff3b30;
+    box-shadow: 0 0 0 2px #14141c;
+}
+
+/* 「回复我的 / 点赞我的」列表 */
+.inbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.inbox-item {
+    background: #1a1a1a;
+    border: 1px solid #2a2a2a;
+    border-radius: 8px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+}
+.inbox-item:hover { border-color: rgba(216, 30, 68, 0.35); }
+.inbox-item.unread { border-left: 3px solid rgba(216, 30, 68, 0.85); }
+.inbox-line {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    flex-wrap: wrap;
+    color: #ccc;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+.inbox-line b { color: #F0E68C; font-weight: 600; }
+.inbox-time {
+    margin-left: auto;
+    color: #777;
+    font-size: 0.72rem;
+    flex-shrink: 0;
+}
+.inbox-content {
+    margin-top: 4px;
+    color: #9a9a9a;
+    font-size: 0.76rem;
+    line-height: 1.5;
+    word-break: break-word;
+}
 /* 移动端：导航变顶部横排 */
 @media (max-width: 768px) {
     .profile-nav-body {
@@ -630,7 +784,11 @@
     .community-tabs { gap: 4px; }
     .community-tab { padding: 6px 12px; font-size: 0.78rem; }
     .community-post { padding: 10px 12px; }
-    .cp-title { font-size: 0.9rem; }
+    .cp-title { font-size: 0.9rem; margin: 7px 0 5px; }
+    .cp-head { gap: 8px; }
+    .cp-avatar-col .cp-avatar { width: 34px !important; height: 34px !important; }
+    .cp-actions { gap: 16px; margin-top: 8px; padding-top: 7px; }
+    .cp-excerpt { font-size: 0.76rem; }
     .community-modal {
         width: 100vw;
         max-height: 100vh;

@@ -503,6 +503,11 @@
             var mainGridStyle = mainLen > 0
                 ? 'style="grid-template-columns:repeat(' + mainCols + ',1fr);grid-template-rows:repeat(4,1fr);"'
                 : '';
+            // 额外 / 副卡组：手机上（单列、和主卡组同宽）用主卡组的列数 → 卡片大小一致；
+            // 桌面端右栏只有 38% 宽，仍用 CSS 的 8 列，避免被压得比主卡组小。
+            var subGridStyle = window.innerWidth <= 768
+                ? 'style="grid-template-columns:repeat(' + mainCols + ',1fr);"'
+                : '';
 
             var html =
                 '<div class="deck-viewer-meta">'
@@ -523,11 +528,11 @@
                 + '<div class="deck-col-side">'
                 + (extraLen > 0
                     ? '<div class="deck-section-title">额外卡组 (' + extraLen + '张)</div>'
-                    + '<div class="deck-cards-grid deck-cards-extra">' + cardImgs(deck.extra, scoreMap) + '</div>'
+                    + '<div class="deck-cards-grid deck-cards-extra" ' + subGridStyle + '>' + cardImgs(deck.extra, scoreMap) + '</div>'
                     : '')
                 + (sideLen > 0
                     ? '<div class="deck-section-title">副卡组 (' + sideLen + '张)</div>'
-                    + '<div class="deck-cards-grid deck-cards-side">' + cardImgs(deck.side, scoreMap) + '</div>'
+                    + '<div class="deck-cards-grid deck-cards-side" ' + subGridStyle + '>' + cardImgs(deck.side, scoreMap) + '</div>'
                     : '')
                 + (extraLen === 0 && sideLen === 0 ? '<div class="deck-empty-tip">无</div>' : '')
                 + '</div>'

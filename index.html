@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>白神服Sirokami - 游戏王DIY服务器</title>
     <link rel="icon" href="favicon.ico">
-    <link rel="stylesheet" href="css/style.css?v=20261115w" id="css-style">
+    <link rel="stylesheet" href="css/style.css?v=20261120e" id="css-style">
     <link rel="stylesheet" href="css/title-shop.css?v=20261120b" id="css-title-shop">
     <link rel="stylesheet" href="css/card-pool-info.css?v=20261107e5" id="css-card-pool" media="not all">
     <link rel="stylesheet" href="css/eight-decks.css?v=20261107e5" id="css-eight-decks" media="not all">
@@ -14,7 +14,7 @@
     <link rel="stylesheet" href="css/player-ranking.css?v=20261120c" id="css-player-ranking" media="not all">
     <link rel="stylesheet" href="css/live-duels.css?v=20261107e5" id="css-live-duels" media="not all">
     <link rel="stylesheet" href="css/deck-viewer.css?v=20261107e5" id="css-deck-viewer">
-    <link rel="stylesheet" href="css/deck-community.css?v=20261107e5" id="css-deck-community" media="not all">
+    <link rel="stylesheet" href="css/deck-community.css?v=20261120f" id="css-deck-community" media="not all">
     <link rel="stylesheet" href="css/chronicle-decks.css?v=20261107e5" id="css-chronicle-decks">
     <link rel="stylesheet" href="css/replay-viewer.css?v=20261117r" id="css-replay-viewer">
     <link rel="stylesheet" href="css/ygocdb-search.css?v=20261107e5" id="css-ygocdb" media="not all">
@@ -273,7 +273,10 @@
             <div class="section">
                 <h2>最新公告</h2>
                 <div class="announcement-box">
-                    <div class="announcement-item"><span class="ann-date">11.20</span><span class="ann-badge">V1.9.7</span><span class="ann-text">称号商店上线：每个赛季结束时按最终天梯积分 1:1 发放「称号点」，可在玩家排名页左侧的称号商店购买趣味称号，购买后到个人中心自选主/副称号展示</span></div>
+                    <div class="announcement-item"><span class="ann-date">11.20</span><span class="ann-badge">V2.0.0</span><span class="ann-text">称号商店上线：每个赛季结束时按最终天梯积分 1:1 发放「称号点」，可在玩家排名页左侧的称号商店购买趣味称号，购买后到个人中心自选主/副称号展示</span></div>
+                    <div class="announcement-item"><span class="ann-date">11.19</span><span class="ann-badge">V1.9.9</span><span class="ann-text">新增背景音乐</span></div>
+                    <div class="announcement-item"><span class="ann-date">11.18</span><span class="ann-badge">V1.9.8</span><span class="ann-text">新增操作音效，提高在线决斗手感</span></div>
+                    <div class="announcement-item"><span class="ann-date">11.17</span><span class="ann-badge">V1.9.7</span><span class="ann-text">进一步优化在线决斗底层逻辑，贴近ygopro操作体验</span></div>
                     <div class="announcement-item"><span class="ann-date">11.16</span><span class="ann-badge">V1.9.6</span><span class="ann-text">优化在线决斗底层逻辑以及显示效果，修复部分bug，新增手机端横屏决斗大厅专属UI</span></div>
                     <div class="announcement-item"><span class="ann-date">11.15</span><span class="ann-badge">V1.9.5</span><span class="ann-text">优化组卡器渲染，新增云端卡组 UI；优化在线决斗底层逻辑，修复部分决斗 bug，新增决斗计数器</span></div>
                     <div class="announcement-item"><span class="ann-date">11.14</span><span class="ann-badge">V1.9.4</span><span class="ann-text">新版官网优化（适配决斗大厅以及组卡器）；组卡器优化（可右键转移、左键拖拽调整卡位）；修复组卡器排序 bug；在线决斗体验优化（断线重连宽限 60 秒）；饼图可获取副轴信息；新增趣味性称号（获取方式保密，仅可在天梯获取）</span></div>
@@ -766,7 +769,10 @@
         <!-- 已登录 -->
         <div class="gl-loggedin" id="glLoggedin" style="display:none;align-items:center;gap:8px;">
             <div class="gl-profile" id="glProfile">
-                <img class="gl-avatar" id="glAvatar" src="cover.jpg" alt="头像" title="点击进入个人中心">
+                <span class="gl-avatar-wrap">
+                    <img class="gl-avatar" id="glAvatar" src="cover.jpg" alt="头像" title="点击进入个人中心">
+                    <span class="gl-avatar-dot" id="glAvatarDot" hidden></span>
+                </span>
                 <span class="gl-name" id="glName">玩家</span>
             </div>
         </div>
@@ -865,7 +871,7 @@
     <!-- ═══════════════════════════════════════════════════════
          SCRIPTS — 全部JS
          ═══════════════════════════════════════════════════════ -->
-    <script src="js/script.js?v=20261120c"></script>
+    <script src="js/script.js?v=20261120k"></script>
     <script src="js/card-pool-info.js?v=20261119r"></script>
     <script src="js/cloud-decks.js?v=20261115z"></script>
 <script src="js/deck-builder.js?v=20261119r"></script>
@@ -873,8 +879,8 @@
     <script src="js/player-ranking.js?v=20261120c"></script>
     <script src="js/title-shop.js?v=20261120c"></script>
     <script src="js/live-duels.js?v=20261116b"></script>
-    <script src="js/deck-viewer.js?v=20261119r"></script>
-    <script src="js/deck-community.js?v=20261120a"></script>
+    <script src="js/deck-viewer.js?v=20261120b"></script>
+    <script src="js/deck-community.js?v=20261120m"></script>
     <script src="js/chronicle-decks.js?v=20260919d"></script>
     <script src="js/replay-viewer.js?v=20261119r"></script>
     <script src="js/ygocdb-search.js?v=20261022e"></script>

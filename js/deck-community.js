@@ -15,7 +15,13 @@ function initCommunityModule() {
     var EMOJI_LIST = ['happy','anger','shy','shock','helpless','weary','Confused','Embarrassed','Envious','Grievance','Heartwarming','Infatuation','Panicked','SlackingOff','Teasing','Tsundere'];
     var EMOJI_NAMES = { happy: '开心', anger: '生气', shy: '害羞', shock: '震惊', helpless: '无语', weary: '疲倦', Confused: '疑惑', Embarrassed: '尴尬', Envious: '羡慕', Grievance: '委屈', Heartwarming: '暖心', Infatuation: '花痴', Panicked: '慌张', SlackingOff: '偷懒', Teasing: '调戏', Tsundere: '傲娇' };
 
-    function getCardInfoById(cardId) {
+    // ── 卡信息：不依赖「卡池列表」是否打开过 ──
+    //   优先用卡池页已经建好的 window._cardIndex；
+    //   没打开过卡池时，按需向 /api/cards?ids=… 只取用到的几张（不拉 11MB 全表）。
+    var _cmCardMap = {};
+    var _cmCardPendingIds = {};
+
+    function cardFromIndex(cardId) {
         var index = window._cardIndex;
         if (!index || !index.size) return null;
         var card = index.get(cardId);
@@ -25,7 +31,51 @@ function initCommunityModule() {
         index.forEach(function (c) {
             if (!found && c.alias && parseInt(c.alias) === cardId) found = c;
         });
-        return found;
+        return found || null;
+    }
+
+    function getCardInfoById(cardId) {
+        var id = parseInt(cardId, 10);
+        if (!id) return null;
+        if (_cmCardMap[id]) return _cmCardMap[id];
+        return cardFromIndex(id);
+    }
+
+    // 按需批量补卡（一次请求，返回 Promise）
+    function ensureCards(ids) {
+        var missing = [];
+        (ids || []).forEach(function (raw) {
+            var id = parseInt(raw, 10);
+            if (!id || _cmCardMap[id] || _cmCardPendingIds[id]) return;
+            if (cardFromIndex(id)) return;
+            if (missing.indexOf(id) === -1) missing.push(id);
+        });
+        if (!missing.length) return Promise.resolve();
+        missing.forEach(function (id) { _cmCardPendingIds[id] = true; });
+        return fetch('/api/cards?ids=' + missing.join(','))
+            .then(function (r) { return r.ok ? r.json() : []; })
+            .then(function (cards) {
+                (cards || []).forEach(function (c) {
+                    var id = parseInt(c.id, 10);
+                    if (id) _cmCardMap[id] = c;
+                });
+            })
+            .catch(function () {})
+            .then(function () {
+                missing.forEach(function (id) { delete _cmCardPendingIds[id]; });
+            });
+    }
+
+    function collectCardIds(post, replyData) {
+        var ids = [];
+        function scan(blocks) {
+            (blocks || []).forEach(function (b) {
+                if (b && b.type === 'card' && b.id) ids.push(b.id);
+            });
+        }
+        scan(post && post.contentJson);
+        ((replyData && replyData.replies) || []).forEach(function (r) { scan(r.contentJson); });
+        return ids;
     }
 
     // ── G-Ext 分值（卡组块展示总分） ──
@@ -79,9 +129,9 @@ function initCommunityModule() {
     }
 
     function isAdmin() {
-        // TODO: 部署后改为从服务端权限判断
-        var adminAccounts = ['aqing', 'root'];
-        return adminAccounts.indexOf(window._communityUsername) !== -1;
+        // 论坛管理身份由服务端判定（srv_user.permissions 带 sudo/judge），
+        //   登录 / 刷新时从 /api/forum/status、/api/forum/login 写进 window._communityIsAdmin。
+        return !!window._communityIsAdmin;
     }
 
     var _cardUrlCache = window._deckCommunityCardCache || {};
@@ -107,10 +157,13 @@ function initCommunityModule() {
             + 'this.onload=function(){' + cardImgOnLoad(cardId) + '};';
     }
 
-    function avatarImg(accountName) {
+    function avatarImg(accountName, size) {
         if (!accountName) return '';
-        return '<img src="/api/forum/avatar/' + encodeURIComponent(accountName) + '?v=' + Date.now() + '"'
-            + ' style="width:24px;height:24px;border-radius:3px;border:1px solid rgba(216,30,68,0.3);object-fit:cover;flex-shrink:0;margin-right:6px;"'
+        var px = size || 24;
+        var radius = px >= 32 ? 6 : 3;
+        return '<img class="cp-avatar" src="/api/forum/avatar/' + encodeURIComponent(accountName) + '?v=' + Date.now() + '"'
+            + ' style="width:' + px + 'px;height:' + px + 'px;border-radius:' + radius + 'px;border:1px solid rgba(216,30,68,0.3);object-fit:cover;flex-shrink:0;'
+            + (px >= 32 ? '' : 'margin-right:6px;') + '"'
             + ' onerror="this.style.display=\'none\'">';
     }
 
@@ -130,7 +183,7 @@ function initCommunityModule() {
                 thumbs.push(cardThumbImg(b.main[0]));
             }
         }
-        return thumbs.length ? '<div style="display:flex;gap:4px;margin-top:6px;">' + thumbs.join('') + '</div>' : '';
+        return thumbs.length ? '<div class="cp-thumbs" style="display:flex;gap:4px;margin-top:6px;">' + thumbs.join('') + '</div>' : '';
     }
 
     var state = {
@@ -231,6 +284,38 @@ function initCommunityModule() {
         if (diff < 86400) return Math.floor(diff / 3600) + '小时前';
         if (diff < 604800) return Math.floor(diff / 86400) + '天前';
         return (d.getMonth() + 1) + '/' + d.getDate();
+    }
+
+    // 列表卡片第二行：有回复显示「回复于」，否则「发布于」
+    function postTimeLabel(post) {
+        if (!post) return '';
+        if (post.replyCount > 0 && post.lastReplyAt) return '回复于 ' + timeAgo(post.lastReplyAt);
+        return '发布于 ' + timeAgo(post.createTime);
+    }
+
+    // 没有卡图时的「一行内容」摘要（去掉 [deck]/[card]/[img] 标记）
+    function postExcerpt(post) {
+        var text = String((post && post.content) || '');
+        text = text.replace(/\[deck\][\s\S]*?\[\/deck\]/g, ' ')
+            .replace(/\[card\]\d+\[\/card\]/g, ' ')
+            .replace(/\[img\][a-zA-Z]+\[\/img\]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+        if (!text) return '';
+        if (text.length > 90) text = text.slice(0, 90) + '…';
+        return '<div class="cp-excerpt">' + esc(text) + '</div>';
+    }
+
+    // 分享 = 复制一段带标题的分享文案（含帖子深链）
+    function sharePost(post) {
+        var url = location.origin + '/?goto=forum&post=' + post.id;
+        var text = '【白神论坛】' + (post.title || '') + '：' + url + '\n来讨论看看吧~';
+        var copied = function () { alert('已复制分享文案，直接粘贴给好友就行：\n\n' + text); };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(copied, function () { prompt('复制下面的内容分享：', text); });
+        } else {
+            prompt('复制下面的内容分享：', text);
+        }
     }
 
     // ═══════════════════════════ 本地模拟数据（部署后删除） ═══════════════════════
@@ -459,19 +544,36 @@ function initCommunityModule() {
             data.posts.forEach(function (post) {
                 html += '<div class="community-post' + (post.isPinned ? ' pinned' : '')
                     + '" data-id="' + post.id + '">';
-                html += '<div class="cp-title">' + (post.isPinned ? '📌 ' : '') + esc(post.title) + '</div>';
-                html += getPreviewThumbs(post.contentJson);
-                html += '<div class="cp-meta">';
-                var tags = (post.tags || '').split(',').filter(Boolean);
-                html += avatarImg(post.accountName);
-                html += '<span>' + esc(post.authorName) + '</span>' + forumTitleHtml(post.authorName, post.accountName);
-                html += '<span>' + timeAgo(post.createTime) + '</span>';
-                html += '<span class="cp-section-tag">' + SECTION_NAMES[post.section] + '</span>';
-                tags.forEach(function (t) {
-                    html += '<span style="font-size:0.65rem;background:rgba(240,230,140,0.1);color:#F0E68C;padding:1px 6px;border-radius:2px;">' + esc(t.trim()) + '</span>';
+                // ① 头部：头像（左侧跨两行）+ 名称/主副称号 + 回复时间
+                html += '<div class="cp-head">';
+                html += '<div class="cp-avatar-col">' + avatarImg(post.accountName, 40) + '</div>';
+                html += '<div class="cp-head-main">';
+                html += '<div class="cp-name-row">'
+                    + '<span class="cp-name">' + esc(post.authorName) + '</span>'
+                    + forumTitleHtml(post.authorName, post.accountName)
+                    + '</div>';
+                html += '<div class="cp-sub-row">'
+                    + '<span class="cp-time">' + postTimeLabel(post) + '</span>'
+                    + (post.isPinned ? '<span class="cp-pin">置顶</span>' : '')
+                    + '<span class="cp-section-tag">' + SECTION_NAMES[post.section] + '</span>';
+                (post.tags || '').split(',').filter(Boolean).forEach(function (t) {
+                    html += '<span class="cp-tag">' + esc(t.trim()) + '</span>';
                 });
-                html += '<span style="margin-left:auto;" class="cp-stats">👁 ' + (post.viewCount || 0) + '  ❤ ' + post.likeCount + '  💬 ' + post.replyCount + '</span>';
+                html += '</div>';
                 html += '</div></div>';
+                // ② 标题
+                html += '<div class="cp-title">' + esc(post.title) + '</div>';
+                // ③ 预览：有卡图先放卡图，再补一行内容摘要（两者都要）
+                html += getPreviewThumbs(post.contentJson);
+                html += postExcerpt(post);
+                // ④ 底部：分享 / 评论 / 点赞
+                html += '<div class="cp-actions">'
+                    + '<button class="cp-act" data-act="share" title="复制分享文案">分享</button>'
+                    + '<button class="cp-act" data-act="reply" title="查看评论">评论 ' + (post.replyCount || 0) + '</button>'
+                    + '<button class="cp-act" data-act="like" title="点赞">点赞 ' + (post.likeCount || 0) + '</button>'
+                    + '<span class="cp-views">👁 ' + (post.viewCount || 0) + '</span>'
+                    + '</div>';
+                html += '</div>';
             });
             html += '</div>';
         }
@@ -485,6 +587,32 @@ function initCommunityModule() {
         html += '</div>';
 
         feedArea.innerHTML = html;
+
+        // 卡片底部动作：分享 / 评论 / 点赞（点卡片其它区域 = 打开详情）
+        (data.posts || []).forEach(function (post) {
+            var card = feedArea.querySelector('.community-post[data-id="' + post.id + '"]');
+            if (!card) return;
+            var shareBtn = card.querySelector('[data-act="share"]');
+            if (shareBtn) shareBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                sharePost(post);
+            });
+            var replyBtn = card.querySelector('[data-act="reply"]');
+            if (replyBtn) replyBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                openDetail(post.id);
+            });
+            var likeBtn = card.querySelector('[data-act="like"]');
+            if (likeBtn) likeBtn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (!requireLogin()) return;
+                authApi('/api/forum/posts/' + post.id + '/like', { method: 'POST' }).then(function (r) {
+                    if (r && typeof r.likeCount === 'number') post.likeCount = r.likeCount;
+                    likeBtn.textContent = ((r && r.liked) ? '已赞 ' : '点赞 ') + (post.likeCount || 0);
+                    likeBtn.classList.toggle('active', !!(r && r.liked));
+                }).catch(function () {});
+            });
+        });
 
         // 分页
         var prev = document.getElementById('cmPrev');
@@ -552,9 +680,14 @@ function initCommunityModule() {
             return;
         }
         api('/api/forum/posts/' + post.id + '/replies').then(function (replyData) {
-            renderDetail(post, replyData);
+            // 先把帖子/回复里用到的卡补齐（没打开过卡池也能显示卡名）
+            return ensureCards(collectCardIds(post, replyData)).then(function () {
+                renderDetail(post, replyData);
+            });
         }).catch(function () {
-            renderDetail(post, { replies: [], total: 0 });
+            ensureCards(collectCardIds(post, null)).then(function () {
+                renderDetail(post, { replies: [], total: 0 });
+            });
         });
     }
 
@@ -565,51 +698,72 @@ function initCommunityModule() {
         // 帖子内容
         html += '<div style="margin-bottom:20px;">';
         html += '<h2 style="color:#F0E68C;margin:0 0 8px;">' + esc(post.title) + '</h2>';
-        // 浏览量
-        html += '<div style="color:#666;font-size:0.72rem;margin-bottom:6px;">👁 ' + (post.viewCount || 0) + ' 次浏览';
+        // 浏览量 + 标签
+        html += '<div style="color:#666;font-size:0.72rem;margin-bottom:8px;">👁 ' + (post.viewCount || 0) + ' 次浏览';
         var tags = (post.tags || '').split(',').filter(Boolean);
         tags.forEach(function (t) {
             html += ' <span style="font-size:0.65rem;background:rgba(240,230,140,0.1);color:#F0E68C;padding:1px 6px;border-radius:2px;">' + esc(t.trim()) + '</span>';
         });
         html += '</div>';
-        html += '<div class="cp-meta" style="margin-bottom:10px;">';
-        html += avatarImg(post.accountName);
-        html += '<span>' + esc(post.authorName) + '</span>' + forumTitleHtml(post.authorName, post.accountName);
-        html += '<span>' + timeAgo(post.createTime) + '</span>';
-        html += '<span class="cp-section-tag">' + SECTION_NAMES[post.section] + '</span>';
-        // 自己发的帖子显示编辑/删除
-        if (window._communityUsername && window._communityUsername === post.accountName) {
-            html += '<button class="cp-edit-btn" id="cmEditPost" style="font-size:0.7rem;margin-left:4px;">✏ 编辑</button>';
-            html += '<button class="cp-edit-btn" id="cmDelPost" style="font-size:0.7rem;color:#ff6b6b;">🗑 删除</button>';
+        // 作者行：头像跨两行 —— 第一行「名字 主称号 副称号」，第二行「时间 板块 编辑 删除」
+        var isMine = !!(window._communityUsername && window._communityUsername === post.accountName);
+        var canManage = isMine || isAdmin();
+        html += '<div class="cp-head" style="margin-bottom:12px;">';
+        html += '<div class="cp-avatar-col">' + avatarImg(post.accountName, 40) + '</div>';
+        html += '<div class="cp-head-main">';
+        html += '<div class="cp-name-row"><span class="cp-name">' + esc(post.authorName) + '</span>'
+            + forumTitleHtml(post.authorName, post.accountName) + '</div>';
+        html += '<div class="cp-sub-row">'
+            + '<span class="cp-time">' + timeAgo(post.createTime) + '</span>'
+            + '<span class="cp-section-tag">' + SECTION_NAMES[post.section] + '</span>';
+        if (canManage) {
+            html += '<button class="cp-edit-btn" id="cmEditPost" style="font-size:0.68rem;">✏ '
+                + (isMine ? '编辑' : '管理编辑') + '</button>';
+            html += '<button class="cp-edit-btn" id="cmDelPost" style="font-size:0.68rem;color:#ff6b6b;">🗑 '
+                + (isMine ? '删除' : '管理删除') + '</button>';
         }
-        html += '</div>';
-        // 渲染内容块
-        html += '<div style="color:#ccc;line-height:1.7;margin-bottom:12px;">';
+        html += '</div></div></div>';
+        // 渲染内容块：文字与卡图在同一行内流动（卡图不强制换行），连续卡图并排一行
+        html += '<div class="cp-content" style="color:#ccc;line-height:1.7;margin-bottom:12px;">';
+        var cardBuf = [];
+        function flushCards() {
+            if (!cardBuf.length) return;
+            html += '<span class="cp-card-row">' + cardBuf.join('') + '</span>';
+            cardBuf = [];
+        }
+        function cardChip(id) {
+            var cardInfo = getCardInfoById(id);
+            var cardName = cardInfo ? (cardInfo.name || '') : '';
+            var nameHtml = cardName ? '<span style="color:#F0E68C;font-size:0.78rem;max-width:120px;line-height:1.3;">' + esc(cardName) + '</span>' : '';
+            var paddingX = cardName ? '10px' : '4px';
+            return '<span class="cp-card-inline" data-card-id="' + id + '"'
+                + ' style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle;'
+                + 'background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:4px ' + paddingX + ' 4px 4px;cursor:pointer;">'
+                + '<img src="' + cardImgSrc(id) + '" style="width:44px;height:64px;object-fit:cover;border-radius:3px;"'
+                + ' onerror="' + cardImgOnError(id) + '">'
+                + nameHtml
+                + '</span>';
+        }
         (post.contentJson || []).forEach(function (block) {
+            if (block.type === 'card') {
+                cardBuf.push(cardChip(block.id));
+                return;
+            }
+            flushCards();
             if (block.type === 'text') {
-                html += '<p style="white-space:pre-wrap;">' + esc(block.text) + '</p>';
+                if (!block.text) return;
+                // 保留作者敲的换行（卡图后面按回车就靠它）
+                html += '<span style="white-space:pre-wrap;">' + esc(block.text) + '</span>';
             } else if (block.type === 'img') {
                 html += '<img src="' + EMOJI_URL + esc(block.name) + '.png" style="max-width:80px;max-height:80px;vertical-align:middle;margin:2px;" loading="lazy">';
             } else if (block.type === 'deck') {
-                var total = (block.main || []).length + (block.extra || []).length + (block.side || []).length;
                 html += '<div class="cp-deck-block" style="background:#111;border:1px solid #2a2a2a;'
                     + 'border-radius:8px;padding:12px;margin:8px 0;cursor:pointer;"'
                     + ' data-deck=\'' + JSON.stringify({ main: block.main, extra: block.extra, side: block.side }).replace(/'/g, "\\'") + '\'>'
-                    + '🃏 卡组 (' + total + '张) — 点击查看详情</div>';
-            } else if (block.type === 'card') {
-                var cardInfo = getCardInfoById(block.id);
-                var cardName = cardInfo ? (cardInfo.name || '') : '';
-                var nameHtml = cardName ? '<span style="color:#F0E68C;font-size:0.78rem;max-width:120px;line-height:1.3;">' + esc(cardName) + '</span>' : '';
-                var paddingX = cardName ? '10px' : '4px';
-                html += '<span class="cp-card-inline" data-card-id="' + block.id + '"'
-                    + ' style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle;margin:2px 4px;'
-                    + 'background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:4px ' + paddingX + ' 4px 4px;cursor:pointer;">'
-                    + '<img src="' + cardImgSrc(block.id) + '" style="width:44px;height:64px;object-fit:cover;border-radius:3px;"'
-                    + ' onerror="' + cardImgOnError(block.id) + '">'
-                    + nameHtml
-                    + '</span> ';
+                    + '🃏 卡组 (' + (block.main || []).length + (block.extra || []).length + (block.side || []).length + '张) — 点击查看详情</div>';
             }
         });
+        flushCards();
         html += '</div>';
         // 点赞 + 评论数 + 置顶按钮
         html += '<div style="display:flex;gap:16px;align-items:center;margin-bottom:16px;">';
@@ -822,18 +976,25 @@ function initCommunityModule() {
         // 编辑帖子 — 复用发帖 UI
         var editBtn = document.getElementById('cmEditPost');
         if (editBtn) editBtn.addEventListener('click', function () {
+            // PATCH: 用「文字 + [deck]/[card]/[img] 标记」回填，保存时重新解析成 contentJson；
+            //   只回填纯文本 content 会把帖子里嵌入的卡组块丢掉。
+            var editContent = (post.contentJson && post.contentJson.length)
+                ? serializeBlocksToText(post.contentJson)
+                : (post.content || '');
             openPublish({
                 id: post.id,
                 section: post.section,
                 title: post.title,
-                content: post.content,
+                content: editContent,
                 tags: post.tags || '',
-            });
+            }, { allowSection: isAdmin() });
         });
         // 删除帖子
         var delBtn = document.getElementById('cmDelPost');
         if (delBtn) delBtn.addEventListener('click', function () {
-            if (!confirm('确定删除这个帖子吗？')) return;
+            var tip = isMine ? '确定删除这个帖子吗？'
+                : ('确定以管理员身份删除「' + (post.authorName || post.accountName || '') + '」的帖子吗？删除后无法恢复。');
+            if (!confirm(tip)) return;
             if (USE_MOCK) {
                 MOCK_POSTS = MOCK_POSTS.filter(function (p) { return p.id !== post.id; });
                 closeDetail();
@@ -848,18 +1009,33 @@ function initCommunityModule() {
         body.querySelectorAll('.edit-reply-btn').forEach(function (btn) {
             btn.addEventListener('click', function () {
                 var rid = parseInt(btn.getAttribute('data-rid'));
-                var newContent = prompt('编辑回复:');
-                if (!newContent) return;
+                var reply = null;
+                // id 可能是数字也可能是字符串，统一按整数比
+                (replyData.replies || []).forEach(function (x) {
+                    if (parseInt(x.id, 10) === rid) reply = x;
+                });
+                if (!reply) { alert('这条回复已不存在，请关闭后重新打开帖子'); return; }
+                // PATCH: 用「文字 + [deck]/[card]/[img] 标记」回填，编辑后重新解析成 contentJson。
+                //   原来只传纯文本 content，保存后回复里嵌入的卡组块/卡片块会整段丢失。
+                var origBlocks = (reply.contentJson && reply.contentJson.length)
+                    ? reply.contentJson
+                    : [{ type: 'text', text: reply.content || '' }];
+                var newContent = prompt('编辑回复（可直接改文字；卡组/卡片标记请一并保留）:',
+                    serializeBlocksToText(origBlocks));
+                if (newContent === null) return;      // 点了取消
+                newContent = newContent.trim();
+                if (!newContent) { alert('回复内容不能为空'); return; }
+                var contentJson = buildContentJson(newContent, null);
                 if (USE_MOCK) {
                     var r = MOCK_REPLIES[post.id] ? MOCK_REPLIES[post.id].find(function (x) { return x.id === rid; }) : null;
-                    if (r) { r.content = newContent.trim(); r.contentJson = [{ type: 'text', text: newContent.trim() }]; }
+                    if (r) { r.content = newContent; r.contentJson = contentJson; }
                     closeDetail();
                     openDetail(post.id);
                     return;
                 }
                 authApi('/api/forum/replies/' + rid, {
                     method: 'PUT',
-                    body: { content: newContent.trim(), username: window._communityAuth.username, password: window._communityAuth.password },
+                    body: { content: newContent, contentJson: contentJson },
                 }).then(function () { closeDetail(); openDetail(post.id); })
                   .catch(function (e) { alert('编辑失败: ' + (e && e.message)); });
             });
@@ -900,8 +1076,10 @@ function initCommunityModule() {
     var _publishDeck = null;
     var _editingPostId = null;
 
-    function openPublish(editData) {
+    function openPublish(editData, opts) {
         var isEdit = !!editData;
+        // 分区：新建时可选；编辑时只有管理员能改（作者只能改标题/正文/标签）
+        var allowSection = !isEdit || !!(opts && opts.allowSection);
         var overlay = document.createElement('div');
         overlay.className = 'community-modal-overlay active';
         overlay.innerHTML = '<div class="community-modal" style="width:min(600px,95vw);">'
@@ -911,9 +1089,13 @@ function initCommunityModule() {
             + '</div>'
             + '<div class="community-modal-body">'
             + '<label class="community-form-label">分区</label>'
-            + '<select class="community-input" id="cmPubSection" style="width:auto;">'
+            + '<select class="community-input" id="cmPubSection" style="width:auto;"'
+            + ((isEdit && !allowSection) ? ' disabled title="分区不可修改"' : '') + '>'
             + SECTIONS.filter(function (s) { return s !== 'all'; }).map(function (s) { return '<option value="' + s + '"' + (editData && editData.section === s ? ' selected' : '') + '>' + SECTION_NAMES[s] + '</option>'; }).join('')
             + '</select>'
+            + (isEdit && !allowSection
+                ? '<div style="color:#666;font-size:0.7rem;margin:-4px 0 8px;">编辑时不能改分区，需要调整分区请联系管理员</div>'
+                : '')
             + '<label class="community-form-label">标题</label>'
             + '<input class="community-input" id="cmPubTitle" maxlength="60" placeholder="帖子标题" value="' + (editData ? esc(editData.title) : '') + '">'
             + '<label class="community-form-label">标签（逗号分隔，如「构筑,已解决」）</label>'
@@ -985,14 +1167,18 @@ function initCommunityModule() {
             btn.textContent = _editingPostId ? '保存中...' : '发布中...';
 
             if (_editingPostId) {
-                // 编辑模式
+                // 编辑模式：只有管理员带 section（站点代理侧还会再校验一次，非管理员会被剥掉）
+                var putBody = { title: title, content: content, contentJson: contentJson, tags: tags };
+                if (allowSection) putBody.section = section;
                 authApi('/api/forum/posts/' + _editingPostId, {
                     method: 'PUT',
-                    body: { title: title, content: content, contentJson: contentJson, tags: tags },
-                }).then(function () {
+                    body: putBody,
+                }).then(function (res) {
                     closePublish();
                     if (_detailPostId === _editingPostId) { closeDetail(); }
                     loadFeed();
+                    // 服务端回读发现分区没生效时给的提示（正文已保存）
+                    if (res && res.warning) alert(res.warning);
                 }).catch(function (e) {
                     alert('保存失败: ' + e.message);
                     btn.disabled = false;
@@ -1033,16 +1219,50 @@ function initCommunityModule() {
         }
     }
 
+    // ── 内容块 ↔ 文本标记 互转（编辑时无损回填）──
+    //   正文在服务端存两份：纯文本 content + 块数组 contentJson。
+    //   卡组块只活在 contentJson 里，编辑框如果只回填 content，保存后卡组就没了。
+    function deckToYdk(deck) {
+        var lines = ['#main'];
+        (deck.main || []).forEach(function (id) { lines.push(String(id)); });
+        lines.push('#extra');
+        (deck.extra || []).forEach(function (id) { lines.push(String(id)); });
+        lines.push('!side');
+        (deck.side || []).forEach(function (id) { lines.push(String(id)); });
+        return lines.join('\n');
+    }
+
+    function serializeBlocksToText(blocks) {
+        var out = [];
+        (blocks || []).forEach(function (b) {
+            if (!b) return;
+            if (b.type === 'text') out.push(b.text || '');
+            else if (b.type === 'card') out.push('[card]' + b.id + '[/card]');
+            else if (b.type === 'img') out.push('[img]' + b.name + '[/img]');
+            else if (b.type === 'deck') {
+                var ydk = (b.ydk && b.ydk.trim()) ? b.ydk.trim() : deckToYdk(b);
+                out.push('[deck]\n' + ydk + '\n[/deck]');
+            }
+        });
+        // 不再用 \n 连接：文本块自己保留了原始换行，再加分隔符会让每次编辑都多出空行
+        return out.join('');
+    }
+
     function buildContentJson(content, deck) {
         var blocks = [];
         // 先解析标记
         var regex = /\[deck\]([\s\S]*?)\[\/deck\]|\[card\](\d+)\[\/card\]|\[img\]([a-zA-Z]+)\[\/img\]/g;
         var lastIdx = 0;
         var match;
+        // 文本块保留原始空白（尤其换行）：卡图后面按回车要能真的换行，不能 trim 掉
+        var keepRaw = function (raw) {
+            if (!raw) return false;
+            return raw.trim().length > 0 || raw.indexOf('\n') !== -1;
+        };
         while ((match = regex.exec(content)) !== null) {
             if (match.index > lastIdx) {
-                var text = content.slice(lastIdx, match.index).trim();
-                if (text) blocks.push({ type: 'text', text: text });
+                var raw = content.slice(lastIdx, match.index);
+                if (keepRaw(raw)) blocks.push({ type: 'text', text: raw });
             }
             if (match[1] !== undefined) {
                 if (window.DeckViewer && window.DeckViewer.parse) {
@@ -1057,8 +1277,8 @@ function initCommunityModule() {
             lastIdx = match.index + match[0].length;
         }
         if (lastIdx < content.length) {
-            var tail = content.slice(lastIdx).trim();
-            if (tail) blocks.push({ type: 'text', text: tail });
+            var tail = content.slice(lastIdx);
+            if (keepRaw(tail)) blocks.push({ type: 'text', text: tail });
         }
         if (blocks.length === 0 && content.trim()) {
             blocks.push({ type: 'text', text: content.trim() });
@@ -1217,8 +1437,19 @@ function initCommunityModule() {
     }
 
     function openCardTooltip(cardId, anchor) {
-        var index = window._cardIndex;
-        var card = index ? index.get(cardId) : null;
+        var card = getCardInfoById(cardId);
+        // 本地还没有这张卡（没打开过卡池）→ 先按 id 补一张再弹
+        if (!card) {
+            ensureCards([cardId]).then(function () {
+                showCardTooltip(cardId, anchor);
+            });
+            return;
+        }
+        showCardTooltip(cardId, anchor);
+    }
+
+    function showCardTooltip(cardId, anchor) {
+        var card = getCardInfoById(cardId);
 
         // 渲染弹窗（DIY 或官方字段）
         var show = function (fields) {
@@ -1276,7 +1507,7 @@ function initCommunityModule() {
 
     // ═══════════════════════════ 个人中心 ═══════════════════════
 
-    window._openProfilePanel = function () {
+    window._openProfilePanel = function (initialTab) {
         // 确保社区 CSS 已激活（从主页直接打开时需要）
         var cssLink = document.getElementById('css-deck-community');
         if (cssLink && cssLink.media !== 'all') cssLink.media = 'all';
@@ -1326,8 +1557,18 @@ function initCommunityModule() {
         var escClose = function (e) { if (e.key === 'Escape') { closeProfile(); document.removeEventListener('keydown', escClose); } };
         document.addEventListener('keydown', escClose);
 
-        // 默认：个人信息（头像 + 称号 + 对战记录）
-        renderProfileInfo(overlay);
+        // 有未读提醒时，在「论坛信息」导航上点一个小红点
+        if (typeof window._forumNotifRefresh === 'function') {
+            window._forumNotifRefresh().then(function (d) {
+                var btn = overlay.querySelector('.profile-nav-item[data-psection="forum"]');
+                if (!btn || !d) return;
+                var n = ((d.unread && d.unread.replies) || 0) + ((d.unread && d.unread.likes) || 0);
+                btn.classList.toggle('has-dot', n > 0);
+            });
+        }
+
+        // 打开时定位到指定板块（默认：个人信息）
+        showSection(initialTab === 'forum' || initialTab === 'settings' ? initialTab : 'info');
     };
 
     // ── 个人信息：头像+称号卡 + 对战记录 ─────────────
@@ -1349,9 +1590,24 @@ function initCommunityModule() {
                 + '<div class="profile-card-ladder" id="profileCardLadder">' + (window._profileLadderHtml || '') + '</div>'
                 + '<div class="profile-card-title" id="profileCardTitle"><span style="color:#888;font-size:12px;">加载称号中...</span></div>'
                 + '</div></div>'
+                + '<div class="profile-notif" id="profileNotif"></div>'
                 + '<div class="profile-section-title">⚔ 对战记录（当前赛季）</div>'
                 + '<div id="profileDuelsBox"><div class="community-loading">加载对局中...</div></div>';
             container.innerHTML = html;
+
+            // 新回复 / 新点赞（与头像红点同一份数据）
+            if (typeof window._forumNotifRefresh === 'function') {
+                window._forumNotifRefresh().then(function (d) {
+                    var box = container.querySelector('#profileNotif');
+                    if (!box || !d) return;
+                    var r = (d.unread && d.unread.replies) || 0;
+                    var l = (d.unread && d.unread.likes) || 0;
+                    box.innerHTML = (r || l)
+                        ? '<span class="pn-chip">💬 回复我的 ' + r + '</span>'
+                          + '<span class="pn-chip">❤ 点赞我的 ' + l + '</span>'
+                        : '';
+                });
+            }
 
             // 天梯排名与段位（当前赛季）
             authApi('/api/forum/profile/ladder').then(function (ld) {
@@ -1412,6 +1668,8 @@ function initCommunityModule() {
             + '<button class="forum-sub-tab active" data-ftab="posts">我的发帖</button>'
             + '<button class="forum-sub-tab" data-ftab="replies">我的回复</button>'
             + '<button class="forum-sub-tab" data-ftab="liked">点赞过的</button>'
+            + '<button class="forum-sub-tab" data-ftab="inbox-replies" id="ftabInboxReplies">回复我的</button>'
+            + '<button class="forum-sub-tab" data-ftab="inbox-likes" id="ftabInboxLikes">点赞我的</button>'
             + '</div>'
             + '<div id="forumSubContent"></div>';
         var sub = container.querySelector('#forumSubContent');
@@ -1423,9 +1681,64 @@ function initCommunityModule() {
                 renderForumList(btn.getAttribute('data-ftab'), sub, overlay);
             });
         });
+
+        // 未读红点标在两个板块上（点进去看的时候才标记已读）
+        if (typeof window._forumNotifRefresh === 'function') {
+            window._forumNotifRefresh().then(function (d) {
+                if (!d) return;
+                var r = (d.unread && d.unread.replies) || 0;
+                var l = (d.unread && d.unread.likes) || 0;
+                var tr = container.querySelector('#ftabInboxReplies');
+                var tl = container.querySelector('#ftabInboxLikes');
+                if (tr) tr.classList.toggle('has-dot', r > 0);
+                if (tl) tl.classList.toggle('has-dot', l > 0);
+            });
+        }
+    }
+
+    // 「回复我的 / 点赞我的」两个板块
+    function renderInbox(tab, sub, overlay) {
+        sub.innerHTML = '<div class="community-loading">加载中...</div>';
+        var isReply = tab === 'inbox-replies';
+        var load = (typeof window._forumNotifRefresh === 'function')
+            ? window._forumNotifRefresh()
+            : Promise.resolve({ replies: [], likes: [] });
+        load.then(function (d) {
+            var list = (d && (isReply ? d.replies : d.likes)) || [];
+            if (!list.length) {
+                sub.innerHTML = '<div class="cp-empty">' + (isReply ? '还没人回复你的帖子' : '还没人赞你的帖子') + '</div>';
+                return;
+            }
+            sub.innerHTML = '<div class="inbox-list">' + list.map(function (x) {
+                var head = '<b>' + esc(x.authorName) + '</b> '
+                    + (isReply ? '回复了' : '赞了') + '《' + esc(x.postTitle) + '》';
+                return '<div class="inbox-item' + (x.unread ? ' unread' : '') + '" data-post="' + x.postId + '">'
+                    + '<div class="inbox-line">' + head
+                    + '<span class="inbox-time">' + timeAgo(new Date((x.ts || 0) * 1000).toISOString()) + '</span>'
+                    + '</div>'
+                    + (isReply && x.content ? '<div class="inbox-content">' + esc(x.content) + '</div>' : '')
+                    + '</div>';
+            }).join('') + '</div>';
+            sub.querySelectorAll('.inbox-item').forEach(function (el) {
+                el.addEventListener('click', function () {
+                    var pid = parseInt(el.getAttribute('data-post'), 10);
+                    var ov = sub.closest('.community-modal-overlay');
+                    if (ov) ov.remove();
+                    if (pid) openDetail(pid);
+                });
+            });
+            // 看过了 → 标记已读（下次进来红点/未读高亮就没了）
+            if (typeof window._forumNotifMarkRead === 'function') window._forumNotifMarkRead();
+        }).catch(function (e) {
+            sub.innerHTML = '<div class="cp-empty">加载失败: ' + esc(e.message) + '</div>';
+        });
     }
 
     function renderForumList(tab, sub, overlay) {
+        if (tab === 'inbox-replies' || tab === 'inbox-likes') {
+            renderInbox(tab, sub, overlay);
+            return;
+        }
         sub.innerHTML = '<div class="community-loading">加载中...</div>';
         var url = tab === 'posts' ? '/api/forum/my-posts'
             : tab === 'replies' ? '/api/forum/my-replies'
@@ -1639,6 +1952,7 @@ function initCommunityModule() {
                                 window._communityLoggedIn = false;
                                 window._communityUsername = '';
                                 window._communityAuth = null;
+                                window._communityIsAdmin = false;
                                 overlay.remove();
                                 initShell();
                             });
@@ -1653,6 +1967,7 @@ function initCommunityModule() {
                         window._communityLoggedIn = false;
                         window._communityUsername = '';
                         window._communityAuth = null;
+                        window._communityIsAdmin = false;
                         overlay.remove();
                         initShell();
                     });
@@ -2104,6 +2419,12 @@ function initCommunityModule() {
             if (_cardSearchOverlay) { _cardSearchOverlay.remove(); _cardSearchOverlay = null; }
         }
     });
+
+    // 深链：?goto=forum&post=<id>（分享按钮复制出来的就是这个链接）
+    window._openForumPost = function (id) {
+        var pid = parseInt(id, 10);
+        if (pid > 0) openDetail(pid);
+    };
 
     initShell();
 }
