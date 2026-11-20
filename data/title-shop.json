@@ -14,25 +14,37 @@
     { "title": "孤傲的",     "price": 233,   "rarity": "白", "desc": "不需要队友，也不需要观众。" },
     { "title": "迅捷的",     "price": 233,   "rarity": "白", "desc": "展开速度就是生命。" },
     { "title": "癫狂的",     "price": 233,   "rarity": "白", "desc": "场面越大，笑得越开心。" },
+    { "title": "摸鱼的",     "price": 233,   "rarity": "白", "desc": "赛季末再上分。" },
+    { "title": "断线的",     "price": 233,   "rarity": "白", "desc": "网络波动，不是我的错。" },
+    { "title": "抄作业的",   "price": 233,   "rarity": "白", "desc": "卡组是抄的，胜利是我的。" },
     { "title": "阴间的",     "price": 488,   "rarity": "白", "desc": "对手的血压，是你的燃料。" },
+    { "title": "开香槟的",   "price": 488,   "rarity": "白", "desc": "赢了半场就开香槟。" },
 
     { "title": "决斗开端",   "price": 500,   "rarity": "绿", "desc": "一切从这里开始。" },
     { "title": "天梯观光者", "price": 550,   "rarity": "绿", "desc": "上来看看，顺便被打一顿。" },
+    { "title": "起手天胡",   "price": 550,   "rarity": "绿", "desc": "第一回合就把场铺满。" },
     { "title": "盖五过",     "price": 600,   "rarity": "绿", "desc": "五张后场，听天由命。" },
     { "title": "卡了",       "price": 650,   "rarity": "绿", "desc": "手牌很好，只是都用不了。" },
+    { "title": "贴纸玩家",   "price": 650,   "rarity": "绿", "desc": "后场比前场更可怕。" },
     { "title": "后手信仰",   "price": 700,   "rarity": "绿", "desc": "先手让给你，胜利留给我。" },
 
     { "title": "赢骰就给我", "price": 1000,  "rarity": "蓝", "desc": "掷硬币的那一刻就已经赢了。" },
+    { "title": "后手斩杀",   "price": 1100,  "rarity": "蓝", "desc": "让先，是为了 OTK。" },
     { "title": "手卡事故",   "price": 1200,  "rarity": "蓝", "desc": "抽卡的手气，也是一种实力。" },
     { "title": "场外指挥官", "price": 1400,  "rarity": "蓝", "desc": "旁观的时候战术天下第一。" },
+    { "title": "资源循环",   "price": 1400,  "rarity": "蓝", "desc": "墓地也是手牌。" },
     { "title": "回放收藏家", "price": 1600,  "rarity": "蓝", "desc": "输了看回放，赢了存回放。" },
 
     { "title": "时间管理",   "price": 2500,  "rarity": "黄", "desc": "每回合都在和计时器赛跑。" },
+    { "title": "一回合说书", "price": 2600,  "rarity": "黄", "desc": "对手开始看手机了。" },
     { "title": "无限起动",   "price": 3000,  "rarity": "黄", "desc": "手牌越打越多，场面越铺越大。" },
     { "title": "顶级牢大",   "price": 3500,  "rarity": "黄", "desc": "榜尾的荣耀，也是一种荣耀。" },
+    { "title": "读牌大师",   "price": 3800,  "rarity": "黄", "desc": "你盖的是什么，我猜得到。" },
     { "title": "白神眷属",   "price": 4000,  "rarity": "黄", "desc": "白神服的老朋友。" },
 
     { "title": "天梯钉子户", "price": 5000,  "rarity": "红", "desc": "每个赛季都在，每个赛季都在榜上。" },
+    { "title": "白神认证",   "price": 6666,  "rarity": "红", "desc": "白神服官方认证的强者。" },
+    { "title": "传说的一手", "price": 8888,  "rarity": "红", "desc": "这一手，够吹一年。" },
     { "title": "万元户",     "price": 10000, "rarity": "红", "desc": "一万分的身价，一万分的折磨。" },
     { "title": "漫长的决斗王", "price": 23333, "rarity": "红", "desc": "打得久，也是一种本事。" }
   ]
