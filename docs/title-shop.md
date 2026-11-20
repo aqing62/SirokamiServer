@@ -247,6 +247,12 @@ VALUES ('aqing', 200, '活动补偿');   -- 扣就写负数
 **Q：游戏里称号不显示？**
 `selectedTitle` 是登录时读取的 → 让玩家重新登录；个人中心保存后有提示「游戏内下次登录生效」。
 
+**Q：榜单里有名字，但不显示称号？**
+先确认该账号 `selectedTitle` / `selectedTitle2` / `ladderTitle` 是否都为空 —— 三个都空就不显示
+（不会拿没装备的称号顶上）。另外玩家改过显示名时，`player_rating.displayName`（打天梯时的旧名）
+和 `srv_user.displayName`（当前名）可能不一致；2026-11-20 起 `/api/ladder/titles`
+**同时用两个名字做键**，所以「炎兽Lv999 / 烟火一刹」这类改名玩家也能正常显示。
+
 **Q：想清空某人的已购称号（退款）？**
 ```sql
 DELETE FROM ygo_title_shop_purchase WHERE "accountName"='xxx' AND title='xxx';
