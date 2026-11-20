@@ -403,6 +403,26 @@
 }
 .ts-toast.err { border-color: rgba(216, 30, 68, 0.6); color: #ffb3c1; }
 
+/* ── 论坛作者称号（与玩家排名同一套稀有度配色） ── */
+.forum-title {
+    display: inline-block;
+    margin-left: 4px;
+    padding: 0 5px;
+    border-radius: 4px;
+    border: 1px solid currentColor;
+    font-size: 0.64rem;
+    font-weight: 700;
+    line-height: 1.5;
+    vertical-align: middle;
+    opacity: 0.92;
+}
+.forum-title[data-rarity="白"] { color: #E8E8E8; }
+.forum-title[data-rarity="绿"] { color: #4CD38A; }
+.forum-title[data-rarity="蓝"] { color: #5AA9FF; }
+.forum-title[data-rarity="黄"] { color: #FFD24A; }
+.forum-title[data-rarity="红"] { color: #FF5F6D; }
+.forum-title[data-rarity="紫"] { color: #C08CFF; }
+
 /* ── 响应式 ── */
 @media (max-width: 1100px) {
     .ts-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }

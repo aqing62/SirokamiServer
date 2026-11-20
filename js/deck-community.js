@@ -158,6 +158,36 @@ function initCommunityModule() {
         });
     }
 
+    // ── 论坛作者称号：与玩家排名同一套接口/稀有度配色（紫=任务称号）──
+    var _forumTitles = {};
+    var _forumTitlesAt = 0;
+    var _forumTitlesPromise = null;
+
+    function ensureForumTitles(force) {
+        var now = Date.now();
+        if (!force && _forumTitlesPromise && now - _forumTitlesAt < 60000) return _forumTitlesPromise;
+        _forumTitlesAt = now;
+        _forumTitlesPromise = api('/api/ladder/titles?t=' + now).then(function (data) {
+            _forumTitles = (data && data.titles) || {};
+            return _forumTitles;
+        }).catch(function () {
+            return _forumTitles;
+        });
+        return _forumTitlesPromise;
+    }
+
+    function forumTitleHtml(authorName, accountName) {
+        var info = _forumTitles[authorName] || _forumTitles[accountName];
+        if (!info || !info.length) return '';
+        var keys = ['白', '绿', '蓝', '黄', '红', '紫'];
+        var html = '';
+        info.forEach(function (t) {
+            var r = keys.indexOf(t.rarity) >= 0 ? t.rarity : '紫';
+            html += '<span class="forum-title" data-rarity="' + r + '">' + esc(t.title) + '</span>';
+        });
+        return html;
+    }
+
     function getAuth() {
         var a = window._communityAuth;
         if (!a) return null;
@@ -403,7 +433,9 @@ function initCommunityModule() {
             + '&page=' + state.page + '&pageSize=' + state.pageSize;
         if (state.search) qs += '&search=' + encodeURIComponent(state.search);
 
-        api('/api/forum/posts' + qs).then(function (data) {
+        ensureForumTitles().then(function () {
+            return api('/api/forum/posts' + qs);
+        }).then(function (data) {
             state.total = data.total || 0;
             renderFeed(data);
         }).catch(function (e) {
@@ -432,7 +464,7 @@ function initCommunityModule() {
                 html += '<div class="cp-meta">';
                 var tags = (post.tags || '').split(',').filter(Boolean);
                 html += avatarImg(post.accountName);
-                html += '<span>' + esc(post.authorName) + '</span>';
+                html += '<span>' + esc(post.authorName) + '</span>' + forumTitleHtml(post.authorName, post.accountName);
                 html += '<span>' + timeAgo(post.createTime) + '</span>';
                 html += '<span class="cp-section-tag">' + SECTION_NAMES[post.section] + '</span>';
                 tags.forEach(function (t) {
@@ -503,7 +535,9 @@ function initCommunityModule() {
             }
             return;
         }
-        api('/api/forum/posts/' + postId).then(function (post) {
+        ensureForumTitles().then(function () {
+            return api('/api/forum/posts/' + postId);
+        }).then(function (post) {
             loadReplies(post);
         }).catch(function (e) {
             overlay.querySelector('.community-modal-body').innerHTML =
@@ -540,7 +574,7 @@ function initCommunityModule() {
         html += '</div>';
         html += '<div class="cp-meta" style="margin-bottom:10px;">';
         html += avatarImg(post.accountName);
-        html += '<span>' + esc(post.authorName) + '</span>';
+        html += '<span>' + esc(post.authorName) + '</span>' + forumTitleHtml(post.authorName, post.accountName);
         html += '<span>' + timeAgo(post.createTime) + '</span>';
         html += '<span class="cp-section-tag">' + SECTION_NAMES[post.section] + '</span>';
         // 自己发的帖子显示编辑/删除
@@ -597,7 +631,8 @@ function initCommunityModule() {
         } else {
             replyData.replies.forEach(function (r) {
                 html += '<div class="community-reply">';
-                html += avatarImg(r.accountName) + '<span class="cr-author">' + esc(r.authorName) + '</span>';
+                html += avatarImg(r.accountName) + '<span class="cr-author">' + esc(r.authorName) + '</span>'
+                    + forumTitleHtml(r.authorName, r.accountName);
                 html += '<span class="cr-time">' + timeAgo(r.createTime) + '</span>';
                 // 自己的回复显示编辑/删除
                 if (window._communityUsername && window._communityUsername === r.accountName) {
