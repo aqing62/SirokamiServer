@@ -11,6 +11,7 @@
  *   node ygotitles.js                        # 增量扫描
  *   node ygotitles.js --backfill 2000        # 回扫最近 N 条天梯记录（全部成就）
  *   node ygotitles.js --special-backfill 999999  # 只回扫特殊胜利任务称号（快）
+ *   node ygotitles.js --rebuild-achievements      # 收回旧成就称号并按修正座位全量重算（慢）
  *   node ygotitles.js --dry                  # 只打印判定，不写库
  *   node ygotitles.js --verbose              # 打印每局解析结果
  */
@@ -42,12 +43,27 @@ const SPECIAL_WINS = [
 ];
 const SPECIAL_BY_TYPE = new Map(SPECIAL_WINS.map(x => [x.type, x]));
 
+// 全量场次按账号缓存：ladderGames 是重查询，重建时只算一次
+const gamesCache = new Map();
+async function gamesOf(c, account) {
+  if (!gamesCache.has(account)) gamesCache.set(account, await ladderGames(c, account));
+  return gamesCache.get(account);
+}
+
+// 旧成就称号（本脚本发放，--rebuild-achievements 会整体收回重算）
+const ACHIEVEMENT_TITLES = [
+  '力量结合', '一拳超人', '燃烧偶像', '光合作用', '卡手大师', '黏住', '极限选手', '奇迹',
+  'OTK爱好者', 'OTK收藏家', 'OTK狂热粉', '百战', '千战', '万战',
+  '温暖', '不胜神话', '绝对努力', '日积月累',
+];
+
 const DRY = process.argv.includes('--dry');
 const VERBOSE = process.argv.includes('--verbose');
 const backfillArg = process.argv.indexOf('--backfill');
 const BACKFILL = backfillArg > 0 ? parseInt(process.argv[backfillArg + 1], 10) || 0 : 0;
 const specialArg = process.argv.indexOf('--special-backfill');
 const SPECIAL_BACKFILL = specialArg > 0 ? parseInt(process.argv[specialArg + 1], 10) || 0 : 0;
+const REBUILD = process.argv.includes('--rebuild-achievements');
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS ygo_title_award (
@@ -383,12 +399,28 @@ async function scanRecord(c, row) {
   // 特殊胜利任务称号（通灵盘 / 艾克佐迪亚 / 终焉倒计时…）
   await awardSpecialWins(c, row, replay, winTypes);
 
+  // 回放座位会随「谁保存回放」翻转：以数据库 winner / isFirst 为准换算成房间座位
+  let dbPlayers = [];
+  try {
+    dbPlayers = (await c.query(
+      'SELECT name, "realName", pos, winner, "isFirst" FROM duel_record_player WHERE "duelRecordId"=$1',
+      [row.id])).rows;
+  } catch (e) {}
+  const isTrue = v => v === true || v === 't';
+  const firstMsg = (replay.messages || []).find(m => m.name === 'NewTurn');
+  const firstTurn = firstMsg && firstMsg.f ? firstMsg.f.player : null;
+  const firstRow = dbPlayers.find(p => isTrue(p.isFirst));
+  const firstPos = firstRow ? Number(firstRow.pos) : null;
+  const swap = firstTurn != null && firstPos != null && Number(firstTurn) !== firstPos;
+  const localOf = roomPos => (swap ? 1 - roomPos : roomPos);
+  const winnerRow = dbPlayers.find(p => isTrue(p.winner));
+
   for (const pos of [0, 1]) {
-    const pname = nameOfPlayer(replay, pos);
-    if (!pname) continue;
-    const acct = await accountOf(c, row.id, pname);
-    const s = stats[pos];
-    const won = winners.includes(pos);
+    const dbRow = dbPlayers.find(p => Number(p.pos) === pos);
+    const acct = dbRow ? dbRow.name : await accountOf(c, row.id, nameOfPlayer(replay, pos));
+    if (!acct) continue;
+    const s = stats[localOf(pos)];
+    const won = winnerRow ? Number(winnerRow.pos) === pos : winners.includes(localOf(pos));
 
     if (!DRY) {
       await c.query(`INSERT INTO ygo_duel_stat("recordId","accountName",won,"maxHit","maxTurnDamage","effectDamage",recovered,"finalLp","minLp","handEmpty","fieldEmpty","noSummon3","playedOn")
@@ -408,7 +440,7 @@ async function scanRecord(c, row) {
     if (!s.summonedEarly && (s.turns || 0) >= 4) await award(c, acct, '卡手大师', row.id, 'no summon in first 3 turns');
 
     if (won) {
-      const foe = stats[1 - pos];
+      const foe = stats[localOf(1 - pos)];
       if (foe && foe.deckLeft === 0) await award(c, acct, '黏住', row.id, 'opponent deckout');
       if (s.lp < 100) await award(c, acct, '极限选手', row.id, 'win with ' + s.lp + ' LP');
       if (s.hand === 0 && s.field === 0) await award(c, acct, '奇迹', row.id, 'win with empty hand and field');
@@ -423,7 +455,7 @@ async function scanRecord(c, row) {
 
     // 累计场次用**全量历史**（duel_record + duel_record_player），
     // 而不是只统计已扫描的 ygo_duel_stat —— 否则回扫窗口之前的老比赛不算，百战会被低估
-    const gamesCount = DRY ? 0 : await ladderGames(c, acct);
+    const gamesCount = DRY ? 0 : await gamesOf(c, acct);
     if (gamesCount >= 100) await award(c, acct, '百战', row.id, 'games ' + gamesCount);
     if (gamesCount >= 1000) await award(c, acct, '千战', row.id, 'games ' + gamesCount);
     if (gamesCount >= 10000) await award(c, acct, '万战', row.id, 'games ' + gamesCount);
@@ -483,6 +515,65 @@ async function duelDayStreakFull(c, account, dateISO) {
     if (days[i] === cur.toISOString().slice(0, 10)) n++; else break;
   }
   return n;
+}
+
+/** --rebuild-achievements：收回所有旧成就称号，清空统计表后按修正后的座位映射全量重算 */
+async function rebuildAchievements(c) {
+  if (DRY) { console.log('dry: would delete+rebuild achievement titles'); return; }
+  const set = new Set(ACHIEVEMENT_TITLES);
+  const list = ACHIEVEMENT_TITLES.map(t => "'" + t.replace(/'/g, "''") + "'").join(',');
+
+  const del = await c.query('DELETE FROM ygo_title_award WHERE title IN (' + list + ')');
+  console.log('deleted achievement awards: ' + del.rowCount);
+
+  const users = (await c.query(
+    'SELECT "accountName", coalesce(titles,\'[]\') AS titles, '
+    + 'coalesce("selectedTitle",\'\') AS m, coalesce("selectedTitle2",\'\') AS s, '
+    + 'coalesce("ladderTitle",\'\') AS lt FROM srv_user')).rows;
+  let changed = 0;
+  for (const u of users) {
+    let arr = [];
+    try { arr = JSON.parse(u.titles || '[]'); } catch (e) { arr = []; }
+    if (!Array.isArray(arr)) arr = [];
+    const next = arr.filter(t => !set.has(t));
+    const m = set.has(u.m) ? (set.has(u.lt) ? '' : u.lt) : u.m;
+    const s2 = set.has(u.s) ? '' : u.s;
+    if (next.length !== arr.length || m !== u.m || s2 !== u.s) {
+      await c.query(
+        'UPDATE srv_user SET titles=$1, "selectedTitle"=$2, "selectedTitle2"=$3, "updateTime"=now() WHERE "accountName"=$4',
+        [JSON.stringify(next), m, s2, u.accountName]);
+      changed++;
+    }
+  }
+  console.log('users cleaned: ' + changed);
+
+  if (DRY) { console.log('dry: skip truncate + rescan'); return; }
+  await c.query('TRUNCATE ygo_duel_stat');
+  await c.query('TRUNCATE ygo_daily_duel');
+  await c.query('TRUNCATE ygo_daily_win');
+  await c.query("DELETE FROM ygo_title_state WHERE key='lastDuelRecordId'");
+
+  let lastId = 0;
+  let n = 0;
+  for (;;) {
+    const rows = (await c.query(
+      'SELECT id, name, "startTime" FROM duel_record WHERE name LIKE $1 AND id > $2 ORDER BY id ASC LIMIT 100',
+      [LADDER_LIKE, lastId])).rows;
+    if (!rows.length) break;
+    for (const row of rows) {
+      await scanRecord(c, row);
+      lastId = row.id;
+      n++;
+      if (n % 200 === 0) {
+        console.log('scanned ' + n + ' last=' + lastId);
+        await stateSet(c, 'lastDuelRecordId', String(lastId));
+      }
+    }
+    await stateSet(c, 'lastDuelRecordId', String(lastId));
+  }
+  console.log('rebuild scanned: ' + n);
+  await recountAll(c);
+  console.log('rebuild done');
 }
 
 /** --recount：按全量历史补发「场次/连续天数」类成就（不需要逐局解析） */
@@ -547,6 +638,12 @@ async function main() {
   await c.connect();
   try {
     await ensureSchema(c);
+    if (REBUILD) {
+      await rebuildAchievements(c);
+      const nr = await c.query('SELECT count(*)::int AS n FROM ygo_title_award');
+      console.log('awards total: ' + nr.rows[0].n);
+      return;
+    }
     if (SPECIAL_BACKFILL > 0) {
       await specialBackfill(c, SPECIAL_BACKFILL);
       const ns = await c.query('SELECT count(*)::int AS n FROM ygo_title_award');

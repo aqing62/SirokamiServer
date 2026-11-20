@@ -50,6 +50,10 @@ node ygotitles.js                                   # 新对局增量扫描（cr
 > 不能直接当房间座位用。`ygotitles.js` 以 `duel_record_player.winner` 为准确认胜者，
 > 再用「第一条 NewTurn 的 player」对比 `isFirst` 判断是否翻转，换算到回放座位后才校验卡牌
 > （2026-11-21 修正过一次误发：艾克佐迪亚的称号曾被发给败者）。
+>
+> 同一问题也影响旧成就（`一拳超人`/`光合作用`/`百战` 等）——它们的 `stats[pos]` 也是按回放座位算的。
+> 已按修正后的映射全量重算：`node ygotitles.js --rebuild-achievements`
+> （会先收回 18 个旧成就称号，清空 `ygo_duel_stat`/`ygo_daily_*` 后按时间顺序重扫全部天梯；跑之前先备份）。
 
 - 商店里买到的称号会进入 `srv_user.titles`（称号库），
   玩家在**个人中心 → 称号展示**里自选「主称号 / 副称号」，游戏内下次登录生效。
