@@ -109,14 +109,23 @@
     return _titlesCache.map;
   }
 
-  /** 玩家名下方的称号（主 + 副），按稀有度上色 */
+  /** S3 钻石 / S4 巅峰 这类段位称号 → 段位名 */
+  function seasonTier(title) {
+    const m = /^S\d+\s*(巅峰|大师|钻石|黄金|白银|参战者)$/.exec(title || '');
+    return m ? m[1] : '';
+  }
+
+  /** 玩家名下方的称号（主 + 副），按稀有度上色；段位称号走金属质感 */
   function titleLineHtml(name) {
     const list = _titlesCache.map[name];
     if (!list || !list.length) return '';
     const parts = list.map(function (t) {
       const rarity = RARITY_KEYS.indexOf(t.rarity) >= 0 ? t.rarity : '紫';
-      return '<span class="rank-title" data-rarity="' + rarity + '" title="'
-        + (RARITY_NAMES[rarity] || '任务') + '称号">' + escapeHtml(t.title) + '</span>';
+      const tier = seasonTier(t.title);
+      const cls = 'rank-title' + (tier ? ' tier-metal' : '');
+      const attrs = ' data-rarity="' + rarity + '"' + (tier ? ' data-tier="' + tier + '"' : '');
+      const tip = tier ? (tier + ' 段位称号') : (RARITY_NAMES[rarity] || '任务') + '称号';
+      return '<span class="' + cls + '"' + attrs + ' title="' + tip + '">' + escapeHtml(t.title) + '</span>';
     });
     return '<span class="rank-titles">' + parts.join('<i class="rank-title-dot">·</i>') + '</span>';
   }
@@ -131,18 +140,28 @@
   function picUrls(id) {
     var c = resolveCardInfo(id);
     var src = c && c.source;
+    // PATCH(白神服) 2026-11-21: 9 位卡号（≥100000000）＝ 先行/DIY 专用号，官方卡表里没有这种号；
+    //   官方图床同号那张是旧先行包没清理的残留图（画的是别的卡）→ 不能拿它兜底
+    var nineDigit = parseInt(id, 10) >= 100000000;
     if (src === 'pre') {
-      return [SUPER_PRE_URL + id + '.jpg', OCG_PIC_URL + id + '.jpg', DIY_PIC_URL + id + '.jpg'];
+      return nineDigit
+        ? [SUPER_PRE_URL + id + '.jpg', DIY_PIC_URL + id + '.jpg']
+        : [SUPER_PRE_URL + id + '.jpg', OCG_PIC_URL + id + '.jpg', DIY_PIC_URL + id + '.jpg'];
     }
     if (src === 'diy') {
       // PATCH(白神服) 2026-11-07: DIY 卡优先用**本站图床**（它才是 DIY 图源）；
       //   只有本站缺图时才退到 super-pre / OCG（用户反馈：DIY 图源不能先试 super-pre）
-      return [DIY_PIC_URL + id + '.jpg', SUPER_PRE_URL + id + '.jpg', OCG_PIC_URL + id + '.jpg'];
+      return nineDigit
+        ? [DIY_PIC_URL + id + '.jpg', SUPER_PRE_URL + id + '.jpg']
+        : [DIY_PIC_URL + id + '.jpg', SUPER_PRE_URL + id + '.jpg', OCG_PIC_URL + id + '.jpg'];
     }
     // 卡表里查不到来源时：DIY 卡号段（>= 60000000）按本站图床优先，避免再去 404 萌卡
     if (!c && parseInt(id, 10) >= 60000000) {
-      return [DIY_PIC_URL + id + '.jpg', SUPER_PRE_URL + id + '.jpg', OCG_PIC_URL + id + '.jpg'];
+      return nineDigit
+        ? [DIY_PIC_URL + id + '.jpg', SUPER_PRE_URL + id + '.jpg']
+        : [DIY_PIC_URL + id + '.jpg', SUPER_PRE_URL + id + '.jpg', OCG_PIC_URL + id + '.jpg'];
     }
+    if (nineDigit) return [SUPER_PRE_URL + id + '.jpg', DIY_PIC_URL + id + '.jpg'];
     return [OCG_PIC_URL + id + '.jpg', SUPER_PRE_URL + id + '.jpg', DIY_PIC_URL + id + '.jpg'];
   }
 
@@ -672,7 +691,7 @@
       sc.innerHTML =
         '<div class="winrate-season-head">' +
           '<span class="winrate-season-badge">' + escapeHtml(season.name || '当前赛季') + '</span>' +
-          '<span class="winrate-season-name">当前赛季 · 天梯房先后手胜率</span>' +
+          '<span class="winrate-season-name">本赛季天梯</span>' +
           '<span class="winrate-season-games">' + (season.firstGames || 0).toLocaleString() + ' 场有效对局</span>' +
         '</div>' +
         '<div class="winrate-season-bars">' +
@@ -680,7 +699,7 @@
           winrateBar('second', '后手', season.secondWinRate) +
         '</div>' +
         '<div class="winrate-season-foot">' +
-          '统计范围：' + escapeHtml(range) + ' · 仅 M# 房且双方均已登录的对局' +
+          escapeHtml(range) + ' · 仅 M# 房双方登录对局' +
           (season.firstWinRate !== null && season.secondWinRate !== null
             ? ' · 先手领先 ' + (season.firstWinRate - season.secondWinRate).toFixed(2) + ' 个百分点'
             : '') +
@@ -691,17 +710,18 @@
       winrateNote.textContent = '每 5 分钟更新';
     }
 
-    // ② 其它口径 —— 小字一行
+    // ② 其它口径 —— 左侧窄栏：一行一个，场次放 title（hover 可看，不想把行撑宽）
     winrateScopes.innerHTML = (d.scopes || []).map(function (s) {
-      return '<span class="winrate-mini">' +
-        '<b>' + escapeHtml(s.label || s.key) + '</b>' +
+      var label = s.label || s.key;
+      return '<span class="winrate-mini" title="' + escapeHtml(label) + ' · '
+        + (s.games || 0).toLocaleString() + ' 人次">' +
+        '<b>' + escapeHtml(label) + '</b>' +
         '<span class="f">先 ' + (s.firstWinRate === null ? '-' : s.firstWinRate + '%') + '</span>' +
         '<span class="s">后 ' + (s.secondWinRate === null ? '-' : s.secondWinRate + '%') + '</span>' +
-        '<i>(' + (s.games || 0).toLocaleString() + ' 人次)</i>' +
         '</span>';
     }).join('');
 
-    // ③ 按月趋势
+    // ③ 按月趋势（默认收在 details 里；没数据就整块隐藏）
     winrateMonths.innerHTML = (d.monthly || []).map(function (m) {
       const mon = String(m.month || '').replace('-', '/');
       return '<span class="winrate-month"><b>' + escapeHtml(mon) + '</b>' +
@@ -709,6 +729,8 @@
         ' <span class="s">后 ' + (m.secondWinRate === null ? '-' : m.secondWinRate + '%') + '</span>' +
         '</span>';
     }).join('');
+    const monthsWrap = document.getElementById('winrateMonthsWrap');
+    if (monthsWrap && !(d.monthly || []).length) monthsWrap.hidden = true;
     winratePanel.hidden = false;
   }
 

@@ -229,6 +229,12 @@ function initCommunityModule() {
         return _forumTitlesPromise;
     }
 
+    /** S3 钻石 / S4 巅峰 这类段位称号 → 段位名 */
+    function seasonTier(title) {
+        var m = /^S\d+\s*(巅峰|大师|钻石|黄金|白银|参战者)$/.exec(title || '');
+        return m ? m[1] : '';
+    }
+
     function forumTitleHtml(authorName, accountName) {
         var info = _forumTitles[authorName] || _forumTitles[accountName];
         if (!info || !info.length) return '';
@@ -236,7 +242,11 @@ function initCommunityModule() {
         var html = '';
         info.forEach(function (t) {
             var r = keys.indexOf(t.rarity) >= 0 ? t.rarity : '紫';
-            html += '<span class="forum-title" data-rarity="' + r + '">' + esc(t.title) + '</span>';
+            var tier = seasonTier(t.title);
+            html += '<span class="forum-title' + (tier ? ' tier-metal' : '') + '" data-rarity="' + r + '"'
+                + (tier ? ' data-tier="' + tier + '"' : '') + '>'
+                + (tier ? '<span class="tier-metal-text">' + esc(t.title) + '</span>' : esc(t.title))
+                + '</span>';
         });
         return html;
     }
@@ -777,59 +787,114 @@ function initCommunityModule() {
         html += '</div>';
         html += '</div>';
 
-        // 评论区
+        // 评论区（楼中楼：顶层评论 + 它下面的回复）
         html += '<div style="border-top:1px solid rgba(255,255,255,0.06);padding-top:14px;">';
         html += '<h3 style="color:#aaa;font-size:0.9rem;margin-bottom:10px;">评论</h3>';
-        if (!replyData.replies || !replyData.replies.length) {
+
+        var replies = (replyData && replyData.replies) || [];
+        var replyById = {};
+        replies.forEach(function (r) { if (r && r.id != null) replyById[parseInt(r.id, 10)] = r; });
+
+        // 顺着 parentId 往上找，直到顶层评论（防环）
+        function rootOfReply(r) {
+            var cur = r, guard = 0;
+            while (cur && parseInt(cur.parentId || 0, 10)
+                && replyById[parseInt(cur.parentId, 10)] && guard < 20) {
+                cur = replyById[parseInt(cur.parentId, 10)];
+                guard++;
+            }
+            return cur;
+        }
+
+        // 三层封顶：帖子 → 楼（顶层评论）→ 楼中回复；回复楼中回复不再加层，改成「@名字 内容」
+        function renderReplyHtml(r, isChild, mention, collapsed) {
+            var h = '<div class="community-reply' + (isChild ? ' cm-child' : '') + '"'
+                + (collapsed ? ' hidden' : '') + ' data-rid="' + r.id + '">';
+            h += avatarImg(r.accountName) + '<span class="cr-author">' + esc(r.authorName) + '</span>'
+                + forumTitleHtml(r.authorName, r.accountName);
+            h += '<span class="cr-time">' + timeAgo(r.createTime) + '</span>';
+            h += '<button class="reply-to-btn" data-rid="' + r.id + '" title="回复这条评论">回复</button>';
+            h += '<button class="reply-like-btn' + (r.liked ? ' active' : '') + '" data-rid="' + r.id + '" title="给这条评论点赞">'
+                + '❤ <span class="rl-count">' + (r.likeCount || 0) + '</span></button>';
+            // 自己的回复显示编辑/删除
+            if (window._communityUsername && window._communityUsername === r.accountName) {
+                h += '<button class="cp-edit-btn edit-reply-btn" data-rid="' + r.id + '" style="font-size:0.65rem;">✏</button>';
+                h += '<button class="cp-edit-btn del-reply-btn" data-rid="' + r.id + '" style="font-size:0.65rem;color:#ff6b6b;">🗑</button>';
+            }
+            h += '<div class="cr-content">';
+            // 回复「楼中回复」时：同层显示，正文前面加 @名字
+            if (mention) h += '<span class="cr-mention">@' + esc(mention) + '</span> ';
+            if (r.contentJson && r.contentJson.length) {
+                r.contentJson.forEach(function (block) {
+                    if (block.type === 'text') {
+                        h += '<span style="white-space:pre-wrap;">' + esc(block.text) + '</span>';
+                    } else if (block.type === 'img') {
+                        h += '<img src="' + EMOJI_URL + esc(block.name) + '.png" style="max-width:72px;max-height:72px;vertical-align:middle;margin:2px;" loading="lazy">';
+                    } else if (block.type === 'deck') {
+                        var total = (block.main || []).length + (block.extra || []).length + (block.side || []).length;
+                        h += '<div class="cp-deck-block" style="background:#111;border:1px solid #2a2a2a;'
+                            + 'border-radius:8px;padding:10px;margin:6px 0;cursor:pointer;font-size:0.82rem;"'
+                            + ' data-deck=\'' + JSON.stringify({ main: block.main, extra: block.extra, side: block.side }).replace(/'/g, "\\'") + '\'>'
+                            + '🃏 卡组 (' + total + '张) — 点击查看详情</div>';
+                    } else if (block.type === 'card') {
+                        var cardInfo = getCardInfoById(block.id);
+                        var cardName = cardInfo ? (cardInfo.name || '') : '';
+                        var replyNameHtml = cardName ? '<span style="color:#F0E68C;font-size:0.72rem;max-width:100px;line-height:1.3;">' + esc(cardName) + '</span>' : '';
+                        var replyPadX = cardName ? '10px' : '4px';
+                        h += '<span class="cp-card-inline" data-card-id="' + block.id + '"'
+                            + ' style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle;margin:2px 4px;'
+                            + 'background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:4px ' + replyPadX + ' 4px 4px;cursor:pointer;">'
+                            + '<img src="' + cardImgSrc(block.id) + '" style="width:36px;height:52px;object-fit:cover;border-radius:3px;"'
+                            + ' onerror="' + cardImgOnError(block.id) + '">'
+                            + replyNameHtml
+                            + '</span> ';
+                    }
+                });
+            } else {
+                h += esc(r.content);
+            }
+            h += '</div></div>';
+            return h;
+        }
+
+        if (!replies.length) {
             html += '<div style="color:#666;font-size:0.82rem;text-align:center;padding:20px;">暂无评论</div>';
         } else {
-            replyData.replies.forEach(function (r) {
-                html += '<div class="community-reply">';
-                html += avatarImg(r.accountName) + '<span class="cr-author">' + esc(r.authorName) + '</span>'
-                    + forumTitleHtml(r.authorName, r.accountName);
-                html += '<span class="cr-time">' + timeAgo(r.createTime) + '</span>';
-                // 自己的回复显示编辑/删除
-                if (window._communityUsername && window._communityUsername === r.accountName) {
-                    html += '<button class="cp-edit-btn edit-reply-btn" data-rid="' + r.id + '" style="font-size:0.65rem;">✏</button>';
-                    html += '<button class="cp-edit-btn del-reply-btn" data-rid="' + r.id + '" style="font-size:0.65rem;color:#ff6b6b;">🗑</button>';
+            var topReplies = [], childrenOf = {};
+            replies.forEach(function (r) {
+                var pid = parseInt(r.parentId || 0, 10);
+                if (!pid || !replyById[pid]) { topReplies.push(r); return; }   // 父评论被删了 → 当顶层显示
+                var root = rootOfReply(r);
+                if (!root || root === r) { topReplies.push(r); return; }
+                var rootId = parseInt(root.id, 10);
+                (childrenOf[rootId] = childrenOf[rootId] || []).push(r);
+            });
+            topReplies.forEach(function (r) {
+                var rootId = parseInt(r.id, 10);
+                html += renderReplyHtml(r, false, '', false);
+                var kids = (childrenOf[rootId] || []).slice();
+                // 楼中楼按赞排序：赞多的在前；只显示前 2 条，其余折叠
+                kids.sort(function (a, b) {
+                    var la = parseInt(a.likeCount || 0, 10), lb = parseInt(b.likeCount || 0, 10);
+                    if (lb !== la) return lb - la;
+                    return parseInt(a.id, 10) - parseInt(b.id, 10);
+                });
+                kids.forEach(function (c, idx) {
+                    // 回复「楼」的直接挂在楼下；回复「楼中回复」的不再缩进，改成 @名字
+                    var parent = replyById[parseInt(c.parentId || 0, 10)] || null;
+                    var mention = (parent && parseInt(parent.id, 10) !== rootId) ? parent.authorName : '';
+                    html += renderReplyHtml(c, true, mention, idx >= 2);
+                });
+                if (kids.length > 2) {
+                    html += '<button type="button" class="cm-more-kids" data-root="' + r.id + '">展开其余 '
+                        + (kids.length - 2) + ' 条回复 ▾</button>';
                 }
-                html += '<div class="cr-content">';
-                // 渲染回复的内容块
-                if (r.contentJson && r.contentJson.length) {
-                    r.contentJson.forEach(function (block) {
-                        if (block.type === 'text') {
-                            html += '<span style="white-space:pre-wrap;">' + esc(block.text) + '</span>';
-                        } else if (block.type === 'img') {
-                            html += '<img src="' + EMOJI_URL + esc(block.name) + '.png" style="max-width:72px;max-height:72px;vertical-align:middle;margin:2px;" loading="lazy">';
-                        } else if (block.type === 'deck') {
-                            var total = (block.main || []).length + (block.extra || []).length + (block.side || []).length;
-                            html += '<div class="cp-deck-block" style="background:#111;border:1px solid #2a2a2a;'
-                                + 'border-radius:8px;padding:10px;margin:6px 0;cursor:pointer;font-size:0.82rem;"'
-                                + ' data-deck=\'' + JSON.stringify({ main: block.main, extra: block.extra, side: block.side }).replace(/'/g, "\\'") + '\'>'
-                                + '🃏 卡组 (' + total + '张) — 点击查看详情</div>';
-                        } else if (block.type === 'card') {
-                            var cardInfo = getCardInfoById(block.id);
-                            var cardName = cardInfo ? (cardInfo.name || '') : '';
-                            var replyNameHtml = cardName ? '<span style="color:#F0E68C;font-size:0.72rem;max-width:100px;line-height:1.3;">' + esc(cardName) + '</span>' : '';
-                            var replyPadX = cardName ? '10px' : '4px';
-                            html += '<span class="cp-card-inline" data-card-id="' + block.id + '"'
-                                + ' style="display:inline-flex;align-items:center;gap:4px;vertical-align:middle;margin:2px 4px;'
-                                + 'background:#111;border:1px solid #2a2a2a;border-radius:6px;padding:4px ' + replyPadX + ' 4px 4px;cursor:pointer;">'
-                                + '<img src="' + cardImgSrc(block.id) + '" style="width:36px;height:52px;object-fit:cover;border-radius:3px;"'
-                                + ' onerror="' + cardImgOnError(block.id) + '">'
-                                + replyNameHtml
-                                + '</span> ';
-                        }
-                    });
-                } else {
-                    html += esc(r.content);
-                }
-                html += '</div></div>';
             });
         }
         html += '</div>';
 
-        // 回复输入
+        // 回复输入（点某条评论的「回复」会在框上方显示 回复 @某人）
+        html += '<div class="cm-reply-target" id="cmReplyTarget" hidden></div>';
         html += '<div style="display:flex;gap:8px;margin-top:8px;">';
         html += '<textarea class="community-input" id="cmReplyInput" placeholder="输入回复... (Ctrl+Enter发送)"'
             + ' style="margin-bottom:0;flex:1;min-height:60px;" rows="2"></textarea>';
@@ -888,13 +953,76 @@ function initCommunityModule() {
         // 回复
         var replyInput = document.getElementById('cmReplyInput');
         var replyBtn = document.getElementById('cmReplyBtn');
+        var replyTargetBox = document.getElementById('cmReplyTarget');
         var _replyDeck = null;
+        var replyTarget = null;   // { id, authorName } —— 楼中楼：正在回复哪条评论
+
+        function setReplyTarget(r) {
+            replyTarget = r ? { id: parseInt(r.id, 10), authorName: r.authorName } : null;
+            if (!replyTargetBox) return;
+            if (!replyTarget) {
+                replyTargetBox.hidden = true;
+                replyTargetBox.innerHTML = '';
+                return;
+            }
+            replyTargetBox.hidden = false;
+            replyTargetBox.innerHTML = '<span>回复 <b>@' + esc(replyTarget.authorName) + '</b></span>'
+                + '<button type="button" id="cmReplyTargetClear" title="取消回复">&times;</button>';
+            var clearBtn = document.getElementById('cmReplyTargetClear');
+            if (clearBtn) clearBtn.addEventListener('click', function () { setReplyTarget(null); });
+            if (replyInput) {
+                replyInput.focus();
+                if (replyInput.scrollIntoView) {
+                    try { replyInput.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+                }
+            }
+        }
+
+        // 每条评论的「回复」→ 把回复目标指向它
+        body.querySelectorAll('.reply-to-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (!requireLogin()) return;
+                var rid = parseInt(btn.getAttribute('data-rid'), 10);
+                var target = replyById[rid];
+                if (target) setReplyTarget(target);
+            });
+        });
+
+        // 给评论点赞（楼中楼按赞排序就靠它）
+        body.querySelectorAll('.reply-like-btn').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                if (!requireLogin()) return;
+                var rid = parseInt(btn.getAttribute('data-rid'), 10);
+                authApi('/api/forum/replies/' + rid + '/like', { method: 'POST' }).then(function (res) {
+                    if (!res) return;
+                    var cnt = btn.querySelector('.rl-count');
+                    if (cnt) cnt.textContent = res.likeCount;
+                    btn.classList.toggle('active', !!res.liked);
+                }).catch(function () {});
+            });
+        });
+
+        // 展开被折叠的楼中楼
+        body.querySelectorAll('.cm-more-kids').forEach(function (btn) {
+            btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                var prev = btn.previousElementSibling;
+                while (prev && prev.classList && prev.classList.contains('cm-child')) {
+                    if (prev.hidden) prev.hidden = false;
+                    prev = prev.previousElementSibling;
+                }
+                btn.remove();
+            });
+        });
 
         function doReply() {
             if (!requireLogin()) return;
             var content = (replyInput.value || '').trim();
             if (!content && !_replyDeck) return;
             var contentJson = buildContentJson(content, _replyDeck);
+            var parentId = replyTarget ? replyTarget.id : 0;
             if (USE_MOCK) {
                 mockReply(post.id, content || '(卡组)', contentJson);
                 replyInput.value = '';
@@ -904,10 +1032,11 @@ function initCommunityModule() {
             }
             authApi('/api/forum/posts/' + post.id + '/replies', {
                 method: 'POST',
-                body: { content: content, contentJson: contentJson },
+                body: { content: content, contentJson: contentJson, parentId: parentId },
             }).then(function () {
                 replyInput.value = '';
                 _replyDeck = null;
+                setReplyTarget(null);
                 loadReplies(post);
             }).catch(function (e) {
                 alert('回复失败: ' + e.message);
@@ -1639,7 +1768,13 @@ function initCommunityModule() {
                 if (td.selectedTitle2) parts.push(td.selectedTitle2);
                 if (!parts.length && td.titles && td.titles.length) parts.push(td.titles[td.titles.length - 1]);
                 box.innerHTML = parts.length
-                    ? parts.map(function (t) { return '<span class="profile-title-chip">' + esc(t) + '</span>'; }).join('')
+                    ? parts.map(function (t) {
+                        var tier = seasonTier(t);
+                        return '<span class="profile-title-chip' + (tier ? ' tier-metal' : '') + '"'
+                            + (tier ? ' data-tier="' + tier + '"' : '') + '>'
+                            + (tier ? '<span class="tier-metal-text">' + esc(t) + '</span>' : esc(t))
+                            + '</span>';
+                    }).join('')
                     : '<span style="color:#888;font-size:12px;">暂无称号</span>';
             }).catch(function () {
                 var box = document.getElementById('profileCardTitle');

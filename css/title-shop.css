@@ -423,6 +423,54 @@
 .forum-title[data-rarity="红"] { color: #FF5F6D; }
 .forum-title[data-rarity="紫"] { color: #C08CFF; }
 
+/* ── 段位称号金属质感（S1/S2… 前缀 + 段位名；参战者纯白） ── */
+.tier-metal[data-tier="巅峰"] {
+    --m1: #FFF6E0; --m2: #FFD27A; --m3: #F08A3C; --m4: #C0392B;
+    --chip-bg: rgba(226, 88, 43, 0.12); --chip-border: rgba(255, 150, 90, 0.55);
+}
+.tier-metal[data-tier="大师"] {
+    --m1: #F7E9FF; --m2: #D6A8FF; --m3: #A05CE0; --m4: #6B2FA8;
+    --chip-bg: rgba(170, 100, 255, 0.12); --chip-border: rgba(190, 130, 255, 0.55);
+}
+.tier-metal[data-tier="钻石"] {
+    --m1: #FFFFFF; --m2: #F2FCFF; --m3: #B8E6FF; --m4: #6FB3E0;
+    --chip-bg: rgba(120, 200, 255, 0.10); --chip-border: rgba(160, 220, 255, 0.60);
+}
+.tier-metal[data-tier="黄金"] {
+    --m1: #FFFCE8; --m2: #FFE9A0; --m3: #E8B93A; --m4: #A87412;
+    --chip-bg: rgba(255, 210, 80, 0.12); --chip-border: rgba(255, 210, 90, 0.55);
+}
+.tier-metal[data-tier="白银"] {
+    --m1: #FFFFFF; --m2: #EDF1F5; --m3: #C2CBD6; --m4: #8A95A3;
+    --chip-bg: rgba(200, 210, 225, 0.10); --chip-border: rgba(200, 210, 225, 0.50);
+}
+.tier-metal[data-tier="参战者"] {
+    --m1: #F4F4F4; --m2: #F4F4F4; --m3: #F4F4F4; --m4: #F4F4F4;
+    --chip-bg: rgba(255, 255, 255, 0.06); --chip-border: rgba(255, 255, 255, 0.35);
+}
+
+.rank-title.tier-metal,
+.tier-metal-text {
+    background-image: linear-gradient(180deg,
+        var(--m1) 0%, #FFFFFF 9%, var(--m2) 24%, var(--m3) 52%, var(--m4) 76%, var(--m2) 92%, #FFFFFF 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+    text-shadow: none;
+    filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.55));
+}
+.rank-title.tier-metal[data-tier="参战者"],
+.tier-metal[data-tier="参战者"] .tier-metal-text {
+    text-shadow: none;
+    filter: none;
+}
+.forum-title.tier-metal,
+.profile-title-chip.tier-metal {
+    border-color: var(--chip-border);
+    background: var(--chip-bg);
+}
+
 /* ── 响应式 ── */
 @media (max-width: 1100px) {
     .ts-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
