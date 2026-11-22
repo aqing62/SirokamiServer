@@ -37,7 +37,7 @@ const SPECIAL_WINS = [
   { type: 0x17, title: '命运的交响曲', cards: [48995978, 6165656], name: 'No.88 机关傀儡-命运狮子' },
   { type: 0x1c, title: '水至天祸',     cards: [97795930], name: '幻煌龙的天涡' },
   { type: 0x1e, title: '小飞象来咯',   cards: [66765023], name: '飞行象' },
-  { type: 0x21, title: '编号的起点与终点', cards: [15862758], name: '混沌虚数No.1000 梦幻虚光神 原数天灵·原数天地' },
+  { type: 0x21, title: '归虚梦演', cards: [15862758], name: '混沌虚数No.1000 梦幻虚光神 原数天灵·原数天地' },
   { type: 0x23, title: '致命五连击',   cards: [64502301], name: '电子龙·集流体' },
   { type: 0x50, title: '完全态',       cards: [49811595], name: '鳞翅帝-内生攻击者' },
 ];
