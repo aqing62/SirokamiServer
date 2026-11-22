@@ -39,7 +39,7 @@ const SPECIAL_WINS = [
   { type: 0x1e, title: '小飞象来咯',   cards: [66765023], name: '飞行象' },
   { type: 0x21, title: '归虚梦演', cards: [15862758], name: '混沌虚数No.1000 梦幻虚光神 原数天灵·原数天地' },
   { type: 0x23, title: '致命五连击',   cards: [64502301], name: '电子龙·集流体' },
-  { type: 0x50, title: '完全态',       cards: [49811595], name: '鳞翅帝-内生攻击者' },
+  { type: 0x50, title: '究极完全态',   cards: [49811595], name: '鳞翅帝-内生攻击者' },
 ];
 const SPECIAL_BY_TYPE = new Map(SPECIAL_WINS.map(x => [x.type, x]));
 
