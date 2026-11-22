@@ -231,7 +231,7 @@ function initCommunityModule() {
 
     /** S3 钻石 / S4 巅峰 这类段位称号 → 段位名 */
     function seasonTier(title) {
-        var m = /^S\d+\s*(巅峰|大师|钻石|黄金|白银|参战者)$/.exec(title || '');
+        var m = /^S\d+\s*(巅峰|大师|钻石|黄金|白银|参战者)(?:\s*牢)?$/.exec(title || '');
         return m ? m[1] : '';
     }
 
